@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pydantic
+pydantic-settings
+psycopg[binary,pool]
+redis
+sentence-transformers
+python-dotenv
+numpy
