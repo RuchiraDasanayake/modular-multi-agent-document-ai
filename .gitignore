@@ -8,3 +8,8 @@ __pycache__/
 
 .venv
 .env
+
+# Ignore all PNG and JSON files in any folder
+*.png
+*.json
+
