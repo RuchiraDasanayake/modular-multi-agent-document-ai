@@ -136,12 +136,49 @@ class MemoryService:
             await self.db.commit()
 
     async def log_feedback(self, advice_id: uuid.UUID, human_corrected: bool):
-        """Log human feedback for an advice record."""
-        query = """
+        """
+        Log human feedback for an advice record.
+        
+        If human_corrected=True, this penalizes the policy by incrementing beta
+        (counting as a failure in the Beta-Bernoulli bandit model).
+        """
+        # Update MTM record
+        mtm_query = """
             UPDATE mtm_outcomes
             SET human_corrected = %s
             WHERE advice_id = %s
         """
+        
         async with self.db.cursor() as cur:
-            await cur.execute(query, (human_corrected, advice_id))
+            await cur.execute(mtm_query, (human_corrected, advice_id))
+            
+            # If human had to correct, penalize the policy in LTM
+            if human_corrected:
+                # Get context and policy from MTM to find the LTM entry
+                fetch_query = """
+                    SELECT document_context, policy_id_used
+                    FROM mtm_outcomes
+                    WHERE advice_id = %s
+                """
+                await cur.execute(fetch_query, (advice_id,))
+                row = await cur.fetchone()
+                
+                if row:
+                    context_dict, policy_id = row
+                    if isinstance(context_dict, str):
+                        context_dict = json.loads(context_dict)
+                    
+                    doc_type = context_dict.get("doc_type", "unknown")
+                    vendor = context_dict.get("vendor")
+                    context_str = self.embedding_service.create_context_string(doc_type, vendor)
+                    context_hash = hashlib.sha256(context_str.encode('utf-8')).hexdigest()
+                    
+                    # Penalize: increment beta (failure count) in bandit model
+                    penalty_query = """
+                        UPDATE ltm_validated_policies
+                        SET beta = beta + 1.0
+                        WHERE context_hash = %s AND policy_id = %s
+                    """
+                    await cur.execute(penalty_query, (context_hash, policy_id))
+            
             await self.db.commit()
