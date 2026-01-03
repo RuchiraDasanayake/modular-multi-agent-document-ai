@@ -1,16 +1,38 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.pyds
-.DS_Store
-.vscode
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
 
-.venv
+# Virtual environments
+venv/
+.venv/
+env/
 .env
 
-# Ignore all PNG and JSON files in any folder
-*.png
-*.json
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
 
+# Generated outputs
+*.png
+*.jpg
+*.jpeg
+simulation_results.json
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+output
