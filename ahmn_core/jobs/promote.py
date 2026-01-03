@@ -4,13 +4,13 @@ import os
 import json
 from collections import defaultdict
 
-# Add parent directory to path to allow imports from app
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.database import DatabasePool
 from app.services.embedding import EmbeddingService
 
 async def promote_strategies():
+    """Promote successful strategies from MTM to LTM based on performance metrics."""
     print("Starting promotion job...")
     
     pool = await DatabasePool.get_pool()
@@ -18,9 +18,6 @@ async def promote_strategies():
 
     async with pool.connection() as conn:
         async with conn.cursor() as cur:
-            # 1. Fetch successful outcomes from MTM
-            # We are looking for patterns: same context -> same policy -> good result
-            # This is a simplified aggregation. In production, you might use more complex SQL.
             query = """
                 SELECT 
                     document_context,
@@ -41,9 +38,6 @@ async def promote_strategies():
             for row in rows:
                 doc_context_json, policy_id, count, avg_f1 = row
                 
-                # Parse context to generate embedding
-                # doc_context_json is a dict (because psycopg converts JSONB to dict automatically)
-                # or a string depending on driver config. Let's assume dict or parse it.
                 if isinstance(doc_context_json, str):
                     context_dict = json.loads(doc_context_json)
                 else:
@@ -52,17 +46,12 @@ async def promote_strategies():
                 doc_type = context_dict.get("doc_type", "unknown")
                 vendor = context_dict.get("vendor")
                 
-                # Generate embedding for the context
                 context_str = embedding_service.create_context_string(doc_type, vendor)
                 vector = embedding_service.generate_embedding(context_str)
                 
-                # Create a unique hash for the context to prevent duplicates
-                # Use hashlib for stable hashing across runs
                 import hashlib
                 context_hash = hashlib.sha256(context_str.encode('utf-8')).hexdigest()
 
-                # Upsert into LTM
-                # We update the metrics if it already exists
                 upsert_query = """
                     INSERT INTO ltm_validated_policies 
                     (context_hash, context_embedding, policy_id, policy_data, validation_metrics, last_promoted_at)
@@ -70,6 +59,7 @@ async def promote_strategies():
                     ON CONFLICT (context_hash) 
                     DO UPDATE SET
                         validation_metrics = EXCLUDED.validation_metrics,
+                        confidence_score = 1.0,
                         last_promoted_at = NOW();
                 """
                 
@@ -90,4 +80,7 @@ async def promote_strategies():
     await DatabasePool.close_pool()
 
 if __name__ == "__main__":
+    # Fix for Windows: psycopg async requires SelectorEventLoop
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(promote_strategies())

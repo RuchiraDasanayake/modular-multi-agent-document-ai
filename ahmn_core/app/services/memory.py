@@ -1,5 +1,7 @@
 import json
 import uuid
+import random
+import hashlib
 from typing import Optional, Tuple
 from psycopg import AsyncConnection
 from redis.asyncio import Redis
@@ -13,25 +15,18 @@ class MemoryService:
         self.embedding_service = EmbeddingService()
 
     async def get_advice(self, context: DocumentContext) -> PolicyResponse:
-        # 1. Create context string and embedding
+        """Retrieve policy advice based on document context using Thompson Sampling."""
         context_str = self.embedding_service.create_context_string(
             context.doc_type, context.vendor
         )
         vector = self.embedding_service.generate_embedding(context_str)
         
-        # 2. Search LTM (Postgres)
-        # Using <=> operator for cosine distance (requires pgvector)
-        # We select the closest match if distance is small enough (e.g., < 0.2)
         query = """
-            SELECT policy_id, policy_data
+            SELECT policy_id, policy_data, alpha, beta, context_hash
             FROM ltm_validated_policies
             ORDER BY context_embedding <=> %s::vector
-            LIMIT 1;
+            LIMIT 5;
         """
-        
-        # Note: In a real app, we'd want a threshold check here.
-        # For now, we'll just take the top result if it exists.
-        # To implement threshold: SELECT ... WHERE (embedding <=> %s) < 0.2 ...
         
         policy_id = "default_policy"
         policy_data = {"action": "standard_processing"}
@@ -39,21 +34,35 @@ class MemoryService:
 
         async with self.db.cursor() as cur:
             await cur.execute(query, (vector,))
-            row = await cur.fetchone()
-            if row:
-                policy_id, policy_data = row
-                source = "LTM"
+            rows = await cur.fetchall()
+            
+            if rows:
+                best_sample = -1.0
+                selected_row = None
+                
+                for row in rows:
+                    p_id, p_data, alpha, beta, c_hash = row
+                    sample = random.betavariate(alpha, beta)
+                    
+                    if sample > best_sample:
+                        best_sample = sample
+                        selected_row = row
+                
+                if selected_row:
+                    policy_id, policy_data, _, _, _ = selected_row
+                    source = "LTM"
 
-        # 3. Generate Advice ID
         advice_id = uuid.uuid4()
-
-        # 4. Cache in Redis (STM) for 30 mins
-        # We store the original context so we can log it later
+        redis_data = {
+            "context": context.model_dump(),
+            "source_hash": selected_row[4] if selected_row and len(selected_row) > 4 else None
+        }
+        
         redis_key = f"advice:{advice_id}"
         await self.redis.setex(
             redis_key,
-            1800, # 30 minutes
-            context.model_dump_json()
+            1800,
+            json.dumps(redis_data)
         )
 
         return PolicyResponse(
@@ -64,38 +73,70 @@ class MemoryService:
         )
 
     async def log_outcome(self, advice_id: uuid.UUID, policy_id_used: str, metrics: OutcomeMetrics):
-        # 1. Fetch original context from Redis
+        """Log outcome to MTM and update LTM bandit parameters."""
         redis_key = f"advice:{advice_id}"
-        context_json = await self.redis.get(redis_key)
+        redis_data_json = await self.redis.get(redis_key)
         
-        if not context_json:
-            # Handle case where STM expired or missing
-            # In production, might want to log an error or handle gracefully
-            # For now, we'll assume context is lost but still log what we can or skip
-            # Let's skip to avoid inserting bad data
+        if not redis_data_json:
             print(f"Warning: Context for advice_id {advice_id} not found in STM.")
             return
 
-        # 2. Insert into MTM (Postgres)
-        query = """
+        redis_data = json.loads(redis_data_json)
+        context_dict = redis_data.get("context")
+        source_hash = redis_data.get("source_hash")
+        
+        mtm_query = """
             INSERT INTO mtm_outcomes 
             (advice_id, policy_id_used, document_context, outcome_metrics)
             VALUES (%s, %s, %s::jsonb, %s::jsonb)
         """
+
+        if source_hash:
+            target_hash = source_hash
+        else:
+            doc_type = context_dict.get("doc_type", "unknown")
+            vendor = context_dict.get("vendor")
+            context_str = self.embedding_service.create_context_string(doc_type, vendor)
+            target_hash = hashlib.sha256(context_str.encode('utf-8')).hexdigest()
+        
+        reward = metrics.f1_score
+        reward = max(0.0, min(1.0, reward))
+        
+        ltm_update_query = """
+            UPDATE ltm_validated_policies
+            SET 
+                alpha = alpha + %s,
+                beta = beta + (1 - %s),
+                confidence_score = 1.0,
+                last_promoted_at = NOW()
+            WHERE context_hash = %s AND policy_id = %s
+        """
         
         async with self.db.cursor() as cur:
             await cur.execute(
-                query,
+                mtm_query,
                 (
                     advice_id,
                     policy_id_used,
-                    context_json, # It's already a JSON string from Redis
+                    json.dumps(context_dict),
                     metrics.model_dump_json()
                 )
             )
+
+            await cur.execute(
+                ltm_update_query,
+                (
+                    reward,
+                    reward,
+                    target_hash,
+                    policy_id_used
+                )
+            )
+
             await self.db.commit()
 
     async def log_feedback(self, advice_id: uuid.UUID, human_corrected: bool):
+        """Log human feedback for an advice record."""
         query = """
             UPDATE mtm_outcomes
             SET human_corrected = %s

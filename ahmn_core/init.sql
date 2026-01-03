@@ -20,5 +20,8 @@ CREATE TABLE IF NOT EXISTS ltm_validated_policies (
     policy_id TEXT NOT NULL,
     policy_data JSONB NOT NULL,
     validation_metrics JSONB NOT NULL,
+    alpha FLOAT DEFAULT 1.0,
+    beta FLOAT DEFAULT 1.0,
+    confidence_score FLOAT DEFAULT 1.0,
     last_promoted_at TIMESTAMPTZ DEFAULT NOW()
 );
