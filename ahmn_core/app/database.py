@@ -4,7 +4,6 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 from .config import settings
 
-# Redis Client
 redis_client = redis.Redis(
     host=settings.REDIS_HOST,
     port=settings.REDIS_PORT,
@@ -12,7 +11,6 @@ redis_client = redis.Redis(
     decode_responses=True
 )
 
-# Postgres Connection Pool
 class DatabasePool:
     _pool: AsyncConnectionPool = None # type: ignore
 

@@ -5,7 +5,6 @@ from uuid import UUID
 class DocumentContext(BaseModel):
     doc_type: str
     vendor: Optional[str] = None
-    # Allow other arbitrary fields for context
     extra_context: Dict[str, Any] = Field(default_factory=dict)
 
 class OutcomeMetrics(BaseModel):
