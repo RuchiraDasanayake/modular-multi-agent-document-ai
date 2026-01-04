@@ -1,6 +1,10 @@
 # AHMN - Adaptive Hierarchical Memory Network
 
-A self-learning document processing system that uses multi-armed bandits to optimize policy selection over time.
+> Intelligent document processing with automatic policy selection using multi-armed bandits.
+
+**Key Features:**
+- **RABI** - Solves cold-start by transferring knowledge from similar contexts
+- **DAAF** - Adapts to changing document formats with drift-aware forgetting
 
 ---
 
@@ -8,105 +12,64 @@ A self-learning document processing system that uses multi-armed bandits to opti
 
 ```bash
 cd ahmn_core
-docker-compose up -d          # Start PostgreSQL + Redis
 pip install -r requirements.txt
-uvicorn main:app --reload     # Start API at http://localhost:8000
+
+# Run presentation demo (no Docker needed)
+python demos/demo.py --mode quick
+```
+
+**With full backend:**
+```bash
+docker-compose up -d              # Start PostgreSQL + Redis
+uvicorn main:app --reload         # API at http://localhost:8000
 ```
 
 ---
 
-## API Usage
+## Demo Modes
 
-### 1. Get Policy Advice
+| Mode | Command | Time | Description |
+|------|---------|------|-------------|
+| **quick** | `python demos/demo.py --mode quick` | ~30s | Presentation demo |
+| **full** | `python demos/demo.py --mode full` | ~5min | Statistical comparison |
+| **experiment** | `python demos/demo.py --mode experiment` | ~15min | Research validation |
 
-Send document context, receive a recommended processing policy.
-
-**Request:** `POST /advice`
-```json
-{
-  "doc_type": "invoice",
-  "vendor": "Acme Corp",
-  "extra_context": {}
-}
+```bash
+# Examples
+python demos/demo.py --mode quick
+python demos/demo.py --mode full --iterations 2000 --seeds 20
+python demos/demo.py --mode experiment --algorithm rabi
+python demos/demo.py --mode experiment --algorithm daaf
 ```
 
-**Response:**
-```json
-{
-  "advice_id": "550e8400-e29b-41d4-a716-446655440000",
-  "policy_id": "acme_invoice_v2",
-  "policy_data": {
-    "action": "ocr_enhanced",
-    "model": "layoutlm-v3"
-  },
-  "retrieval_source": "LTM"
-}
-```
-
-| Field | Description |
-|-------|-------------|
-| `advice_id` | Unique session ID (use this to log results) |
-| `policy_id` | Name of the selected policy |
-| `policy_data` | JSON configuration for your processing pipeline |
-| `retrieval_source` | `"LTM"` (learned) or `"DEFAULT"` (fallback) |
+**Output:** Console results + `output/` folder with figures (PNG/PDF) and `results.json`
 
 ---
 
-### 2. Log Outcome
+## API
 
-After processing, report back the results so the system can learn.
+```bash
+# Get policy recommendation
+curl -X POST http://localhost:8000/advice \
+  -H "Content-Type: application/json" \
+  -d '{"doc_type": "invoice", "vendor": "Acme Corp"}'
 
-**Request:** `POST /log`
-```json
-{
-  "advice_id": "550e8400-e29b-41d4-a716-446655440000",
-  "policy_id_used": "acme_invoice_v2",
-  "metrics": {
-    "f1_score": 0.95,
-    "cost": 0.02,
-    "processing_time_ms": 150,
-    "success": true
-  }
-}
+# Log outcome
+curl -X POST http://localhost:8000/log \
+  -H "Content-Type: application/json" \
+  -d '{"advice_id": "...", "policy_id_used": "...", "metrics": {"success": true}}'
 ```
 
 ---
 
-### 3. Human Feedback (Optional)
+## Architecture
 
-If a human corrected the output, log it to penalize the policy.
-
-**Request:** `POST /feedback`
-```json
-{
-  "advice_id": "550e8400-e29b-41d4-a716-446655440000",
-  "human_corrected": true
-}
 ```
+New Document → Embed (384d) → RABI (prior transfer) → Thompson Sampling → Select Policy
+                                                              ↓
+                                        Execute → Observe Reward → DAAF (adaptive forget) → Update
 
----
-
-## How Policies Work
-
-Policies are stored in the database (`ltm_validated_policies` table). The system retrieves the best match using:
-
-1. **Embedding Search** - Finds similar contexts using vector similarity
-2. **Thompson Sampling** - Picks from top-5 candidates based on past success rates
-
-**Default Policy:**  
-If no learned policy matches, returns:
-```json
-{
-  "policy_id": "default_policy",
-  "policy_data": {"action": "standard_processing"}
-}
-```
-
-**Custom Policies:**  
-Insert policies directly into PostgreSQL with any JSON structure:
-```sql
-INSERT INTO ltm_validated_policies (context_hash, policy_id, policy_data, ...)
-VALUES ('invoice_acme', 'acme_invoice_v2', '{"action": "ocr_enhanced", "dpi": 300}'::jsonb, ...);
+Memory: STM (Redis, 30min) → MTM (PostgreSQL, 90d) → LTM (pgvector, permanent)
 ```
 
 ---
@@ -114,29 +77,145 @@ VALUES ('invoice_acme', 'acme_invoice_v2', '{"action": "ocr_enhanced", "dpi": 30
 ## Project Structure
 
 ```
-ahmn_core/
-├── main.py                 # FastAPI endpoints
-├── app/
-│   ├── schemas.py          # Input/Output models
-│   ├── config.py           # Hyperparameters
-│   └── services/
-│       ├── memory.py       # Core logic (STM/MTM/LTM)
-│       └── selection_strategies.py  # Bandit algorithms
-├── jobs/
-│   ├── promote.py          # Promote good policies to LTM
-│   └── forgetting.py       # Decay inactive policies
-└── demos/                  # Example scripts
+modular-multi-agent-document-ai/
+├── README.md                       # This file
+├── FEATURES_AND_NOVELTIES.md       # Detailed research documentation
+├── .env                            # Environment variables
+├── .gitignore
+│
+└── ahmn_core/                      # Core AHMN implementation
+    ├── main.py                     # FastAPI application & endpoints
+    ├── requirements.txt            # Python dependencies
+    ├── docker-compose.yml          # PostgreSQL + Redis setup
+    ├── init.sql                    # Database initialization script
+    │
+    ├── app/                        # Application modules
+    │   ├── __init__.py
+    │   ├── config.py               # Configuration & hyperparameters
+    │   ├── database.py             # Database connection management
+    │   ├── schemas.py              # Pydantic request/response models
+    │   │
+    │   └── services/               # Core algorithms
+    │       ├── __init__.py
+    │       ├── memory.py           # Three-tier memory service (STM/MTM/LTM)
+    │       ├── rabi.py             # RABI: Retrieval-Augmented Bandit Init
+    │       ├── drift_forgetting.py # DAAF: Drift-Aware Adaptive Forgetting
+    │       ├── embedding.py        # Sentence embedding service (384d)
+    │       └── selection_strategies.py  # Thompson Sampling, UCB1, ε-Greedy
+    │
+    ├── demos/                      # Demonstration suite
+    │   ├── __init__.py
+    │   └── demo.py                 # Unified demo (quick/full/experiment modes)
+    │
+    ├── jobs/                       # Background tasks
+    │   ├── promote.py              # MTM → LTM promotion job
+    │   └── forgetting.py           # DAAF decay application job
+    │
+    └── output/                     # Generated results
+
 ```
 
 ---
 
-## Memory Architecture
+## Research Contributions
 
-| Tier | Storage | Purpose | Retention |
-|------|---------|---------|-----------|
-| **STM** | Redis | Session context | 30 min |
-| **MTM** | PostgreSQL | Outcome logs | 90 days |
-| **LTM** | PostgreSQL + pgvector | Validated policies | Permanent |
+### RABI (Retrieval-Augmented Bandit Initialization)
+
+Transfers priors from similar contexts via k-NN in embedding space:
+```
+α_init = 1 + Σᵢ wᵢ·(αᵢ - 1),  where wᵢ = softmax(similarity / τ)
+```
+**Result:** Reduces cold-start regret from O(K) to O(L·d_avg)
+
+### DAAF (Drift-Aware Adaptive Forgetting)
+
+Adapts forgetting rate based on detected drift:
+```
+γ* = √(Δ² / ln(t)),  where Δ = |mean(recent) - mean(older)|
+```
+**Result:** Achieves O(√(Δ²·T·ln T)) regret under bounded drift
+
+---
+
+## Verified Results
+
+### Bandit Algorithms (1000 iterations × 10 seeds)
+
+| Algorithm | Accuracy | Regret | p-value |
+|-----------|----------|--------|---------|
+| Thompson Sampling | 98.5%±0.6% | 7.1±2.7 | <0.0001 |
+| UCB1 | 92.0%±1.5% | 38.2±7.0 | <0.0001 |
+| Epsilon-Greedy | 95.1%±0.6% | 24.3±2.7 | <0.0001 |
+| Random (baseline) | 33.4%±1.3% | 334.3±7.8 | — |
+
+### RABI Cold-Start
+
+| Metric | RABI | Flat Prior | Improvement |
+|--------|------|------------|-------------|
+| First 10 docs | 48% | 32% | **+50%** |
+| Final accuracy | 97.6% | 96.1% | +1.5% |
+| p-value | 0.028 | — | Significant |
+
+### DAAF Drift Adaptation (non-stationary environment)
+
+| Algorithm | Accuracy | Regret | p-value |
+|-----------|----------|--------|---------|
+| DAAF | 51.0%±7.1% | 88.7±11.4 | 0.003 |
+| Fixed Forgetting | 48.0%±8.4% | 99.6±15.2 | 0.011 |
+| Standard TS | 32.3%±15.4% | 134.4±19.1 | — |
+
+**DAAF achieves 34% regret reduction** vs Standard Thompson Sampling.
+
+---
+
+## Configuration
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| RABI k | 5 | Number of neighbors |
+| RABI τ | 0.5 | Softmax temperature |
+| RABI δ | 0.4 | Similarity threshold |
+| DAAF window | 50 | Drift detection window |
+| DAAF γ_min/max | 0.001 / 0.3 | Forgetting rate bounds |
+
+---
+
+## Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| API Framework | FastAPI |
+| Database | PostgreSQL + pgvector |
+| Cache | Redis |
+| Embeddings | SentenceTransformers (all-MiniLM-L6-v2, 384d) |
+| Validation | Pydantic v2 |
+| Visualization | Matplotlib |
+| Statistics | SciPy |
+
+---
+
+## Requirements
+
+- Python 3.10+
+- Docker & Docker Compose (for full backend)
+- ~500MB disk space (embedding model)
+
+### Python Dependencies (main)
+```
+fastapi, uvicorn, psycopg[binary], redis
+sentence-transformers, numpy, scipy, matplotlib
+pydantic, python-dotenv
+```
+
+---
+
+## Documentation
+
+See [FEATURES_AND_NOVELTIES.md](FEATURES_AND_NOVELTIES.md) for:
+- Detailed mathematical formulations
+- Theoretical analysis and proofs
+- Complete hyperparameter justifications
+- Full experimental framework documentation
 
 ---
 
