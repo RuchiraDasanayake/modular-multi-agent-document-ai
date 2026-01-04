@@ -13,6 +13,7 @@ class MemoryService:
         self.db = db
         self.redis = redis
         self.embedding_service = EmbeddingService()
+        self.similarity_threshold = 0.3  # Cosine distance threshold (lower = more similar)
 
     async def get_advice(self, context: DocumentContext) -> PolicyResponse:
         """Retrieve policy advice based on document context using Thompson Sampling."""
@@ -21,10 +22,14 @@ class MemoryService:
         )
         vector = self.embedding_service.generate_embedding(context_str)
         
+        # Query with similarity threshold - only return policies that are actually similar
+        # The <=> operator returns cosine distance (0 = identical, 2 = opposite)
         query = """
-            SELECT policy_id, policy_data, alpha, beta, context_hash
+            SELECT policy_id, policy_data, alpha, beta, context_hash,
+                   (context_embedding <=> %s::vector) as distance
             FROM ltm_validated_policies
-            ORDER BY context_embedding <=> %s::vector
+            WHERE (context_embedding <=> %s::vector) < %s
+            ORDER BY distance
             LIMIT 5;
         """
         
@@ -33,7 +38,7 @@ class MemoryService:
         source = "DEFAULT"
 
         async with self.db.cursor() as cur:
-            await cur.execute(query, (vector,))
+            await cur.execute(query, (vector, vector, self.similarity_threshold))
             rows = await cur.fetchall()
             
             if rows:
@@ -41,15 +46,17 @@ class MemoryService:
                 selected_row = None
                 
                 for row in rows:
-                    p_id, p_data, alpha, beta, c_hash = row
-                    sample = random.betavariate(alpha, beta)
+                    p_id, p_data, alpha, beta, c_hash, distance = row
+                    # Weight the Thompson sample by similarity (closer = stronger weight)
+                    similarity_weight = 1.0 - (distance / self.similarity_threshold)
+                    sample = random.betavariate(alpha, beta) * (0.5 + 0.5 * similarity_weight)
                     
                     if sample > best_sample:
                         best_sample = sample
                         selected_row = row
                 
                 if selected_row:
-                    policy_id, policy_data, _, _, _ = selected_row
+                    policy_id, policy_data, _, _, _, _ = selected_row
                     source = "LTM"
 
         advice_id = uuid.uuid4()
