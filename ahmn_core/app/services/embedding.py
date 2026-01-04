@@ -24,8 +24,15 @@ class EmbeddingService:
         return embedding.tolist()
 
     def create_context_string(self, doc_type: str, vendor: str | None) -> str:
-        """Create a context string from document type and vendor."""
-        parts = [f"type:{doc_type}"]
+        """Create a descriptive context string for better embedding differentiation."""
+        # More descriptive context for better semantic separation
+        context_parts = [
+            f"Document type: {doc_type}",
+            f"Processing {doc_type} documents",
+        ]
         if vendor:
-            parts.append(f"vendor:{vendor}")
-        return " ".join(parts)
+            context_parts.append(f"Vendor: {vendor}")
+            context_parts.append(f"Source organization: {vendor}")
+            context_parts.append(f"Documents from {vendor} company")
+        
+        return ". ".join(context_parts)
