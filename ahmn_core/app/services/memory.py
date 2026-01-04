@@ -2,58 +2,125 @@ import json
 import uuid
 import random
 import hashlib
-from typing import Optional, Tuple
+import numpy as np
+from typing import Optional, Tuple, List
 from psycopg import AsyncConnection
 from redis.asyncio import Redis
 from ..schemas import DocumentContext, PolicyResponse, OutcomeMetrics
 from .embedding import EmbeddingService
+from .rabi import RABIInitializer, NeighborInfo, create_rabi_for_production
+
 
 class MemoryService:
-    def __init__(self, db: AsyncConnection, redis: Redis):
+    """
+    Memory service with RABI (Retrieval-Augmented Bandit Initialization).
+    
+    Supports two modes:
+    - use_rabi=True: Uses RABI for zero-shot initialization of new contexts
+    - use_rabi=False: Standard Thompson Sampling with flat priors
+    """
+    
+    def __init__(self, db: AsyncConnection, redis: Redis, use_rabi: bool = True):
         self.db = db
         self.redis = redis
         self.embedding_service = EmbeddingService()
-        self.similarity_threshold = 0.3  # Cosine distance threshold (lower = more similar)
+        self.use_rabi = use_rabi
+        
+        # Initialize RABI with production-ready defaults
+        if use_rabi:
+            self.rabi = create_rabi_for_production(
+                k=5,
+                similarity_threshold=0.4,
+                temperature=0.5
+            )
+        else:
+            self.rabi = None
 
     async def get_advice(self, context: DocumentContext) -> PolicyResponse:
-        """Retrieve policy advice based on document context using Thompson Sampling."""
+        """
+        Retrieve policy advice based on document context.
+        
+        If RABI is enabled:
+            1. Find k-nearest neighbors in LTM
+            2. Initialize prior using similarity-weighted posteriors
+            3. Use Thompson Sampling with informed prior
+        
+        If RABI is disabled:
+            Standard Thompson Sampling with flat priors
+        """
         context_str = self.embedding_service.create_context_string(
             context.doc_type, context.vendor
         )
         vector = self.embedding_service.generate_embedding(context_str)
         
-        # Query with similarity threshold - only return policies that are actually similar
-        # The <=> operator returns cosine distance (0 = identical, 2 = opposite)
+        # Query for similar contexts (neighbors for RABI)
         query = """
             SELECT policy_id, policy_data, alpha, beta, context_hash,
-                   (context_embedding <=> %s::vector) as distance
+                   1 - (context_embedding <=> %s::vector) as similarity
             FROM ltm_validated_policies
-            WHERE (context_embedding <=> %s::vector) < %s
-            ORDER BY distance
-            LIMIT 5;
+            ORDER BY context_embedding <=> %s::vector
+            LIMIT %s;
         """
         
         policy_id = "default_policy"
         policy_data = {"action": "standard_processing"}
         source = "DEFAULT"
+        rabi_metadata = None
 
         async with self.db.cursor() as cur:
-            await cur.execute(query, (vector, vector, self.similarity_threshold))
+            k = self.rabi.k if self.rabi else 5
+            await cur.execute(query, (vector, vector, k))
             rows = await cur.fetchall()
             
             if rows:
-                best_sample = -1.0
-                selected_row = None
-                
-                for row in rows:
-                    p_id, p_data, alpha, beta, c_hash, distance = row
-                    # Weight the Thompson sample by similarity (closer = stronger weight)
-                    similarity_weight = 1.0 - (distance / self.similarity_threshold)
-                    sample = random.betavariate(alpha, beta) * (0.5 + 0.5 * similarity_weight)
+                if self.use_rabi and self.rabi:
+                    # RABI: Build neighbors and initialize prior
+                    neighbors = self._build_neighbors(rows)
+                    prior = self.rabi.initialize_prior(neighbors)
                     
-                    if sample > best_sample:
-                        best_sample = sample
-                        selected_row = row
+                    # Store RABI metadata for analysis
+                    rabi_metadata = {
+                        "rabi_enabled": True,
+                        "n_neighbors": prior.n_neighbors,
+                        "avg_similarity": prior.avg_similarity,
+                        "confidence": prior.confidence,
+                        "initialized_alpha": prior.alpha,
+                        "initialized_beta": prior.beta,
+                        "expected_reward": self.rabi.get_expected_reward(prior)
+                    }
+                    
+                    # Thompson Sampling with RABI-initialized prior
+                    best_sample = -1.0
+                    selected_row = None
+                    
+                    for row in rows:
+                        p_id, p_data, alpha, beta, c_hash, sim = row
+                        
+                        # Use RABI prior for sampling (transferred knowledge)
+                        # Blend RABI prior with individual arm's posterior
+                        blended_alpha = prior.alpha + (alpha - 1) * sim
+                        blended_beta = prior.beta + (beta - 1) * sim
+                        
+                        sample = random.betavariate(
+                            max(0.1, blended_alpha),
+                            max(0.1, blended_beta)
+                        )
+                        
+                        if sample > best_sample:
+                            best_sample = sample
+                            selected_row = row
+                else:
+                    # Standard Thompson Sampling (no RABI)
+                    best_sample = -1.0
+                    selected_row = None
+                    
+                    for row in rows:
+                        p_id, p_data, alpha, beta, c_hash, sim = row
+                        sample = random.betavariate(alpha, beta)
+                        
+                        if sample > best_sample:
+                            best_sample = sample
+                            selected_row = row
                 
                 if selected_row:
                     policy_id, policy_data, _, _, _, _ = selected_row
@@ -62,7 +129,8 @@ class MemoryService:
         advice_id = uuid.uuid4()
         redis_data = {
             "context": context.model_dump(),
-            "source_hash": selected_row[4] if selected_row and len(selected_row) > 4 else None
+            "source_hash": selected_row[4] if selected_row and len(selected_row) > 4 else None,
+            "rabi_metadata": rabi_metadata  # Store RABI info for analysis
         }
         
         redis_key = f"advice:{advice_id}"
@@ -78,6 +146,21 @@ class MemoryService:
             policy_data=policy_data,
             retrieval_source=source
         )
+
+    def _build_neighbors(self, rows: List) -> List[NeighborInfo]:
+        """Build NeighborInfo list from database rows for RABI."""
+        neighbors = []
+        for row in rows:
+            p_id, p_data, alpha, beta, c_hash, similarity = row
+            neighbors.append(NeighborInfo(
+                context_hash=c_hash,
+                policy_id=p_id,
+                alpha=alpha,
+                beta=beta,
+                similarity=similarity,
+                n_samples=int(alpha + beta - 2)  # Exclude prior
+            ))
+        return neighbors
 
     async def log_outcome(self, advice_id: uuid.UUID, policy_id_used: str, metrics: OutcomeMetrics):
         """Log outcome to MTM and update LTM bandit parameters."""
