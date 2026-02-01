@@ -1,52 +1,114 @@
 # AHMN - Adaptive Hierarchical Memory Network
 
-> Intelligent document processing with automatic policy selection using multi-armed bandits.
+> A production-ready system for intelligent document processing policy selection using contextual bandits and transfer learning.
 
-**Key Features:**
-- **RABI** - Solves cold-start by transferring knowledge from similar contexts
-- **DAAF** - Adapts to changing document formats with drift-aware forgetting
+---
+
+## Overview
+
+AHMN applies **Thompson Sampling** with two practical enhancements for adaptive document processing:
+
+- **🚀 RABI**: Accelerates cold-start by transferring knowledge from similar contexts
+- **🔄 DAAF**: Adapts to changing document formats with automatic forgetting rate tuning
+
+**Key Results:**
+- Faster cold-start convergence with statistically significant improvement
+- Better adaptation in non-stationary environments
+- Production-ready with sub-millisecond latency
+
+---
+
+## The Problem
+
+Traditional multi-armed bandits face two critical challenges in production:
+
+### 1. Cold-Start Problem
+When encountering new document types, standard bandits start from scratch, requiring many exploration trials before finding optimal settings.
+
+### 2. Drift Blindness
+Document formats change over time. Fixed forgetting rates either adapt too slowly or forget too quickly.
+
+---
+
+## Our Approach
+
+### RABI: Transfer Learning for Cold-Start
+
+**Core Idea:** Similar document contexts likely need similar processing strategies.
+
+**How it works:**
+1. Embed new context into semantic vector space (384 dimensions)
+2. Find k-nearest historical contexts by cosine similarity
+3. Transfer their learned priors using weighted average
+4. Initialize Thompson Sampling with informed prior instead of uniform
+
+**What's new:** Application to document processing with empirical validation of cold-start improvement.
+
+---
+
+### DAAF: Adaptive Forgetting
+
+**Core Idea:** Tune forgetting rate based on detected drift magnitude.
+
+**How it works:**
+1. Compare recent rewards vs. older rewards to estimate drift
+2. Compute adaptive forgetting rate: higher drift → faster forgetting
+3. Apply exponential decay to bandit parameters
+4. Automatically balance retention vs. adaptation
+
+**What's new:** Automatic forgetting rate tuning from drift estimation, with empirical validation.
+
+---
+
+### Three-Tier Memory
+
+| Tier | Storage | Purpose |
+|------|---------|---------|
+| **STM** | Redis | Active session cache (fast) |
+| **MTM** | PostgreSQL | Raw interaction logs (staging) |
+| **LTM** | pgvector | Validated policies with embeddings (permanent) |
 
 ---
 
 ## Quick Start
 
 ```bash
+# Minimal demo (no Docker needed)
 cd ahmn_core
 pip install -r requirements.txt
-
-# Run presentation demo (no Docker needed)
 python demos/demo.py --mode quick
-```
 
-**With full backend:**
-```bash
-docker-compose up -d              # Start PostgreSQL + Redis
-uvicorn main:app --reload         # API at http://localhost:8000
+# Full system with database
+docker-compose up -d
+uvicorn main:app --reload
 ```
 
 ---
 
 ## Demo Modes
 
-| Mode | Command | Time | Description |
-|------|---------|------|-------------|
-| **quick** | `python demos/demo.py --mode quick` | ~30s | Presentation demo |
-| **full** | `python demos/demo.py --mode full` | ~5min | Statistical comparison |
-| **experiment** | `python demos/demo.py --mode experiment` | ~15min | Research validation |
+Run experiments with proper statistical validation:
 
 ```bash
-# Examples
+# Quick presentation demo (~30 seconds)
 python demos/demo.py --mode quick
-python demos/demo.py --mode full --iterations 2000 --seeds 20
+
+# Full comparison with confidence intervals (~5 minutes)
+python demos/demo.py --mode full
+
+# Research validation with p-values (~15 minutes)
+python demos/demo.py --mode experiment
+
+# Test specific algorithms
 python demos/demo.py --mode experiment --algorithm rabi
 python demos/demo.py --mode experiment --algorithm daaf
 ```
 
-**Output:** Console results + `output/` folder with figures (PNG/PDF) and `results.json`
+**Output:** Console results + figures in `output/` folder + `results.json` with detailed statistics.
 
 ---
 
-## API
+## API Endpoints
 
 ```bash
 # Get policy recommendation
@@ -54,129 +116,38 @@ curl -X POST http://localhost:8000/advice \
   -H "Content-Type: application/json" \
   -d '{"doc_type": "invoice", "vendor": "Acme Corp"}'
 
-# Log outcome
+# Log processing outcome
 curl -X POST http://localhost:8000/log \
   -H "Content-Type: application/json" \
-  -d '{"advice_id": "...", "policy_id_used": "...", "metrics": {"success": true}}'
+  -d '{"advice_id": "...", "policy_id_used": "...", "metrics": {"f1_score": 0.95}}'
+
+# Submit human correction
+curl -X POST http://localhost:8000/feedback \
+  -H "Content-Type: application/json" \
+  -d '{"advice_id": "...", "human_corrected": true}'
 ```
 
 ---
 
-## Architecture
+## Key Features
 
-```
-New Document → Embed (384d) → RABI (prior transfer) → Thompson Sampling → Select Policy
-                                                              ↓
-                                        Execute → Observe Reward → DAAF (adaptive forget) → Update
+### Statistically Validated
+- Multiple independent runs with different random seeds
+- 95% confidence intervals for all metrics
+- Welch's t-test for significance testing
+- Cohen's d for effect size measurement
 
-Memory: STM (Redis, 30min) → MTM (PostgreSQL, 90d) → LTM (pgvector, permanent)
-```
+### Production-Ready
+- Async database operations (psycopg3)
+- Redis caching for sub-millisecond responses
+- Proper error handling and logging
+- Docker Compose setup for easy deployment
+- Pydantic validation for all API requests
 
----
-
-## Project Structure
-
-```
-modular-multi-agent-document-ai/
-├── README.md                       # This file
-├── FEATURES_AND_NOVELTIES.md       # Detailed research documentation
-├── .env                            # Environment variables
-├── .gitignore
-│
-└── ahmn_core/                      # Core AHMN implementation
-    ├── main.py                     # FastAPI application & endpoints
-    ├── requirements.txt            # Python dependencies
-    ├── docker-compose.yml          # PostgreSQL + Redis setup
-    ├── init.sql                    # Database initialization script
-    │
-    ├── app/                        # Application modules
-    │   ├── __init__.py
-    │   ├── config.py               # Configuration & hyperparameters
-    │   ├── database.py             # Database connection management
-    │   ├── schemas.py              # Pydantic request/response models
-    │   │
-    │   └── services/               # Core algorithms
-    │       ├── __init__.py
-    │       ├── memory.py           # Three-tier memory service (STM/MTM/LTM)
-    │       ├── rabi.py             # RABI: Retrieval-Augmented Bandit Init
-    │       ├── drift_forgetting.py # DAAF: Drift-Aware Adaptive Forgetting
-    │       ├── embedding.py        # Sentence embedding service (384d)
-    │       └── selection_strategies.py  # Thompson Sampling, UCB1, ε-Greedy
-    │
-    ├── demos/                      # Demonstration suite
-    │   ├── __init__.py
-    │   └── demo.py                 # Unified demo (quick/full/experiment modes)
-    │
-    ├── jobs/                       # Background tasks
-    │   ├── promote.py              # MTM → LTM promotion job
-    │   └── forgetting.py           # DAAF decay application job
-    │
-    └── output/                     # Generated results
-
-```
-
----
-
-## Research Contributions
-
-### RABI (Retrieval-Augmented Bandit Initialization)
-
-Transfers priors from similar contexts via k-NN in embedding space:
-```
-α_init = 1 + Σᵢ wᵢ·(αᵢ - 1),  where wᵢ = softmax(similarity / τ)
-```
-**Result:** Reduces cold-start regret from O(K) to O(L·d_avg)
-
-### DAAF (Drift-Aware Adaptive Forgetting)
-
-Adapts forgetting rate based on detected drift:
-```
-γ* = √(Δ² / ln(t)),  where Δ = |mean(recent) - mean(older)|
-```
-**Result:** Achieves O(√(Δ²·T·ln T)) regret under bounded drift
-
----
-
-## Verified Results
-
-### Bandit Algorithms (1000 iterations × 10 seeds)
-
-| Algorithm | Accuracy | Regret | p-value |
-|-----------|----------|--------|---------|
-| Thompson Sampling | 98.5%±0.6% | 7.1±2.7 | <0.0001 |
-| UCB1 | 92.0%±1.5% | 38.2±7.0 | <0.0001 |
-| Epsilon-Greedy | 95.1%±0.6% | 24.3±2.7 | <0.0001 |
-| Random (baseline) | 33.4%±1.3% | 334.3±7.8 | — |
-
-### RABI Cold-Start
-
-| Metric | RABI | Flat Prior | Improvement |
-|--------|------|------------|-------------|
-| First 10 docs | 48% | 32% | **+50%** |
-| Final accuracy | 97.6% | 96.1% | +1.5% |
-| p-value | 0.028 | — | Significant |
-
-### DAAF Drift Adaptation (non-stationary environment)
-
-| Algorithm | Accuracy | Regret | p-value |
-|-----------|----------|--------|---------|
-| DAAF | 51.0%±7.1% | 88.7±11.4 | 0.003 |
-| Fixed Forgetting | 48.0%±8.4% | 99.6±15.2 | 0.011 |
-| Standard TS | 32.3%±15.4% | 134.4±19.1 | — |
-
-**DAAF achieves 34% regret reduction** vs Standard Thompson Sampling.
-
----
-
-## Configuration
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| RABI k | 5 | Number of neighbors |
-| RABI τ | 0.5 | Softmax temperature |
-| RABI δ | 0.4 | Similarity threshold |
-| DAAF window | 50 | Drift detection window |
-| DAAF γ_min/max | 0.001 / 0.3 | Forgetting rate bounds |
+### Explainable
+- RABI shows which historical contexts influenced the decision
+- Drift detection provides visibility into environment changes
+- Clear retrieval sources (STM/MTM/LTM) in responses
 
 ---
 
@@ -184,41 +155,68 @@ Adapts forgetting rate based on detected drift:
 
 | Component | Technology |
 |-----------|------------|
-| API Framework | FastAPI |
-| Database | PostgreSQL + pgvector |
-| Cache | Redis |
-| Embeddings | SentenceTransformers (all-MiniLM-L6-v2, 384d) |
-| Validation | Pydantic v2 |
-| Visualization | Matplotlib |
+| API | FastAPI + Uvicorn |
+| Database | PostgreSQL 15 + pgvector |
+| Cache | Redis 7 |
+| Embeddings | SentenceTransformers (all-MiniLM-L6-v2) |
 | Statistics | SciPy |
+| Visualization | Matplotlib |
 
 ---
 
-## Requirements
+## Project Structure
 
-- Python 3.10+
-- Docker & Docker Compose (for full backend)
-- ~500MB disk space (embedding model)
-
-### Python Dependencies (main)
 ```
-fastapi, uvicorn, psycopg[binary], redis
-sentence-transformers, numpy, scipy, matplotlib
-pydantic, python-dotenv
+ahmn_core/
+├── main.py                     # FastAPI application
+├── requirements.txt
+├── docker-compose.yml
+├── init.sql                    # Database schema
+│
+├── app/
+│   ├── config.py              # Hyperparameters
+│   ├── database.py            # Async connections
+│   ├── schemas.py             # Pydantic models
+│   └── services/
+│       ├── memory.py          # Three-tier memory
+│       ├── rabi.py            # Transfer learning
+│       ├── drift_forgetting.py # Adaptive forgetting
+│       ├── embedding.py       # Vector embeddings
+│       └── selection_strategies.py  # Bandit algorithms
+│
+├── demos/
+│   └── demo.py                # Experimental suite
+│
+└── jobs/
+    ├── promote.py             # MTM → LTM promotion
+    └── forgetting.py          # Apply DAAF decay
 ```
 
 ---
 
-## Documentation
+## Configuration
 
-See [FEATURES_AND_NOVELTIES.md](FEATURES_AND_NOVELTIES.md) for:
-- Detailed mathematical formulations
-- Theoretical analysis and proofs
-- Complete hyperparameter justifications
-- Full experimental framework documentation
+Key hyperparameters with justifications:
+
+| Parameter | Default | Rationale |
+|-----------|---------|-----------|
+| RABI k | 5 | Optimal for dense retrieval |
+| RABI τ | 0.5 | Sharper similarity weighting |
+| RABI δ | 0.4 | Filter dissimilar contexts |
+| DAAF window | 50 | Balance responsiveness/stability |
+| DAAF γ_min/max | 0.001 / 0.3 | Prevent extreme forgetting |
 
 ---
 
-## License
+## For Researchers
 
-MIT
+This project demonstrates practical deployment of multi-armed bandits for document processing. While the underlying techniques (Bayesian transfer learning, drift detection, Thompson Sampling) are established methods, their combination and empirical validation in this domain contributes to understanding production bandit systems.
+
+**Future theoretical work could explore:**
+- Formal regret bounds for adaptive forgetting in contextual bandits
+- Analysis of hierarchical memory systems
+- Optimal transfer learning under distribution shift
+
+---
+
+
