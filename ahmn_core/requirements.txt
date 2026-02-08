@@ -9,4 +9,5 @@ python-dotenv
 numpy
 matplotlib
 pandas
-
+scipy
+pytest

@@ -103,11 +103,12 @@ class DriftEstimator:
         # Shift oldest from recent to older window
         if len(self.recent_window) == self.window_size:
             shifted = self.recent_window[0]
+            # Subtract the element that the deque will auto-evict on append
+            if len(self.older_window) == self.window_size:
+                evicted = self.older_window[0]
+                self._older_sum -= evicted
             self.older_window.append(shifted)
             self._older_sum += shifted
-            if len(self.older_window) > self.window_size:
-                removed = self.older_window[0]
-                self._older_sum -= removed
         
         # Update recent window stats
         if len(self.recent_window) == self.window_size:

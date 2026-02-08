@@ -20,8 +20,8 @@ class DatabasePool:
             cls._pool = AsyncConnectionPool(
                 conninfo=settings.POSTGRES_URI,
                 open=False,
-                min_size=1,
-                max_size=10
+                min_size=2,
+                max_size=20
             )
             await cls._pool.open()
         return cls._pool

@@ -3,28 +3,37 @@ import uuid
 import random
 import hashlib
 import numpy as np
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict
 from psycopg import AsyncConnection
 from redis.asyncio import Redis
 from ..schemas import DocumentContext, PolicyResponse, OutcomeMetrics
 from .embedding import EmbeddingService
 from .rabi import RABIInitializer, NeighborInfo, create_rabi_for_production
+from .drift_forgetting import DriftEstimator, DriftType
 
 
 class MemoryService:
     """
-    Memory service with RABI (Retrieval-Augmented Bandit Initialization).
+    Memory service with RABI (Retrieval-Augmented Bandit Initialization) 
+    and online DAAF (Drift-Aware Adaptive Forgetting).
     
-    Supports two modes:
+    Supports configurable modes:
     - use_rabi=True: Uses RABI for zero-shot initialization of new contexts
     - use_rabi=False: Standard Thompson Sampling with flat priors
+    - use_daaf=True: Online drift-aware forgetting on each outcome
+    - use_daaf=False: Standard Bayesian update (no forgetting)
     """
     
-    def __init__(self, db: AsyncConnection, redis: Redis, use_rabi: bool = True):
+    # Class-level drift estimators persist across requests
+    _drift_estimators: Dict[str, DriftEstimator] = {}
+    
+    def __init__(self, db: AsyncConnection, redis: Redis, 
+                 use_rabi: bool = True, use_daaf: bool = True):
         self.db = db
         self.redis = redis
         self.embedding_service = EmbeddingService()
         self.use_rabi = use_rabi
+        self.use_daaf = use_daaf
         
         # Initialize RABI with production-ready defaults
         if use_rabi:
@@ -35,6 +44,17 @@ class MemoryService:
             )
         else:
             self.rabi = None
+    
+    def _get_drift_estimator(self, context_key: str) -> DriftEstimator:
+        """Get or create a per-context drift estimator (class-level persistence)."""
+        if context_key not in MemoryService._drift_estimators:
+            MemoryService._drift_estimators[context_key] = DriftEstimator(
+                window_size=50,
+                min_samples=10,
+                drift_threshold=0.05,
+                abrupt_threshold=0.15
+            )
+        return MemoryService._drift_estimators[context_key]
 
     async def get_advice(self, context: DocumentContext) -> PolicyResponse:
         """
@@ -66,6 +86,10 @@ class MemoryService:
         policy_data = {"action": "standard_processing"}
         source = "DEFAULT"
         rabi_metadata = None
+        confidence = 0.3  # Low confidence for default policy
+        rabi_used = False
+        n_neighbors_used = 0
+        best_similarity = 0.0
 
         async with self.db.cursor() as cur:
             k = self.rabi.k if self.rabi else 5
@@ -77,6 +101,9 @@ class MemoryService:
                     # RABI: Build neighbors and initialize prior
                     neighbors = self._build_neighbors(rows)
                     prior = self.rabi.initialize_prior(neighbors)
+                    
+                    rabi_used = True
+                    n_neighbors_used = prior.n_neighbors
                     
                     # Store RABI metadata for analysis
                     rabi_metadata = {
@@ -109,6 +136,11 @@ class MemoryService:
                         if sample > best_sample:
                             best_sample = sample
                             selected_row = row
+                            best_similarity = sim
+                    
+                    # Calculate confidence: combination of RABI confidence and similarity
+                    if selected_row:
+                        confidence = min(0.95, prior.confidence * 0.6 + best_similarity * 0.4)
                 else:
                     # Standard Thompson Sampling (no RABI)
                     best_sample = -1.0
@@ -121,6 +153,21 @@ class MemoryService:
                         if sample > best_sample:
                             best_sample = sample
                             selected_row = row
+                            best_similarity = sim
+                    
+                    # Calculate confidence from alpha/beta ratio and similarity
+                    if selected_row:
+                        _, _, alpha, beta, _, sim = selected_row
+                        # Higher alpha relative to beta = higher confidence
+                        # More total samples (alpha + beta) = higher confidence
+                        total_samples = alpha + beta
+                        mean_estimate = alpha / total_samples
+                        variance = (alpha * beta) / ((total_samples ** 2) * (total_samples + 1))
+                        
+                        # Confidence based on precision (inverse variance) and similarity
+                        precision_confidence = min(1.0, 1.0 - variance * 10)  # Lower variance = higher confidence
+                        similarity_confidence = sim
+                        confidence = min(0.95, precision_confidence * 0.5 + similarity_confidence * 0.5)
                 
                 if selected_row:
                     policy_id, policy_data, _, _, _, _ = selected_row
@@ -144,7 +191,10 @@ class MemoryService:
             advice_id=advice_id,
             policy_id=policy_id,
             policy_data=policy_data,
-            retrieval_source=source
+            retrieval_source=source,
+            confidence=round(confidence, 3),
+            rabi_used=rabi_used,
+            n_neighbors=n_neighbors_used if rabi_used else None
         )
 
     def _build_neighbors(self, rows: List) -> List[NeighborInfo]:
@@ -163,7 +213,12 @@ class MemoryService:
         return neighbors
 
     async def log_outcome(self, advice_id: uuid.UUID, policy_id_used: str, metrics: OutcomeMetrics):
-        """Log outcome to MTM and update LTM bandit parameters."""
+        """
+        Log outcome to MTM and update LTM bandit parameters.
+        
+        If DAAF is enabled, applies drift-aware adaptive forgetting BEFORE
+        the Bayesian update, so stale knowledge is discounted in real-time.
+        """
         redis_key = f"advice:{advice_id}"
         redis_data_json = await self.redis.get(redis_key)
         
@@ -192,15 +247,50 @@ class MemoryService:
         reward = metrics.f1_score
         reward = max(0.0, min(1.0, reward))
         
-        ltm_update_query = """
-            UPDATE ltm_validated_policies
-            SET 
-                alpha = alpha + %s,
-                beta = beta + (1 - %s),
-                confidence_score = 1.0,
-                last_promoted_at = NOW()
-            WHERE context_hash = %s AND policy_id = %s
-        """
+        # --- DAAF: Online Drift-Aware Adaptive Forgetting ---
+        daaf_gamma = 0.0  # No forgetting by default
+        daaf_drift_type = "none"
+        
+        if self.use_daaf:
+            doc_type = context_dict.get("doc_type", "unknown")
+            vendor = context_dict.get("vendor")
+            context_key = f"{doc_type}:{vendor}" if vendor else doc_type
+            
+            drift_estimator = self._get_drift_estimator(context_key)
+            drift_metrics = drift_estimator.update(reward)
+            
+            daaf_gamma = drift_metrics.optimal_gamma
+            daaf_drift_type = drift_metrics.drift_type.value
+        
+        # Build update query: apply forgetting THEN Bayesian update
+        if self.use_daaf and daaf_gamma > 0.001:
+            # DAAF-aware update: retain = (1 - γ), then add reward
+            ltm_update_query = """
+                UPDATE ltm_validated_policies
+                SET 
+                    alpha = (1.0 + (1.0 - %s) * (alpha - 1.0)) + %s,
+                    beta  = (1.0 + (1.0 - %s) * (beta  - 1.0)) + (1 - %s),
+                    confidence_score = 1.0,
+                    last_promoted_at = NOW()
+                WHERE context_hash = %s AND policy_id = %s
+            """
+            update_params = (
+                daaf_gamma, reward,
+                daaf_gamma, reward,
+                target_hash, policy_id_used
+            )
+        else:
+            # Standard Bayesian update (no forgetting)
+            ltm_update_query = """
+                UPDATE ltm_validated_policies
+                SET 
+                    alpha = alpha + %s,
+                    beta = beta + (1 - %s),
+                    confidence_score = 1.0,
+                    last_promoted_at = NOW()
+                WHERE context_hash = %s AND policy_id = %s
+            """
+            update_params = (reward, reward, target_hash, policy_id_used)
         
         async with self.db.cursor() as cur:
             await cur.execute(
@@ -213,15 +303,7 @@ class MemoryService:
                 )
             )
 
-            await cur.execute(
-                ltm_update_query,
-                (
-                    reward,
-                    reward,
-                    target_hash,
-                    policy_id_used
-                )
-            )
+            await cur.execute(ltm_update_query, update_params)
 
             await self.db.commit()
 

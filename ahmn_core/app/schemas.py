@@ -27,3 +27,6 @@ class PolicyResponse(BaseModel):
     policy_id: str
     policy_data: Dict[str, Any]
     retrieval_source: Literal["LTM", "MTM", "DEFAULT"]
+    confidence: float = Field(description="Confidence score [0-1] for this recommendation")
+    rabi_used: bool = Field(default=False, description="Whether RABI initialization was used")
+    n_neighbors: Optional[int] = Field(default=None, description="Number of neighbors used for RABI")
