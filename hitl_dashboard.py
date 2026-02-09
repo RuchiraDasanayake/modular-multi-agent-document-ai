@@ -1,184 +1,40 @@
 """
-Human-in-the-Loop (HITL) Dashboard
-===================================
+Human-in-the-Loop (HITL) Dashboard Views
+=========================================
 Workflow: Retrieval → Q&A → XAI → Human Review (HITL) → Knowledge Update
 
-This module provides:
-- Review interface for XAI explanations
-- Feedback collection (correct/incorrect, quality ratings)
-- Correction submission for wrong answers
-- Knowledge update suggestions
-- Memory endpoint integration (stub for external API)
+This module contains only UI rendering functions.
+Data models are in models.py, API client in services.py, CSS in styles.py.
 """
 
 import streamlit as st
-from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any
 from datetime import datetime
-from enum import Enum
-import json
 
-
-class FeedbackType(Enum):
-    """Types of human feedback"""
-    CORRECT = "correct"
-    INCORRECT = "incorrect"
-    PARTIALLY_CORRECT = "partially_correct"
-    NEEDS_MORE_CONTEXT = "needs_more_context"
-    XAI_UNCLEAR = "xai_unclear"
-
-
-class FeedbackPriority(Enum):
-    """Priority levels for feedback"""
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
-
-
-@dataclass
-class HITLFeedback:
-    """Structure for human feedback data"""
-    feedback_id: str
-    timestamp: str
-    question: str
-    original_answer: str
-    feedback_type: FeedbackType
-    is_answer_correct: bool
-    corrected_answer: Optional[str] = None
-    explanation_quality: int = 3  # 1-5 scale
-    highlight_accuracy: int = 3  # 1-5 scale
-    xai_helpfulness: int = 3  # 1-5 scale
-    additional_context: Optional[str] = None
-    knowledge_update: Optional[str] = None
-    priority: FeedbackPriority = FeedbackPriority.MEDIUM
-    reviewer_notes: Optional[str] = None
-    tags: List[str] = field(default_factory=list)
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for API submission"""
-        return {
-            "feedback_id": self.feedback_id,
-            "timestamp": self.timestamp,
-            "question": self.question,
-            "original_answer": self.original_answer,
-            "feedback_type": self.feedback_type.value,
-            "is_answer_correct": self.is_answer_correct,
-            "corrected_answer": self.corrected_answer,
-            "ratings": {
-                "explanation_quality": self.explanation_quality,
-                "highlight_accuracy": self.highlight_accuracy,
-                "xai_helpfulness": self.xai_helpfulness
-            },
-            "additional_context": self.additional_context,
-            "knowledge_update": self.knowledge_update,
-            "priority": self.priority.value,
-            "reviewer_notes": self.reviewer_notes,
-            "tags": self.tags
-        }
-
-
-class MemoryEndpoint:
-    """
-    Memory Endpoint Integration (Stub)
-    ===================================
-    This is a placeholder for the memory API that your friend will implement.
-    
-    Expected API endpoints:
-    - POST /api/memory/feedback - Submit HITL feedback
-    - POST /api/memory/knowledge - Add new knowledge
-    - GET /api/memory/history - Get feedback history
-    - PUT /api/memory/update - Update existing knowledge
-    
-    Replace the stub methods with actual API calls when ready.
-    """
-    
-    def __init__(self, base_url: str = "http://localhost:8000"):
-        self.base_url = base_url
-        self.is_connected = False
-        
-    def check_connection(self) -> bool:
-        """
-        Check if memory endpoint is available
-        TODO: Implement actual health check
-        """
-        # Stub - always returns False until implemented
-        return False
-    
-    def submit_feedback(self, feedback: HITLFeedback) -> Dict[str, Any]:
-        """
-        Submit HITL feedback to memory endpoint
-        """
-        # Stub implementation - stores locally
-        return {
-            "status": "queued",
-            "message": "Feedback queued (Memory endpoint not connected)",
-            "feedback_id": feedback.feedback_id,
-            "queued_at": datetime.now().isoformat()
-        }
-    
-    def add_knowledge(self, knowledge: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Add new knowledge to memory
-        """
-        return {
-            "status": "queued",
-            "message": "Knowledge update queued (Memory endpoint not connected)",
-            "queued_at": datetime.now().isoformat()
-        }
-    
-    def get_feedback_history(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """
-        Get recent feedback history
-        """
-        # Return from session state if available
-        if "feedback_history" in st.session_state:
-            return st.session_state.feedback_history[-limit:]
-        return []
+from models import HITLFeedback, FeedbackType, FeedbackPriority
+from services import MemoryEndpoint
+from styles import apply_hitl_styles
 
 
 def init_hitl_session_state():
     """Initialize HITL-related session state variables"""
-    if "hitl_active" not in st.session_state:
-        st.session_state.hitl_active = False
-    if "current_explanation" not in st.session_state:
-        st.session_state.current_explanation = None
-    if "current_question" not in st.session_state:
-        st.session_state.current_question = ""
-    if "current_paragraph" not in st.session_state:
-        st.session_state.current_paragraph = ""
-    if "feedback_history" not in st.session_state:
-        st.session_state.feedback_history = []
-    if "pending_feedback" not in st.session_state:
-        st.session_state.pending_feedback = []
-    if "show_history" not in st.session_state:
-        st.session_state.show_history = False
-    if "has_results" not in st.session_state:
-        st.session_state.has_results = False
+    defaults = {
+        "hitl_active": False,
+        "current_explanation": None,
+        "current_question": "",
+        "current_paragraph": "",
+        "feedback_history": [],
+        "pending_feedback": [],
+        "show_history": False,
+        "has_results": False,
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
 
 def render_hitl_button():
     """Render the HITL Dashboard entry button - original version"""
     st.markdown("""
-    <style>
-        .hitl-button-container {
-            text-align: center;
-            margin: 2rem 0;
-            padding: 1.5rem;
-            background: #2c3e50;
-            border-radius: 8px;
-            border: 1px solid #34495e;
-        }
-        .hitl-title {
-            color: white;
-            font-size: 1.2rem;
-            margin-bottom: 0.5rem;
-        }
-        .hitl-subtitle {
-            color: rgba(255,255,255,0.85);
-            font-size: 0.9rem;
-        }
-    </style>
     <div class="hitl-button-container">
         <div class="hitl-title">Human Review Available</div>
         <div class="hitl-subtitle">Review the XAI explanation and provide feedback to improve the system</div>
@@ -187,8 +43,7 @@ def render_hitl_button():
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        enter_hitl = st.button("Enter HITL Dashboard", type="primary", use_container_width=True, key="enter_hitl_btn")
-        if enter_hitl:
+        if st.button("Enter HITL Dashboard", type="primary", use_container_width=True, key="enter_hitl_btn"):
             st.session_state.hitl_active = True
             st.rerun()
 
@@ -200,117 +55,61 @@ def render_hitl_button_classic():
         st.rerun()
 
 
+def render_feedback_history(memory: MemoryEndpoint):
+    """Render feedback history section"""
+    st.markdown("## Feedback History")
+    
+    history = memory.get_feedback_history(limit=20)
+    
+    if not history:
+        st.info("No feedback history yet.")
+        return
+    
+    # Summary metrics
+    total = len(history)
+    correct = sum(1 for f in history if f.get("is_answer_correct", False))
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Feedback", total)
+    with col2:
+        st.metric("Correct Answers", correct)
+    with col3:
+        accuracy = (correct / total * 100) if total > 0 else 0
+        st.metric("Accuracy Rate", f"{accuracy:.1f}%")
+    
+    # Feedback list
+    for i, feedback in enumerate(reversed(history)):
+        with st.expander(f"{feedback.get('feedback_id', f'Feedback {i+1}')} - {feedback.get('feedback_type', 'N/A')}"):
+            st.markdown(f"**Question:** {feedback.get('question', 'N/A')}")
+            st.markdown(f"**Original Answer:** {feedback.get('original_answer', 'N/A')}")
+            if feedback.get('corrected_answer'):
+                st.markdown(f"**Corrected Answer:** {feedback.get('corrected_answer')}")
+            ratings = feedback.get('ratings', {})
+            st.markdown(f"**Ratings:** Clarity: {ratings.get('explanation_quality', 'N/A')}/5 | Highlights: {ratings.get('highlight_accuracy', 'N/A')}/5 | Helpfulness: {ratings.get('xai_helpfulness', 'N/A')}/5")
+
+
+def render_hitl_mini_status():
+    """Render a mini status bar showing pending feedback count"""
+    pending = len(st.session_state.get("pending_feedback", []))
+    history = len(st.session_state.get("feedback_history", []))
+    
+    if pending > 0 or history > 0:
+        st.markdown(f"""
+        <div style="position: fixed; bottom: 20px; right: 20px; background: #34495e; 
+                    color: white; padding: 10px 15px; border-radius: 25px; 
+                    font-size: 0.85rem; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 1000;">
+            Feedback: {history} submitted | {pending} pending
+        </div>
+        """, unsafe_allow_html=True)
+
+
 def render_hitl_dashboard():
     """Render the full HITL Dashboard as a dedicated page"""
     memory = MemoryEndpoint()
     
-    # Custom CSS for HITL Dashboard - Classic Style
-    st.markdown("""
-    <style>
-        /* HITL Page Styles - Classic */
-        .hitl-header {
-            background: #2c3e50;
-            padding: 2rem;
-            border-radius: 8px;
-            margin-bottom: 2rem;
-            text-align: center;
-            border: 1px solid #34495e;
-        }
-        .hitl-header h1 {
-            color: white;
-            margin: 0;
-            font-size: 2rem;
-        }
-        .hitl-header p {
-            color: rgba(255,255,255,0.85);
-            margin: 0.5rem 0 0 0;
-        }
-        
-        .workflow-bar {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 8px;
-            margin: 1.5rem 0;
-            flex-wrap: wrap;
-        }
-        .workflow-step {
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 500;
-        }
-        .workflow-done {
-            background: #27ae60;
-            color: white;
-        }
-        .workflow-current {
-            background: #3498db;
-            color: white;
-            font-weight: bold;
-            box-shadow: 0 2px 8px rgba(52, 152, 219, 0.4);
-        }
-        .workflow-pending {
-            background: #95a5a6;
-            color: white;
-        }
-        .workflow-arrow {
-            color: #bdc3c7;
-            font-size: 1.2rem;
-        }
-        
-        .context-card {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 12px;
-            padding: 1.25rem;
-            margin: 1rem 0;
-        }
-        .context-label {
-            color: #6c757d;
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-        }
-        .context-content {
-            color: #212529;
-            font-size: 1rem;
-            line-height: 1.6;
-        }
-        
-        .feedback-section {
-            background: white;
-            border: 1px solid #e9ecef;
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin: 1.5rem 0;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
-        .feedback-section h3 {
-            color: #2c3e50;
-            margin-top: 0;
-            padding-bottom: 0.75rem;
-            border-bottom: 2px solid #e9ecef;
-        }
-        
-        .rating-container {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 1rem;
-            margin: 0.5rem 0;
-        }
-        
-        .submit-success {
-            background: #27ae60;
-            color: white;
-            padding: 1.5rem;
-            border-radius: 8px;
-            text-align: center;
-            margin: 1rem 0;
-            border: 1px solid #229954;
-        }
-    </style>
-    """, unsafe_allow_html=True)
+    # Apply HITL-specific styles
+    apply_hitl_styles()
     
     # Header
     st.markdown("""
@@ -335,7 +134,7 @@ def render_hitl_dashboard():
     </div>
     """, unsafe_allow_html=True)
     
-    # Back button
+    # Back button and connection status
     col1, col2, col3 = st.columns([1, 2, 1])
     with col1:
         if st.button("Back to Q&A", key="back_to_qa", use_container_width=True):
@@ -566,52 +365,3 @@ def render_hitl_dashboard():
     if st.session_state.get("show_history", False):
         st.markdown("---")
         render_feedback_history(memory)
-
-
-def render_feedback_history(memory: MemoryEndpoint):
-    """Render feedback history section"""
-    st.markdown("## Feedback History")
-    
-    history = memory.get_feedback_history(limit=20)
-    
-    if not history:
-        st.info("No feedback history yet.")
-        return
-    
-    # Summary metrics
-    total = len(history)
-    correct = sum(1 for f in history if f.get("is_answer_correct", False))
-    
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total Feedback", total)
-    with col2:
-        st.metric("Correct Answers", correct)
-    with col3:
-        accuracy = (correct / total * 100) if total > 0 else 0
-        st.metric("Accuracy Rate", f"{accuracy:.1f}%")
-    
-    # Feedback list
-    for i, feedback in enumerate(reversed(history)):
-        with st.expander(f"{feedback.get('feedback_id', f'Feedback {i+1}')} - {feedback.get('feedback_type', 'N/A')}"):
-            st.markdown(f"**Question:** {feedback.get('question', 'N/A')}")
-            st.markdown(f"**Original Answer:** {feedback.get('original_answer', 'N/A')}")
-            if feedback.get('corrected_answer'):
-                st.markdown(f"**Corrected Answer:** {feedback.get('corrected_answer')}")
-            ratings = feedback.get('ratings', {})
-            st.markdown(f"**Ratings:** Clarity: {ratings.get('explanation_quality', 'N/A')}/5 | Highlights: {ratings.get('highlight_accuracy', 'N/A')}/5 | Helpfulness: {ratings.get('xai_helpfulness', 'N/A')}/5")
-
-
-def render_hitl_mini_status():
-    """Render a mini status bar showing pending feedback count"""
-    pending = len(st.session_state.get("pending_feedback", []))
-    history = len(st.session_state.get("feedback_history", []))
-    
-    if pending > 0 or history > 0:
-        st.markdown(f"""
-        <div style="position: fixed; bottom: 20px; right: 20px; background: #34495e; 
-                    color: white; padding: 10px 15px; border-radius: 25px; 
-                    font-size: 0.85rem; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 1000;">
-            Feedback: {history} submitted | {pending} pending
-        </div>
-        """, unsafe_allow_html=True)
