@@ -1,0 +1,64 @@
+services:
+  # ── Database ──
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: ahmn_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-ahmn_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-ahmn_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Cache ──
+  redis:
+    image: redis:alpine
+    container_name: ahmn_redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend API ──
+  backend:
+    build: ./backend
+    container_name: ahmn_backend
+    env_file: .env
+    environment:
+      # Override localhost with Docker service names
+      POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-ahmn_db}
+      REDIS_HOST: redis
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./ahmn_core:/app/ahmn_core:ro
+
+  # ── Frontend ──
+  frontend:
+    build: ./frontend
+    container_name: ahmn_frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
