@@ -30,11 +30,13 @@ from ahmn_core.experiments.run_experiments import (
     AHMNFullRunner, UCB1Runner, EpsilonGreedyRunner, RandomRunner,
     run_single,
 )
+import ahmn_core as _ahmn_pkg
 
 router = APIRouter(prefix="/api/experiments", tags=["experiments"])
 
 # ── Pre-loaded JSON results ──
-_RESULTS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "ahmn_core" / "output"
+# Resolve from ahmn_core's actual package location (works both locally and in Docker)
+_RESULTS_DIR = Path(_ahmn_pkg.__file__).resolve().parent / "output"
 
 
 def _load_json(name: str) -> dict | None:
