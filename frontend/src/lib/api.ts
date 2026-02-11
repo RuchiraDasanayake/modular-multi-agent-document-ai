@@ -1,4 +1,5 @@
 import { getToken } from "./auth";
+import type { QAResponse, FeedbackSubmitRequest, HITLFeedback, FeedbackHistory } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -67,4 +68,42 @@ export const api = {
 
   runComparison: (params: Record<string, number>) =>
     request("/api/experiments/demo/comparison", { method: "POST", body: JSON.stringify(params) }),
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // XAI - Question Answering with Explainability
+  // ══════════════════════════════════════════════════════════════════════════
+
+  askQuestion: (paragraph: string, question: string) =>
+    request<QAResponse>("/api/xai/ask", {
+      method: "POST",
+      body: JSON.stringify({ paragraph, question }),
+    }),
+
+  getExplanation: (questionId: string) =>
+    request<QAResponse>(`/api/xai/explanation/${questionId}`),
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // HITL - Human-in-the-Loop Feedback
+  // ══════════════════════════════════════════════════════════════════════════
+
+  submitFeedback: (feedback: FeedbackSubmitRequest) =>
+    request<{ feedback_id: string; status: string }>("/api/hitl/feedback", {
+      method: "POST",
+      body: JSON.stringify(feedback),
+    }),
+
+  getFeedbackHistory: (limit = 20) =>
+    request<FeedbackHistory>(`/api/hitl/history?limit=${limit}`),
+
+  getFeedbackById: (feedbackId: string) =>
+    request<HITLFeedback>(`/api/hitl/feedback/${feedbackId}`),
+
+  getHITLStats: () =>
+    request<{
+      total_feedback: number;
+      correct_count: number;
+      accuracy_rate: number;
+      avg_explanation_quality: number;
+      pending_reviews: number;
+    }>("/api/hitl/stats"),
 };
