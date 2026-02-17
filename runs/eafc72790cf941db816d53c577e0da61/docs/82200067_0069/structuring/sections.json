@@ -1,0 +1,28 @@
+{
+  "sections": [
+    {
+      "name": "section_1",
+      "text": "09/17/97 10:88 *PBOS 641 1898 LORTLLARD PTLD Boor",
+      "page_start": 1,
+      "page_end": 1,
+      "confidence": 0.7,
+      "metadata": {}
+    },
+    {
+      "name": "to_a_sparraw",
+      "text": "FROM: 7.0, etacnty\n\n(ONLY IF PARTIAL REGION CONTINUE WITH DIVISIONIS! SCOPE)",
+      "page_start": 1,
+      "page_end": 1,
+      "confidence": 0.7,
+      "metadata": {}
+    },
+    {
+      "name": "dmvision",
+      "text": "DIVISION: Portland \u2014-# REPS: 6 DIVISION: Seatde South REPS: 7\nDIVISION: Boise # REPS: 2.5 DIVISION: Seale Nonh REPS: 4\n\nDIVISION: Eugene REPS: 5 DIVISION: Helena REPS: 6\n\nDIRECT ACCOUNTS AND CHAINS HEADQUARTERED WITHIN THE REGION\n(15 + STORES) STOCKING NO OLD GOLD MENTHOL LIGHTS OR ULTRA LIGHTS 10'S\n\nPaget of 3 Pages",
+      "page_start": 1,
+      "page_end": 1,
+      "confidence": 0.7,
+      "metadata": {}
+    }
+  ]
+}

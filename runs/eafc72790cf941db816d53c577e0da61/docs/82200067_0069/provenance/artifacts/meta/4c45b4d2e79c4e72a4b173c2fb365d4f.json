@@ -1,0 +1,16 @@
+{
+  "artifact_id": "4c45b4d2e79c4e72a4b173c2fb365d4f",
+  "kind": "deskew_text",
+  "metadata": {
+    "agent": "deskew",
+    "doc_id": "82200067_0069",
+    "parameters": {
+      "deskew": true
+    },
+    "source_artifacts": [
+      "313ed73c18404c5db2b03603b25d4910"
+    ],
+    "version": "v1"
+  },
+  "path": "runs\\eafc72790cf941db816d53c577e0da61\\docs\\82200067_0069\\artifacts\\clean\\4c45b4d2e79c4e72a4b173c2fb365d4f_82200067_0069_deskew.txt"
+}

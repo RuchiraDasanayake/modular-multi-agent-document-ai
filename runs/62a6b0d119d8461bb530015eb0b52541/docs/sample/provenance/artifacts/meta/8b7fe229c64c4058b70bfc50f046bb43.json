@@ -1,0 +1,15 @@
+{
+  "artifact_id": "8b7fe229c64c4058b70bfc50f046bb43",
+  "kind": "structured_entities",
+  "metadata": {
+    "agent": "llm_extraction",
+    "doc_id": "sample",
+    "input_artifacts": [
+      "85d79746120544f381ee8606f9bbf7b6"
+    ],
+    "model": "phi3:mini",
+    "policy_id": null,
+    "version": "v1"
+  },
+  "path": "runs\\62a6b0d119d8461bb530015eb0b52541\\docs\\sample\\artifacts\\clean\\8b7fe229c64c4058b70bfc50f046bb43_sample_structured.json"
+}

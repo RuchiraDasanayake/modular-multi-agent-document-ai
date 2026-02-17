@@ -1,0 +1,15 @@
+{
+  "artifact_id": "520be9fcee4a4d79b697253936d19971",
+  "kind": "ocr_input",
+  "metadata": {
+    "agent": "ocr",
+    "doc_id": "82200067_0069",
+    "parameters": {
+      "engine": "mock",
+      "passes": 1
+    },
+    "source_artifacts": [],
+    "version": "v1"
+  },
+  "path": "runs\\eafc72790cf941db816d53c577e0da61\\docs\\82200067_0069\\artifacts\\raw\\520be9fcee4a4d79b697253936d19971_82200067_0069_ocr_input.txt"
+}

@@ -1,0 +1,224 @@
+{
+  "combined_entities": [
+    {
+      "confidence": 0.55,
+      "key": "mr_randy_spell_from",
+      "metadata": {
+        "evidence": "Rick Redfield",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        117,
+        130
+      ],
+      "value": "Rick Redfield"
+    },
+    {
+      "confidence": 0.55,
+      "key": "date",
+      "metadata": {
+        "evidence": "May 1, 2000",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        142,
+        153
+      ],
+      "value": "May 1, 2000"
+    },
+    {
+      "confidence": 0.55,
+      "key": "mr_fred_patemostro_fax",
+      "metadata": {
+        "evidence": "952 894-9690",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        183,
+        195
+      ],
+      "value": "952 894-9690"
+    },
+    {
+      "confidence": 0.55,
+      "key": "legal_lowa_pages",
+      "metadata": {
+        "evidence": "4",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        219,
+        220
+      ],
+      "value": "4"
+    },
+    {
+      "confidence": 0.95,
+      "key": "fax_number",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "952 894-9690"
+    },
+    {
+      "confidence": 0.9,
+      "key": "name",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "Mr. Randy Spell"
+    }
+  ],
+  "default_entities": [
+    {
+      "confidence": 0.55,
+      "key": "mr_randy_spell_from",
+      "metadata": {
+        "evidence": "Rick Redfield",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        117,
+        130
+      ],
+      "value": "Rick Redfield"
+    },
+    {
+      "confidence": 0.55,
+      "key": "date",
+      "metadata": {
+        "evidence": "May 1, 2000",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        142,
+        153
+      ],
+      "value": "May 1, 2000"
+    },
+    {
+      "confidence": 0.55,
+      "key": "mr_fred_patemostro_fax",
+      "metadata": {
+        "evidence": "952 894-9690",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        183,
+        195
+      ],
+      "value": "952 894-9690"
+    },
+    {
+      "confidence": 0.55,
+      "key": "legal_lowa_pages",
+      "metadata": {
+        "evidence": "4",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        219,
+        220
+      ],
+      "value": "4"
+    }
+  ],
+  "doc_id": "82562350",
+  "explicit_entities": [
+    {
+      "confidence": 0.95,
+      "key": "fax_number",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "952 894-9690"
+    },
+    {
+      "confidence": 0.9,
+      "key": "name",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "Mr. Randy Spell"
+    }
+  ],
+  "explicit_source": "plan",
+  "llm_entities": [
+    {
+      "confidence": 0.95,
+      "key": "fax_number",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "952 894-9690"
+    },
+    {
+      "confidence": 0.9,
+      "key": "name",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "Mr. Randy Spell"
+    },
+    {
+      "confidence": 0.9,
+      "key": "name",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "Rick Redfield"
+    },
+    {
+      "confidence": 0.9,
+      "key": "name",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "Mr. Fred Patemostro"
+    }
+  ],
+  "model_mode": "cloud",
+  "model_name": "gpt-4o",
+  "policy_id": null,
+  "policy_name": null
+}

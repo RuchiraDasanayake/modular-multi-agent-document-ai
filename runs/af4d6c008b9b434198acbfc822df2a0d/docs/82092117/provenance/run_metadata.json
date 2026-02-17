@@ -1,0 +1,164 @@
+{
+  "run_id": "16acbf54c4d74546ace2013d57f432a3",
+  "config": {
+    "preprocessing": {
+      "ocr_engine": "tesseract",
+      "ocr_version": "v1",
+      "ocr_lang": "eng",
+      "ocr_psm": 6,
+      "ocr_oem": 3,
+      "ocr_dpi": 300,
+      "ocr_alt_psm": [
+        4,
+        11
+      ],
+      "ocr_passes": 2,
+      "deskew": true,
+      "denoise": true,
+      "table_mode": "heuristic",
+      "max_retries": 2
+    },
+    "chunking": {
+      "chunk_size": 350,
+      "chunk_overlap": 60,
+      "max_chunks": 128
+    },
+    "retrieval": {
+      "dense_k": 12,
+      "sparse_k": 12,
+      "final_k": 12,
+      "mmr_lambda": 0.7,
+      "metadata_boost": 0.15
+    },
+    "context": {
+      "max_tokens": 1600,
+      "reserved_tokens": 200,
+      "diversity_penalty": 0.15
+    },
+    "validation": {
+      "min_confidence": 0.6,
+      "max_field_errors": 3,
+      "rules": [
+        {
+          "field_pattern": ".*_id$",
+          "value_pattern": "^[A-Z0-9-]+$",
+          "severity": "high",
+          "normalize": "strip"
+        },
+        {
+          "field_pattern": ".*_amount$",
+          "value_pattern": "^\\d+(\\.\\d{2})?$",
+          "severity": "medium",
+          "normalize": "numeric"
+        },
+        {
+          "field_pattern": ".*_date$",
+          "value_pattern": "^\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}$",
+          "severity": "medium",
+          "normalize": "strip"
+        }
+      ]
+    },
+    "structuring": {
+      "extraction_rules": [
+        {
+          "key": "record_id",
+          "label": "Record ID",
+          "pattern": "Record\\s*ID[:\\s]+([A-Z0-9-]+)"
+        },
+        {
+          "key": "document_date",
+          "label": "Document Date",
+          "pattern": "Date[:\\s]+([0-9/-]+)"
+        },
+        {
+          "key": "total_amount",
+          "label": "Total Amount",
+          "pattern": "Total\\s*Amount[:\\s]+\\$?([0-9,.]+)"
+        }
+      ],
+      "allow_generic_kv": true,
+      "heading_max_words": 6
+    },
+    "escalation": {
+      "enabled": true,
+      "max_cost_units": 3,
+      "max_escalations_per_run": 5
+    },
+    "routing": {
+      "quality_threshold": 0.6,
+      "complexity_threshold": 0.5,
+      "retry_threshold": 0.55
+    },
+    "plan": {
+      "default_step_timeout_ms": 30000,
+      "default_step_budget_units": 1.0,
+      "max_total_budget_units": 6.0
+    },
+    "shadow": {
+      "enabled": false,
+      "sample_rate": 0.0,
+      "candidate_policy_ids": [],
+      "max_policies_per_doc": 1
+    },
+    "rollback": {
+      "enabled": true,
+      "window_size": 25,
+      "latency_p95_ms": 2500.0,
+      "validation_failure_rate": 0.2,
+      "quality_drop_threshold": 0.05
+    },
+    "queue": {
+      "enabled": false,
+      "max_workers": 4,
+      "per_partition_concurrency": 1,
+      "partition_keys": [
+        "doc_type",
+        "vendor_cluster"
+      ]
+    },
+    "ahmn": {
+      "enabled": false,
+      "mode": "mock",
+      "objective": "min_cost",
+      "timeout_ms": 500,
+      "endpoint": null,
+      "policy_override_id": null,
+      "action_overrides": {}
+    },
+    "calibration": {
+      "enabled": false,
+      "method": "heuristic",
+      "version": "v1",
+      "temperature": 1.0,
+      "parameters": {}
+    },
+    "answering": {
+      "min_confidence": 0.55
+    },
+    "knowledge": {
+      "policy_store_path": "E:\\Research Project\\Code\\IDPO\\runs\\af4d6c008b9b434198acbfc822df2a0d\\policy_override.json",
+      "default_policy_id": "default"
+    },
+    "llm": {
+      "local_model": "phi3:mini",
+      "cloud_model": "gpt-4o",
+      "default_mode": "cloud",
+      "history_signal_key": "llm_mode",
+      "history_mode": "cloud",
+      "provider": "ollama",
+      "base_url": "http://localhost:11434",
+      "timeout_s": 60,
+      "use_extraction": true,
+      "use_summarization": false,
+      "cloud_provider": "openai",
+      "cloud_timeout_s": 60,
+      "cloud_temperature": 0.1,
+      "cloud_max_tokens": 2000,
+      "allow_cloud_fallback": true,
+      "openai_api_url": "https://api.openai.com/v1",
+      "openai_api_key": "sk-PLACEHOLDER"
+    },
+    "seed": 13
+  }
+}

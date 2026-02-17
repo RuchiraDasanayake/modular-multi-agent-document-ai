@@ -1,0 +1,352 @@
+{
+  "combined_entities": [
+    {
+      "confidence": 0.55,
+      "key": "admin_office_fax",
+      "metadata": {
+        "evidence": "614-466-5087 Dec 10 '98 17:46 POL",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        30,
+        63
+      ],
+      "value": "614-466-5087 Dec 10 '98 17:46 POL"
+    },
+    {
+      "confidence": 0.55,
+      "key": "to",
+      "metadata": {
+        "evidence": "_George Baroody",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        194,
+        209
+      ],
+      "value": "_George Baroody"
+    },
+    {
+      "confidence": 0.55,
+      "key": "fax_number",
+      "metadata": {
+        "evidence": "(336) 335-7392",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        222,
+        236
+      ],
+      "value": "(336) 335-7392"
+    },
+    {
+      "confidence": 0.55,
+      "key": "phone_number",
+      "metadata": {
+        "evidence": "(336) 335-7363",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        251,
+        265
+      ],
+      "value": "(336) 335-7363"
+    },
+    {
+      "confidence": 0.55,
+      "key": "date",
+      "metadata": {
+        "evidence": "12/10/98",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        272,
+        280
+      ],
+      "value": "12/10/98"
+    },
+    {
+      "confidence": 0.55,
+      "key": "number_of_pages_including_cover_sheet",
+      "metadata": {
+        "evidence": "3 0",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        320,
+        323
+      ],
+      "value": "3 0"
+    },
+    {
+      "confidence": 0.55,
+      "key": "sender_phone_number",
+      "metadata": {
+        "evidence": "June Flynn for Eric Brown/(614) 466-3980",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        345,
+        385
+      ],
+      "value": "June Flynn for Eric Brown/(614) 466-3980"
+    },
+    {
+      "confidence": 0.55,
+      "key": "e_special_instructions",
+      "metadata": {
+        "evidence": ":",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        408,
+        409
+      ],
+      "value": ":"
+    },
+    {
+      "confidence": 0.55,
+      "key": "note",
+      "metadata": {
+        "evidence": "THIS MESSAGE IS INTENDED ONLY FOR THE USE OF THE INDIVIDUAL OR ENTITY TO",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        509,
+        581
+      ],
+      "value": "THIS MESSAGE IS INTENDED ONLY FOR THE USE OF THE INDIVIDUAL OR ENTITY TO"
+    },
+    {
+      "confidence": 0.95,
+      "key": "fax_number",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "614-466-5087"
+    },
+    {
+      "confidence": 0.95,
+      "key": "name",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "George Baroody"
+    }
+  ],
+  "default_entities": [
+    {
+      "confidence": 0.55,
+      "key": "admin_office_fax",
+      "metadata": {
+        "evidence": "614-466-5087 Dec 10 '98 17:46 POL",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        30,
+        63
+      ],
+      "value": "614-466-5087 Dec 10 '98 17:46 POL"
+    },
+    {
+      "confidence": 0.55,
+      "key": "to",
+      "metadata": {
+        "evidence": "_George Baroody",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        194,
+        209
+      ],
+      "value": "_George Baroody"
+    },
+    {
+      "confidence": 0.55,
+      "key": "fax_number",
+      "metadata": {
+        "evidence": "(336) 335-7392",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        222,
+        236
+      ],
+      "value": "(336) 335-7392"
+    },
+    {
+      "confidence": 0.55,
+      "key": "phone_number",
+      "metadata": {
+        "evidence": "(336) 335-7363",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        251,
+        265
+      ],
+      "value": "(336) 335-7363"
+    },
+    {
+      "confidence": 0.55,
+      "key": "date",
+      "metadata": {
+        "evidence": "12/10/98",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        272,
+        280
+      ],
+      "value": "12/10/98"
+    },
+    {
+      "confidence": 0.55,
+      "key": "number_of_pages_including_cover_sheet",
+      "metadata": {
+        "evidence": "3 0",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        320,
+        323
+      ],
+      "value": "3 0"
+    },
+    {
+      "confidence": 0.55,
+      "key": "sender_phone_number",
+      "metadata": {
+        "evidence": "June Flynn for Eric Brown/(614) 466-3980",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        345,
+        385
+      ],
+      "value": "June Flynn for Eric Brown/(614) 466-3980"
+    },
+    {
+      "confidence": 0.55,
+      "key": "e_special_instructions",
+      "metadata": {
+        "evidence": ":",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        408,
+        409
+      ],
+      "value": ":"
+    },
+    {
+      "confidence": 0.55,
+      "key": "note",
+      "metadata": {
+        "evidence": "THIS MESSAGE IS INTENDED ONLY FOR THE USE OF THE INDIVIDUAL OR ENTITY TO",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        509,
+        581
+      ],
+      "value": "THIS MESSAGE IS INTENDED ONLY FOR THE USE OF THE INDIVIDUAL OR ENTITY TO"
+    }
+  ],
+  "doc_id": "82092117",
+  "explicit_entities": [
+    {
+      "confidence": 0.95,
+      "key": "fax_number",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "614-466-5087"
+    },
+    {
+      "confidence": 0.95,
+      "key": "name",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "George Baroody"
+    }
+  ],
+  "explicit_source": "plan",
+  "llm_entities": [
+    {
+      "confidence": 0.95,
+      "key": "fax_number",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "614-466-5087"
+    },
+    {
+      "confidence": 0.95,
+      "key": "fax_number",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "(336) 335-7392"
+    },
+    {
+      "confidence": 0.95,
+      "key": "name",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "George Baroody"
+    }
+  ],
+  "model_mode": "cloud",
+  "model_name": "gpt-4o",
+  "policy_id": null,
+  "policy_name": null
+}

@@ -1,0 +1,181 @@
+{
+  "combined_entities": [
+    {
+      "confidence": 0.55,
+      "key": "09_17_97_10",
+      "metadata": {
+        "evidence": "88 *PBOS 641 1898 LORTLLARD PTLD Boor",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        12,
+        49
+      ],
+      "value": "88 *PBOS 641 1898 LORTLLARD PTLD Boor"
+    },
+    {
+      "confidence": 0.55,
+      "key": "to",
+      "metadata": {
+        "evidence": "A. Sparraw",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        55,
+        65
+      ],
+      "value": "A. Sparraw"
+    },
+    {
+      "confidence": 0.55,
+      "key": "from",
+      "metadata": {
+        "evidence": "7.0, etacnty",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        73,
+        85
+      ],
+      "value": "7.0, etacnty"
+    },
+    {
+      "confidence": 0.55,
+      "key": "division",
+      "metadata": {
+        "evidence": "Portland \u2014-# REPS: 6 DIVISION: Seatde South REPS: 7",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        165,
+        216
+      ],
+      "value": "Portland \u2014-# REPS: 6 DIVISION: Seatde South REPS: 7"
+    },
+    {
+      "confidence": 0.55,
+      "key": "division",
+      "metadata": {
+        "evidence": "Boise # REPS: 2.5 DIVISION: Seale Nonh REPS: 4",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        227,
+        273
+      ],
+      "value": "Boise # REPS: 2.5 DIVISION: Seale Nonh REPS: 4"
+    },
+    {
+      "confidence": 0.55,
+      "key": "division",
+      "metadata": {
+        "evidence": "Eugene REPS: 5 DIVISION: Helena REPS: 6",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        285,
+        324
+      ],
+      "value": "Eugene REPS: 5 DIVISION: Helena REPS: 6"
+    }
+  ],
+  "default_entities": [
+    {
+      "confidence": 0.55,
+      "key": "09_17_97_10",
+      "metadata": {
+        "evidence": "88 *PBOS 641 1898 LORTLLARD PTLD Boor",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        12,
+        49
+      ],
+      "value": "88 *PBOS 641 1898 LORTLLARD PTLD Boor"
+    },
+    {
+      "confidence": 0.55,
+      "key": "to",
+      "metadata": {
+        "evidence": "A. Sparraw",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        55,
+        65
+      ],
+      "value": "A. Sparraw"
+    },
+    {
+      "confidence": 0.55,
+      "key": "from",
+      "metadata": {
+        "evidence": "7.0, etacnty",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        73,
+        85
+      ],
+      "value": "7.0, etacnty"
+    },
+    {
+      "confidence": 0.55,
+      "key": "division",
+      "metadata": {
+        "evidence": "Portland \u2014-# REPS: 6 DIVISION: Seatde South REPS: 7",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        165,
+        216
+      ],
+      "value": "Portland \u2014-# REPS: 6 DIVISION: Seatde South REPS: 7"
+    },
+    {
+      "confidence": 0.55,
+      "key": "division",
+      "metadata": {
+        "evidence": "Boise # REPS: 2.5 DIVISION: Seale Nonh REPS: 4",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        227,
+        273
+      ],
+      "value": "Boise # REPS: 2.5 DIVISION: Seale Nonh REPS: 4"
+    },
+    {
+      "confidence": 0.55,
+      "key": "division",
+      "metadata": {
+        "evidence": "Eugene REPS: 5 DIVISION: Helena REPS: 6",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        285,
+        324
+      ],
+      "value": "Eugene REPS: 5 DIVISION: Helena REPS: 6"
+    }
+  ],
+  "doc_id": "82200067_0069",
+  "explicit_entities": [],
+  "explicit_source": "rules",
+  "model_mode": "local",
+  "model_name": "local-llm",
+  "policy_id": null,
+  "policy_name": null
+}

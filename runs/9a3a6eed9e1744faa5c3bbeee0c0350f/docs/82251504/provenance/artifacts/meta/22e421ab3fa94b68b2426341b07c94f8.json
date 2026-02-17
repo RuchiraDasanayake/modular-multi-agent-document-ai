@@ -1,0 +1,25 @@
+{
+  "artifact_id": "22e421ab3fa94b68b2426341b07c94f8",
+  "kind": "ocr_text",
+  "metadata": {
+    "agent": "ocr",
+    "doc_id": "82251504",
+    "parameters": {
+      "alt_psm": [
+        4,
+        11
+      ],
+      "dpi": 300,
+      "engine": "tesseract",
+      "lang": "eng",
+      "oem": 3,
+      "passes": 2,
+      "psm": 6
+    },
+    "source_artifacts": [
+      "b342ba6ffc6342f7912ca2213ed32ee2"
+    ],
+    "version": "v1"
+  },
+  "path": "E:\\Research Project\\Code\\IDPO\\runs\\9a3a6eed9e1744faa5c3bbeee0c0350f\\docs\\82251504\\artifacts\\clean\\22e421ab3fa94b68b2426341b07c94f8_82251504_ocr.txt"
+}

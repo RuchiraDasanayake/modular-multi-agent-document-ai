@@ -1,0 +1,32 @@
+{
+  "chunks": [
+    {
+      "chunk_id": "sample_chunk_0",
+      "doc_id": "sample",
+      "text": "Record ID: ABC-123",
+      "tokens": 3,
+      "page_range": [
+        1,
+        1
+      ],
+      "section": "section_1",
+      "metadata": {
+        "index": 0
+      }
+    },
+    {
+      "chunk_id": "sample_chunk_1",
+      "doc_id": "sample",
+      "text": "Notes: sample document for testing.",
+      "tokens": 5,
+      "page_range": [
+        1,
+        1
+      ],
+      "section": "customer_name_jane_doe",
+      "metadata": {
+        "index": 1
+      }
+    }
+  ]
+}

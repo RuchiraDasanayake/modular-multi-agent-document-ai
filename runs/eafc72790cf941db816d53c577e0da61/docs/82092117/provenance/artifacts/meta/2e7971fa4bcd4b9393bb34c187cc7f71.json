@@ -1,0 +1,11 @@
+{
+  "artifact_id": "2e7971fa4bcd4b9393bb34c187cc7f71",
+  "kind": "embedding_index",
+  "metadata": {
+    "agent": "embedding",
+    "dim": 256,
+    "seed": 13,
+    "version": "v1"
+  },
+  "path": "runs\\eafc72790cf941db816d53c577e0da61\\docs\\82092117\\embeddings\\index\\vectors.json"
+}

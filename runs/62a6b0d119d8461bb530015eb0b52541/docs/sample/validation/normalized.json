@@ -1,0 +1,8 @@
+{
+  "record_id": "ABC-123",
+  "date": "01/05/2026",
+  "total_amount": "42.50",
+  "customer_name": "Jane Doe",
+  "notes": "sample document for testing.",
+  "document_date": "01/05/2026"
+}

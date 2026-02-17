@@ -1,0 +1,15 @@
+{
+  "artifact_id": "dccfdcb619634f749a57582007cb6c81",
+  "kind": "structured_entities",
+  "metadata": {
+    "agent": "llm_extraction",
+    "doc_id": "83443897",
+    "input_artifacts": [
+      "6c63bb8971414d62906d5982ba367372"
+    ],
+    "model": "gpt-4o",
+    "policy_id": null,
+    "version": "v1"
+  },
+  "path": "E:\\Research Project\\Code\\IDPO\\runs\\9a3a6eed9e1744faa5c3bbeee0c0350f\\docs\\83443897\\artifacts\\clean\\dccfdcb619634f749a57582007cb6c81_83443897_structured.json"
+}

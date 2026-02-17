@@ -1,0 +1,142 @@
+{
+  "plan_id": "b73d7d60cdaa416c82fdd926f3c537e8",
+  "doc_id": "82092117",
+  "policy_id": "custom_fields",
+  "policy_name": "Custom Fields",
+  "source": "config",
+  "steps": [
+    {
+      "step_id": "0_preprocess.ocr",
+      "operator": "preprocess.ocr",
+      "params": {
+        "engine": "tesseract",
+        "passes": 2,
+        "lang": "eng",
+        "psm": 6,
+        "oem": 3,
+        "dpi": 300,
+        "alt_psm": [
+          4,
+          11
+        ]
+      },
+      "timeout_ms": 30000,
+      "budget_units": 1.0,
+      "fallback": []
+    },
+    {
+      "step_id": "1_preprocess.deskew",
+      "operator": "preprocess.deskew",
+      "params": {
+        "enabled": true
+      },
+      "timeout_ms": 30000,
+      "budget_units": 1.0,
+      "fallback": []
+    },
+    {
+      "step_id": "2_preprocess.denoise",
+      "operator": "preprocess.denoise",
+      "params": {
+        "enabled": true,
+        "strength": "standard"
+      },
+      "timeout_ms": 30000,
+      "budget_units": 1.0,
+      "fallback": []
+    },
+    {
+      "step_id": "3_structuring.extract",
+      "operator": "structuring.extract",
+      "params": {
+        "model_tier": "cloud",
+        "explicit_entities": [
+          "fax_number",
+          "name"
+        ],
+        "field_descriptions": {
+          "name": "whatever name"
+        },
+        "ruleset": "config"
+      },
+      "timeout_ms": 30000,
+      "budget_units": 1.0,
+      "fallback": []
+    },
+    {
+      "step_id": "4_structuring.section",
+      "operator": "structuring.section",
+      "params": {},
+      "timeout_ms": 30000,
+      "budget_units": 1.0,
+      "fallback": []
+    },
+    {
+      "step_id": "5_structuring.summary",
+      "operator": "structuring.summary",
+      "params": {},
+      "timeout_ms": 30000,
+      "budget_units": 1.0,
+      "fallback": []
+    },
+    {
+      "step_id": "6_validation",
+      "operator": "validation",
+      "params": {
+        "min_confidence": 0.6
+      },
+      "timeout_ms": 30000,
+      "budget_units": 1.0,
+      "fallback": []
+    },
+    {
+      "step_id": "7_recovery",
+      "operator": "recovery",
+      "params": {
+        "strategy": "regex"
+      },
+      "timeout_ms": 30000,
+      "budget_units": 1.0,
+      "fallback": []
+    },
+    {
+      "step_id": "8_escalation",
+      "operator": "escalation",
+      "params": {
+        "tier": "tier2"
+      },
+      "timeout_ms": 30000,
+      "budget_units": 1.0,
+      "fallback": []
+    },
+    {
+      "step_id": "9_chunking",
+      "operator": "chunking",
+      "params": {
+        "chunk_size": 350,
+        "chunk_overlap": 60,
+        "max_chunks": 128
+      },
+      "timeout_ms": 30000,
+      "budget_units": 1.0,
+      "fallback": []
+    }
+  ],
+  "budgets": {
+    "max_cost_units": 6.0
+  },
+  "retrieval": {
+    "dense_k": 12,
+    "sparse_k": 12,
+    "final_k": 12,
+    "mmr_lambda": 0.7,
+    "metadata_boost": 0.15
+  },
+  "token_budget": {
+    "max_tokens": 1600,
+    "reserved_tokens": 200,
+    "strategy": "simple"
+  },
+  "rationale": "default",
+  "created_at": 1767668125.4550438
+}

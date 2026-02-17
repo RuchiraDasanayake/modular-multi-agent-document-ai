@@ -1,0 +1,621 @@
+{
+  "entities": [
+    {
+      "key": "mo",
+      "value": "63136 - (G14) 385-2280",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        68,
+        90
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "63136 - (G14) 385-2280"
+      }
+    },
+    {
+      "key": "attn",
+      "value": "Mr. Robert Kennedy YOUR REPRESENTATIVE",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        266,
+        304
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "Mr. Robert Kennedy YOUR REPRESENTATIVE"
+      }
+    },
+    {
+      "key": "item",
+      "value": "___",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        356,
+        359
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "___"
+      }
+    },
+    {
+      "key": "harley_davidson_metal_plaque_size",
+      "value": "17% _x_ 23%\"",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        394,
+        406
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "17% _x_ 23%\""
+      }
+    },
+    {
+      "key": "material",
+      "value": "STEEL] ALUMINUM. (39 OTHER [_}______ GAUGE 025\"",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        417,
+        464
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "STEEL] ALUMINUM. (39 OTHER [_}______ GAUGE 025\""
+      }
+    },
+    {
+      "key": "base_color_aluminum_single_face",
+      "value": "DOUBLE FACE [7]",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        561,
+        576
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "DOUBLE FACE [7]"
+      }
+    },
+    {
+      "key": "holes",
+      "value": "YES kx NOC] NUMBER OF _4_",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        584,
+        609
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "YES kx NOC] NUMBER OF _4_"
+      }
+    },
+    {
+      "key": "corners",
+      "value": "ROUND [3 SQUARE &] ANGLE [i CUT TO SHAPE {_]",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        619,
+        663
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "ROUND [3 SQUARE &] ANGLE [i CUT TO SHAPE {_]"
+      }
+    },
+    {
+      "key": "edges",
+      "value": "HEMMED [_} CURLED (J EMBOSSED [x BEADED BORDER [_}",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        671,
+        721
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "HEMMED [_} CURLED (J EMBOSSED [x BEADED BORDER [_}"
+      }
+    },
+    {
+      "key": "stamp_frame_lx_right_angle_bend",
+      "value": "[} BACK FRAME [_]",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        755,
+        772
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "[} BACK FRAME [_]"
+      }
+    },
+    {
+      "key": "packing",
+      "value": "PER CARTON 10 PER CRATE PER BUNDLE",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        782,
+        816
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "PER CARTON 10 PER CRATE PER BUNDLE"
+      }
+    },
+    {
+      "key": "other",
+      "value": "_Price is based on reproduction of customer supplied \"Pack\" box",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        823,
+        886
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "_Price is based on reproduction of customer supplied \"Pack\" box"
+      }
+    },
+    {
+      "key": "tooling",
+      "value": "Form die, brass emboss die to achieve detail on eagle",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        897,
+        950
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "Form die, brass emboss die to achieve detail on eagle"
+      }
+    },
+    {
+      "key": "quantities",
+      "value": "500 Plaques _____One time tooling @ $3,015.00",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        964,
+        1009
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "500 Plaques _____One time tooling @ $3,015.00"
+      }
+    },
+    {
+      "key": "price",
+      "value": "$9.18 each Steel tips $1,045.00",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        1017,
+        1048
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "$9.18 each Steel tips $1,045.00"
+      }
+    },
+    {
+      "key": "billing",
+      "value": "fx]eiuc AS MANUFACTURE. \u2018[_]BILL AS SHIP FOR. L]6",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        1072,
+        1121
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "fx]eiuc AS MANUFACTURE. \u2018[_]BILL AS SHIP FOR. L]6"
+      }
+    },
+    {
+      "key": "mos",
+      "value": "(12 mos",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        1127,
+        1134
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "(12 mos"
+      }
+    },
+    {
+      "key": "warehousing",
+      "value": "[X] SHIP IMMEDIATELY. Ole mos. wHse. [J12mos.wHse. \u00a5 a",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        1149,
+        1203
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "[X] SHIP IMMEDIATELY. Ole mos. wHse. [J12mos.wHse. \u00a5 a"
+      }
+    },
+    {
+      "key": "drop_shipping",
+      "value": "PER SHIPMENT. )} (7",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        1219,
+        1238
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "PER SHIPMENT. )} (7"
+      }
+    },
+    {
+      "key": "arges_which_the_seller_may_be_required_to",
+      "value": "pay of collect upon the production, sale, storage, or delivery, under any existing or",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        1860,
+        1945
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "pay of collect upon the production, sale, storage, or delivery, under any existing or"
+      }
+    },
+    {
+      "key": "terms",
+      "value": "NET 10 DAYS 7) \\ (}",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        2259,
+        2278
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "NET 10 DAYS 7) \\ (}"
+      }
+    },
+    {
+      "key": "fax_num",
+      "value": "(314) 385-2280",
+      "confidence": 0.95,
+      "page": null,
+      "span": null,
+      "metadata": {
+        "explicit": true,
+        "source": "llm_cloud",
+        "model": "gpt-4o"
+      }
+    }
+  ],
+  "explicit_entities": [
+    {
+      "key": "fax_num",
+      "value": "(314) 385-2280",
+      "confidence": 0.95,
+      "page": null,
+      "span": null,
+      "metadata": {
+        "explicit": true,
+        "source": "llm_cloud",
+        "model": "gpt-4o"
+      }
+    }
+  ],
+  "default_entities": [
+    {
+      "key": "mo",
+      "value": "63136 - (G14) 385-2280",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        68,
+        90
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "63136 - (G14) 385-2280"
+      }
+    },
+    {
+      "key": "attn",
+      "value": "Mr. Robert Kennedy YOUR REPRESENTATIVE",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        266,
+        304
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "Mr. Robert Kennedy YOUR REPRESENTATIVE"
+      }
+    },
+    {
+      "key": "item",
+      "value": "___",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        356,
+        359
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "___"
+      }
+    },
+    {
+      "key": "harley_davidson_metal_plaque_size",
+      "value": "17% _x_ 23%\"",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        394,
+        406
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "17% _x_ 23%\""
+      }
+    },
+    {
+      "key": "material",
+      "value": "STEEL] ALUMINUM. (39 OTHER [_}______ GAUGE 025\"",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        417,
+        464
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "STEEL] ALUMINUM. (39 OTHER [_}______ GAUGE 025\""
+      }
+    },
+    {
+      "key": "base_color_aluminum_single_face",
+      "value": "DOUBLE FACE [7]",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        561,
+        576
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "DOUBLE FACE [7]"
+      }
+    },
+    {
+      "key": "holes",
+      "value": "YES kx NOC] NUMBER OF _4_",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        584,
+        609
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "YES kx NOC] NUMBER OF _4_"
+      }
+    },
+    {
+      "key": "corners",
+      "value": "ROUND [3 SQUARE &] ANGLE [i CUT TO SHAPE {_]",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        619,
+        663
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "ROUND [3 SQUARE &] ANGLE [i CUT TO SHAPE {_]"
+      }
+    },
+    {
+      "key": "edges",
+      "value": "HEMMED [_} CURLED (J EMBOSSED [x BEADED BORDER [_}",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        671,
+        721
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "HEMMED [_} CURLED (J EMBOSSED [x BEADED BORDER [_}"
+      }
+    },
+    {
+      "key": "stamp_frame_lx_right_angle_bend",
+      "value": "[} BACK FRAME [_]",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        755,
+        772
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "[} BACK FRAME [_]"
+      }
+    },
+    {
+      "key": "packing",
+      "value": "PER CARTON 10 PER CRATE PER BUNDLE",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        782,
+        816
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "PER CARTON 10 PER CRATE PER BUNDLE"
+      }
+    },
+    {
+      "key": "other",
+      "value": "_Price is based on reproduction of customer supplied \"Pack\" box",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        823,
+        886
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "_Price is based on reproduction of customer supplied \"Pack\" box"
+      }
+    },
+    {
+      "key": "tooling",
+      "value": "Form die, brass emboss die to achieve detail on eagle",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        897,
+        950
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "Form die, brass emboss die to achieve detail on eagle"
+      }
+    },
+    {
+      "key": "quantities",
+      "value": "500 Plaques _____One time tooling @ $3,015.00",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        964,
+        1009
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "500 Plaques _____One time tooling @ $3,015.00"
+      }
+    },
+    {
+      "key": "price",
+      "value": "$9.18 each Steel tips $1,045.00",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        1017,
+        1048
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "$9.18 each Steel tips $1,045.00"
+      }
+    },
+    {
+      "key": "billing",
+      "value": "fx]eiuc AS MANUFACTURE. \u2018[_]BILL AS SHIP FOR. L]6",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        1072,
+        1121
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "fx]eiuc AS MANUFACTURE. \u2018[_]BILL AS SHIP FOR. L]6"
+      }
+    },
+    {
+      "key": "mos",
+      "value": "(12 mos",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        1127,
+        1134
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "(12 mos"
+      }
+    },
+    {
+      "key": "warehousing",
+      "value": "[X] SHIP IMMEDIATELY. Ole mos. wHse. [J12mos.wHse. \u00a5 a",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        1149,
+        1203
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "[X] SHIP IMMEDIATELY. Ole mos. wHse. [J12mos.wHse. \u00a5 a"
+      }
+    },
+    {
+      "key": "drop_shipping",
+      "value": "PER SHIPMENT. )} (7",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        1219,
+        1238
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "PER SHIPMENT. )} (7"
+      }
+    },
+    {
+      "key": "arges_which_the_seller_may_be_required_to",
+      "value": "pay of collect upon the production, sale, storage, or delivery, under any existing or",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        1860,
+        1945
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "pay of collect upon the production, sale, storage, or delivery, under any existing or"
+      }
+    },
+    {
+      "key": "terms",
+      "value": "NET 10 DAYS 7) \\ (}",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        2259,
+        2278
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "NET 10 DAYS 7) \\ (}"
+      }
+    }
+  ],
+  "explicit_source": "plan"
+}

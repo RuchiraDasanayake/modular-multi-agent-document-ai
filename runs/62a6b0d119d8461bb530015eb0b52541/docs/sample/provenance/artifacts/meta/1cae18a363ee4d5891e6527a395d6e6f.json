@@ -1,0 +1,10 @@
+{
+  "artifact_id": "1cae18a363ee4d5891e6527a395d6e6f",
+  "kind": "plan",
+  "metadata": {
+    "agent": "router",
+    "doc_id": "sample",
+    "policy_id": "default"
+  },
+  "path": "runs\\62a6b0d119d8461bb530015eb0b52541\\docs\\sample\\artifacts\\clean\\1cae18a363ee4d5891e6527a395d6e6f_sample_plan.json"
+}

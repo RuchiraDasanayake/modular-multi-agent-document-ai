@@ -1,0 +1,10 @@
+{
+  "artifact_id": "5c2cfdf23c374d0499864a948f41ae34",
+  "kind": "summary",
+  "metadata": {
+    "agent": "summarization",
+    "doc_id": "82200067_0069",
+    "version": "v1"
+  },
+  "path": "runs\\eafc72790cf941db816d53c577e0da61\\docs\\82200067_0069\\artifacts\\clean\\5c2cfdf23c374d0499864a948f41ae34_82200067_0069_summary.txt"
+}

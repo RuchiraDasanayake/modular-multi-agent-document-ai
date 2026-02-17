@@ -1,0 +1,366 @@
+{
+  "nodes": [
+    {
+      "id": "run:61a7941caa544bc2bc142eec5ea6c793",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "intake",
+        "version": "v1",
+        "timestamp": 1767671572.5188234,
+        "event_type": "OperatorExecution"
+      }
+    },
+    {
+      "id": "doc:82251504",
+      "type": "document",
+      "metadata": {
+        "doc_id": "82251504"
+      }
+    },
+    {
+      "id": "artifact:3c24ad84efc74057a5f0609d88626962",
+      "type": "artifact",
+      "metadata": {
+        "artifact_id": "3c24ad84efc74057a5f0609d88626962"
+      }
+    },
+    {
+      "id": "run:84293727876c4ddb8de5bf10dcb14eca",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "document_analysis",
+        "version": "v1",
+        "timestamp": 1767671572.5194063,
+        "event_type": "DAEOutput"
+      }
+    },
+    {
+      "id": "run:b0e83b93eac84440b792775ab20eb7f7",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "router",
+        "version": "v1",
+        "timestamp": 1767671572.5211253,
+        "event_type": "PolicyDecision"
+      }
+    },
+    {
+      "id": "artifact:46f1ff4fedc24820bba64b5abbb5fa97",
+      "type": "artifact",
+      "metadata": {
+        "artifact_id": "46f1ff4fedc24820bba64b5abbb5fa97"
+      }
+    },
+    {
+      "id": "run:498dbd1c08014becbf4c00879c2adcfc",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "ocr",
+        "version": "v1",
+        "timestamp": 1767671577.3007324,
+        "event_type": "OperatorExecution"
+      }
+    },
+    {
+      "id": "artifact:fce5262cc9a8445ba85d3c3a20d7e95b",
+      "type": "artifact",
+      "metadata": {
+        "artifact_id": "fce5262cc9a8445ba85d3c3a20d7e95b"
+      }
+    },
+    {
+      "id": "run:e9d40f2684ed4c9c9030a0e5508be846",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "deskew",
+        "version": "v1",
+        "timestamp": 1767671577.3026078,
+        "event_type": "OperatorExecution"
+      }
+    },
+    {
+      "id": "artifact:412315f3d96d40279cf4d79784bfed9a",
+      "type": "artifact",
+      "metadata": {
+        "artifact_id": "412315f3d96d40279cf4d79784bfed9a"
+      }
+    },
+    {
+      "id": "run:58ffe60caa3342c69c5816f7a92d8d02",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "denoise",
+        "version": "v1",
+        "timestamp": 1767671577.3046978,
+        "event_type": "OperatorExecution"
+      }
+    },
+    {
+      "id": "artifact:eadff6489aed4d18a414112c077e4b68",
+      "type": "artifact",
+      "metadata": {
+        "artifact_id": "eadff6489aed4d18a414112c077e4b68"
+      }
+    },
+    {
+      "id": "run:08e975353db94ef88a15cc581ef3808e",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "llm_extraction",
+        "version": "v1",
+        "timestamp": 1767671578.9669783,
+        "event_type": "OperatorExecution"
+      }
+    },
+    {
+      "id": "artifact:ce97ae3623ec4fa19640da25cc8d100a",
+      "type": "artifact",
+      "metadata": {
+        "artifact_id": "ce97ae3623ec4fa19640da25cc8d100a"
+      }
+    },
+    {
+      "id": "run:4c837d8463804d11b28e95cb0aebf9d7",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "sectioning",
+        "version": "v1",
+        "timestamp": 1767671578.968101,
+        "event_type": "OperatorExecution"
+      }
+    },
+    {
+      "id": "artifact:6fea3e15fd5646af9d65356aa53ae95e",
+      "type": "artifact",
+      "metadata": {
+        "artifact_id": "6fea3e15fd5646af9d65356aa53ae95e"
+      }
+    },
+    {
+      "id": "run:52577a14c0464d7a82506fce534babfb",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "summarization",
+        "version": "v1",
+        "timestamp": 1767671578.969005,
+        "event_type": "OperatorExecution"
+      }
+    },
+    {
+      "id": "artifact:ecea1bda2cea49c0abaa1885cef1149a",
+      "type": "artifact",
+      "metadata": {
+        "artifact_id": "ecea1bda2cea49c0abaa1885cef1149a"
+      }
+    },
+    {
+      "id": "run:12ed97261f7f410dac1d1e3efd0a7bbe",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "plan_executor",
+        "version": "v1",
+        "timestamp": 1767671578.9694564,
+        "event_type": "OperatorExecution"
+      }
+    },
+    {
+      "id": "run:e9cea423f0fd41c2ad0cba7d989832eb",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "plan_executor",
+        "version": "v1",
+        "timestamp": 1767671578.969881,
+        "event_type": "OperatorExecution"
+      }
+    },
+    {
+      "id": "run:16bc00b15f4f463898ab4c3d4b225170",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "plan_executor",
+        "version": "v1",
+        "timestamp": 1767671578.9703376,
+        "event_type": "OperatorExecution"
+      }
+    },
+    {
+      "id": "run:aa1562beb2134d44bb4c528da0d7e705",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "plan_executor",
+        "version": "v1",
+        "timestamp": 1767671578.9707487,
+        "event_type": "OperatorExecution"
+      }
+    },
+    {
+      "id": "run:fc12e6224d6c4fdd97e651d6969568d2",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "finalize",
+        "version": "v1",
+        "timestamp": 1767671578.9711943,
+        "event_type": "FinalArtifacts"
+      }
+    },
+    {
+      "id": "run:78e33c589f7e41ac9e68ad84f259c62c",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "embedding",
+        "version": "v1",
+        "timestamp": 1767671578.9731488,
+        "event_type": "OperatorExecution"
+      }
+    },
+    {
+      "id": "artifact:eb318db7f5b74858af0e46068b986b07",
+      "type": "artifact",
+      "metadata": {
+        "artifact_id": "eb318db7f5b74858af0e46068b986b07"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "doc:82251504",
+      "target": "run:61a7941caa544bc2bc142eec5ea6c793",
+      "type": "used_by"
+    },
+    {
+      "source": "run:61a7941caa544bc2bc142eec5ea6c793",
+      "target": "artifact:3c24ad84efc74057a5f0609d88626962",
+      "type": "produced_by"
+    },
+    {
+      "source": "doc:82251504",
+      "target": "run:84293727876c4ddb8de5bf10dcb14eca",
+      "type": "used_by"
+    },
+    {
+      "source": "doc:82251504",
+      "target": "run:b0e83b93eac84440b792775ab20eb7f7",
+      "type": "used_by"
+    },
+    {
+      "source": "run:b0e83b93eac84440b792775ab20eb7f7",
+      "target": "artifact:46f1ff4fedc24820bba64b5abbb5fa97",
+      "type": "produced_by"
+    },
+    {
+      "source": "doc:82251504",
+      "target": "run:498dbd1c08014becbf4c00879c2adcfc",
+      "type": "used_by"
+    },
+    {
+      "source": "run:498dbd1c08014becbf4c00879c2adcfc",
+      "target": "artifact:fce5262cc9a8445ba85d3c3a20d7e95b",
+      "type": "produced_by"
+    },
+    {
+      "source": "doc:82251504",
+      "target": "run:e9d40f2684ed4c9c9030a0e5508be846",
+      "type": "used_by"
+    },
+    {
+      "source": "artifact:fce5262cc9a8445ba85d3c3a20d7e95b",
+      "target": "run:e9d40f2684ed4c9c9030a0e5508be846",
+      "type": "used_by"
+    },
+    {
+      "source": "run:e9d40f2684ed4c9c9030a0e5508be846",
+      "target": "artifact:412315f3d96d40279cf4d79784bfed9a",
+      "type": "produced_by"
+    },
+    {
+      "source": "doc:82251504",
+      "target": "run:58ffe60caa3342c69c5816f7a92d8d02",
+      "type": "used_by"
+    },
+    {
+      "source": "artifact:412315f3d96d40279cf4d79784bfed9a",
+      "target": "run:58ffe60caa3342c69c5816f7a92d8d02",
+      "type": "used_by"
+    },
+    {
+      "source": "run:58ffe60caa3342c69c5816f7a92d8d02",
+      "target": "artifact:eadff6489aed4d18a414112c077e4b68",
+      "type": "produced_by"
+    },
+    {
+      "source": "doc:82251504",
+      "target": "run:08e975353db94ef88a15cc581ef3808e",
+      "type": "used_by"
+    },
+    {
+      "source": "artifact:eadff6489aed4d18a414112c077e4b68",
+      "target": "run:08e975353db94ef88a15cc581ef3808e",
+      "type": "used_by"
+    },
+    {
+      "source": "run:08e975353db94ef88a15cc581ef3808e",
+      "target": "artifact:ce97ae3623ec4fa19640da25cc8d100a",
+      "type": "produced_by"
+    },
+    {
+      "source": "doc:82251504",
+      "target": "run:4c837d8463804d11b28e95cb0aebf9d7",
+      "type": "used_by"
+    },
+    {
+      "source": "run:4c837d8463804d11b28e95cb0aebf9d7",
+      "target": "artifact:6fea3e15fd5646af9d65356aa53ae95e",
+      "type": "produced_by"
+    },
+    {
+      "source": "doc:82251504",
+      "target": "run:52577a14c0464d7a82506fce534babfb",
+      "type": "used_by"
+    },
+    {
+      "source": "run:52577a14c0464d7a82506fce534babfb",
+      "target": "artifact:ecea1bda2cea49c0abaa1885cef1149a",
+      "type": "produced_by"
+    },
+    {
+      "source": "doc:82251504",
+      "target": "run:12ed97261f7f410dac1d1e3efd0a7bbe",
+      "type": "used_by"
+    },
+    {
+      "source": "doc:82251504",
+      "target": "run:e9cea423f0fd41c2ad0cba7d989832eb",
+      "type": "used_by"
+    },
+    {
+      "source": "doc:82251504",
+      "target": "run:16bc00b15f4f463898ab4c3d4b225170",
+      "type": "used_by"
+    },
+    {
+      "source": "doc:82251504",
+      "target": "run:aa1562beb2134d44bb4c528da0d7e705",
+      "type": "used_by"
+    },
+    {
+      "source": "doc:82251504",
+      "target": "run:fc12e6224d6c4fdd97e651d6969568d2",
+      "type": "used_by"
+    },
+    {
+      "source": "run:fc12e6224d6c4fdd97e651d6969568d2",
+      "target": "artifact:3c24ad84efc74057a5f0609d88626962",
+      "type": "produced_by"
+    },
+    {
+      "source": "run:fc12e6224d6c4fdd97e651d6969568d2",
+      "target": "artifact:46f1ff4fedc24820bba64b5abbb5fa97",
+      "type": "produced_by"
+    },
+    {
+      "source": "run:78e33c589f7e41ac9e68ad84f259c62c",
+      "target": "artifact:eb318db7f5b74858af0e46068b986b07",
+      "type": "produced_by"
+    }
+  ]
+}

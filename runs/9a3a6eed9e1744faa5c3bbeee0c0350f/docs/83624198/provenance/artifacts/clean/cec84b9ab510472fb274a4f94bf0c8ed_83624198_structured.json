@@ -1,0 +1,300 @@
+{
+  "combined_entities": [
+    {
+      "confidence": 0.55,
+      "key": "date",
+      "metadata": {
+        "evidence": "February 25, 1998 ",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        109,
+        127
+      ],
+      "value": "February 25, 1998 "
+    },
+    {
+      "confidence": 0.55,
+      "key": "message_to",
+      "metadata": {
+        "evidence": "Ronald S, Milstein",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        161,
+        179
+      ],
+      "value": "Ronald S, Milstein"
+    },
+    {
+      "confidence": 0.55,
+      "key": "company",
+      "metadata": {
+        "evidence": "Lorillard Tobacco Company",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        189,
+        214
+      ],
+      "value": "Lorillard Tobacco Company"
+    },
+    {
+      "confidence": 0.55,
+      "key": "fax_number",
+      "metadata": {
+        "evidence": "910/335-7707",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        227,
+        239
+      ],
+      "value": "910/335-7707"
+    },
+    {
+      "confidence": 0.55,
+      "key": "phone",
+      "metadata": {
+        "evidence": "910/335-7718",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        247,
+        259
+      ],
+      "value": "910/335-7718"
+    },
+    {
+      "confidence": 0.55,
+      "key": "from",
+      "metadata": {
+        "evidence": "Andy Zausner",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        266,
+        278
+      ],
+      "value": "Andy Zausner"
+    },
+    {
+      "confidence": 0.55,
+      "key": "phone",
+      "metadata": {
+        "evidence": "202/828-2259",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        286,
+        298
+      ],
+      "value": "202/828-2259"
+    },
+    {
+      "confidence": 0.55,
+      "key": "message",
+      "metadata": {
+        "evidence": "|Scc attached fax from the Committee on Commerce just received in my",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        370,
+        438
+      ],
+      "value": "|Scc attached fax from the Committee on Commerce just received in my"
+    },
+    {
+      "confidence": 0.95,
+      "key": "fax_num",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "910/335-7707"
+    }
+  ],
+  "default_entities": [
+    {
+      "confidence": 0.55,
+      "key": "date",
+      "metadata": {
+        "evidence": "February 25, 1998 ",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        109,
+        127
+      ],
+      "value": "February 25, 1998 "
+    },
+    {
+      "confidence": 0.55,
+      "key": "message_to",
+      "metadata": {
+        "evidence": "Ronald S, Milstein",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        161,
+        179
+      ],
+      "value": "Ronald S, Milstein"
+    },
+    {
+      "confidence": 0.55,
+      "key": "company",
+      "metadata": {
+        "evidence": "Lorillard Tobacco Company",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        189,
+        214
+      ],
+      "value": "Lorillard Tobacco Company"
+    },
+    {
+      "confidence": 0.55,
+      "key": "fax_number",
+      "metadata": {
+        "evidence": "910/335-7707",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        227,
+        239
+      ],
+      "value": "910/335-7707"
+    },
+    {
+      "confidence": 0.55,
+      "key": "phone",
+      "metadata": {
+        "evidence": "910/335-7718",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        247,
+        259
+      ],
+      "value": "910/335-7718"
+    },
+    {
+      "confidence": 0.55,
+      "key": "from",
+      "metadata": {
+        "evidence": "Andy Zausner",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        266,
+        278
+      ],
+      "value": "Andy Zausner"
+    },
+    {
+      "confidence": 0.55,
+      "key": "phone",
+      "metadata": {
+        "evidence": "202/828-2259",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        286,
+        298
+      ],
+      "value": "202/828-2259"
+    },
+    {
+      "confidence": 0.55,
+      "key": "message",
+      "metadata": {
+        "evidence": "|Scc attached fax from the Committee on Commerce just received in my",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        370,
+        438
+      ],
+      "value": "|Scc attached fax from the Committee on Commerce just received in my"
+    }
+  ],
+  "doc_id": "83624198",
+  "explicit_entities": [
+    {
+      "confidence": 0.95,
+      "key": "fax_num",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "910/335-7707"
+    }
+  ],
+  "explicit_source": "plan",
+  "llm_entities": [
+    {
+      "confidence": 0.95,
+      "key": "fax_num",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "910/335-7707"
+    },
+    {
+      "confidence": 0.9,
+      "key": "fax_num",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "202-861-9106"
+    },
+    {
+      "confidence": 0.95,
+      "key": "fax_num",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "202-887-0689"
+    }
+  ],
+  "model_mode": "cloud",
+  "model_name": "gpt-4o",
+  "policy_id": null,
+  "policy_name": null
+}

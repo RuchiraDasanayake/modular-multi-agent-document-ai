@@ -1,0 +1,20 @@
+{
+  "sections": [
+    {
+      "name": "section_1",
+      "text": "Record ID: ABC-123",
+      "page_start": 1,
+      "page_end": 1,
+      "confidence": 0.7,
+      "metadata": {}
+    },
+    {
+      "name": "customer_name_jane_doe",
+      "text": "Notes: sample document for testing.",
+      "page_start": 1,
+      "page_end": 1,
+      "confidence": 0.6,
+      "metadata": {}
+    }
+  ]
+}

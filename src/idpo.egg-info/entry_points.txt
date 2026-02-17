@@ -1,0 +1,2 @@
+[console_scripts]
+idpo = idpo.cli:main

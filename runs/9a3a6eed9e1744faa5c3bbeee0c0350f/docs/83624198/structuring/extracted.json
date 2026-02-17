@@ -1,0 +1,257 @@
+{
+  "entities": [
+    {
+      "key": "date",
+      "value": "February 25, 1998 ",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        109,
+        127
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "February 25, 1998 "
+      }
+    },
+    {
+      "key": "message_to",
+      "value": "Ronald S, Milstein",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        161,
+        179
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "Ronald S, Milstein"
+      }
+    },
+    {
+      "key": "company",
+      "value": "Lorillard Tobacco Company",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        189,
+        214
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "Lorillard Tobacco Company"
+      }
+    },
+    {
+      "key": "fax_number",
+      "value": "910/335-7707",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        227,
+        239
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "910/335-7707"
+      }
+    },
+    {
+      "key": "phone",
+      "value": "910/335-7718",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        247,
+        259
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "910/335-7718"
+      }
+    },
+    {
+      "key": "from",
+      "value": "Andy Zausner",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        266,
+        278
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "Andy Zausner"
+      }
+    },
+    {
+      "key": "phone",
+      "value": "202/828-2259",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        286,
+        298
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "202/828-2259"
+      }
+    },
+    {
+      "key": "message",
+      "value": "|Scc attached fax from the Committee on Commerce just received in my",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        370,
+        438
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "|Scc attached fax from the Committee on Commerce just received in my"
+      }
+    },
+    {
+      "key": "fax_num",
+      "value": "910/335-7707",
+      "confidence": 0.95,
+      "page": null,
+      "span": null,
+      "metadata": {
+        "explicit": true,
+        "source": "llm_cloud",
+        "model": "gpt-4o"
+      }
+    }
+  ],
+  "explicit_entities": [
+    {
+      "key": "fax_num",
+      "value": "910/335-7707",
+      "confidence": 0.95,
+      "page": null,
+      "span": null,
+      "metadata": {
+        "explicit": true,
+        "source": "llm_cloud",
+        "model": "gpt-4o"
+      }
+    }
+  ],
+  "default_entities": [
+    {
+      "key": "date",
+      "value": "February 25, 1998 ",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        109,
+        127
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "February 25, 1998 "
+      }
+    },
+    {
+      "key": "message_to",
+      "value": "Ronald S, Milstein",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        161,
+        179
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "Ronald S, Milstein"
+      }
+    },
+    {
+      "key": "company",
+      "value": "Lorillard Tobacco Company",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        189,
+        214
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "Lorillard Tobacco Company"
+      }
+    },
+    {
+      "key": "fax_number",
+      "value": "910/335-7707",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        227,
+        239
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "910/335-7707"
+      }
+    },
+    {
+      "key": "phone",
+      "value": "910/335-7718",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        247,
+        259
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "910/335-7718"
+      }
+    },
+    {
+      "key": "from",
+      "value": "Andy Zausner",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        266,
+        278
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "Andy Zausner"
+      }
+    },
+    {
+      "key": "phone",
+      "value": "202/828-2259",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        286,
+        298
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "202/828-2259"
+      }
+    },
+    {
+      "key": "message",
+      "value": "|Scc attached fax from the Committee on Commerce just received in my",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        370,
+        438
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "|Scc attached fax from the Committee on Commerce just received in my"
+      }
+    }
+  ],
+  "explicit_source": "plan"
+}

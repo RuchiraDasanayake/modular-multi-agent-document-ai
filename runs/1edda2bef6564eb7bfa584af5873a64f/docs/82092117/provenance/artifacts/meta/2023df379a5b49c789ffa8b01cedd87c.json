@@ -1,0 +1,16 @@
+{
+  "artifact_id": "2023df379a5b49c789ffa8b01cedd87c",
+  "kind": "deskew_input",
+  "metadata": {
+    "agent": "deskew",
+    "doc_id": "82092117",
+    "parameters": {
+      "deskew": true
+    },
+    "source_artifacts": [
+      "0811e3a2a5e04a7fb8253a0b0572770a"
+    ],
+    "version": "v1"
+  },
+  "path": "E:\\Research Project\\Code\\IDPO\\runs\\1edda2bef6564eb7bfa584af5873a64f\\docs\\82092117\\artifacts\\raw\\2023df379a5b49c789ffa8b01cedd87c_82092117_deskew_input.txt"
+}

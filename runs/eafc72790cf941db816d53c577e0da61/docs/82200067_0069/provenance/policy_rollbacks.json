@@ -1,0 +1,12 @@
+{
+  "history": {
+    "default": [
+      {
+        "latency_ms": 357.1920394897461,
+        "validation_failure": 0.0,
+        "quality_proxy": 0.55
+      }
+    ]
+  },
+  "blocked": []
+}

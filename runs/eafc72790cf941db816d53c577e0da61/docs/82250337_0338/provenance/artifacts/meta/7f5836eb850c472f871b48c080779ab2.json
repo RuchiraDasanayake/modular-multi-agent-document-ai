@@ -1,0 +1,16 @@
+{
+  "artifact_id": "7f5836eb850c472f871b48c080779ab2",
+  "kind": "denoise_input",
+  "metadata": {
+    "agent": "denoise",
+    "doc_id": "82250337_0338",
+    "parameters": {
+      "denoise": true
+    },
+    "source_artifacts": [
+      "4c0b48c602ac467a8bd7c2797a7b1092"
+    ],
+    "version": "v1"
+  },
+  "path": "runs\\eafc72790cf941db816d53c577e0da61\\docs\\82250337_0338\\artifacts\\raw\\7f5836eb850c472f871b48c080779ab2_82250337_0338_denoise_input.txt"
+}

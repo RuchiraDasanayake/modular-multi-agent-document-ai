@@ -1,0 +1,16 @@
+{
+  "artifact_id": "4e23e4c0847c443db5e2d874a6e03ba3",
+  "kind": "denoise_input",
+  "metadata": {
+    "agent": "denoise",
+    "doc_id": "82251504",
+    "parameters": {
+      "denoise": true
+    },
+    "source_artifacts": [
+      "412315f3d96d40279cf4d79784bfed9a"
+    ],
+    "version": "v1"
+  },
+  "path": "E:\\Research Project\\Code\\IDPO\\runs\\01562c1e85a94f399b68c8053820fe60\\docs\\82251504\\artifacts\\raw\\4e23e4c0847c443db5e2d874a6e03ba3_82251504_denoise_input.txt"
+}

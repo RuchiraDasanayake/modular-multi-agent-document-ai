@@ -1,0 +1,416 @@
+{
+  "combined_entities": [
+    {
+      "confidence": 0.55,
+      "key": "sam_zolot_manufacturer",
+      "metadata": {
+        "evidence": "Baw",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        77,
+        80
+      ],
+      "value": "Baw"
+    },
+    {
+      "confidence": 0.55,
+      "key": "from",
+      "metadata": {
+        "evidence": "D. J,",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        87,
+        92
+      ],
+      "value": "D. J,"
+    },
+    {
+      "confidence": 0.55,
+      "key": "landro_brand",
+      "metadata": {
+        "evidence": "Kool Waterfall",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        107,
+        121
+      ],
+      "value": "Kool Waterfall"
+    },
+    {
+      "confidence": 0.55,
+      "key": "date",
+      "metadata": {
+        "evidence": "2-",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        128,
+        130
+      ],
+      "value": "2-"
+    },
+    {
+      "confidence": 0.55,
+      "key": "dec_97_type_of_packings",
+      "metadata": {
+        "evidence": "All Packings _",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        155,
+        169
+      ],
+      "value": "All Packings _"
+    },
+    {
+      "confidence": 0.55,
+      "key": "reporting_periods",
+      "metadata": {
+        "evidence": "Oct. Nov. X Dec. Jan",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        189,
+        209
+      ],
+      "value": "Oct. Nov. X Dec. Jan"
+    },
+    {
+      "confidence": 0.55,
+      "key": "test_market_geography",
+      "metadata": {
+        "evidence": "Divisions 621 and 627 ( Wescontin )",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        234,
+        269
+      ],
+      "value": "Divisions 621 and 627 ( Wescontin )"
+    },
+    {
+      "confidence": 0.55,
+      "key": "price_point",
+      "metadata": {
+        "evidence": "FULL $ PS (indicate Distributor's Cost Per Carton)",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        283,
+        333
+      ],
+      "value": "FULL $ PS (indicate Distributor's Cost Per Carton)"
+    },
+    {
+      "confidence": 0.55,
+      "key": "they_have_crew",
+      "metadata": {
+        "evidence": "worked distribution, and it is reported that they may crew-work it again. Sales force has been busy",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        374,
+        473
+      ],
+      "value": "worked distribution, and it is reported that they may crew-work it again. Sales force has been busy"
+    },
+    {
+      "confidence": 0.55,
+      "key": "distributors",
+      "metadata": {
+        "evidence": "ACCEPTANCE/INTRO TERMS/INTRO DEALS/INVOLVEMENT:",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        581,
+        628
+      ],
+      "value": "ACCEPTANCE/INTRO TERMS/INTRO DEALS/INVOLVEMENT:"
+    },
+    {
+      "confidence": 0.55,
+      "key": "chains",
+      "metadata": {
+        "evidence": "ACCEPTANCE/MERCHANDISING:",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        790,
+        815
+      ],
+      "value": "ACCEPTANCE/MERCHANDISING:"
+    },
+    {
+      "confidence": 0.55,
+      "key": "independents",
+      "metadata": {
+        "evidence": "ACCEPTANCE/MERCHANDISING:",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        924,
+        949
+      ],
+      "value": "ACCEPTANCE/MERCHANDISING:"
+    },
+    {
+      "confidence": 0.55,
+      "key": "advertising_effectiveness_of_p_o_s",
+      "metadata": {
+        "evidence": "NO",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        1121,
+        1123
+      ],
+      "value": "NO"
+    },
+    {
+      "confidence": 0.9,
+      "key": "name",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "Sam Zolot"
+    }
+  ],
+  "default_entities": [
+    {
+      "confidence": 0.55,
+      "key": "sam_zolot_manufacturer",
+      "metadata": {
+        "evidence": "Baw",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        77,
+        80
+      ],
+      "value": "Baw"
+    },
+    {
+      "confidence": 0.55,
+      "key": "from",
+      "metadata": {
+        "evidence": "D. J,",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        87,
+        92
+      ],
+      "value": "D. J,"
+    },
+    {
+      "confidence": 0.55,
+      "key": "landro_brand",
+      "metadata": {
+        "evidence": "Kool Waterfall",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        107,
+        121
+      ],
+      "value": "Kool Waterfall"
+    },
+    {
+      "confidence": 0.55,
+      "key": "date",
+      "metadata": {
+        "evidence": "2-",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        128,
+        130
+      ],
+      "value": "2-"
+    },
+    {
+      "confidence": 0.55,
+      "key": "dec_97_type_of_packings",
+      "metadata": {
+        "evidence": "All Packings _",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        155,
+        169
+      ],
+      "value": "All Packings _"
+    },
+    {
+      "confidence": 0.55,
+      "key": "reporting_periods",
+      "metadata": {
+        "evidence": "Oct. Nov. X Dec. Jan",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        189,
+        209
+      ],
+      "value": "Oct. Nov. X Dec. Jan"
+    },
+    {
+      "confidence": 0.55,
+      "key": "test_market_geography",
+      "metadata": {
+        "evidence": "Divisions 621 and 627 ( Wescontin )",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        234,
+        269
+      ],
+      "value": "Divisions 621 and 627 ( Wescontin )"
+    },
+    {
+      "confidence": 0.55,
+      "key": "price_point",
+      "metadata": {
+        "evidence": "FULL $ PS (indicate Distributor's Cost Per Carton)",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        283,
+        333
+      ],
+      "value": "FULL $ PS (indicate Distributor's Cost Per Carton)"
+    },
+    {
+      "confidence": 0.55,
+      "key": "they_have_crew",
+      "metadata": {
+        "evidence": "worked distribution, and it is reported that they may crew-work it again. Sales force has been busy",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        374,
+        473
+      ],
+      "value": "worked distribution, and it is reported that they may crew-work it again. Sales force has been busy"
+    },
+    {
+      "confidence": 0.55,
+      "key": "distributors",
+      "metadata": {
+        "evidence": "ACCEPTANCE/INTRO TERMS/INTRO DEALS/INVOLVEMENT:",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        581,
+        628
+      ],
+      "value": "ACCEPTANCE/INTRO TERMS/INTRO DEALS/INVOLVEMENT:"
+    },
+    {
+      "confidence": 0.55,
+      "key": "chains",
+      "metadata": {
+        "evidence": "ACCEPTANCE/MERCHANDISING:",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        790,
+        815
+      ],
+      "value": "ACCEPTANCE/MERCHANDISING:"
+    },
+    {
+      "confidence": 0.55,
+      "key": "independents",
+      "metadata": {
+        "evidence": "ACCEPTANCE/MERCHANDISING:",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        924,
+        949
+      ],
+      "value": "ACCEPTANCE/MERCHANDISING:"
+    },
+    {
+      "confidence": 0.55,
+      "key": "advertising_effectiveness_of_p_o_s",
+      "metadata": {
+        "evidence": "NO",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        1121,
+        1123
+      ],
+      "value": "NO"
+    }
+  ],
+  "doc_id": "82250337_0338",
+  "explicit_entities": [
+    {
+      "confidence": 0.9,
+      "key": "name",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "Sam Zolot"
+    }
+  ],
+  "explicit_source": "plan",
+  "llm_entities": [
+    {
+      "confidence": 0.9,
+      "key": "name",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "Sam Zolot"
+    }
+  ],
+  "model_mode": "cloud",
+  "model_name": "gpt-4o",
+  "policy_id": null,
+  "policy_name": null
+}

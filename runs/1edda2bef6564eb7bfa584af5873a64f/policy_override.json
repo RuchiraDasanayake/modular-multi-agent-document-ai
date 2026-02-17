@@ -1,0 +1,22 @@
+{
+  "default_policy_id": "custom_fields",
+  "policies": [
+    {
+      "policy_id": "custom_fields",
+      "name": "Custom Fields",
+      "conditions": {},
+      "actions": {
+        "extraction": {
+          "explicit_entities": [
+            "fax_number",
+            "name"
+          ],
+          "field_descriptions": {
+            "fax_number": "Fax number in the document",
+            "name": "Name of the reciepient of the document"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "fields": [
+    {
+      "name": "fax num",
+      "key": "fax_num",
+      "description": "fax number"
+    },
+    {
+      "name": "name",
+      "key": "name",
+      "description": "whatever name on the doc"
+    }
+  ]
+}

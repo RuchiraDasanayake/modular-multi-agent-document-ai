@@ -1,0 +1,317 @@
+{
+  "entities": [
+    {
+      "key": "to",
+      "value": "K. A. SPARROW ",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        4,
+        18
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "K. A. SPARROW "
+      }
+    },
+    {
+      "key": "from",
+      "value": "S. Reindel",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        27,
+        37
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "S. Reindel"
+      }
+    },
+    {
+      "key": "name_no",
+      "value": "Nassau / 107",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        55,
+        67
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "Nassau / 107"
+      }
+    },
+    {
+      "key": "name_of_event",
+      "value": "H. Levinson Tradeshow",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        117,
+        138
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "H. Levinson Tradeshow"
+      }
+    },
+    {
+      "key": "date_of_event",
+      "value": "3/18/97",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        156,
+        163
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "3/18/97"
+      }
+    },
+    {
+      "key": "samples_items_required",
+      "value": "SAMPLE 10'S (400 PACKS PER CASE)",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        191,
+        223
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "SAMPLE 10'S (400 PACKS PER CASE)"
+      }
+    },
+    {
+      "key": "customer_shipping_number_198",
+      "value": "1160006",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        428,
+        435
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "1160006"
+      }
+    },
+    {
+      "key": "date_forwarded_to_promotion_services",
+      "value": "2h, far",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        484,
+        491
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "2h, far"
+      }
+    },
+    {
+      "key": "datetonyo",
+      "value": "1/24/97",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        569,
+        576
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "1/24/97"
+      }
+    },
+    {
+      "key": "name",
+      "value": "K. A. Sparrow",
+      "confidence": 0.95,
+      "page": null,
+      "span": null,
+      "metadata": {
+        "explicit": true,
+        "source": "llm_cloud",
+        "model": "gpt-4o"
+      }
+    },
+    {
+      "key": "fax_number",
+      "value": "1160006",
+      "confidence": 0.6,
+      "page": 1,
+      "span": [
+        428,
+        435
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "1160006",
+        "explicit": true,
+        "source": "schema_match"
+      }
+    }
+  ],
+  "explicit_entities": [
+    {
+      "key": "name",
+      "value": "K. A. Sparrow",
+      "confidence": 0.95,
+      "page": null,
+      "span": null,
+      "metadata": {
+        "explicit": true,
+        "source": "llm_cloud",
+        "model": "gpt-4o"
+      }
+    },
+    {
+      "key": "fax_number",
+      "value": "1160006",
+      "confidence": 0.6,
+      "page": 1,
+      "span": [
+        428,
+        435
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "1160006",
+        "explicit": true,
+        "source": "schema_match"
+      }
+    }
+  ],
+  "default_entities": [
+    {
+      "key": "to",
+      "value": "K. A. SPARROW ",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        4,
+        18
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "K. A. SPARROW "
+      }
+    },
+    {
+      "key": "from",
+      "value": "S. Reindel",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        27,
+        37
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "S. Reindel"
+      }
+    },
+    {
+      "key": "name_no",
+      "value": "Nassau / 107",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        55,
+        67
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "Nassau / 107"
+      }
+    },
+    {
+      "key": "name_of_event",
+      "value": "H. Levinson Tradeshow",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        117,
+        138
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "H. Levinson Tradeshow"
+      }
+    },
+    {
+      "key": "date_of_event",
+      "value": "3/18/97",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        156,
+        163
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "3/18/97"
+      }
+    },
+    {
+      "key": "samples_items_required",
+      "value": "SAMPLE 10'S (400 PACKS PER CASE)",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        191,
+        223
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "SAMPLE 10'S (400 PACKS PER CASE)"
+      }
+    },
+    {
+      "key": "customer_shipping_number_198",
+      "value": "1160006",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        428,
+        435
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "1160006"
+      }
+    },
+    {
+      "key": "date_forwarded_to_promotion_services",
+      "value": "2h, far",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        484,
+        491
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "2h, far"
+      }
+    },
+    {
+      "key": "datetonyo",
+      "value": "1/24/97",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        569,
+        576
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "1/24/97"
+      }
+    }
+  ],
+  "explicit_source": "plan"
+}

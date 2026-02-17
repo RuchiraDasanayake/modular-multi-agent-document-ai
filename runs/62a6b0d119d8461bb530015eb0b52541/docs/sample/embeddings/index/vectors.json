@@ -1,0 +1,23 @@
+{
+  "dim": 256,
+  "records": [
+    {
+      "chunk_id": "sample_chunk_0",
+      "metadata": {
+        "doc_id": "sample",
+        "section": "section_1",
+        "page_start": "1",
+        "page_end": "1"
+      }
+    },
+    {
+      "chunk_id": "sample_chunk_1",
+      "metadata": {
+        "doc_id": "sample",
+        "section": "customer_name_jane_doe",
+        "page_start": "1",
+        "page_end": "1"
+      }
+    }
+  ]
+}

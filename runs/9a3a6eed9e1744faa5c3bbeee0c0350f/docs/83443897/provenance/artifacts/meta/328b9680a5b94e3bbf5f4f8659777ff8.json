@@ -1,0 +1,11 @@
+{
+  "artifact_id": "328b9680a5b94e3bbf5f4f8659777ff8",
+  "kind": "embedding_index",
+  "metadata": {
+    "agent": "embedding",
+    "dim": 256,
+    "seed": 13,
+    "version": "v1"
+  },
+  "path": "E:\\Research Project\\Code\\IDPO\\runs\\9a3a6eed9e1744faa5c3bbeee0c0350f\\docs\\83443897\\embeddings\\index\\vectors.json"
+}

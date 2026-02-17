@@ -1,0 +1,18 @@
+{
+  "artifact_id": "b7c524748d5b4fbc8f5b0c6d598006ea",
+  "kind": "chunks",
+  "metadata": {
+    "agent": "chunking",
+    "doc_id": "sample",
+    "parameters": {
+      "chunk_size": 350,
+      "max_chunks": 128,
+      "overlap": 60
+    },
+    "source_artifacts": [
+      "2afcfe42f66444d8a947f2d97f9c7c38"
+    ],
+    "version": "v1"
+  },
+  "path": "runs\\62a6b0d119d8461bb530015eb0b52541\\docs\\sample\\artifacts\\clean\\b7c524748d5b4fbc8f5b0c6d598006ea_sample_chunks.json"
+}

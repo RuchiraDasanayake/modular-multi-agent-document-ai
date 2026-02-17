@@ -1,0 +1,16 @@
+{
+  "artifact_id": "85d79746120544f381ee8606f9bbf7b6",
+  "kind": "tables",
+  "metadata": {
+    "agent": "table_form",
+    "doc_id": "sample",
+    "parameters": {
+      "table_mode": "heuristic"
+    },
+    "source_artifacts": [
+      "c966361bbe1140ec96fa745bd2b35a0c"
+    ],
+    "version": "v1"
+  },
+  "path": "runs\\62a6b0d119d8461bb530015eb0b52541\\docs\\sample\\artifacts\\clean\\85d79746120544f381ee8606f9bbf7b6_sample_tables.json"
+}

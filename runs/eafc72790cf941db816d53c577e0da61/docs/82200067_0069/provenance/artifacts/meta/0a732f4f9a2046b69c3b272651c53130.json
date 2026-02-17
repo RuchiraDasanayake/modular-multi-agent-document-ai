@@ -1,0 +1,15 @@
+{
+  "artifact_id": "0a732f4f9a2046b69c3b272651c53130",
+  "kind": "structured_entities",
+  "metadata": {
+    "agent": "llm_extraction",
+    "doc_id": "82200067_0069",
+    "input_artifacts": [
+      "07cf3ac1abf34bef963cfdd5918a848a"
+    ],
+    "model": "local-llm",
+    "policy_id": null,
+    "version": "v1"
+  },
+  "path": "runs\\eafc72790cf941db816d53c577e0da61\\docs\\82200067_0069\\artifacts\\clean\\0a732f4f9a2046b69c3b272651c53130_82200067_0069_structured.json"
+}

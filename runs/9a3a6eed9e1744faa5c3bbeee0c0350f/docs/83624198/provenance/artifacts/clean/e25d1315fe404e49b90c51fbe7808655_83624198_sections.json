@@ -1,0 +1,28 @@
+{
+  "sections": [
+    {
+      "confidence": 0.7,
+      "metadata": {},
+      "name": "section_1",
+      "page_end": 1,
+      "page_start": 1,
+      "text": "008 cep 2s +98 10:23 FR gy TO Qsi2essrceck Pot"
+    },
+    {
+      "confidence": 0.7,
+      "metadata": {},
+      "name": "oshinsey",
+      "page_end": 1,
+      "page_start": 1,
+      "text": "up\nDATE: February 25, 1998 .\nCLIENTNO. 18557.002\nMESSAGE TO: Ronald S, Milstein\nCOMPANY: Lorillard Tobacco Company\nFAX NUMBER: 910/335-7707\nPHONE: 910/335-7718\nFROM: Andy Zausner\nPHONE: 202/828-2259\nPAGES (Including Cover Sheet); 12 HARD COPY TO FOLLOW; YES NO\nMESSAGE: |Scc attached fax from the Committee on Commerce just received in my\noffice. Call me to discuss,\nIf your receipt of this transmission is in error, please notify this firm immediately by\ncollect call to our Facsimile Department at 202-861-9106, and send the original\ntransmission to us by rectum mail at the address below.\n\u2018 \"This cransmission is intended for the sole usc of the individual and entity to whom it is addressed, and\nmay contain information thot is privileged, confidential and exempt from disclosure under applicable\nlaw. You are hereby notified chat any disscmination, distribution or duplication of this transmission by\nsomeone other than the intended addressee or its designated agent is strictly prohibited.\nco\n. CN\nnN.\nine)"
+    },
+    {
+      "confidence": 0.6,
+      "metadata": {},
+      "name": "section",
+      "page_end": 1,
+      "page_start": 1,
+      "text": "\\o\nco\n2101L Steet NW Washington, DC 20037-1528 Tel 202-785-9700 Fax 202-887-0689"
+    }
+  ]
+}

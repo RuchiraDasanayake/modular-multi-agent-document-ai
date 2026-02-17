@@ -1,0 +1,243 @@
+{
+  "combined_entities": [
+    {
+      "confidence": 0.82,
+      "key": "record_id",
+      "metadata": {
+        "explicit": true,
+        "label": "Record ID",
+        "model": "phi3:mini",
+        "policy_id": null,
+        "source": "rule"
+      },
+      "page": 1,
+      "span": [
+        11,
+        18
+      ],
+      "value": "ABC-123"
+    },
+    {
+      "confidence": 0.55,
+      "key": "date",
+      "metadata": {
+        "evidence": "01/05/2026",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        25,
+        35
+      ],
+      "value": "01/05/2026"
+    },
+    {
+      "confidence": 0.55,
+      "key": "total_amount",
+      "metadata": {
+        "evidence": "$42.50",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        50,
+        56
+      ],
+      "value": "$42.50"
+    },
+    {
+      "confidence": 0.55,
+      "key": "customer_name",
+      "metadata": {
+        "evidence": "Jane Doe",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        72,
+        80
+      ],
+      "value": "Jane Doe"
+    },
+    {
+      "confidence": 0.55,
+      "key": "notes",
+      "metadata": {
+        "evidence": "sample document for testing.",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        88,
+        116
+      ],
+      "value": "sample document for testing."
+    },
+    {
+      "confidence": 0.82,
+      "key": "document_date",
+      "metadata": {
+        "explicit": true,
+        "label": "Document Date",
+        "model": "phi3:mini",
+        "policy_id": null,
+        "source": "rule"
+      },
+      "page": 1,
+      "span": [
+        25,
+        35
+      ],
+      "value": "01/05/2026"
+    },
+    {
+      "confidence": 0.82,
+      "key": "total_amount",
+      "metadata": {
+        "explicit": true,
+        "label": "Total Amount",
+        "model": "phi3:mini",
+        "policy_id": null,
+        "source": "rule"
+      },
+      "page": 1,
+      "span": [
+        51,
+        56
+      ],
+      "value": "42.50"
+    }
+  ],
+  "default_entities": [
+    {
+      "confidence": 0.55,
+      "key": "record_id",
+      "metadata": {
+        "evidence": "ABC-123",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        11,
+        18
+      ],
+      "value": "ABC-123"
+    },
+    {
+      "confidence": 0.55,
+      "key": "date",
+      "metadata": {
+        "evidence": "01/05/2026",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        25,
+        35
+      ],
+      "value": "01/05/2026"
+    },
+    {
+      "confidence": 0.55,
+      "key": "total_amount",
+      "metadata": {
+        "evidence": "$42.50",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        50,
+        56
+      ],
+      "value": "$42.50"
+    },
+    {
+      "confidence": 0.55,
+      "key": "customer_name",
+      "metadata": {
+        "evidence": "Jane Doe",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        72,
+        80
+      ],
+      "value": "Jane Doe"
+    },
+    {
+      "confidence": 0.55,
+      "key": "notes",
+      "metadata": {
+        "evidence": "sample document for testing.",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        88,
+        116
+      ],
+      "value": "sample document for testing."
+    }
+  ],
+  "doc_id": "sample",
+  "explicit_entities": [
+    {
+      "confidence": 0.82,
+      "key": "record_id",
+      "metadata": {
+        "explicit": true,
+        "label": "Record ID",
+        "model": "phi3:mini",
+        "policy_id": null,
+        "source": "rule"
+      },
+      "page": 1,
+      "span": [
+        11,
+        18
+      ],
+      "value": "ABC-123"
+    },
+    {
+      "confidence": 0.82,
+      "key": "document_date",
+      "metadata": {
+        "explicit": true,
+        "label": "Document Date",
+        "model": "phi3:mini",
+        "policy_id": null,
+        "source": "rule"
+      },
+      "page": 1,
+      "span": [
+        25,
+        35
+      ],
+      "value": "01/05/2026"
+    },
+    {
+      "confidence": 0.82,
+      "key": "total_amount",
+      "metadata": {
+        "explicit": true,
+        "label": "Total Amount",
+        "model": "phi3:mini",
+        "policy_id": null,
+        "source": "rule"
+      },
+      "page": 1,
+      "span": [
+        51,
+        56
+      ],
+      "value": "42.50"
+    }
+  ],
+  "explicit_source": "rules",
+  "llm_entities": [],
+  "model_mode": "local",
+  "model_name": "phi3:mini",
+  "policy_id": null,
+  "policy_name": null
+}

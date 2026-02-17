@@ -1,0 +1,211 @@
+{
+  "entities": [
+    {
+      "key": "ait_gen_admin_office_fax",
+      "value": "614-~466-S087 Dec 10 '98 17:06 P.Ot",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        28,
+        63
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "614-~466-S087 Dec 10 '98 17:06 P.Ot"
+      }
+    },
+    {
+      "key": "to",
+      "value": "_George Baroody",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        163,
+        178
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "_George Baroody"
+      }
+    },
+    {
+      "key": "fax_number",
+      "value": "__(336) 335-7392 _ PHONE NUMBER: (336) 335-7363",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        191,
+        238
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "__(336) 335-7392 _ PHONE NUMBER: (336) 335-7363"
+      }
+    },
+    {
+      "key": "number_of_pages_including_cover_sheet",
+      "value": "3",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        295,
+        296
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "3"
+      }
+    },
+    {
+      "key": "sender_phone_number",
+      "value": "___June Flynn for Erie Brows/(614) 466.9980",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        318,
+        361
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "___June Flynn for Erie Brows/(614) 466.9980"
+      }
+    },
+    {
+      "key": "as",
+      "value": "LE",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        425,
+        427
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "LE"
+      }
+    },
+    {
+      "key": "document_date",
+      "value": "1210/98",
+      "confidence": 0.82,
+      "page": 1,
+      "span": [
+        247,
+        254
+      ],
+      "metadata": {
+        "explicit": true,
+        "source": "rule",
+        "label": "Document Date",
+        "policy_id": null,
+        "model": "local-llm"
+      }
+    }
+  ],
+  "explicit_entities": [
+    {
+      "key": "document_date",
+      "value": "1210/98",
+      "confidence": 0.82,
+      "page": 1,
+      "span": [
+        247,
+        254
+      ],
+      "metadata": {
+        "explicit": true,
+        "source": "rule",
+        "label": "Document Date",
+        "policy_id": null,
+        "model": "local-llm"
+      }
+    }
+  ],
+  "default_entities": [
+    {
+      "key": "ait_gen_admin_office_fax",
+      "value": "614-~466-S087 Dec 10 '98 17:06 P.Ot",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        28,
+        63
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "614-~466-S087 Dec 10 '98 17:06 P.Ot"
+      }
+    },
+    {
+      "key": "to",
+      "value": "_George Baroody",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        163,
+        178
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "_George Baroody"
+      }
+    },
+    {
+      "key": "fax_number",
+      "value": "__(336) 335-7392 _ PHONE NUMBER: (336) 335-7363",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        191,
+        238
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "__(336) 335-7392 _ PHONE NUMBER: (336) 335-7363"
+      }
+    },
+    {
+      "key": "number_of_pages_including_cover_sheet",
+      "value": "3",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        295,
+        296
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "3"
+      }
+    },
+    {
+      "key": "sender_phone_number",
+      "value": "___June Flynn for Erie Brows/(614) 466.9980",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        318,
+        361
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "___June Flynn for Erie Brows/(614) 466.9980"
+      }
+    },
+    {
+      "key": "as",
+      "value": "LE",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        425,
+        427
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "LE"
+      }
+    }
+  ],
+  "explicit_source": "rules"
+}

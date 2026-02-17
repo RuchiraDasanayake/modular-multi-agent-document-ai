@@ -1,0 +1,237 @@
+{
+  "entities": [
+    {
+      "key": "record_id",
+      "value": "ABC-123",
+      "confidence": 0.82,
+      "page": 1,
+      "span": [
+        11,
+        18
+      ],
+      "metadata": {
+        "explicit": true,
+        "source": "rule",
+        "label": "Record ID",
+        "policy_id": null,
+        "model": "phi3:mini"
+      }
+    },
+    {
+      "key": "date",
+      "value": "01/05/2026",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        25,
+        35
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "01/05/2026"
+      }
+    },
+    {
+      "key": "total_amount",
+      "value": "$42.50",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        50,
+        56
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "$42.50"
+      }
+    },
+    {
+      "key": "customer_name",
+      "value": "Jane Doe",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        72,
+        80
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "Jane Doe"
+      }
+    },
+    {
+      "key": "notes",
+      "value": "sample document for testing.",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        88,
+        116
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "sample document for testing."
+      }
+    },
+    {
+      "key": "document_date",
+      "value": "01/05/2026",
+      "confidence": 0.82,
+      "page": 1,
+      "span": [
+        25,
+        35
+      ],
+      "metadata": {
+        "explicit": true,
+        "source": "rule",
+        "label": "Document Date",
+        "policy_id": null,
+        "model": "phi3:mini"
+      }
+    },
+    {
+      "key": "total_amount",
+      "value": "42.50",
+      "confidence": 0.82,
+      "page": 1,
+      "span": [
+        51,
+        56
+      ],
+      "metadata": {
+        "explicit": true,
+        "source": "rule",
+        "label": "Total Amount",
+        "policy_id": null,
+        "model": "phi3:mini"
+      }
+    }
+  ],
+  "explicit_entities": [
+    {
+      "key": "record_id",
+      "value": "ABC-123",
+      "confidence": 0.82,
+      "page": 1,
+      "span": [
+        11,
+        18
+      ],
+      "metadata": {
+        "explicit": true,
+        "source": "rule",
+        "label": "Record ID",
+        "policy_id": null,
+        "model": "phi3:mini"
+      }
+    },
+    {
+      "key": "document_date",
+      "value": "01/05/2026",
+      "confidence": 0.82,
+      "page": 1,
+      "span": [
+        25,
+        35
+      ],
+      "metadata": {
+        "explicit": true,
+        "source": "rule",
+        "label": "Document Date",
+        "policy_id": null,
+        "model": "phi3:mini"
+      }
+    },
+    {
+      "key": "total_amount",
+      "value": "42.50",
+      "confidence": 0.82,
+      "page": 1,
+      "span": [
+        51,
+        56
+      ],
+      "metadata": {
+        "explicit": true,
+        "source": "rule",
+        "label": "Total Amount",
+        "policy_id": null,
+        "model": "phi3:mini"
+      }
+    }
+  ],
+  "default_entities": [
+    {
+      "key": "record_id",
+      "value": "ABC-123",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        11,
+        18
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "ABC-123"
+      }
+    },
+    {
+      "key": "date",
+      "value": "01/05/2026",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        25,
+        35
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "01/05/2026"
+      }
+    },
+    {
+      "key": "total_amount",
+      "value": "$42.50",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        50,
+        56
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "$42.50"
+      }
+    },
+    {
+      "key": "customer_name",
+      "value": "Jane Doe",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        72,
+        80
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "Jane Doe"
+      }
+    },
+    {
+      "key": "notes",
+      "value": "sample document for testing.",
+      "confidence": 0.55,
+      "page": 1,
+      "span": [
+        88,
+        116
+      ],
+      "metadata": {
+        "generic_kv": true,
+        "evidence": "sample document for testing."
+      }
+    }
+  ],
+  "explicit_source": "rules"
+}

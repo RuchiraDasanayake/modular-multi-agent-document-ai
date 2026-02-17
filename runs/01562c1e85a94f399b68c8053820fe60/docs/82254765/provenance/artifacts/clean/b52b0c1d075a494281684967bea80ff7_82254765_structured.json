@@ -1,0 +1,336 @@
+{
+  "combined_entities": [
+    {
+      "confidence": 0.55,
+      "key": "to",
+      "metadata": {
+        "evidence": "K. A. SPARROW ",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        4,
+        18
+      ],
+      "value": "K. A. SPARROW "
+    },
+    {
+      "confidence": 0.55,
+      "key": "from",
+      "metadata": {
+        "evidence": "S. Reindel",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        27,
+        37
+      ],
+      "value": "S. Reindel"
+    },
+    {
+      "confidence": 0.55,
+      "key": "name_no",
+      "metadata": {
+        "evidence": "Nassau / 107",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        55,
+        67
+      ],
+      "value": "Nassau / 107"
+    },
+    {
+      "confidence": 0.55,
+      "key": "name_of_event",
+      "metadata": {
+        "evidence": "H. Levinson Tradeshow",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        117,
+        138
+      ],
+      "value": "H. Levinson Tradeshow"
+    },
+    {
+      "confidence": 0.55,
+      "key": "date_of_event",
+      "metadata": {
+        "evidence": "3/18/97",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        156,
+        163
+      ],
+      "value": "3/18/97"
+    },
+    {
+      "confidence": 0.55,
+      "key": "samples_items_required",
+      "metadata": {
+        "evidence": "SAMPLE 10'S (400 PACKS PER CASE)",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        191,
+        223
+      ],
+      "value": "SAMPLE 10'S (400 PACKS PER CASE)"
+    },
+    {
+      "confidence": 0.55,
+      "key": "customer_shipping_number_198",
+      "metadata": {
+        "evidence": "1160006",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        428,
+        435
+      ],
+      "value": "1160006"
+    },
+    {
+      "confidence": 0.55,
+      "key": "date_forwarded_to_promotion_services",
+      "metadata": {
+        "evidence": "2h, far",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        484,
+        491
+      ],
+      "value": "2h, far"
+    },
+    {
+      "confidence": 0.55,
+      "key": "datetonyo",
+      "metadata": {
+        "evidence": "1/24/97",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        569,
+        576
+      ],
+      "value": "1/24/97"
+    },
+    {
+      "confidence": 0.95,
+      "key": "name",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "K. A. Sparrow"
+    },
+    {
+      "confidence": 0.6,
+      "key": "fax_number",
+      "metadata": {
+        "evidence": "1160006",
+        "explicit": true,
+        "generic_kv": true,
+        "source": "schema_match"
+      },
+      "page": 1,
+      "span": [
+        428,
+        435
+      ],
+      "value": "1160006"
+    }
+  ],
+  "default_entities": [
+    {
+      "confidence": 0.55,
+      "key": "to",
+      "metadata": {
+        "evidence": "K. A. SPARROW ",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        4,
+        18
+      ],
+      "value": "K. A. SPARROW "
+    },
+    {
+      "confidence": 0.55,
+      "key": "from",
+      "metadata": {
+        "evidence": "S. Reindel",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        27,
+        37
+      ],
+      "value": "S. Reindel"
+    },
+    {
+      "confidence": 0.55,
+      "key": "name_no",
+      "metadata": {
+        "evidence": "Nassau / 107",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        55,
+        67
+      ],
+      "value": "Nassau / 107"
+    },
+    {
+      "confidence": 0.55,
+      "key": "name_of_event",
+      "metadata": {
+        "evidence": "H. Levinson Tradeshow",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        117,
+        138
+      ],
+      "value": "H. Levinson Tradeshow"
+    },
+    {
+      "confidence": 0.55,
+      "key": "date_of_event",
+      "metadata": {
+        "evidence": "3/18/97",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        156,
+        163
+      ],
+      "value": "3/18/97"
+    },
+    {
+      "confidence": 0.55,
+      "key": "samples_items_required",
+      "metadata": {
+        "evidence": "SAMPLE 10'S (400 PACKS PER CASE)",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        191,
+        223
+      ],
+      "value": "SAMPLE 10'S (400 PACKS PER CASE)"
+    },
+    {
+      "confidence": 0.55,
+      "key": "customer_shipping_number_198",
+      "metadata": {
+        "evidence": "1160006",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        428,
+        435
+      ],
+      "value": "1160006"
+    },
+    {
+      "confidence": 0.55,
+      "key": "date_forwarded_to_promotion_services",
+      "metadata": {
+        "evidence": "2h, far",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        484,
+        491
+      ],
+      "value": "2h, far"
+    },
+    {
+      "confidence": 0.55,
+      "key": "datetonyo",
+      "metadata": {
+        "evidence": "1/24/97",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        569,
+        576
+      ],
+      "value": "1/24/97"
+    }
+  ],
+  "doc_id": "82254765",
+  "explicit_entities": [
+    {
+      "confidence": 0.95,
+      "key": "name",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "K. A. Sparrow"
+    },
+    {
+      "confidence": 0.6,
+      "key": "fax_number",
+      "metadata": {
+        "evidence": "1160006",
+        "explicit": true,
+        "generic_kv": true,
+        "source": "schema_match"
+      },
+      "page": 1,
+      "span": [
+        428,
+        435
+      ],
+      "value": "1160006"
+    }
+  ],
+  "explicit_source": "plan",
+  "llm_entities": [
+    {
+      "confidence": 0.95,
+      "key": "name",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "K. A. Sparrow"
+    }
+  ],
+  "model_mode": "cloud",
+  "model_name": "gpt-4o",
+  "policy_id": null,
+  "policy_name": null
+}

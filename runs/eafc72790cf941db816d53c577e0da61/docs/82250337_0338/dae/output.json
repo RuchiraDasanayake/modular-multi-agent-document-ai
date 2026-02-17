@@ -1,0 +1,17 @@
+{
+  "doc_type": "scanned_document",
+  "vendor_cluster": "82250337",
+  "quality_bin": "C",
+  "complexity_bin": "2",
+  "content_profile": "image-heavy",
+  "quality_score": 0.0,
+  "complexity_score": 0.3333333333333333,
+  "signals": {
+    "dpi_est": 300.0,
+    "blur_score": 1.0,
+    "skew_angle": 0.0,
+    "text_density": 0.0,
+    "image_ratio": 1.0,
+    "table_likelihood": 0.0
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "sections": [
+    {
+      "name": "section_1",
+      "text": "Woot oot\n\n*\u212205/01/00 10:21 612 $94 9690 . LORILLARD RGNHLL\n\norttbievll",
+      "page_start": 1,
+      "page_end": 1,
+      "confidence": 0.7,
+      "metadata": {}
+    },
+    {
+      "name": "coit_company",
+      "text": "",
+      "page_start": 1,
+      "page_end": 1,
+      "confidence": 0.7,
+      "metadata": {}
+    },
+    {
+      "name": "fax",
+      "text": "To: Mr. Randy Spell From: Rick Redfield",
+      "page_start": 1,
+      "page_end": 1,
+      "confidence": 0.7,
+      "metadata": {}
+    },
+    {
+      "name": "fax_date_may_1_2000",
+      "text": "cc: Mr. Fred Patemostro Fax: 952 894-9690\nRe: Legal \u2014lowa Pages: 4\n\nCurgent ([irorfeview [Please Comment [lpiesse Reply [_]Please Recycle",
+      "page_start": 1,
+      "page_end": 1,
+      "confidence": 0.7,
+      "metadata": {}
+    },
+    {
+      "name": "comments",
+      "text": "Attached is the lowa Department of Revenue and Finance Minimum Legal Prices\non Cigareites as of April 3, 2000. | am attempting to obtain a copy of the actual\nFair Trade Law and will forward as soon as obtained.",
+      "page_start": 1,
+      "page_end": 1,
+      "confidence": 0.7,
+      "metadata": {}
+    },
+    {
+      "name": "confidentiality_note",
+      "text": "This facsimile meaty contain privieged and confidential Information intended only for the use of the individual or aniity named eo\nabove. tf the raader of the facsimile is not the intended reciplent or employes or agent responsible for defivering it to the nN\nintended recipient, you are hereby nosfiad that any dissemination or topying of this facsimile is strictly prohibited. if you havo on\nreceived this facsimile in error, please nobly lus Innrmediately by tolephona (umber indicated below) and return Ihe original cons\nfacsimile to us at tre addrass below via the U. S. Postal Service. ied\ncee\nwn\noO",
+      "page_start": 1,
+      "page_end": 1,
+      "confidence": 0.7,
+      "metadata": {}
+    },
+    {
+      "name": "p_o_box_1588",
+      "text": "Bumsville, MN 55397",
+      "page_start": 1,
+      "page_end": 1,
+      "confidence": 0.6,
+      "metadata": {}
+    }
+  ]
+}
