@@ -1,4 +1,12 @@
 import { getToken } from "./auth";
+import type {
+  User,
+  Stats,
+  QAResponse,
+  FeedbackSubmitRequest,
+  HITLFeedback,
+  FeedbackHistory,
+} from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -27,12 +35,9 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
 
-  me: () => request<{ id: string; email: string; username: string; role: string }>("/api/auth/me"),
+  me: () => request<User>("/api/auth/me"),
 
-  getUsers: () =>
-    request<{ id: string; email: string; username: string; role: string; is_active: boolean }[]>(
-      "/api/auth/users"
-    ),
+  getUsers: () => request<User[]>("/api/auth/users"),
 
   register: (data: { email: string; username: string; password: string; role: string }) =>
     request("/api/auth/register", { method: "POST", body: JSON.stringify(data) }),
@@ -41,10 +46,7 @@ export const api = {
     request(`/api/auth/users/${userId}/toggle`, { method: "PATCH" }),
 
   // ── Dashboard ──
-  getStats: () => request<{
-    total_advice: number; total_outcomes: number;
-    total_ltm_policies: number; total_experiments: number; total_users: number;
-  }>("/api/dashboard/stats"),
+  getStats: () => request<Stats>("/api/dashboard/stats"),
 
   getSTM: () => request<unknown[]>("/api/dashboard/memory/stm"),
   getMTM: (limit = 50) => request<unknown[]>(`/api/dashboard/memory/mtm?limit=${limit}`),
@@ -67,4 +69,38 @@ export const api = {
 
   runComparison: (params: Record<string, number>) =>
     request("/api/experiments/demo/comparison", { method: "POST", body: JSON.stringify(params) }),
+
+  // ── XAI ──
+
+  askQuestion: (paragraph: string, question: string) =>
+    request<QAResponse>("/api/xai/ask", {
+      method: "POST",
+      body: JSON.stringify({ paragraph, question }),
+    }),
+
+  getExplanation: (questionId: string) =>
+    request<QAResponse>(`/api/xai/explanation/${questionId}`),
+
+  // ── HITL ──
+
+  submitFeedback: (feedback: FeedbackSubmitRequest) =>
+    request<{ feedback_id: string; status: string }>("/api/hitl/feedback", {
+      method: "POST",
+      body: JSON.stringify(feedback),
+    }),
+
+  getFeedbackHistory: (limit = 20) =>
+    request<FeedbackHistory>(`/api/hitl/history?limit=${limit}`),
+
+  getFeedbackById: (feedbackId: string) =>
+    request<HITLFeedback>(`/api/hitl/feedback/${feedbackId}`),
+
+  getHITLStats: () =>
+    request<{
+      total_feedback: number;
+      correct_count: number;
+      accuracy_rate: number;
+      avg_explanation_quality: number;
+      pending_reviews: number;
+    }>("/api/hitl/stats"),
 };

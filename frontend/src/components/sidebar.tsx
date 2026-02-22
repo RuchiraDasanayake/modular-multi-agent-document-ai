@@ -12,6 +12,8 @@ const NAV_ITEMS = [
     { href: "/dashboard/experiments", label: "Experiments", icon: "🎯" },
     { href: "/dashboard/rabi", label: "RABI Cold Start", icon: "🧊" },
     { href: "/dashboard/daaf", label: "DAAF Drift", icon: "🌊" },
+    { href: "/dashboard/xai", label: "XAI Q&A", icon: "🧠" },
+    { href: "/dashboard/hitl", label: "HITL Review", icon: "👤" },
     { href: "/dashboard/results", label: "Results", icon: "📈" },
     { href: "/dashboard/admin", label: "Admin", icon: "🔐" },
 ];

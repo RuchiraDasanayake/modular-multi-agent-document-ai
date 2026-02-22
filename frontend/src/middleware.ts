@@ -10,6 +10,13 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Development mode: allow access without authentication
+  // Remove this block in production
+  const isDev = process.env.NODE_ENV === "development";
+  if (isDev) {
+    return NextResponse.next();
+  }
+
   // Redirect to login if not authenticated
   if (!token) {
     return NextResponse.redirect(new URL("/login", request.url));

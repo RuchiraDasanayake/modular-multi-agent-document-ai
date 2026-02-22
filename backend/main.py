@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.config import settings
 from app.database import DatabasePool, redis_client
-from app.routers import auth, advice, dashboard, experiments
+from app.routers import auth, advice, dashboard, experiments, xai, hitl
 
 
 @asynccontextmanager
@@ -49,6 +49,8 @@ app.include_router(auth.router)
 app.include_router(advice.router)
 app.include_router(dashboard.router)
 app.include_router(experiments.router)
+app.include_router(xai.router)
+app.include_router(hitl.router)
 
 
 @app.get("/api/health")
