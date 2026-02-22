@@ -62,6 +62,23 @@ CREATE TABLE IF NOT EXISTS experiment_runs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- ═══════════════════════════════════════════════════════════════
+-- GUARDRAIL AUDIT LOG
+-- ═══════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS guardrail_audit_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id TEXT,
+    doc_type TEXT NOT NULL,
+    overall_passes BOOLEAN NOT NULL,
+    processing_time_ms FLOAT NOT NULL,
+    checks JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_guardrail_created ON guardrail_audit_log (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_guardrail_doc_type ON guardrail_audit_log (doc_type);
+
 CREATE TABLE IF NOT EXISTS system_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     event_type TEXT NOT NULL,

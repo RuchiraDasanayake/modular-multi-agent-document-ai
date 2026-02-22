@@ -14,6 +14,7 @@ const NAV_ITEMS = [
     { href: "/dashboard/daaf", label: "DAAF Drift", icon: "🌊" },
     { href: "/dashboard/xai", label: "XAI Q&A", icon: "🧠" },
     { href: "/dashboard/hitl", label: "HITL Review", icon: "👤" },
+    { href: "/dashboard/guardrails", label: "Guardrails", icon: "🛡️" },
     { href: "/dashboard/results", label: "Results", icon: "📈" },
     { href: "/dashboard/admin", label: "Admin", icon: "🔐" },
 ];

@@ -2,11 +2,14 @@
 Database connection pool (PostgreSQL via psycopg3, Redis).
 """
 
+import logging
+
 import redis.asyncio as aioredis
 from psycopg_pool import AsyncConnectionPool
 from typing import AsyncGenerator
 from .config import settings
 
+logger = logging.getLogger(__name__)
 
 # ── Redis ──
 redis_client = aioredis.Redis(
@@ -15,6 +18,17 @@ redis_client = aioredis.Redis(
     db=settings.REDIS_DB,
     decode_responses=True,
 )
+
+
+def _register_vector(conn):
+    """Register pgvector type on each new connection."""
+    try:
+        from pgvector.psycopg import register_vector
+        register_vector(conn)
+    except ImportError:
+        logger.warning("pgvector Python package not installed — vector ops may fail")
+    except Exception as e:
+        logger.debug("pgvector registration skipped: %s", e)
 
 
 # ── PostgreSQL ──
@@ -29,6 +43,7 @@ class DatabasePool:
                 open=False,
                 min_size=2,
                 max_size=20,
+                configure=_register_vector,
             )
             await cls._pool.open()
         return cls._pool

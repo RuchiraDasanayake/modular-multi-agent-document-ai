@@ -3,12 +3,15 @@ Backend configuration — server, database, JWT settings.
 Loads from environment variables / .env file.
 """
 
-import os
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Resolve .env at project root (two levels up from backend/app/)
-_current_dir = os.path.dirname(os.path.abspath(__file__))
-_env_path = os.path.join(os.path.dirname(os.path.dirname(_current_dir)), ".env")
+# Resolve .env: try CWD first (Docker /app), then two levels up (local dev)
+_env_candidates = [
+    Path.cwd() / ".env",
+    Path(__file__).resolve().parent.parent.parent / ".env",
+]
+_env_path = str(next((p for p in _env_candidates if p.is_file()), Path(".env")))
 
 
 class Settings(BaseSettings):

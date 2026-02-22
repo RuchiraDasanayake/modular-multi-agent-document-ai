@@ -10,12 +10,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Ensure project root is on path so `import ahmn_core` works
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+# Ensure component modules (ahmn_core, guardrails, xai_hitl) are importable.
+# In Docker they are volume-mounted under /app; locally we need the parent dir.
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+for _candidate in (_this_dir, os.path.join(_this_dir, "..")):
+    if _candidate not in sys.path:
+        sys.path.insert(0, _candidate)
 
 from app.config import settings
 from app.database import DatabasePool, redis_client
-from app.routers import auth, advice, dashboard, experiments, xai, hitl
+from app.routers import auth, advice, dashboard, experiments, xai, hitl, guardrails
 
 
 @asynccontextmanager
@@ -51,6 +55,7 @@ app.include_router(dashboard.router)
 app.include_router(experiments.router)
 app.include_router(xai.router)
 app.include_router(hitl.router)
+app.include_router(guardrails.router)
 
 
 @app.get("/api/health")

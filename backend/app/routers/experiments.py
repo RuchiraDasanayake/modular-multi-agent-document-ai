@@ -2,8 +2,6 @@
 Experiments router — run simulations, fetch stored results, interactive demos.
 """
 
-import sys
-import os
 import json
 import numpy as np
 from typing import Any
@@ -13,9 +11,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from psycopg import AsyncConnection
 
 from ..deps import get_db, get_current_user
-
-# Ensure ahmn_core is importable
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 from ahmn_core.services.drift_forgetting import DriftEstimator
 from ahmn_core.services.rabi import RABIInitializer, NeighborInfo

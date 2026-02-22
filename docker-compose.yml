@@ -34,7 +34,9 @@ services:
   backend:
     build: ./backend
     container_name: ahmn_backend
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       # Override localhost with Docker service names
       POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-ahmn_db}
@@ -48,13 +50,18 @@ services:
         condition: service_healthy
     volumes:
       - ./ahmn_core:/app/ahmn_core:ro
+      - ./guardrails:/app/guardrails:ro
+      - ./xai_hitl:/app/xai_hitl:ro
 
   # ── Frontend ──
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:8000
     container_name: ahmn_frontend
     environment:
-      - NEXT_PUBLIC_API_URL=http://backend:8000
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
     ports:
       - "3000:3000"
     depends_on:

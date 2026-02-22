@@ -162,3 +162,50 @@ export interface FeedbackHistory {
   total: number;
   accuracy_rate: number;
 }
+
+// ── Guardrails Types ──
+
+export interface GuardrailValidateRequest {
+  document_context: {
+    doc_type: string;
+    vendor?: string;
+    quality_bin?: string;
+  };
+  query: string;
+  answer_json: string;
+  source_contexts: string[];
+  document_id?: string;
+}
+
+export interface GuardrailValidationMetric {
+  name: string;
+  score: number;
+  is_pass: boolean;
+  details: string;
+  timestamp: string;
+}
+
+export interface GuardrailMetrics {
+  num_checks: number;
+  num_passed_checks: number;
+  num_failed_checks: number;
+  [key: string]: unknown;
+}
+
+export interface GuardrailValidateResponse {
+  overall_passes: boolean;
+  audit_log_id: string;
+  processing_time_ms: number;
+  timestamp: string;
+  validation_results: GuardrailValidationMetric[];
+  metrics: GuardrailMetrics;
+}
+
+export interface GuardrailStats {
+  total_validations: number;
+  total_passed: number;
+  total_failed: number;
+  pass_rate: number;
+  avg_processing_time_ms: number;
+  checks_breakdown: Record<string, { passed: number; failed: number }>;
+}

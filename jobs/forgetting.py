@@ -61,14 +61,14 @@ class DAAFForgettingJob:
                 outcome_metrics->>'f1_score' as f1_score,
                 created_at
             FROM mtm_outcomes
-            WHERE created_at > NOW() - INTERVAL '%s days'
+            WHERE created_at > NOW() - %s::interval
             ORDER BY created_at ASC;
         """
         
         rewards_by_context: Dict[str, List[float]] = {}
         
         async with conn.cursor() as cur:
-            await cur.execute(query, (days,))
+            await cur.execute(query, (timedelta(days=days),))
             rows = await cur.fetchall()
             
             for row in rows:
@@ -172,10 +172,10 @@ class DAAFForgettingJob:
                             WHERE mo.policy_id_used = ltm.policy_id 
                             LIMIT 1) as vendor
                     FROM ltm_validated_policies ltm
-                    WHERE last_promoted_at < NOW() - INTERVAL '%s days'
+                    WHERE last_promoted_at < NOW() - %s::interval
                 """
                 
-                await cur.execute(fetch_query, (self.inactivity_days,))
+                await cur.execute(fetch_query, (timedelta(days=self.inactivity_days),))
                 policies_to_decay = await cur.fetchall()
                 
                 decayed_count = 0

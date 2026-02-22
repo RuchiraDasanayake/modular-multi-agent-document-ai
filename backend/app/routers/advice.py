@@ -3,8 +3,6 @@ Advice router — AHMN core endpoints (/advice, /log, /feedback).
 Re-exports the original AHMN API with JWT protection.
 """
 
-import sys
-import os
 import json
 import uuid
 import random
@@ -16,10 +14,6 @@ from psycopg import AsyncConnection
 from redis.asyncio import Redis
 
 from ..deps import get_db, get_redis_client, get_current_user
-
-# Ensure ahmn_core is importable
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-
 from ahmn_core.schemas import DocumentContext, PolicyResponse, OutcomeMetrics, LogRequest, FeedbackRequest
 from ahmn_core.services.embedding import EmbeddingService
 from ahmn_core.services.rabi import RABIInitializer, NeighborInfo, create_rabi_for_production

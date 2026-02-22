@@ -6,7 +6,7 @@ Collects reviewer feedback and exposes history / stats.
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from ..deps import get_current_user
 from ..schemas.hitl import (
@@ -75,7 +75,6 @@ async def get_feedback_by_id(
     for entry in _feedback_store:
         if entry.feedback_id == feedback_id:
             return entry
-    from fastapi import HTTPException
     raise HTTPException(status_code=404, detail="Feedback not found")
 
 

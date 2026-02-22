@@ -6,6 +6,9 @@ import type {
   FeedbackSubmitRequest,
   HITLFeedback,
   FeedbackHistory,
+  GuardrailValidateRequest,
+  GuardrailValidateResponse,
+  GuardrailStats,
 } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -103,4 +106,18 @@ export const api = {
       avg_explanation_quality: number;
       pending_reviews: number;
     }>("/api/hitl/stats"),
+
+  // ── Guardrails ──
+
+  validateGuardrail: (data: GuardrailValidateRequest) =>
+    request<GuardrailValidateResponse>("/api/guardrails/validate", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getGuardrailStats: () =>
+    request<GuardrailStats>("/api/guardrails/stats"),
+
+  getGuardrailHistory: (limit = 50) =>
+    request<unknown[]>(`/api/guardrails/history?limit=${limit}`),
 };
