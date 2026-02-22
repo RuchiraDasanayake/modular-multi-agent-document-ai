@@ -1,5 +1,0 @@
-Record ID: ABC-123
-Date: 01/05/2026
-Total Amount: $42. 50
-Customer Name: Jane Doe
-Notes: sample document for testing

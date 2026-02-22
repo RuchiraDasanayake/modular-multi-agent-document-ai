@@ -1,9 +1,0 @@
-{
-  "fields": [
-    {
-      "name": "fax number",
-      "key": "fax_number",
-      "description": "fax number"
-    }
-  ]
-}

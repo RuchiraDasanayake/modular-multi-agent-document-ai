@@ -129,7 +129,7 @@
     "cloud_max_tokens": 2000,
     "allow_cloud_fallback": true,
     "openai_api_url": "https://api.openai.com/v1",
-    "openai_api_key": "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",
+    "openai_api_key": "${OPENAI_API_KEY}",
     "use_extraction": true,
     "use_summarization": false
   }
