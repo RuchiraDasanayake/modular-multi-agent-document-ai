@@ -102,8 +102,8 @@ export default function GuardrailsPage() {
         <div className="space-y-6">
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-bold text-white">🛡️ Hallucination Guardrails</h1>
-                <p className="text-gray-400 mt-1">
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">🛡️ Hallucination Guardrails</h1>
+                <p className="text-slate-500 dark:text-gray-400 mt-1">
                     5-layer validation ensemble: Schema Adherence → Internal Consistency → Domain Rules → PII Leakage → Faithfulness
                 </p>
             </div>
@@ -114,7 +114,7 @@ export default function GuardrailsPage() {
                     <button
                         key={type}
                         onClick={() => loadExample(type)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${docType === type ? "bg-brand-500/20 text-brand-400 border border-brand-500/30" : "bg-gray-800 text-gray-400 hover:bg-gray-700"}`}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${docType === type ? "bg-brand-500/20 text-brand-400 border border-brand-500/30" : "bg-slate-100 dark:bg-gray-800 text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-gray-700"}`}
                     >
                         {type}
                     </button>
@@ -123,16 +123,16 @@ export default function GuardrailsPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Input Form */}
-                <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6 space-y-4">
-                    <h2 className="text-lg font-semibold text-white">Validation Input</h2>
+                <div className="bg-white/80 dark:bg-gray-900/50 border border-slate-200 dark:border-gray-800 rounded-xl p-6 space-y-4">
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Validation Input</h2>
 
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs text-gray-400 mb-1">Document Type</label>
+                            <label className="block text-xs text-slate-500 dark:text-gray-400 mb-1">Document Type</label>
                             <select
                                 value={docType}
                                 onChange={(e) => setDocType(e.target.value)}
-                                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white"
+                                className="w-full bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
                             >
                                 {DOC_TYPES.map((t) => (
                                     <option key={t} value={t}>{t}</option>
@@ -140,58 +140,58 @@ export default function GuardrailsPage() {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs text-gray-400 mb-1">Vendor (optional)</label>
+                            <label className="block text-xs text-slate-500 dark:text-gray-400 mb-1">Vendor (optional)</label>
                             <input
                                 value={vendor}
                                 onChange={(e) => setVendor(e.target.value)}
-                                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white"
+                                className="w-full bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
                                 placeholder="e.g. ABC Suppliers"
                             />
                         </div>
                     </div>
 
                     <div>
-                        <label className="block text-xs text-gray-400 mb-1">Query</label>
+                        <label className="block text-xs text-slate-500 dark:text-gray-400 mb-1">Query</label>
                         <input
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
-                            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white"
+                            className="w-full bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-xs text-gray-400 mb-1">Extracted JSON (answer_json)</label>
+                        <label className="block text-xs text-slate-500 dark:text-gray-400 mb-1">Extracted JSON (answer_json)</label>
                         <textarea
                             value={answerJson}
                             onChange={(e) => setAnswerJson(e.target.value)}
                             rows={5}
-                            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono"
+                            className="w-full bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-xs text-gray-400 mb-1">Source Contexts (one per line)</label>
+                        <label className="block text-xs text-slate-500 dark:text-gray-400 mb-1">Source Contexts (one per line)</label>
                         <textarea
                             value={sourceContexts}
                             onChange={(e) => setSourceContexts(e.target.value)}
                             rows={3}
-                            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white"
+                            className="w-full bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-xs text-gray-400 mb-1">Document ID (optional)</label>
+                        <label className="block text-xs text-slate-500 dark:text-gray-400 mb-1">Document ID (optional)</label>
                         <input
                             value={documentId}
                             onChange={(e) => setDocumentId(e.target.value)}
-                            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white"
+                            className="w-full bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
                         />
                     </div>
 
                     <button
                         onClick={handleValidate}
                         disabled={loading}
-                        className="w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all"
+                        className="w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-slate-900 dark:text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all"
                     >
                         {loading ? "Validating..." : "Run Guardrail Validation"}
                     </button>
@@ -202,24 +202,24 @@ export default function GuardrailsPage() {
                 {/* Results */}
                 <div className="space-y-4">
                     {result && (
-                        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6 space-y-4">
+                        <div className="bg-white/80 dark:bg-gray-900/50 border border-slate-200 dark:border-gray-800 rounded-xl p-6 space-y-4">
                             <div className="flex items-center justify-between">
-                                <h2 className="text-lg font-semibold text-white">Validation Result</h2>
+                                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Validation Result</h2>
                                 <Badge pass={result.overall_passes} />
                             </div>
 
                             <div className="grid grid-cols-3 gap-3 text-center">
-                                <div className="bg-gray-800 rounded-lg p-3">
-                                    <p className="text-xs text-gray-400">Checks Run</p>
-                                    <p className="text-xl font-bold text-white">{result.validation_results.length}</p>
+                                <div className="bg-slate-100 dark:bg-gray-800 rounded-lg p-3">
+                                    <p className="text-xs text-slate-500 dark:text-gray-400">Checks Run</p>
+                                    <p className="text-xl font-bold text-slate-900 dark:text-white">{result.validation_results.length}</p>
                                 </div>
-                                <div className="bg-gray-800 rounded-lg p-3">
-                                    <p className="text-xs text-gray-400">Failed</p>
+                                <div className="bg-slate-100 dark:bg-gray-800 rounded-lg p-3">
+                                    <p className="text-xs text-slate-500 dark:text-gray-400">Failed</p>
                                     <p className="text-xl font-bold text-red-400">{result.metrics.num_failed_checks}</p>
                                 </div>
-                                <div className="bg-gray-800 rounded-lg p-3">
-                                    <p className="text-xs text-gray-400">Time</p>
-                                    <p className="text-xl font-bold text-white">{result.processing_time_ms.toFixed(0)}ms</p>
+                                <div className="bg-slate-100 dark:bg-gray-800 rounded-lg p-3">
+                                    <p className="text-xs text-slate-500 dark:text-gray-400">Time</p>
+                                    <p className="text-xl font-bold text-slate-900 dark:text-white">{result.processing_time_ms.toFixed(0)}ms</p>
                                 </div>
                             </div>
 
@@ -231,42 +231,42 @@ export default function GuardrailsPage() {
                                         className={`border rounded-lg p-3 ${check.is_pass ? "border-green-500/20 bg-green-500/5" : "border-red-500/20 bg-red-500/5"}`}
                                     >
                                         <div className="flex items-center justify-between mb-1">
-                                            <span className="text-sm font-medium text-white capitalize">
+                                            <span className="text-sm font-medium text-slate-900 dark:text-white capitalize">
                                                 {check.name.replace(/_/g, " ")}
                                             </span>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-xs text-gray-400">Score: {check.score.toFixed(2)}</span>
+                                                <span className="text-xs text-slate-500 dark:text-gray-400">Score: {check.score.toFixed(2)}</span>
                                                 <Badge pass={check.is_pass} />
                                             </div>
                                         </div>
-                                        <p className="text-xs text-gray-400">{check.details}</p>
+                                        <p className="text-xs text-slate-500 dark:text-gray-400">{check.details}</p>
                                     </div>
                                 ))}
                             </div>
 
-                            <p className="text-xs text-gray-500">Audit ID: {result.audit_log_id}</p>
+                            <p className="text-xs text-slate-500 dark:text-gray-500">Audit ID: {result.audit_log_id}</p>
                         </div>
                     )}
 
                     {/* Stats panel */}
                     {stats && stats.total_validations > 0 && (
-                        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6">
-                            <h2 className="text-lg font-semibold text-white mb-3">Session Stats</h2>
+                        <div className="bg-white/80 dark:bg-gray-900/50 border border-slate-200 dark:border-gray-800 rounded-xl p-6">
+                            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">Session Stats</h2>
                             <div className="grid grid-cols-2 gap-3 text-center">
-                                <div className="bg-gray-800 rounded-lg p-3">
-                                    <p className="text-xs text-gray-400">Total Runs</p>
-                                    <p className="text-xl font-bold text-white">{stats.total_validations}</p>
+                                <div className="bg-slate-100 dark:bg-gray-800 rounded-lg p-3">
+                                    <p className="text-xs text-slate-500 dark:text-gray-400">Total Runs</p>
+                                    <p className="text-xl font-bold text-slate-900 dark:text-white">{stats.total_validations}</p>
                                 </div>
-                                <div className="bg-gray-800 rounded-lg p-3">
-                                    <p className="text-xs text-gray-400">Pass Rate</p>
+                                <div className="bg-slate-100 dark:bg-gray-800 rounded-lg p-3">
+                                    <p className="text-xs text-slate-500 dark:text-gray-400">Pass Rate</p>
                                     <p className="text-xl font-bold text-green-400">{(stats.pass_rate * 100).toFixed(1)}%</p>
                                 </div>
-                                <div className="bg-gray-800 rounded-lg p-3">
-                                    <p className="text-xs text-gray-400">Passed</p>
+                                <div className="bg-slate-100 dark:bg-gray-800 rounded-lg p-3">
+                                    <p className="text-xs text-slate-500 dark:text-gray-400">Passed</p>
                                     <p className="text-xl font-bold text-green-400">{stats.total_passed}</p>
                                 </div>
-                                <div className="bg-gray-800 rounded-lg p-3">
-                                    <p className="text-xs text-gray-400">Failed</p>
+                                <div className="bg-slate-100 dark:bg-gray-800 rounded-lg p-3">
+                                    <p className="text-xs text-slate-500 dark:text-gray-400">Failed</p>
                                     <p className="text-xl font-bold text-red-400">{stats.total_failed}</p>
                                 </div>
                             </div>

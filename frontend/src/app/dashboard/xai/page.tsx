@@ -80,20 +80,20 @@ export default function XAIPage() {
     return (
         <div className="max-w-4xl mx-auto">
             {/* Header */}
-            <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 mb-6">
+            <div className="glass-panel rounded-xl p-6 mb-6">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-                            <span className="text-3xl">🧠</span>
+                        <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
+                            <span className="text-3xl drop-shadow-sm">🧠</span>
                             XAI Q&A System
                         </h1>
-                        <p className="text-gray-400 mt-1">
+                        <p className="text-slate-500 dark:text-gray-400 mt-1">
                             Ask questions about finance and see explainable AI analysis
                         </p>
                     </div>
                     <Link
                         href="/dashboard/hitl"
-                        className="px-4 py-2 bg-brand-500/10 text-brand-400 rounded-lg hover:bg-brand-500/20 transition-colors text-sm font-medium"
+                        className="px-4 py-2 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-500/20 transition-all duration-150 text-sm font-medium shadow-sm shadow-brand-500/5"
                     >
                         👤 HITL Review
                     </Link>
@@ -103,30 +103,30 @@ export default function XAIPage() {
             {/* Context Paragraph Toggle */}
             <button
                 onClick={() => setShowParagraph(!showParagraph)}
-                className="w-full mb-4 px-4 py-3 bg-gray-800/30 border border-gray-700/50 rounded-lg text-left hover:bg-gray-800/50 transition-colors"
+                className="w-full mb-4 px-4 py-3 glass-panel rounded-lg text-left hover:bg-white/80 dark:hover:bg-gray-800/60 transition-all duration-150"
             >
                 <div className="flex items-center justify-between">
-                    <span className="text-gray-400 text-sm font-medium">View Context Paragraph</span>
-                    <span className="text-gray-500">{showParagraph ? "▲" : "▼"}</span>
+                    <span className="text-slate-700 dark:text-gray-300 text-sm font-medium">View Context Paragraph</span>
+                    <span className="text-slate-400 dark:text-gray-500 transition-transform duration-150" style={{ transform: showParagraph ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
                 </div>
             </button>
 
             {showParagraph && (
-                <div className="mb-6 p-4 bg-gray-800/30 border border-gray-700/50 rounded-lg">
-                    <p className="text-gray-300 leading-relaxed text-sm">{DEFAULT_PARAGRAPH}</p>
+                <div className="mb-6 p-5 glass-panel rounded-lg border-l-4 border-l-brand-500">
+                    <p className="text-slate-700 dark:text-gray-300 leading-relaxed text-sm">{DEFAULT_PARAGRAPH}</p>
                 </div>
             )}
 
             {/* Chat Container */}
-            <div className="bg-gray-800/30 border border-gray-700 rounded-xl overflow-hidden">
+            <div className="glass-panel rounded-xl overflow-hidden flex flex-col h-[600px]">
                 {/* Messages Area */}
-                <div className="h-[400px] overflow-y-auto p-4 space-y-4">
+                <div className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
                     {messages.length === 0 ? (
                         <div className="h-full flex items-center justify-center">
-                            <div className="text-center text-gray-500">
-                                <span className="text-4xl mb-4 block">💬</span>
-                                <p>Ask a question about the finance paragraph</p>
-                                <p className="text-sm mt-2 text-gray-600">
+                            <div className="text-center text-slate-400">
+                                <span className="text-5xl mb-4 block drop-shadow-sm">💬</span>
+                                <p className="text-lg font-medium text-slate-600 dark:text-gray-300">Ask a question about the finance paragraph</p>
+                                <p className="text-sm mt-2 text-slate-500 dark:text-gray-500">
                                     Try: &ldquo;What is the time value of money?&rdquo;
                                 </p>
                             </div>
@@ -138,21 +138,21 @@ export default function XAIPage() {
                                 className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                             >
                                 <div
-                                    className={`max-w-[75%] rounded-2xl px-4 py-3 ${msg.role === "user"
-                                            ? "bg-brand-500 text-white rounded-br-md"
-                                            : "bg-gray-700 text-gray-100 rounded-bl-md"
+                                    className={`max-w-[80%] rounded-2xl px-5 py-4 shadow-sm ${msg.role === "user"
+                                        ? "bg-brand-600/90 backdrop-blur-md text-white rounded-br-sm border border-brand-500/20"
+                                        : "bg-white/80 dark:bg-gray-800/80 backdrop-blur-md text-slate-800 dark:text-gray-200 rounded-bl-sm border border-slate-200 dark:border-gray-700"
                                         }`}
                                 >
                                     <p className="text-sm leading-relaxed">{msg.content}</p>
-                                    <div className="flex items-center justify-between mt-2 gap-3">
-                                        <span className="text-xs opacity-60">{msg.timestamp}</span>
+                                    <div className="flex items-center justify-between mt-3 gap-4">
+                                        <span className="text-[10px] opacity-60 font-medium tracking-wider uppercase">{msg.timestamp}</span>
                                         {msg.confidence !== undefined && (
                                             <span
-                                                className={`text-xs px-2 py-0.5 rounded-full ${msg.confidence >= 0.7
-                                                        ? "bg-green-500/20 text-green-400"
-                                                        : msg.confidence >= 0.4
-                                                            ? "bg-yellow-500/20 text-yellow-400"
-                                                            : "bg-red-500/20 text-red-400"
+                                                className={`text-[10px] px-2.5 py-1 rounded-full font-medium tracking-wide border ${msg.confidence >= 0.7
+                                                    ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20"
+                                                    : msg.confidence >= 0.4
+                                                        ? "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/20"
+                                                        : "bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-500/20"
                                                     }`}
                                             >
                                                 {(msg.confidence * 100).toFixed(0)}% confidence
@@ -165,11 +165,11 @@ export default function XAIPage() {
                     )}
                     {isLoading && (
                         <div className="flex justify-start">
-                            <div className="bg-gray-700 rounded-2xl rounded-bl-md px-4 py-3">
+                            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border border-slate-200 dark:border-gray-700 rounded-2xl rounded-bl-sm px-5 py-4 shadow-sm">
                                 <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:0.2s]" />
-                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:0.4s]" />
+                                    <div className="w-2 h-2 bg-brand-400 rounded-full animate-bounce" />
+                                    <div className="w-2 h-2 bg-brand-400 rounded-full animate-bounce [animation-delay:0.2s]" />
+                                    <div className="w-2 h-2 bg-brand-400 rounded-full animate-bounce [animation-delay:0.4s]" />
                                 </div>
                             </div>
                         </div>
@@ -178,7 +178,7 @@ export default function XAIPage() {
                 </div>
 
                 {/* Input Area */}
-                <form onSubmit={handleSubmit} className="border-t border-gray-700 p-4">
+                <form onSubmit={handleSubmit} className="border-t border-slate-200 dark:border-gray-700 p-4 bg-white/50 dark:bg-gray-900/50 backdrop-blur-xl">
                     <div className="flex gap-3">
                         <input
                             type="text"
@@ -186,14 +186,15 @@ export default function XAIPage() {
                             onChange={(e) => setInput(e.target.value)}
                             placeholder="Type your question..."
                             disabled={isLoading}
-                            className="flex-1 bg-gray-800 border border-gray-700 rounded-full px-5 py-3 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 disabled:opacity-50"
+                            className="flex-1 glass-input rounded-full px-6 py-3.5 text-sm"
                         />
                         <button
                             type="submit"
                             disabled={isLoading || !input.trim()}
-                            className="px-6 py-3 bg-gradient-to-r from-brand-500 to-brand-600 text-white font-medium rounded-full hover:from-brand-400 hover:to-brand-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-8 py-3.5 glass-button rounded-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
-                            Send
+                            <span>Send</span>
+                            <span className="text-lg leading-none">↗</span>
                         </button>
                     </div>
                 </form>

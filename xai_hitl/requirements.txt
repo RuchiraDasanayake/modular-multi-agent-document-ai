@@ -1,0 +1,16 @@
+# Web framework
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.32.0,<1.0.0
+requests>=2.32.0,<3.0.0
+
+# Data
+pydantic>=2.10.0,<3.0.0
+
+# XAI Engine (transformer Q&A + explainability)
+--extra-index-url https://download.pytorch.org/whl/cpu
+transformers>=4.40.0,<5.0.0
+torch>=2.0.0
+shap>=0.45.0,<1.0.0
+lime>=0.2.0,<1.0.0
+scikit-learn>=1.5.0,<2.0.0
+numpy>=1.26.0,<3.0.0

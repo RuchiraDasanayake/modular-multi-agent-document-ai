@@ -1,0 +1,19 @@
+# Web framework
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.32.0,<1.0.0
+requests>=2.32.0,<3.0.0
+
+# Data
+pydantic>=2.10.0,<3.0.0
+
+# Database & Cache
+psycopg[binary,pool]>=3.2.0,<4.0.0
+pgvector>=0.3.0,<1.0.0
+redis>=5.2.0,<6.0.0
+
+# ML / Scientific (CPU-only torch)
+--extra-index-url https://download.pytorch.org/whl/cpu
+numpy>=1.26.0,<3.0.0
+scipy>=1.14.0,<2.0.0
+sentence-transformers>=3.3.0,<4.0.0
+torch>=2.0.0

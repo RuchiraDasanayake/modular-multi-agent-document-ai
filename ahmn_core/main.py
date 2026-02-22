@@ -1,0 +1,718 @@
+"""
+AHMN Microservice — Adaptive Hierarchical Memory Network
+
+Exposes policy recommendation (advice), dashboard analytics, and experiment
+demo endpoints as a standalone FastAPI service.
+
+Component Owner: Dasanayake D.R.L.
+"""
+
+import os
+import json
+import uuid
+import random
+import hashlib
+import logging
+from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Any, Optional
+
+import numpy as np
+from fastapi import FastAPI, HTTPException, Request, Query
+from fastapi.middleware.cors import CORSMiddleware
+import redis.asyncio as aioredis
+from psycopg_pool import AsyncConnectionPool
+
+from .schemas import (
+    DocumentContext,
+    PolicyResponse,
+    OutcomeMetrics,
+    LogRequest,
+    FeedbackRequest,
+)
+from .services.embedding import EmbeddingService
+from .services.rabi import (
+    RABIInitializer,
+    NeighborInfo,
+    create_rabi_for_production,
+)
+from .services.drift_forgetting import DriftEstimator, DriftType
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO"),
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+)
+
+# ─── Configuration ───────────────────────────────────────────────────────────
+
+POSTGRES_URI = os.getenv(
+    "POSTGRES_URI", "postgresql://user:password@localhost:5432/ahmn_db"
+)
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_DB = int(os.getenv("REDIS_DB", "0"))
+
+# ─── Globals ─────────────────────────────────────────────────────────────────
+
+_pool: Optional[AsyncConnectionPool] = None
+_redis: Optional[aioredis.Redis] = None
+
+_embedding_service = EmbeddingService()
+_rabi = create_rabi_for_production(k=5, similarity_threshold=0.4, temperature=0.5)
+_drift_estimators: dict[str, DriftEstimator] = {}
+_RESULTS_DIR = Path(__file__).resolve().parent / "output"
+
+
+async def _register_vector(conn) -> None:  # type: ignore[override]
+    """Register pgvector type on new connections (async callback)."""
+    try:
+        from pgvector.psycopg import register_vector_async  # type: ignore[import-untyped]
+
+        await register_vector_async(conn)
+    except Exception:
+        pass
+
+
+def _db() -> AsyncConnectionPool:
+    """Return the connection pool, raising if not yet initialised."""
+    assert _pool is not None, "Database pool not initialised"
+    return _pool
+
+
+def _rds() -> aioredis.Redis:
+    """Return the Redis client, raising if not yet initialised."""
+    assert _redis is not None, "Redis client not initialised"
+    return _redis
+
+
+def _get_drift_estimator(key: str) -> DriftEstimator:
+    if key not in _drift_estimators:
+        _drift_estimators[key] = DriftEstimator(
+            window_size=50,
+            min_samples=10,
+            drift_threshold=0.05,
+            abrupt_threshold=0.15,
+        )
+    return _drift_estimators[key]
+
+
+def _load_json(name: str) -> Optional[dict]:
+    p = _RESULTS_DIR / name
+    if p.exists():
+        with open(p) as f:
+            return json.load(f)
+    return None
+
+
+def _user(request: Request) -> dict:
+    """Extract user context from gateway-forwarded headers."""
+    return {
+        "id": request.headers.get("X-User-Id", "anonymous"),
+        "role": request.headers.get("X-User-Role", "viewer"),
+    }
+
+
+# ─── Lifespan ────────────────────────────────────────────────────────────────
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    global _pool, _redis
+
+    _pool = AsyncConnectionPool(
+        conninfo=POSTGRES_URI,
+        open=False,
+        min_size=2,
+        max_size=20,
+        configure=_register_vector,
+    )
+    await _pool.open()
+
+    _redis = aioredis.Redis(
+        host=REDIS_HOST,
+        port=REDIS_PORT,
+        db=REDIS_DB,
+        decode_responses=True,
+    )
+    logger.info("AHMN service started — Postgres + Redis connected")
+    yield
+
+    if _pool:
+        await _pool.close()
+    if _redis:
+        await _redis.close()
+    logger.info("AHMN service stopped")
+
+
+# ─── App ─────────────────────────────────────────────────────────────────────
+
+app = FastAPI(
+    title="AHMN Service",
+    description=(
+        "Adaptive Hierarchical Memory Network — Thompson Sampling, "
+        "RABI cold-start, DAAF drift-aware forgetting"
+    ),
+    version="2.0.0",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "service": "ahmn"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADVICE ROUTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@app.post("/advice", response_model=PolicyResponse)
+async def get_advice(context: DocumentContext, request: Request):
+    """Thompson Sampling policy recommendation with RABI prior transfer."""
+    context_str = _embedding_service.create_context_string(
+        context.doc_type, context.vendor
+    )
+    vector = _embedding_service.generate_embedding(context_str)
+
+    policy_id = "default_policy"
+    policy_data: dict = {"action": "standard_processing"}
+    confidence = 0.3
+    rabi_used = False
+    n_neighbors_used = 0
+    selected_row = None
+
+    async with _db().connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                """SELECT policy_id, policy_data, alpha, beta, context_hash,
+                          1 - (context_embedding <=> %s::vector) AS similarity
+                   FROM ltm_validated_policies
+                   ORDER BY context_embedding <=> %s::vector
+                   LIMIT %s""",
+                (vector, vector, _rabi.k),
+            )
+            rows = await cur.fetchall()
+
+    if rows:
+        neighbors = [
+            NeighborInfo(
+                context_hash=r[4],
+                policy_id=r[0],
+                alpha=r[2],
+                beta=r[3],
+                similarity=r[5],
+                n_samples=int(r[2] + r[3] - 2),
+            )
+            for r in rows
+        ]
+        prior = _rabi.initialize_prior(neighbors)
+        rabi_used = True
+        n_neighbors_used = prior.n_neighbors
+
+        best_sample = -1.0
+        for row in rows:
+            _pid, _pdata, alpha, beta, _chash, sim = row
+            blended_alpha = prior.alpha + (alpha - 1) * sim
+            blended_beta = prior.beta + (beta - 1) * sim
+            sample = random.betavariate(
+                max(0.1, blended_alpha), max(0.1, blended_beta)
+            )
+            if sample > best_sample:
+                best_sample = sample
+                selected_row = row
+
+        if selected_row:
+            policy_id = selected_row[0]
+            policy_data = selected_row[1]
+            confidence = min(
+                0.95, prior.confidence * 0.6 + selected_row[5] * 0.4
+            )
+
+    advice_id = uuid.uuid4()
+    await _rds().setex(
+        f"advice:{advice_id}",
+        1800,
+        json.dumps(
+            {
+                "context": context.model_dump(),
+                "source_hash": selected_row[4] if selected_row else None,
+            }
+        ),
+    )
+    return PolicyResponse(
+        advice_id=advice_id,
+        policy_id=policy_id,
+        policy_data=policy_data,
+        retrieval_source="LTM" if selected_row else "DEFAULT",
+        confidence=round(confidence, 3),
+        rabi_used=rabi_used,
+        n_neighbors=n_neighbors_used if rabi_used else None,
+    )
+
+
+@app.post("/advice/log")
+async def log_outcome(req: LogRequest, request: Request):
+    """Log processing outcome — triggers DAAF drift detection."""
+    redis_data_json = await _rds().get(f"advice:{req.advice_id}")
+    if not redis_data_json:
+        raise HTTPException(404, "Advice context expired from STM")
+
+    redis_data = json.loads(redis_data_json)
+    source_hash = redis_data.get("source_hash")
+    context_dict = redis_data.get("context", {})
+
+    if not source_hash:
+        ctx_str = _embedding_service.create_context_string(
+            context_dict.get("doc_type", "unknown"),
+            context_dict.get("vendor"),
+        )
+        source_hash = hashlib.sha256(ctx_str.encode()).hexdigest()
+
+    reward = max(0.0, min(1.0, req.metrics.f1_score))
+
+    context_key = (
+        f"{context_dict.get('doc_type', 'unknown')}:"
+        f"{context_dict.get('vendor', '')}"
+    )
+    estimator = _get_drift_estimator(context_key)
+    drift_metrics = estimator.update(reward)
+    gamma = drift_metrics.optimal_gamma
+
+    async with _db().connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                """INSERT INTO mtm_outcomes
+                   (advice_id, policy_id_used, document_context, outcome_metrics)
+                   VALUES (%s, %s, %s::jsonb, %s::jsonb)""",
+                (
+                    req.advice_id,
+                    req.policy_id_used,
+                    json.dumps(context_dict),
+                    json.dumps(req.metrics.model_dump()),
+                ),
+            )
+            if gamma > 0.001:
+                await cur.execute(
+                    """UPDATE ltm_validated_policies
+                       SET alpha = (1.0 + (1.0 - %s) * (alpha - 1.0)) + %s,
+                           beta  = (1.0 + (1.0 - %s) * (beta  - 1.0)) + (1 - %s),
+                           confidence_score = 1.0,
+                           last_promoted_at = NOW()
+                       WHERE context_hash = %s AND policy_id = %s""",
+                    (gamma, reward, gamma, reward, source_hash, req.policy_id_used),
+                )
+            else:
+                await cur.execute(
+                    """UPDATE ltm_validated_policies
+                       SET alpha = alpha + %s, beta = beta + (1 - %s),
+                           confidence_score = 1.0, last_promoted_at = NOW()
+                       WHERE context_hash = %s AND policy_id = %s""",
+                    (reward, reward, source_hash, req.policy_id_used),
+                )
+            await conn.commit()
+
+    return {
+        "status": "logged",
+        "drift_type": drift_metrics.drift_type.value,
+        "gamma": round(gamma, 6),
+    }
+
+
+@app.post("/advice/feedback")
+async def log_feedback(req: FeedbackRequest):
+    """Record human-corrected flag on an outcome."""
+    async with _db().connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "UPDATE mtm_outcomes SET human_corrected = %s WHERE advice_id = %s",
+                (req.human_corrected, req.advice_id),
+            )
+            await conn.commit()
+    return {"status": "feedback_recorded"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DASHBOARD ROUTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@app.get("/dashboard/stats")
+async def get_stats():
+    """Aggregate statistics for the admin overview."""
+    async with _db().connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT COUNT(*) FROM mtm_outcomes")
+            row = await cur.fetchone()
+            total_outcomes = row[0] if row else 0
+
+            await cur.execute("SELECT COUNT(*) FROM ltm_validated_policies")
+            row = await cur.fetchone()
+            total_ltm = row[0] if row else 0
+
+            await cur.execute("SELECT COUNT(*) FROM experiment_runs")
+            row = await cur.fetchone()
+            total_experiments = row[0] if row else 0
+
+            await cur.execute("SELECT COUNT(*) FROM users")
+            row = await cur.fetchone()
+            total_users = row[0] if row else 0
+
+    stm_count = 0
+    async for _ in _rds().scan_iter("advice:*"):
+        stm_count += 1
+
+    return {
+        "total_advice": stm_count,
+        "total_outcomes": total_outcomes,
+        "total_ltm_policies": total_ltm,
+        "total_experiments": total_experiments,
+        "total_users": total_users,
+    }
+
+
+@app.get("/dashboard/memory/stm")
+async def get_stm():
+    """Active STM entries from Redis."""
+    entries = []
+    redis = _rds()
+    async for key in redis.scan_iter("advice:*"):
+        ttl = await redis.ttl(key)
+        val = await redis.get(key)
+        entries.append(
+            {"key": key, "ttl_seconds": ttl, "data": json.loads(val) if val else None}
+        )
+    return entries
+
+
+@app.get("/dashboard/memory/mtm")
+async def get_mtm(limit: int = Query(50, ge=1, le=500)):
+    """Recent MTM outcomes."""
+    async with _db().connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                """SELECT id, advice_id, policy_id_used, document_context,
+                          outcome_metrics, human_corrected, created_at
+                   FROM mtm_outcomes ORDER BY created_at DESC LIMIT %s""",
+                (limit,),
+            )
+            rows = await cur.fetchall()
+    return [
+        {
+            "id": str(r[0]),
+            "advice_id": str(r[1]),
+            "policy_id_used": r[2],
+            "document_context": r[3],
+            "outcome_metrics": r[4],
+            "human_corrected": r[5],
+            "created_at": r[6].isoformat() if r[6] else None,
+        }
+        for r in rows
+    ]
+
+
+@app.get("/dashboard/memory/ltm")
+async def get_ltm():
+    """LTM validated policies with bandit parameters."""
+    async with _db().connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                """SELECT id, context_hash, policy_id, alpha, beta,
+                          confidence_score, last_promoted_at
+                   FROM ltm_validated_policies ORDER BY last_promoted_at DESC"""
+            )
+            rows = await cur.fetchall()
+    return [
+        {
+            "id": str(r[0]),
+            "context_hash": r[1],
+            "policy_id": r[2],
+            "alpha": r[3],
+            "beta": r[4],
+            "confidence_score": r[5],
+            "last_promoted_at": r[6].isoformat() if r[6] else "",
+        }
+        for r in rows
+    ]
+
+
+@app.get("/dashboard/memory/ltm/chart")
+async def ltm_chart_data():
+    """LTM data formatted for charts."""
+    async with _db().connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                """SELECT policy_id,
+                          AVG(alpha / (alpha + beta)) AS avg_mean,
+                          COUNT(*) AS count,
+                          AVG(alpha + beta) AS avg_strength
+                   FROM ltm_validated_policies GROUP BY policy_id"""
+            )
+            rows = await cur.fetchall()
+    return [
+        {
+            "policy_id": r[0],
+            "avg_mean": round(r[1], 4),
+            "count": r[2],
+            "avg_strength": round(r[3], 2),
+        }
+        for r in rows
+    ]
+
+
+@app.get("/dashboard/activity")
+async def recent_activity(limit: int = Query(20, ge=1, le=100)):
+    """Recent system activity for the admin feed."""
+    async with _db().connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                """SELECT 'outcome' AS type, policy_id_used AS detail,
+                          outcome_metrics->>'f1_score' AS metric, created_at
+                   FROM mtm_outcomes ORDER BY created_at DESC LIMIT %s""",
+                (limit,),
+            )
+            rows = await cur.fetchall()
+    return [
+        {
+            "type": r[0],
+            "detail": r[1],
+            "metric": r[2],
+            "created_at": r[3].isoformat() if r[3] else None,
+        }
+        for r in rows
+    ]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXPERIMENT ROUTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@app.get("/experiments/results")
+async def get_results():
+    """Return pre-computed experiment results (JSON)."""
+    data = _load_json("experiment_results.json")
+    if data is None:
+        raise HTTPException(404, "Experiment results not found. Run experiments first.")
+    return data
+
+
+@app.get("/experiments/robustness")
+async def get_robustness():
+    """Return robustness sweep results."""
+    data = _load_json("robustness_results.json")
+    if data is None:
+        raise HTTPException(404, "Robustness results not found.")
+    return data
+
+
+@app.post("/experiments/demo/daaf")
+async def run_daaf_demo(params: dict[str, Any]):
+    """Run interactive DAAF drift detection demo."""
+    pre_mean = params.get("pre_drift_mean", 0.85)
+    post_mean = params.get("post_drift_mean", 0.55)
+    noise_std = params.get("noise_std", 0.06)
+    drift_round = params.get("drift_round", 150)
+    window_size = params.get("window_size", 50)
+    n_rounds = params.get("n_rounds", 300)
+
+    rng = np.random.RandomState(42)
+    rewards: list[float] = []
+    for t in range(n_rounds):
+        mean = pre_mean if t < drift_round else post_mean
+        r = float(np.clip(rng.normal(mean, noise_std), 0.0, 1.0))
+        rewards.append(r)
+
+    estimator = DriftEstimator(
+        window_size=window_size,
+        min_samples=10,
+        drift_threshold=0.05,
+        abrupt_threshold=0.15,
+    )
+
+    drift_magnitudes, gammas, drift_types, recent_means = [], [], [], []
+    for reward in rewards:
+        metrics = estimator.update(reward)
+        drift_magnitudes.append(metrics.drift_magnitude)
+        gammas.append(metrics.optimal_gamma)
+        drift_types.append(metrics.drift_type.value)
+        recent_means.append(
+            float(np.mean(list(estimator.recent_window)))
+            if estimator.recent_window
+            else reward
+        )
+
+    detected_at = None
+    for t in range(drift_round, n_rounds):
+        if drift_types[t] != "none":
+            detected_at = t
+            break
+
+    return {
+        "rewards": rewards,
+        "recent_means": recent_means,
+        "drift_magnitudes": drift_magnitudes,
+        "gammas": gammas,
+        "drift_types": drift_types,
+        "detection_delay": (detected_at - drift_round) if detected_at else None,
+        "peak_gamma": max(gammas[drift_round:]) if drift_round < len(gammas) else 0,
+    }
+
+
+@app.post("/experiments/demo/rabi")
+async def run_rabi_demo(params: dict[str, Any]):
+    """Run interactive RABI cold-start demo."""
+    from .services.rabi import RABIInitializer
+
+    temperature = params.get("temperature", 0.5)
+    threshold = params.get("threshold", 0.3)
+    k = params.get("k", 5)
+
+    rabi = RABIInitializer(k=k, similarity_threshold=threshold, temperature=temperature)
+
+    neighbors = [
+        NeighborInfo(
+            context_hash=f"ctx_{i}",
+            policy_id="ocr_tesseract",
+            alpha=15 + i * 3,
+            beta=3 + i,
+            similarity=0.9 - i * 0.1,
+            n_samples=15 + i,
+        )
+        for i in range(k)
+    ]
+
+    prior = rabi.initialize_prior(neighbors)
+    weights = rabi.compute_weights([n.similarity for n in neighbors])
+
+    from scipy.stats import beta as beta_dist
+
+    x = np.linspace(0, 1, 200).tolist()
+    flat_pdf = beta_dist.pdf(x, 1, 1).tolist()
+    rabi_pdf = beta_dist.pdf(x, prior.alpha, prior.beta).tolist()
+
+    return {
+        "prior": {
+            "alpha": prior.alpha,
+            "beta": prior.beta,
+            "mean": prior.mean,
+            "confidence": prior.confidence,
+            "n_neighbors": prior.n_neighbors,
+        },
+        "neighbors": [
+            {
+                "hash": n.context_hash,
+                "similarity": n.similarity,
+                "alpha": n.alpha,
+                "beta": n.beta,
+                "mean": n.mean_reward,
+            }
+            for n in neighbors
+        ],
+        "weights": weights,
+        "distribution": {"x": x, "flat_pdf": flat_pdf, "rabi_pdf": rabi_pdf},
+    }
+
+
+@app.post("/experiments/demo/comparison")
+async def run_comparison_demo(params: dict[str, Any]):
+    """Run TS vs DAAF comparison under drift."""
+    from .experiments.synthetic_data import (
+        VendorProfile,
+        PolicyConfig,
+        DriftEvent,
+        Scenario,
+        _make_cluster_embedding,
+        POLICY_IDS,
+    )
+    from .experiments.run_experiments import (
+        ThompsonSamplingRunner,
+        AHMNDAAFRunner,
+        run_single,
+    )
+
+    drift_magnitude = params.get("drift_magnitude", 0.20)
+    n_seeds = min(params.get("seeds", 10), 20)
+
+    vendors = [
+        VendorProfile(
+            vendor_id="vendor_drift",
+            doc_type="invoice",
+            policies={
+                "ocr_tesseract": PolicyConfig(true_mean=0.88, noise_std=0.05),
+                "ocr_easyocr": PolicyConfig(true_mean=0.70, noise_std=0.06),
+                "ocr_azure_cv": PolicyConfig(true_mean=0.75, noise_std=0.05),
+            },
+            embedding=_make_cluster_embedding(1, 0),
+            weight=1.0,
+        ),
+    ]
+
+    post_tess = max(0.1, 0.88 - drift_magnitude)
+    post_azure = min(0.98, 0.75 + drift_magnitude)
+
+    scenario = Scenario(
+        name="demo_drift",
+        description=f"Drift demo Δ={drift_magnitude}",
+        vendors=vendors,
+        policy_ids=POLICY_IDS,
+        n_rounds=800,
+        drift_events=[
+            DriftEvent(
+                vendor_id="vendor_drift",
+                at_round=400,
+                new_policies={
+                    "ocr_tesseract": PolicyConfig(true_mean=post_tess, noise_std=0.05),
+                    "ocr_easyocr": PolicyConfig(true_mean=0.70, noise_std=0.06),
+                    "ocr_azure_cv": PolicyConfig(true_mean=post_azure, noise_std=0.05),
+                },
+            )
+        ],
+    )
+
+    ts_results = [
+        run_single(ThompsonSamplingRunner(POLICY_IDS), scenario, s)
+        for s in range(n_seeds)
+    ]
+    daaf_results = [
+        run_single(AHMNDAAFRunner(POLICY_IDS), scenario, s)
+        for s in range(n_seeds)
+    ]
+
+    ts_avg_regret = np.mean(
+        [r.cumulative_regret for r in ts_results], axis=0
+    ).tolist()
+    daaf_avg_regret = np.mean(
+        [r.cumulative_regret for r in daaf_results], axis=0
+    ).tolist()
+
+    window = 50
+    ts_avg_rewards = np.mean([r.rewards for r in ts_results], axis=0)
+    daaf_avg_rewards = np.mean([r.rewards for r in daaf_results], axis=0)
+
+    def rolling(arr, w):
+        return [float(np.mean(arr[max(0, i - w) : i + 1])) for i in range(len(arr))]
+
+    return {
+        "ts_cumulative_regret": ts_avg_regret,
+        "daaf_cumulative_regret": daaf_avg_regret,
+        "ts_rolling_reward": rolling(ts_avg_rewards, window),
+        "daaf_rolling_reward": rolling(daaf_avg_rewards, window),
+        "rolling_start": window,
+        "total_ts_regret": round(float(ts_avg_regret[-1]), 2),
+        "total_daaf_regret": round(float(daaf_avg_regret[-1]), 2),
+        "improvement_pct": round(
+            (float(ts_avg_regret[-1]) - float(daaf_avg_regret[-1]))
+            / max(1, float(ts_avg_regret[-1]))
+            * 100,
+            1,
+        ),
+    }

@@ -1,0 +1,288 @@
+"use client";
+
+import { motion } from "framer-motion";
+import Link from "next/link";
+import {
+    ArrowRight,
+    Brain,
+    Target,
+    Lightbulb,
+    Users,
+    Code2,
+    GraduationCap,
+    Shield,
+    Rocket,
+} from "lucide-react";
+
+const values = [
+    {
+        icon: <Target className="w-6 h-6 text-brand-500" />,
+        title: "Precision First",
+        desc: "We believe every extraction should be accurate, verified, and trustworthy. No guesswork.",
+    },
+    {
+        icon: <Lightbulb className="w-6 h-6 text-amber-500" />,
+        title: "Transparent AI",
+        desc: "AI decisions should be explainable. We make every model output interpretable and auditable.",
+    },
+    {
+        icon: <Users className="w-6 h-6 text-violet-500" />,
+        title: "Human-Centered",
+        desc: "Technology empowers people, not replaces them. Humans and AI work better together.",
+    },
+    {
+        icon: <Code2 className="w-6 h-6 text-emerald-500" />,
+        title: "Open & Modular",
+        desc: "Built with a modular architecture so you can use what you need and extend as you grow.",
+    },
+];
+
+const techStack = [
+    { category: "Frontend", items: ["Next.js 15", "React 19", "Tailwind CSS", "Framer Motion"] },
+    { category: "Backend", items: ["FastAPI", "Python 3.12", "PostgreSQL", "Redis"] },
+    { category: "AI/ML", items: ["AHMN", "RABI", "DAAF", "XAI Engine"] },
+    { category: "Infrastructure", items: ["Docker", "Kubernetes", "CI/CD", "Monitoring"] },
+];
+
+const milestones = [
+    { year: "2024 Q1", title: "Research Phase", desc: "AHMN architecture conceived and validated on synthetic datasets." },
+    { year: "2024 Q2", title: "Core Platform", desc: "XAI engine, guardrails, and HITL feedback loop implemented." },
+    { year: "2024 Q3", title: "Beta Launch", desc: "Multi-agent pipeline with RABI selection and DAAF framework." },
+    { year: "2024 Q4", title: "Production Ready", desc: "Full platform with dashboard, API, and enterprise features." },
+];
+
+export default function AboutPage() {
+    return (
+        <div className="relative overflow-hidden">
+            {/* Hero */}
+            <section className="relative py-24 lg:py-32">
+                <div className="absolute top-0 left-1/3 w-[600px] h-[600px] bg-brand-500/15 dark:bg-brand-500/5 rounded-full blur-[150px] pointer-events-none" />
+                <div className="max-w-7xl mx-auto px-6 lg:px-8 relative">
+                    <div className="max-w-3xl">
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.5 }}
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 text-sm font-medium mb-6"
+                        >
+                            <Brain className="w-4 h-4" />
+                            Our Story
+                        </motion.div>
+                        <motion.h1
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.5, delay: 0.1 }}
+                            className="text-4xl lg:text-6xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-[1.1] mb-6"
+                        >
+                            Building the future of{" "}
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-violet-500">
+                                document intelligence
+                            </span>
+                        </motion.h1>
+                        <motion.p
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.5, delay: 0.2 }}
+                            className="text-lg text-slate-600 dark:text-gray-400 leading-relaxed"
+                        >
+                            Modular Doc AI was born from a simple observation: document extraction tools are either accurate
+                            but opaque, or transparent but unreliable. We set out to build a platform that is both —
+                            combining cutting-edge AI with human oversight and explainability at every step.
+                        </motion.p>
+                    </div>
+                </div>
+            </section>
+
+            {/* Mission & Vision */}
+            <section className="relative z-10 border-y border-slate-200/60 dark:border-white/10 bg-white/50 dark:bg-gray-900/20 backdrop-blur-sm py-24">
+                <div className="max-w-7xl mx-auto px-6 lg:px-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                        <motion.div
+                            initial={{ opacity: 0, x: -20 }}
+                            whileInView={{ opacity: 1, x: 0 }}
+                            viewport={{ once: true }}
+                            className="glass-panel rounded-3xl p-10"
+                        >
+                            <div className="w-14 h-14 rounded-xl bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 flex items-center justify-center mb-6">
+                                <Rocket className="w-7 h-7 text-brand-500" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">Our Mission</h2>
+                            <p className="text-slate-600 dark:text-gray-400 leading-relaxed text-lg">
+                                To democratize intelligent document processing by making AI-powered extraction
+                                accurate, explainable, and continuously improving through human collaboration.
+                                We believe every organization — from startups to enterprises — deserves tools
+                                that they can trust and understand.
+                            </p>
+                        </motion.div>
+                        <motion.div
+                            initial={{ opacity: 0, x: 20 }}
+                            whileInView={{ opacity: 1, x: 0 }}
+                            viewport={{ once: true }}
+                            className="glass-panel rounded-3xl p-10"
+                        >
+                            <div className="w-14 h-14 rounded-xl bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 flex items-center justify-center mb-6">
+                                <GraduationCap className="w-7 h-7 text-violet-500" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">Our Vision</h2>
+                            <p className="text-slate-600 dark:text-gray-400 leading-relaxed text-lg">
+                                A world where documents are not bottlenecks but data sources — instantly understood,
+                                validated, and integrated into workflows. Where AI augments human expertise and every
+                                model decision is transparent and accountable.
+                            </p>
+                        </motion.div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Values */}
+            <section className="relative z-10 py-24 lg:py-32">
+                <div className="max-w-7xl mx-auto px-6 lg:px-8">
+                    <div className="text-center mb-16">
+                        <motion.h2
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            className="text-3xl lg:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight"
+                        >
+                            What drives us
+                        </motion.h2>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {values.map((value, i) => (
+                            <motion.div
+                                key={i}
+                                initial={{ opacity: 0, y: 20 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true }}
+                                transition={{ delay: i * 0.08 }}
+                                className="glass-card rounded-2xl p-8 text-center"
+                            >
+                                <div className="w-14 h-14 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 flex items-center justify-center mb-5 mx-auto shadow-sm">
+                                    {value.icon}
+                                </div>
+                                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{value.title}</h3>
+                                <p className="text-sm text-slate-600 dark:text-gray-400 leading-relaxed">{value.desc}</p>
+                            </motion.div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* Timeline */}
+            <section className="relative z-10 py-24 border-t border-slate-200/60 dark:border-white/10 bg-white/40 dark:bg-gray-900/20">
+                <div className="max-w-7xl mx-auto px-6 lg:px-8">
+                    <div className="text-center mb-16">
+                        <motion.h2
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            className="text-3xl lg:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight"
+                        >
+                            Our journey
+                        </motion.h2>
+                    </div>
+                    <div className="relative">
+                        {/* Timeline line */}
+                        <div className="hidden lg:block absolute left-1/2 top-0 bottom-0 w-px bg-slate-200 dark:bg-gray-800 -translate-x-1/2" />
+                        <div className="space-y-12 lg:space-y-0">
+                            {milestones.map((ms, i) => (
+                                <motion.div
+                                    key={i}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    whileInView={{ opacity: 1, y: 0 }}
+                                    viewport={{ once: true }}
+                                    transition={{ delay: i * 0.1 }}
+                                    className={`relative lg:flex lg:items-center lg:gap-8 lg:py-8 ${i % 2 === 0 ? "lg:flex-row" : "lg:flex-row-reverse"
+                                        }`}
+                                >
+                                    <div className={`flex-1 ${i % 2 === 0 ? "lg:text-right" : "lg:text-left"}`}>
+                                        <div className="glass-card rounded-2xl p-6 inline-block text-left">
+                                            <div className="text-sm font-bold text-brand-500 dark:text-brand-400 mb-1">{ms.year}</div>
+                                            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{ms.title}</h3>
+                                            <p className="text-sm text-slate-600 dark:text-gray-400 leading-relaxed">{ms.desc}</p>
+                                        </div>
+                                    </div>
+                                    {/* Center dot */}
+                                    <div className="hidden lg:flex w-4 h-4 rounded-full bg-brand-500 border-4 border-white dark:border-gray-950 shadow-md shrink-0 z-10" />
+                                    <div className="flex-1" />
+                                </motion.div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Tech Stack */}
+            <section className="relative z-10 py-24 border-t border-slate-200/60 dark:border-white/10">
+                <div className="max-w-7xl mx-auto px-6 lg:px-8">
+                    <div className="text-center mb-16">
+                        <motion.h2
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            className="text-3xl lg:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight"
+                        >
+                            Built with modern tech
+                        </motion.h2>
+                        <motion.p
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            transition={{ delay: 0.1 }}
+                            className="text-lg text-slate-600 dark:text-gray-400 mt-4"
+                        >
+                            A battle-tested stack for reliability and performance.
+                        </motion.p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {techStack.map((stack, i) => (
+                            <motion.div
+                                key={i}
+                                initial={{ opacity: 0, y: 20 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true }}
+                                transition={{ delay: i * 0.08 }}
+                                className="glass-card rounded-2xl p-6"
+                            >
+                                <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-4 uppercase tracking-wider">
+                                    {stack.category}
+                                </h3>
+                                <div className="space-y-2">
+                                    {stack.items.map((item, j) => (
+                                        <div
+                                            key={j}
+                                            className="flex items-center gap-2 text-sm text-slate-600 dark:text-gray-400"
+                                        >
+                                            <div className="w-1.5 h-1.5 rounded-full bg-brand-500" />
+                                            {item}
+                                        </div>
+                                    ))}
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* CTA */}
+            <section className="relative z-10 py-24 border-t border-slate-200/60 dark:border-white/10 bg-white/40 dark:bg-gray-900/20">
+                <div className="max-w-4xl mx-auto px-6 lg:px-8 text-center">
+                    <h2 className="text-3xl lg:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight mb-4">
+                        Want to join our journey?
+                    </h2>
+                    <p className="text-lg text-slate-600 dark:text-gray-400 mb-8">
+                        Whether you want to use our platform or contribute to the project, we&apos;d love to hear from you.
+                    </p>
+                    <div className="flex items-center justify-center gap-4 flex-wrap">
+                        <Link href="/signup" className="px-8 py-4 glass-button rounded-xl text-lg flex items-center gap-2">
+                            Get Started <ArrowRight className="w-5 h-5" />
+                        </Link>
+                        <Link href="/contact" className="px-8 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-xl text-lg font-medium transition-all shadow-sm">
+                            Contact Us
+                        </Link>
+                    </div>
+                </div>
+            </section>
+        </div>
+    );
+}

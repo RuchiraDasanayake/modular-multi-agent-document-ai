@@ -6,14 +6,20 @@ from collections import defaultdict
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.app.database import DatabasePool
+from psycopg_pool import AsyncConnectionPool
 from ahmn_core.services.embedding import EmbeddingService
+
+POSTGRES_URI = os.getenv(
+    "POSTGRES_URI", "postgresql://user:password@localhost:5432/ahmn_db"
+)
+
 
 async def promote_strategies():
     """Promote successful strategies from MTM to LTM based on performance metrics."""
     print("Starting promotion job...")
-    
-    pool = await DatabasePool.get_pool()
+
+    pool = AsyncConnectionPool(conninfo=POSTGRES_URI, open=False, min_size=1, max_size=5)
+    await pool.open()
     embedding_service = EmbeddingService()
 
     async with pool.connection() as conn:
@@ -77,7 +83,7 @@ async def promote_strategies():
             await conn.commit()
             print("Promotion job completed successfully.")
 
-    await DatabasePool.close_pool()
+    await pool.close()
 
 if __name__ == "__main__":
     # Fix for Windows: psycopg async requires SelectorEventLoop

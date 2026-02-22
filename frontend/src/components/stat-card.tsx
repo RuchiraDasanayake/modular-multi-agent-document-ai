@@ -9,19 +9,19 @@ interface StatCardProps {
 export default function StatCard({ label, value, icon, delta, deltaType = "neutral" }: StatCardProps) {
     const deltaColor =
         deltaType === "positive"
-            ? "text-emerald-400"
+            ? "text-emerald-600 dark:text-emerald-400"
             : deltaType === "negative"
-                ? "text-red-400"
-                : "text-gray-500";
+                ? "text-red-600 dark:text-red-400"
+                : "text-slate-500 dark:text-gray-400";
 
     return (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 card-hover">
+        <div className="glass-card rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
-                <span className="text-2xl">{icon}</span>
+                <span className="text-2xl drop-shadow-sm">{icon}</span>
                 {delta && <span className={`text-xs font-medium ${deltaColor}`}>{delta}</span>}
             </div>
-            <p className="text-2xl font-bold text-white">{value}</p>
-            <p className="text-sm text-gray-500 mt-1">{label}</p>
+            <p className="text-2xl font-bold text-slate-900 dark:text-white">{value}</p>
+            <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">{label}</p>
         </div>
     );
 }

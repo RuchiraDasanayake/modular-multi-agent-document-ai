@@ -56,16 +56,16 @@ export default function RABIPage() {
     return (
         <div className="max-w-6xl mx-auto space-y-8">
             <div>
-                <h1 className="text-2xl font-bold text-white">RABI: Cold-Start Solution</h1>
-                <p className="text-gray-500 mt-1">
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">RABI: Cold-Start Solution</h1>
+                <p className="text-slate-500 dark:text-gray-500 mt-1">
                     Retrieval-Augmented Bandit Initialization — transfer knowledge from similar contexts
                 </p>
             </div>
 
             {/* Concept */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-                <h2 className="text-lg font-semibold text-white mb-3">The Cold-Start Problem</h2>
-                <div className="grid grid-cols-2 gap-4 text-sm text-gray-300">
+            <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-6">
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">The Cold-Start Problem</h2>
+                <div className="grid grid-cols-2 gap-4 text-sm text-slate-600 dark:text-gray-300">
                     <div>
                         <p className="font-medium text-red-400 mb-1">Without RABI</p>
                         <p>New vendor → flat prior Beta(1,1) → needs ~50 rounds of random exploration to learn.</p>
@@ -78,11 +78,11 @@ export default function RABIPage() {
             </div>
 
             {/* Controls */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-                <h2 className="text-lg font-semibold text-white mb-4">Interactive Parameters</h2>
+            <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-6">
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Interactive Parameters</h2>
                 <div className="grid grid-cols-3 gap-6 mb-4">
                     <div>
-                        <label className="text-xs text-gray-500 block mb-1">
+                        <label className="text-xs text-slate-500 dark:text-gray-500 block mb-1">
                             Temperature (τ) = {temperature.toFixed(2)}
                         </label>
                         <input
@@ -90,10 +90,10 @@ export default function RABIPage() {
                             onChange={(e) => setTemperature(parseFloat(e.target.value))}
                             className="w-full accent-brand-500"
                         />
-                        <p className="text-xs text-gray-600 mt-1">Lower = sharper focus on most similar neighbors</p>
+                        <p className="text-xs text-slate-600 dark:text-gray-600 mt-1">Lower = sharper focus on most similar neighbors</p>
                     </div>
                     <div>
-                        <label className="text-xs text-gray-500 block mb-1">
+                        <label className="text-xs text-slate-500 dark:text-gray-500 block mb-1">
                             Similarity Threshold = {threshold.toFixed(2)}
                         </label>
                         <input
@@ -101,22 +101,22 @@ export default function RABIPage() {
                             onChange={(e) => setThreshold(parseFloat(e.target.value))}
                             className="w-full accent-brand-500"
                         />
-                        <p className="text-xs text-gray-600 mt-1">Minimum cosine similarity to accept neighbor</p>
+                        <p className="text-xs text-slate-600 dark:text-gray-600 mt-1">Minimum cosine similarity to accept neighbor</p>
                     </div>
                     <div>
-                        <label className="text-xs text-gray-500 block mb-1">Neighbors (k) = {k}</label>
+                        <label className="text-xs text-slate-500 dark:text-gray-500 block mb-1">Neighbors (k) = {k}</label>
                         <input
                             type="range" min={1} max={10} step={1} value={k}
                             onChange={(e) => setK(parseInt(e.target.value))}
                             className="w-full accent-brand-500"
                         />
-                        <p className="text-xs text-gray-600 mt-1">Number of nearest neighbors to retrieve</p>
+                        <p className="text-xs text-slate-600 dark:text-gray-600 mt-1">Number of nearest neighbors to retrieve</p>
                     </div>
                 </div>
                 <button
                     onClick={run}
                     disabled={loading}
-                    className="px-5 py-2.5 bg-brand-600 hover:bg-brand-500 disabled:bg-gray-700 rounded-lg text-sm text-white transition-colors"
+                    className="px-5 py-2.5 bg-brand-600 hover:bg-brand-500 disabled:bg-slate-200 dark:bg-gray-700 rounded-lg text-sm text-slate-900 dark:text-white transition-colors"
                 >
                     {loading ? "Computing..." : "▶ Run RABI Demo"}
                 </button>
@@ -126,20 +126,20 @@ export default function RABIPage() {
                 <>
                     {/* Prior Result */}
                     <div className="grid grid-cols-4 gap-4">
-                        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
-                            <p className="text-xs text-gray-500">RABI α</p>
+                        <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-4 text-center">
+                            <p className="text-xs text-slate-500 dark:text-gray-500">RABI α</p>
                             <p className="text-xl font-bold text-cyan-400">{result.prior.alpha.toFixed(2)}</p>
                         </div>
-                        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
-                            <p className="text-xs text-gray-500">RABI β</p>
+                        <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-4 text-center">
+                            <p className="text-xs text-slate-500 dark:text-gray-500">RABI β</p>
                             <p className="text-xl font-bold text-cyan-400">{result.prior.beta.toFixed(2)}</p>
                         </div>
-                        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
-                            <p className="text-xs text-gray-500">Expected Reward</p>
-                            <p className="text-xl font-bold text-white">{result.prior.mean.toFixed(3)}</p>
+                        <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-4 text-center">
+                            <p className="text-xs text-slate-500 dark:text-gray-500">Expected Reward</p>
+                            <p className="text-xl font-bold text-slate-900 dark:text-white">{result.prior.mean.toFixed(3)}</p>
                         </div>
-                        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
-                            <p className="text-xs text-gray-500">Confidence</p>
+                        <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-4 text-center">
+                            <p className="text-xs text-slate-500 dark:text-gray-500">Confidence</p>
                             <p className="text-xl font-bold text-emerald-400">{(result.prior.confidence * 100).toFixed(1)}%</p>
                         </div>
                     </div>
@@ -147,8 +147,8 @@ export default function RABIPage() {
                     {/* Charts */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* Distribution */}
-                        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-                            <h3 className="text-sm font-semibold text-white mb-3">Prior Distribution</h3>
+                        <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-6">
+                            <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-3">Prior Distribution</h3>
                             <ResponsiveContainer width="100%" height={300}>
                                 <LineChart data={distData}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -163,8 +163,8 @@ export default function RABIPage() {
                         </div>
 
                         {/* Weights */}
-                        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-                            <h3 className="text-sm font-semibold text-white mb-3">Neighbor Weights (softmax)</h3>
+                        <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-6">
+                            <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-3">Neighbor Weights (softmax)</h3>
                             <ResponsiveContainer width="100%" height={300}>
                                 <BarChart data={weightsData}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />

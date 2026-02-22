@@ -7,11 +7,15 @@ from typing import Dict, List, Tuple, Optional
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.app.database import DatabasePool
+from psycopg_pool import AsyncConnectionPool
 from ahmn_core.services.drift_forgetting import (
     DriftEstimator, 
     AdaptiveForgettingBandit,
     create_adaptive_forgetting_bandit
+)
+
+POSTGRES_URI = os.getenv(
+    "POSTGRES_URI", "postgresql://user:password@localhost:5432/ahmn_db"
 )
 
 
@@ -132,7 +136,8 @@ class DAAFForgettingJob:
         print(f"  Threshold: {self.threshold}")
         print("=" * 60)
         
-        pool = await DatabasePool.get_pool()
+        pool = AsyncConnectionPool(conninfo=POSTGRES_URI, open=False, min_size=1, max_size=5)
+        await pool.open()
         
         async with pool.connection() as conn:
             # Get global timestep (total interactions)
@@ -252,7 +257,7 @@ class DAAFForgettingJob:
         print("DAAF Forgetting job completed.")
         print("=" * 60)
         
-        await DatabasePool.close_pool()
+        await pool.close()
 
 
 async def forgetting_mechanism():

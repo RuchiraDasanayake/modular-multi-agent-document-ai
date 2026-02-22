@@ -7,7 +7,18 @@
 }
 
 body {
-  @apply bg-gray-950 text-gray-100 antialiased;
+  @apply bg-slate-50 text-slate-900 antialiased transition-colors duration-300;
+}
+
+.dark body {
+  @apply bg-gray-950 text-gray-100;
+}
+
+/* Smooth theme transitions on all elements */
+*, *::before, *::after {
+  transition-property: background-color, border-color, box-shadow;
+  transition-duration: 200ms;
+  transition-timing-function: ease-in-out;
 }
 
 /* Custom scrollbar */
@@ -15,13 +26,38 @@ body {
   width: 6px;
 }
 ::-webkit-scrollbar-track {
-  @apply bg-gray-900;
+  @apply bg-slate-100 dark:bg-gray-900;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-gray-700 rounded-full;
+  @apply bg-slate-300 dark:bg-gray-700 rounded-full;
 }
 
 /* Card hover */
 .card-hover {
-  @apply transition-all duration-200 hover:ring-1 hover:ring-brand-500/30 hover:shadow-lg hover:shadow-brand-500/5;
+  @apply transition-all duration-150 hover:ring-1 hover:ring-brand-500/30 hover:shadow-lg hover:shadow-brand-500/10 hover:-translate-y-1;
+}
+
+/* Glassmorphism Utilities */
+.glass-panel {
+  @apply bg-white/70 dark:bg-gray-900/40 backdrop-blur-xl border border-slate-200/60 dark:border-white/10 shadow-lg shadow-slate-200/40 dark:shadow-2xl;
+}
+
+.glass-card {
+  @apply bg-white/70 dark:bg-gray-900/40 backdrop-blur-md border border-slate-200/60 dark:border-white/5 shadow-md shadow-slate-200/40 dark:shadow-lg transition-all duration-150 hover:bg-white/90 dark:hover:bg-gray-800/50 hover:border-brand-500/20 dark:hover:border-white/10 hover:shadow-brand-500/10 hover:-translate-y-1;
+}
+
+.glass-input {
+  @apply bg-white/80 dark:bg-gray-950/50 backdrop-blur-sm border border-slate-300 dark:border-white/10 focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/30 transition-all duration-150 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-gray-500 rounded-xl;
+}
+
+.glass-button {
+  @apply bg-brand-600 dark:bg-brand-600/80 backdrop-blur-md border border-brand-500/20 hover:bg-brand-500 dark:hover:bg-brand-500/90 transition-all duration-150 shadow-md shadow-brand-500/20 hover:shadow-lg hover:shadow-brand-500/30 text-white font-medium;
+}
+
+/* 3D Perspective Utilities */
+.perspective-1000 {
+  perspective: 1000px;
+}
+.preserve-3d {
+  transform-style: preserve-3d;
 }

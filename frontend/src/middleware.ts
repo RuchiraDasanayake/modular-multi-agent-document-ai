@@ -1,12 +1,24 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+// Public routes that don't require authentication
+const publicPaths = [
+  "/",
+  "/features",
+  "/about",
+  "/pricing",
+  "/docs",
+  "/contact",
+  "/login",
+  "/signup",
+];
+
 export function middleware(request: NextRequest) {
   const token = request.cookies.get("ahmn_token")?.value;
   const { pathname } = request.nextUrl;
 
-  // Public paths
-  if (pathname === "/login" || pathname.startsWith("/api")) {
+  // Allow public paths and API routes
+  if (publicPaths.includes(pathname) || pathname.startsWith("/api")) {
     return NextResponse.next();
   }
 

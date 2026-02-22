@@ -53,28 +53,28 @@ export default function ExperimentsPage() {
     return (
         <div className="max-w-6xl mx-auto space-y-8">
             <div>
-                <h1 className="text-2xl font-bold text-white">Live Experiments</h1>
-                <p className="text-gray-500 mt-1">Run comparisons and view pre-computed results from 840 experiment runs</p>
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Live Experiments</h1>
+                <p className="text-slate-500 dark:text-gray-500 mt-1">Run comparisons and view pre-computed results from 840 experiment runs</p>
             </div>
 
             {/* Pre-computed results */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+            <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-6">
                 <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-white">Pre-Computed Results (30 seeds × 7 methods × 4 scenarios)</h2>
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Pre-Computed Results (30 seeds × 7 methods × 4 scenarios)</h2>
                     <button
                         onClick={loadResults}
                         disabled={loading}
-                        className="px-4 py-2 bg-brand-600 hover:bg-brand-500 disabled:bg-gray-700 rounded-lg text-sm text-white transition-colors"
+                        className="px-4 py-2 bg-brand-600 hover:bg-brand-500 disabled:bg-slate-200 dark:bg-gray-700 rounded-lg text-sm text-slate-900 dark:text-white transition-colors"
                     >
                         {loading ? "Loading..." : "Load Results"}
                     </button>
                 </div>
                 {data && (
-                    <div className="text-sm text-gray-300">
+                    <div className="text-sm text-slate-600 dark:text-gray-300">
                         <p>
                             ✅ Loaded {((data as Record<string, unknown[]>).main_results || []).length} result entries
                         </p>
-                        <p className="text-gray-500 text-xs mt-1">
+                        <p className="text-slate-500 dark:text-gray-500 text-xs mt-1">
                             Config: {JSON.stringify((data as Record<string, unknown>).experiment_config)}
                         </p>
                     </div>
@@ -82,11 +82,11 @@ export default function ExperimentsPage() {
             </div>
 
             {/* Interactive Comparison */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-                <h2 className="text-lg font-semibold text-white mb-4">TS vs DAAF – Live Comparison</h2>
+            <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-6">
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">TS vs DAAF – Live Comparison</h2>
                 <div className="flex items-center gap-4 mb-4">
                     <div>
-                        <label className="text-xs text-gray-500 block mb-1">Drift Magnitude</label>
+                        <label className="text-xs text-slate-500 dark:text-gray-500 block mb-1">Drift Magnitude</label>
                         <input
                             type="range"
                             min={0.05}
@@ -96,10 +96,10 @@ export default function ExperimentsPage() {
                             onChange={(e) => setDriftMag(parseFloat(e.target.value))}
                             className="accent-brand-500"
                         />
-                        <span className="text-sm text-gray-300 ml-2">{driftMag.toFixed(2)}</span>
+                        <span className="text-sm text-slate-600 dark:text-gray-300 ml-2">{driftMag.toFixed(2)}</span>
                     </div>
                     <div>
-                        <label className="text-xs text-gray-500 block mb-1">Seeds</label>
+                        <label className="text-xs text-slate-500 dark:text-gray-500 block mb-1">Seeds</label>
                         <input
                             type="range"
                             min={5}
@@ -109,12 +109,12 @@ export default function ExperimentsPage() {
                             onChange={(e) => setSeeds(parseInt(e.target.value))}
                             className="accent-brand-500"
                         />
-                        <span className="text-sm text-gray-300 ml-2">{seeds}</span>
+                        <span className="text-sm text-slate-600 dark:text-gray-300 ml-2">{seeds}</span>
                     </div>
                     <button
                         onClick={runComparison}
                         disabled={loading}
-                        className="px-4 py-2 bg-brand-600 hover:bg-brand-500 disabled:bg-gray-700 rounded-lg text-sm text-white transition-colors ml-auto"
+                        className="px-4 py-2 bg-brand-600 hover:bg-brand-500 disabled:bg-slate-200 dark:bg-gray-700 rounded-lg text-sm text-slate-900 dark:text-white transition-colors ml-auto"
                     >
                         {loading ? "Running..." : "▶ Run Comparison"}
                     </button>
@@ -124,16 +124,16 @@ export default function ExperimentsPage() {
                     <>
                         {/* Metric cards */}
                         <div className="grid grid-cols-3 gap-4 mb-6">
-                            <div className="bg-gray-800 rounded-lg p-4 text-center">
-                                <p className="text-sm text-gray-500">TS Regret</p>
+                            <div className="bg-slate-100 dark:bg-gray-800 rounded-lg p-4 text-center">
+                                <p className="text-sm text-slate-500 dark:text-gray-500">TS Regret</p>
                                 <p className="text-xl font-bold text-emerald-400">{comparison.total_ts_regret.toFixed(1)}</p>
                             </div>
-                            <div className="bg-gray-800 rounded-lg p-4 text-center">
-                                <p className="text-sm text-gray-500">DAAF Regret</p>
+                            <div className="bg-slate-100 dark:bg-gray-800 rounded-lg p-4 text-center">
+                                <p className="text-sm text-slate-500 dark:text-gray-500">DAAF Regret</p>
                                 <p className="text-xl font-bold text-red-400">{comparison.total_daaf_regret.toFixed(1)}</p>
                             </div>
-                            <div className="bg-gray-800 rounded-lg p-4 text-center">
-                                <p className="text-sm text-gray-500">Improvement</p>
+                            <div className="bg-slate-100 dark:bg-gray-800 rounded-lg p-4 text-center">
+                                <p className="text-sm text-slate-500 dark:text-gray-500">Improvement</p>
                                 <p className="text-xl font-bold text-brand-400">{comparison.improvement_pct.toFixed(1)}%</p>
                             </div>
                         </div>

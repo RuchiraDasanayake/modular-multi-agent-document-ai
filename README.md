@@ -1,52 +1,61 @@
 # Modular Multi-Agent Document AI
 
-A modular, multi-agent framework for intelligent document understanding and analysis. Integrates specialized agents for parsing, reasoning, summarization, and retrieval with four independently managed component modules:
+A production-ready, microservices-based framework for intelligent document understanding and analysis. Each core component runs as an independent Docker service behind a unified API gateway.
 
 1. **AHMN Core** — Adaptive Hierarchical Memory Network (Thompson Sampling, RABI, DAAF)
 2. **Guardrails** — 5-layer Hallucination Detection Ensemble
 3. **XAI & HITL** — Explainable AI Engine + Human-in-the-Loop Feedback
-4. _(Component 4 — TBD)_
 
 ---
 
 ## Architecture Overview
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        frontend/  (Next.js 15)                         │
-│   Dashboard: Overview │ Submit │ Experiments │ RABI │ DAAF             │
-│                XAI │ HITL │ Guardrails │ Results │ Admin              │
-└────────────────────────────────┬───────────────────────────────────────┘
-                                 │ HTTP
-┌────────────────────────────────▼───────────────────────────────────────┐
-│                         backend/  (FastAPI)                            │
-│   Routers: auth │ advice │ dashboard │ experiments                    │
-│            xai │ hitl │ guardrails                                    │
-│                                                                        │
-│   Imports from 3 independent component modules:                       │
-│                                                                        │
-│   ┌── ahmn_core/ ──┐  ┌── guardrails/ ──┐  ┌── xai_hitl/ ─────────┐ │
-│   │ services/      │  │ models.py       │  │ engine/               │ │
-│   │  ├ selection   │  │ config.py       │  │  └ xai_engine.py     │ │
-│   │  ├ rabi.py     │  │ core/           │  │ hitl/                 │ │
-│   │  ├ drift_forg  │  │  ├ ensemble.py  │  │  └ models.py         │ │
-│   │  └ embedding   │  │  └ validation   │  │ tests/                │ │
-│   │ experiments/   │  │ tests/          │  │  └ test_xai_hitl.py  │ │
-│   │ tests/         │  └────────────────┘  └─────────────────────┘ │
-│   └───────────────┘                                                │
-│                     │                     │                            │
-│              ┌──────▼──────┐      ┌───────▼───────┐                   │
-│              │  PostgreSQL  │      │    Redis      │                   │
-│              │  (pgvector)  │      │   (STM cache) │                   │
-│              └─────────────┘      └───────────────┘                   │
-└────────────────────────────────────────────────────────────────────────┘
-       │
-┌──────▼──────────────┐    ┌─────────────────────┐
-│  jobs/               │    │  streamlit_app/      │
-│   ├ promote.py       │    │   XAI Q&A demo       │
-│   └ forgetting.py    │    │   (standalone)        │
-└─────────────────────┘    └─────────────────────┘
+                        ┌─────────────────────────────────┐
+                        │    frontend/  (Next.js 15)       │
+                        │   User: XAI │ HITL │ Guardrails  │
+                        │   Admin: Overview │ Experiments   │
+                        │          RABI │ DAAF │ Results    │
+                        └────────────────┬────────────────┘
+                                         │ :3000
+                        ┌────────────────▼────────────────┐
+                        │   gateway/  (FastAPI)            │
+                        │   JWT Auth + Reverse Proxy       │
+                        │   /api/auth/* → local            │
+                        │   /api/* → route to service      │
+                        └──┬──────────┬──────────┬────────┘
+                           │ :8001    │ :8002    │ :8003
+               ┌───────────▼──┐ ┌────▼──────┐ ┌─▼────────────┐
+               │  ahmn_core/  │ │guardrails/│ │  xai_hitl/    │
+               │  FastAPI     │ │ FastAPI   │ │  FastAPI      │
+               │              │ │           │ │               │
+               │  services/   │ │ core/     │ │  engine/      │
+               │   selection  │ │  ensemble │ │   xai_engine  │
+               │   rabi       │ │  validat. │ │  hitl/        │
+               │   drift_forg │ │           │ │   models      │
+               │   embedding  │ │ Presidio  │ │  DistilBERT   │
+               │  experiments/│ │ MiniLM    │ │  SHAP + LIME  │
+               └──────┬───┬──┘ └───────────┘ └───────────────┘
+                      │   │
+            ┌─────────▼┐ ┌▼──────────┐
+            │PostgreSQL│ │  Redis    │
+            │(pgvector)│ │(STM cache)│
+            └──────────┘ └───────────┘
 ```
+
+### Service Ports
+
+| Service      | Internal Port | Exposed to Host |
+| ------------ | ------------- | --------------- |
+| PostgreSQL   | 5432          | 5432            |
+| Redis        | 6379          | 6379            |
+| AHMN         | 8001          | —               |
+| Guardrails   | 8002          | —               |
+| XAI-HITL     | 8003          | —               |
+| **Gateway**  | 8000          | **8000**        |
+| **Frontend** | 3000          | **3000**        |
+
+> Only the gateway and frontend are publicly accessible. Backend services communicate exclusively over Docker's internal network.
 
 ### Memory Tiers
 
@@ -71,7 +80,10 @@ A modular, multi-agent framework for intelligent document understanding and anal
 ## Project Structure
 
 ```
-├── ahmn_core/                  # Component 1: AHMN algorithms (Dasanayake D.R.L.)
+├── ahmn_core/                  # Microservice 1: AHMN algorithms (Dasanayake D.R.L.)
+│   ├── main.py                 # FastAPI entry point (:8001)
+│   ├── Dockerfile
+│   ├── requirements.txt
 │   ├── config.py               # AHMN hyperparameters
 │   ├── schemas.py              # Shared Pydantic DTOs
 │   ├── services/               # Core algorithms
@@ -84,10 +96,12 @@ A modular, multi-agent framework for intelligent document understanding and anal
 │   │   ├── run_experiments.py       # 7 method runners
 │   │   ├── analysis.py             # Post-hoc analysis
 │   │   └── robustness_study.py     # Parameter sweeps
-│   ├── tests/                  # Core algorithm tests
-│   └── demo/                   # Streamlit demo pages
+│   └── tests/                  # Core algorithm tests
 │
-├── guardrails/                 # Component 2: Hallucination Detection (Wijetunga W.L.A.T.)
+├── guardrails/                 # Microservice 2: Hallucination Detection (Wijetunga W.L.A.T.)
+│   ├── main.py                 # FastAPI entry point (:8002)
+│   ├── Dockerfile
+│   ├── requirements.txt
 │   ├── models.py               # Document types, RAGInput, GuardrailOutput
 │   ├── config.py               # Guardrail settings (thresholds)
 │   ├── core/
@@ -96,7 +110,10 @@ A modular, multi-agent framework for intelligent document understanding and anal
 │   └── tests/
 │       └── test_guardrails.py  # Unit tests for all 5 layers
 │
-├── xai_hitl/                   # Component 3: XAI + HITL (Pathirana M.M.)
+├── xai_hitl/                   # Microservice 3: XAI + HITL (Pathirana M.M.)
+│   ├── main.py                 # FastAPI entry point (:8003)
+│   ├── Dockerfile
+│   ├── requirements.txt
 │   ├── engine/
 │   │   └── xai_engine.py       # DistilBERT-SQuAD + SHAP + LIME
 │   ├── hitl/
@@ -104,43 +121,39 @@ A modular, multi-agent framework for intelligent document understanding and anal
 │   └── tests/
 │       └── test_xai_hitl.py    # Data model + round-trip tests
 │
-├── backend/                    # FastAPI REST API
-│   ├── main.py                 # Entry point (7 routers)
-│   ├── app/
-│   │   ├── config.py           # Pydantic Settings
-│   │   ├── database.py         # PostgreSQL + Redis
-│   │   ├── deps.py             # FastAPI dependencies (JWT, DB)
-│   │   ├── routers/
-│   │   │   ├── auth.py         # /api/auth — login, register
-│   │   │   ├── advice.py       # /api/advice — core AHMN endpoint
-│   │   │   ├── dashboard.py    # /api/dashboard — stats, memory browsers
-│   │   │   ├── experiments.py  # /api/experiments — results, demos
-│   │   │   ├── xai.py          # /api/xai — explainable Q&A
-│   │   │   ├── hitl.py         # /api/hitl — human-in-the-loop
-│   │   │   └── guardrails.py   # /api/guardrails — validation ensemble
-│   │   ├── schemas/            # Request/response models
-│   │   └── services/           # Auth service
+├── gateway/                    # API Gateway — auth + reverse proxy
+│   ├── main.py                 # FastAPI entry point (:8000)
 │   ├── Dockerfile
-│   └── requirements.txt
+│   ├── requirements.txt
+│   ├── config.py               # Pydantic Settings (JWT, service URLs)
+│   ├── database.py             # PostgreSQL pool (auth tables only)
+│   ├── deps.py                 # FastAPI dependencies (JWT, DB)
+│   ├── schemas.py              # Auth request/response models
+│   └── auth_service.py         # Password hashing, JWT create/verify
 │
-├── frontend/                   # Next.js 15 + React 19 dashboard
+├── frontend/                   # Next.js 15 + React 19 web app
 │   └── src/
-│       ├── app/dashboard/
-│       │   ├── guardrails/     # Guardrails validation UI
-│       │   ├── xai/            # XAI Q&A interface
-│       │   ├── hitl/           # HITL review
-│       │   └── ...             # Other pages
-│       ├── components/         # Sidebar, stat cards
-│       ├── lib/                # API client, auth
+│       ├── app/
+│       │   └── dashboard/
+│       │       ├── xai/        # XAI Q&A interface (user-facing)
+│       │       ├── hitl/       # HITL review (user-facing)
+│       │       ├── guardrails/ # Guardrails validation (user-facing)
+│       │       ├── admin/      # User management (admin)
+│       │       ├── experiments/# Experiment results (admin)
+│       │       ├── rabi/       # RABI Cold Start demo (admin)
+│       │       ├── daaf/       # DAAF Drift demo (admin)
+│       │       └── ...         # Other admin pages
+│       ├── components/         # Sidebar (role-based), stat cards
+│       ├── hooks/              # useUser hook
+│       ├── lib/                # API client, auth helpers
 │       └── types/              # TypeScript type definitions
 │
-├── streamlit_app/              # Standalone Streamlit demo (XAI + HITL UI)
 ├── jobs/                       # Background maintenance
 │   ├── promote.py              # MTM → LTM promotion
 │   └── forgetting.py           # DAAF decay job
 ├── scripts/
 │   └── init.sql                # PostgreSQL schema + seeds
-└── docker-compose.yml          # db, redis, backend, frontend
+└── docker-compose.yml          # 7 services: db, redis, ahmn, guardrails, xai-hitl, gateway, frontend
 ```
 
 ---
@@ -149,33 +162,46 @@ A modular, multi-agent framework for intelligent document understanding and anal
 
 ### Prerequisites
 
-- Docker & Docker Compose
-- Node.js 18+ (for frontend dev)
-- Python 3.11+ (for local dev)
+- Docker & Docker Compose v2
 
 ### Run with Docker
 
 ```bash
+# Clone & configure
 cp .env.example .env
+
+# Build and start all services
 docker compose up --build
 ```
 
 | Service     | URL                        |
 | ----------- | -------------------------- |
 | Frontend    | http://localhost:3000      |
-| Backend API | http://localhost:8000      |
+| Gateway API | http://localhost:8000      |
 | API Docs    | http://localhost:8000/docs |
 
-Default admin: `admin` / `admin123`
+Default admin credentials: `admin` / `admin123`
 
 ### Local Development
 
 ```bash
-# Backend
-cd backend
+# Gateway
+cd gateway
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn main:app --reload
+uvicorn gateway.main:app --reload --port 8000
+
+# AHMN service
+pip install -r ahmn_core/requirements.txt
+uvicorn ahmn_core.main:app --reload --port 8001
+
+# Guardrails service
+pip install -r guardrails/requirements.txt
+uvicorn guardrails.main:app --reload --port 8002
+
+# XAI-HITL service
+pip install -r xai_hitl/requirements.txt
+uvicorn xai_hitl.main:app --reload --port 8003
 
 # Frontend
 cd frontend
@@ -199,15 +225,35 @@ python -m pytest xai_hitl/tests/ -v
 
 ## API Endpoints
 
-| Prefix             | Router      | Description                             |
-| ------------------ | ----------- | --------------------------------------- |
-| `/api/auth`        | auth        | Login, register, user management        |
-| `/api/advice`      | advice      | Core AHMN policy recommendation         |
-| `/api/dashboard`   | dashboard   | Stats, memory browsers, activity        |
-| `/api/experiments` | experiments | Pre-computed results, interactive demos |
-| `/api/xai`         | xai         | Explainable Q&A with SHAP/LIME          |
-| `/api/hitl`        | hitl        | Human-in-the-loop feedback              |
-| `/api/guardrails`  | guardrails  | 5-layer hallucination validation        |
+All traffic flows through the gateway at `:8000`.
+
+| Prefix             | Handled By   | Description                             |
+| ------------------ | ------------ | --------------------------------------- |
+| `/api/auth`        | Gateway      | Login, register, user management        |
+| `/api/advice`      | AHMN (:8001) | Core AHMN policy recommendation         |
+| `/api/dashboard`   | AHMN (:8001) | Stats, memory browsers, activity        |
+| `/api/experiments` | AHMN (:8001) | Pre-computed results, interactive demos |
+| `/api/xai`         | XAI (:8003)  | Explainable Q&A with SHAP/LIME          |
+| `/api/hitl`        | XAI (:8003)  | Human-in-the-loop feedback              |
+| `/api/guardrails`  | GR (:8002)   | 5-layer hallucination validation        |
+
+---
+
+## Frontend Pages
+
+| Path                      | Access | Description               |
+| ------------------------- | ------ | ------------------------- |
+| `/dashboard/xai`          | All    | XAI Q&A chat interface    |
+| `/dashboard/hitl`         | All    | HITL feedback & review    |
+| `/dashboard/guardrails`   | All    | Guardrails validation UI  |
+| `/dashboard`              | Admin  | AHMN system overview      |
+| `/dashboard/submit`       | Admin  | Submit document data      |
+| `/dashboard/experiments`  | Admin  | Experiment results        |
+| `/dashboard/rabi`         | Admin  | RABI cold-start demo      |
+| `/dashboard/daaf`         | Admin  | DAAF drift detection demo |
+| `/dashboard/results`      | Admin  | Comparative analysis      |
+| `/dashboard/architecture` | Admin  | System architecture view  |
+| `/dashboard/admin`        | Admin  | User management           |
 
 ---
 
@@ -218,4 +264,4 @@ python -m pytest xai_hitl/tests/ -v
 | Dasanayake D.R.L.  | AHMN Core (TS, RABI, DAAF) |
 | Wijetunga W.L.A.T. | Hallucination Guardrails   |
 | Pathirana M.M.     | XAI Engine & HITL Feedback |
-| Nayanapriya S.A.T. | IDPO          |
+| Nayanapriya S.A.T. | IDPO                       |

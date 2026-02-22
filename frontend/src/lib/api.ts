@@ -38,6 +38,12 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
 
+  signup: (email: string, username: string, password: string) =>
+    request<{ access_token: string }>("/api/auth/signup", {
+      method: "POST",
+      body: JSON.stringify({ email, username, password }),
+    }),
+
   me: () => request<User>("/api/auth/me"),
 
   getUsers: () => request<User[]>("/api/auth/users"),

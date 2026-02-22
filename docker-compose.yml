@@ -2,7 +2,7 @@ services:
   # ── Database ──
   db:
     image: pgvector/pgvector:pg16
-    container_name: ahmn_postgres
+    container_name: docai_postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
@@ -21,7 +21,7 @@ services:
   # ── Cache ──
   redis:
     image: redis:alpine
-    container_name: ahmn_redis
+    container_name: docai_redis
     ports:
       - "${REDIS_PORT:-6379}:6379"
     healthcheck:
@@ -30,42 +30,88 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── Backend API ──
-  backend:
-    build: ./backend
-    container_name: ahmn_backend
+  # ── AHMN Service (port 8001) ──
+  ahmn:
+    build:
+      context: .
+      dockerfile: ahmn_core/Dockerfile
+    container_name: docai_ahmn
     env_file:
       - path: .env
         required: false
     environment:
-      # Override localhost with Docker service names
       POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-ahmn_db}
       REDIS_HOST: redis
-    ports:
-      - "${BACKEND_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ./ahmn_core:/app/ahmn_core:ro
-      - ./guardrails:/app/guardrails:ro
-      - ./xai_hitl:/app/xai_hitl:ro
+    # Internal only — not exposed to host
 
-  # ── Frontend ──
+  # ── Guardrails Service (port 8002) ──
+  guardrails:
+    build:
+      context: .
+      dockerfile: guardrails/Dockerfile
+    container_name: docai_guardrails
+    env_file:
+      - path: .env
+        required: false
+    # Stateless — no DB dependency
+
+  # ── XAI-HITL Service (port 8003) ──
+  xai-hitl:
+    build:
+      context: .
+      dockerfile: xai_hitl/Dockerfile
+    container_name: docai_xai_hitl
+    env_file:
+      - path: .env
+        required: false
+    # Stateless — no DB dependency
+
+  # ── API Gateway (port 8000) ──
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    container_name: docai_gateway
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-ahmn_db}
+      AHMN_SERVICE_URL: http://ahmn:8001
+      GUARDRAILS_SERVICE_URL: http://guardrails:8002
+      XAI_HITL_SERVICE_URL: http://xai-hitl:8003
+    ports:
+      - "${GATEWAY_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      ahmn:
+        condition: service_started
+      guardrails:
+        condition: service_started
+      xai-hitl:
+        condition: service_started
+
+  # ── Frontend (port 3000) ──
   frontend:
     build:
       context: ./frontend
       args:
         - NEXT_PUBLIC_API_URL=http://localhost:8000
-    container_name: ahmn_frontend
+    container_name: docai_frontend
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - INTERNAL_API_URL=http://gateway:8000
+      - HOSTNAME=0.0.0.0
     ports:
       - "3000:3000"
     depends_on:
-      - backend
+      - gateway
 
 volumes:
   postgres_data:

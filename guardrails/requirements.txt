@@ -1,0 +1,15 @@
+# Web framework
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.32.0,<1.0.0
+requests>=2.32.0,<3.0.0
+
+# Data
+pydantic>=2.10.0,<3.0.0
+pydantic-settings>=2.6.0,<3.0.0
+
+# ML models for validation
+--extra-index-url https://download.pytorch.org/whl/cpu
+sentence-transformers>=3.3.0,<4.0.0
+torch>=2.0.0
+presidio-analyzer>=2.2.0,<3.0.0
+python-dateutil>=2.9.0,<3.0.0

@@ -68,15 +68,15 @@ export default function ResultsPage() {
     return (
         <div className="max-w-7xl mx-auto space-y-8">
             <div>
-                <h1 className="text-2xl font-bold text-white">Experiment Results</h1>
-                <p className="text-gray-500 mt-1">
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Experiment Results</h1>
+                <p className="text-slate-500 dark:text-gray-500 mt-1">
                     {results.length} runs — {methods.length} methods × {scenarios.length} scenarios × 30 seeds
                 </p>
             </div>
 
             {/* Overall Rankings */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-                <h2 className="text-lg font-semibold text-white mb-4">Method Ranking — Average Total Regret</h2>
+            <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-6">
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Method Ranking — Average Total Regret</h2>
                 <ResponsiveContainer width="100%" height={350}>
                     <BarChart data={aggregated} layout="vertical">
                         <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -89,30 +89,30 @@ export default function ResultsPage() {
             </div>
 
             {/* Accuracy table */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-                <h2 className="text-lg font-semibold text-white mb-4">Summary Table</h2>
+            <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-6">
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Summary Table</h2>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead>
-                            <tr className="border-b border-gray-800">
-                                <th className="text-left py-2 px-3 text-gray-400 font-medium">Rank</th>
-                                <th className="text-left py-2 px-3 text-gray-400 font-medium">Method</th>
-                                <th className="text-right py-2 px-3 text-gray-400 font-medium">Avg Regret ↓</th>
-                                <th className="text-right py-2 px-3 text-gray-400 font-medium">Avg Accuracy</th>
-                                <th className="text-right py-2 px-3 text-gray-400 font-medium">Runs</th>
+                            <tr className="border-b border-slate-200 dark:border-gray-800">
+                                <th className="text-left py-2 px-3 text-slate-500 dark:text-gray-400 font-medium">Rank</th>
+                                <th className="text-left py-2 px-3 text-slate-500 dark:text-gray-400 font-medium">Method</th>
+                                <th className="text-right py-2 px-3 text-slate-500 dark:text-gray-400 font-medium">Avg Regret ↓</th>
+                                <th className="text-right py-2 px-3 text-slate-500 dark:text-gray-400 font-medium">Avg Accuracy</th>
+                                <th className="text-right py-2 px-3 text-slate-500 dark:text-gray-400 font-medium">Runs</th>
                             </tr>
                         </thead>
                         <tbody>
                             {aggregated.map((row, i) => (
-                                <tr key={row.method} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                                    <td className="py-2 px-3 text-gray-500">{i + 1}</td>
-                                    <td className="py-2 px-3 text-white font-medium">
+                                <tr key={row.method} className="border-b border-slate-200 dark:border-gray-800/50 hover:bg-slate-100 dark:hover:bg-gray-800/30">
+                                    <td className="py-2 px-3 text-slate-500 dark:text-gray-500">{i + 1}</td>
+                                    <td className="py-2 px-3 text-slate-900 dark:text-white font-medium">
                                         {row.method}
                                         {i === 0 && <span className="ml-2 text-xs text-brand-400">🏆 Best</span>}
                                     </td>
-                                    <td className="py-2 px-3 text-right text-gray-300">{row.avg_regret}</td>
-                                    <td className="py-2 px-3 text-right text-gray-300">{row.avg_accuracy}</td>
-                                    <td className="py-2 px-3 text-right text-gray-500">{row.count}</td>
+                                    <td className="py-2 px-3 text-right text-slate-600 dark:text-gray-300">{row.avg_regret}</td>
+                                    <td className="py-2 px-3 text-right text-slate-600 dark:text-gray-300">{row.avg_accuracy}</td>
+                                    <td className="py-2 px-3 text-right text-slate-500 dark:text-gray-500">{row.count}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -121,8 +121,8 @@ export default function ResultsPage() {
             </div>
 
             {/* Per-scenario chart */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-                <h2 className="text-lg font-semibold text-white mb-4">Regret by Scenario</h2>
+            <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-6">
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Regret by Scenario</h2>
                 <ResponsiveContainer width="100%" height={400}>
                     <BarChart data={scenarioData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
