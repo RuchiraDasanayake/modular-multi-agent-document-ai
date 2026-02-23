@@ -75,9 +75,9 @@ export default function DAAFPage() {
     return (
         <div className="max-w-6xl mx-auto space-y-8">
             <div>
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">DAAF: Drift Detection</h1>
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Drift Detection</h1>
                 <p className="text-slate-500 dark:text-gray-500 mt-1">
-                    Drift-Aware Adaptive Forgetting — watch real-time drift detection
+                    Adaptive forgetting — watch real-time drift detection
                 </p>
             </div>
 

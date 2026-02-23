@@ -19,10 +19,10 @@ import {
 } from "lucide-react";
 
 const sections = [
-    { id: "quickstart", label: "Quick Start", icon: <Zap className="w-4 h-4" /> },
-    { id: "api", label: "API Reference", icon: <Code2 className="w-4 h-4" /> },
-    { id: "architecture", label: "Architecture", icon: <Layers className="w-4 h-4" /> },
-    { id: "modules", label: "Modules", icon: <Cpu className="w-4 h-4" /> },
+    { id: "quickstart", label: "Getting Started", icon: <Zap className="w-4 h-4" /> },
+    { id: "api", label: "Integration", icon: <Code2 className="w-4 h-4" /> },
+    { id: "architecture", label: "How It Works", icon: <Layers className="w-4 h-4" /> },
+    { id: "modules", label: "Capabilities", icon: <Cpu className="w-4 h-4" /> },
 ];
 
 const apiEndpoints = [
@@ -41,19 +41,19 @@ const apiEndpoints = [
     {
         method: "GET",
         path: "/api/v1/explain/{id}",
-        desc: "Get XAI explanation for an extraction",
+        desc: "Get AI explanation for an extraction",
         color: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10",
     },
     {
         method: "POST",
         path: "/api/v1/validate",
-        desc: "Validate extracted data against guardrails",
+        desc: "Validate extracted data against quality rules",
         color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
     },
     {
         method: "POST",
-        path: "/api/v1/hitl/review",
-        desc: "Submit human review decision",
+        path: "/api/v1/review",
+        desc: "Submit an expert review decision",
         color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
     },
     {
@@ -67,27 +67,23 @@ const apiEndpoints = [
 const modules = [
     {
         icon: <Cpu className="w-6 h-6 text-brand-500" />,
-        name: "AHMN Core",
-        desc: "Adaptive Hierarchical Memory Network — the central extraction engine with multi-level memory and dynamic attention.",
-        port: "8001",
+        name: "Extraction Engine",
+        desc: "Intelligent document processing with multi-level understanding and adaptive learning that improves over time.",
     },
     {
         icon: <GitBranch className="w-6 h-6 text-violet-500" />,
-        name: "XAI + HITL Service",
-        desc: "Explainability engine and human-in-the-loop review system for transparent, auditable AI decisions.",
-        port: "8002",
+        name: "Transparency & Review",
+        desc: "AI explanations and expert review workflows for transparent, auditable document processing.",
     },
     {
         icon: <Shield className="w-6 h-6 text-amber-500" />,
-        name: "Guardrails Service",
-        desc: "Multi-layered validation with schema checking, semantic consistency, and configurable business rules.",
-        port: "8003",
+        name: "Quality Assurance",
+        desc: "Multi-layered validation with format checking, consistency verification, and configurable business rules.",
     },
     {
         icon: <Layers className="w-6 h-6 text-emerald-500" />,
-        name: "API Gateway",
-        desc: "Unified entry point with authentication, rate limiting, and request routing to all backend services.",
-        port: "8000",
+        name: "Secure Gateway",
+        desc: "Unified entry point with authentication, rate limiting, and intelligent request routing.",
     },
 ];
 
@@ -145,7 +141,7 @@ export default function DocsPage() {
                     >
                         Developer{" "}
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-blue-500">
-                            documentation
+                            guide
                         </span>
                     </motion.h1>
                     <motion.p
@@ -171,8 +167,8 @@ export default function DocsPage() {
                                     document.getElementById(s.id)?.scrollIntoView({ behavior: "smooth" });
                                 }}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${activeSection === s.id
-                                        ? "text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10"
-                                        : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5"
+                                    ? "text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10"
+                                    : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5"
                                     }`}
                             >
                                 {s.icon}
@@ -194,36 +190,37 @@ export default function DocsPage() {
                     >
                         <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-4 flex items-center gap-3">
                             <Terminal className="w-8 h-8 text-brand-500" />
-                            Quick Start
+                            Getting Started
                         </h2>
                         <p className="text-slate-600 dark:text-gray-400 mb-8 text-lg leading-relaxed max-w-3xl">
-                            Get up and running in minutes. Clone the repository, start the services with Docker Compose,
+                            Get up and running in minutes. Create your account, configure your document types,
                             and submit your first document for extraction.
                         </p>
 
                         <div className="space-y-6">
                             <div>
-                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">1. Clone the repository</h3>
+                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">1. Create your account</h3>
                                 <CodeBlock
-                                    language="bash"
-                                    code={`git clone https://github.com/your-org/modular-doc-ai.git
-cd modular-doc-ai`}
+                                    language="text"
+                                    code={`Sign up at modular-doc-ai.com/signup
+You'll receive an API key in your dashboard.`}
                                 />
                             </div>
                             <div>
-                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">2. Start all services</h3>
+                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">2. Configure document types</h3>
                                 <CodeBlock
-                                    language="bash"
-                                    code={`docker-compose up -d
-# This starts: Gateway (8000), AHMN (8001), XAI+HITL (8002), Guardrails (8003), Frontend (3000)`}
+                                    language="text"
+                                    code={`In the dashboard, go to Settings → Document Types
+Choose from built-in types (invoice, receipt, contract...)
+or create custom document schemas.`}
                                 />
                             </div>
                             <div>
                                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">3. Submit a document</h3>
                                 <CodeBlock
                                     language="bash"
-                                    code={`curl -X POST http://localhost:8000/api/v1/extract \\
-  -H "Authorization: Bearer YOUR_TOKEN" \\
+                                    code={`curl -X POST https://api.modular-doc-ai.com/v1/extract \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
   -F "file=@invoice.pdf" \\
   -F "doc_type=invoice"`}
                                 />
@@ -240,9 +237,8 @@ cd modular-doc-ai`}
     "total_amount": { "value": "$1,234.56", "confidence": 0.94 },
     "invoice_date": { "value": "2024-01-15", "confidence": 0.99 }
   },
-  "xai": {
-    "method": "SHAP",
-    "summary": "High confidence extraction based on header layout matching..."
+  "explanation": {
+    "summary": "High confidence extraction based on document layout analysis..."
   }
 }`}
                                 />
@@ -260,10 +256,10 @@ cd modular-doc-ai`}
                     >
                         <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-4 flex items-center gap-3">
                             <FileJson className="w-8 h-8 text-blue-500" />
-                            API Reference
+                            Integration Guide
                         </h2>
                         <p className="text-slate-600 dark:text-gray-400 mb-8 text-lg leading-relaxed max-w-3xl">
-                            RESTful API with JSON request and response bodies. All endpoints require Bearer token authentication.
+                            RESTful API with JSON request and response bodies. All endpoints require API key authentication.
                         </p>
 
                         <div className="space-y-4">
@@ -291,14 +287,9 @@ cd modular-doc-ai`}
                             <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Authentication</h3>
                             <CodeBlock
                                 language="bash"
-                                code={`# Login to get a token
-curl -X POST http://localhost:8000/api/v1/auth/login \\
-  -H "Content-Type: application/json" \\
-  -d '{"username": "admin", "password": "your_password"}'
-
-# Use the token in subsequent requests
-curl http://localhost:8000/api/v1/results \\
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."`}
+                                code={`# Use your API key in all requests
+curl https://api.modular-doc-ai.com/v1/results \\
+  -H "Authorization: Bearer YOUR_API_KEY"`}
                             />
                         </div>
                     </motion.div>
@@ -313,26 +304,26 @@ curl http://localhost:8000/api/v1/results \\
                     >
                         <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-4 flex items-center gap-3">
                             <Layers className="w-8 h-8 text-violet-500" />
-                            Architecture Overview
+                            How It Works
                         </h2>
                         <p className="text-slate-600 dark:text-gray-400 mb-8 text-lg leading-relaxed max-w-3xl">
-                            Modular Doc AI follows a microservices architecture. Each component runs independently and
-                            communicates via REST APIs through the central gateway.
+                            Modular Doc AI processes your documents through multiple intelligent stages,
+                            ensuring accuracy, quality, and full transparency at every step.
                         </p>
 
                         <div className="glass-panel rounded-2xl p-8">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-4">
-                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Request Flow</h3>
+                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Processing Pipeline</h3>
                                     <div className="space-y-3">
                                         {[
-                                            "Client submits document via Gateway",
-                                            "Gateway authenticates and routes to AHMN Core",
-                                            "AHMN extracts fields using adaptive memory",
-                                            "Results pass through Guardrails validation",
-                                            "XAI engine generates explanations",
-                                            "Low-confidence items flagged for HITL review",
-                                            "Final validated results returned to client",
+                                            "Upload your document via dashboard or API",
+                                            "AI identifies the document type and layout",
+                                            "Intelligent extraction pulls key data fields",
+                                            "Quality checks validate all extracted data",
+                                            "AI generates explanations for each decision",
+                                            "Uncertain items are sent for expert review",
+                                            "Final validated results delivered to you",
                                         ].map((step, j) => (
                                             <div key={j} className="flex items-start gap-3 text-sm text-slate-600 dark:text-gray-400">
                                                 <span className="text-xs font-bold text-brand-500 bg-brand-50 dark:bg-brand-500/10 px-2 py-0.5 rounded-md mt-0.5 shrink-0">
@@ -344,17 +335,17 @@ curl http://localhost:8000/api/v1/results \\
                                     </div>
                                 </div>
                                 <div className="space-y-4">
-                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Tech Stack</h3>
+                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Key Technologies</h3>
                                     <CodeBlock
                                         language="yaml"
-                                        code={`services:
-  gateway:     # FastAPI · Port 8000
-  ahmn_core:   # FastAPI · Port 8001
-  xai_hitl:    # FastAPI · Port 8002
-  guardrails:  # FastAPI · Port 8003
-  frontend:    # Next.js · Port 3000
-  postgres:    # PostgreSQL · Port 5432
-  redis:       # Redis · Port 6379`}
+                                        code={`platform:
+  extraction:    # Adaptive AI engine
+  transparency:  # Explainable results
+  quality:       # Multi-layer validation
+  gateway:       # Secure API access
+  dashboard:     # Real-time monitoring
+  storage:       # Secure data persistence
+  caching:       # High-speed processing`}
                                     />
                                 </div>
                             </div>
@@ -371,10 +362,10 @@ curl http://localhost:8000/api/v1/results \\
                     >
                         <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-4 flex items-center gap-3">
                             <Cpu className="w-8 h-8 text-emerald-500" />
-                            Service Modules
+                            Platform Capabilities
                         </h2>
                         <p className="text-slate-600 dark:text-gray-400 mb-8 text-lg leading-relaxed max-w-3xl">
-                            Each module is an independent microservice that can be developed, tested, and deployed separately.
+                            Each capability is designed to work together seamlessly, giving you a complete document intelligence solution.
                         </p>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -394,9 +385,6 @@ curl http://localhost:8000/api/v1/results \\
                                             </div>
                                             <h3 className="text-lg font-bold text-slate-900 dark:text-white">{mod.name}</h3>
                                         </div>
-                                        <span className="text-xs font-mono bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-400 px-2.5 py-1 rounded-lg">
-                                            :{mod.port}
-                                        </span>
                                     </div>
                                     <p className="text-sm text-slate-600 dark:text-gray-400 leading-relaxed">{mod.desc}</p>
                                 </motion.div>

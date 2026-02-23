@@ -23,38 +23,38 @@ const coreFeatures = [
         icon: <Brain className="w-8 h-8" />,
         color: "text-brand-500",
         bgColor: "bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/20",
-        title: "Explainable AI (XAI)",
-        desc: "Understand exactly why the model made each extraction decision. Every output includes confidence scores, attention maps, and natural language explanations. Build trust and meet regulatory requirements with full transparency.",
+        title: "Explainable AI",
+        desc: "Understand exactly why the AI made each extraction decision. Every output includes confidence scores and clear, readable explanations. Build trust and meet compliance requirements with full transparency.",
         bullets: [
-            "SHAP & LIME-based explanations",
-            "Attention visualization heat maps",
+            "Visual explanation of key decisions",
+            "Word-level importance highlighting",
             "Confidence scoring with calibration",
-            "Audit-ready explanation logs",
+            "Audit-ready explanation reports",
         ],
     },
     {
         icon: <Shield className="w-8 h-8" />,
         color: "text-violet-500",
         bgColor: "bg-violet-50 dark:bg-violet-500/10 border-violet-200 dark:border-violet-500/20",
-        title: "Intelligent Guardrails",
-        desc: "Multi-layered validation ensures extracted data passes schema, semantic, and business-logic checks before reaching downstream systems. Catch errors before they propagate.",
+        title: "Intelligent Quality Checks",
+        desc: "Multi-layered validation ensures extracted data passes format, meaning, and business rule checks before reaching your systems. Catch errors before they propagate.",
         bullets: [
-            "Schema validation with JSON Schema",
-            "Semantic consistency checks",
+            "Format and structure validation",
+            "Meaning and consistency checks",
             "Cross-field dependency validation",
-            "Configurable threshold policies",
+            "Configurable quality thresholds",
         ],
     },
     {
         icon: <Zap className="w-8 h-8" />,
         color: "text-amber-500",
         bgColor: "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20",
-        title: "Human-in-the-Loop (HITL)",
-        desc: "Automatically route uncertain extractions to domain experts. Every human correction feeds back into the model, creating a virtuous cycle of continuous improvement.",
+        title: "Expert Review Workflow",
+        desc: "Automatically route uncertain extractions to domain experts. Every human correction feeds back into the AI, creating a cycle of continuous improvement.",
         bullets: [
             "Smart routing based on confidence",
-            "Annotation & correction interface",
-            "Active learning integration",
+            "Easy annotation and correction tools",
+            "Continuous learning from feedback",
             "Quality metrics dashboard",
         ],
     },
@@ -62,25 +62,25 @@ const coreFeatures = [
         icon: <Cpu className="w-8 h-8" />,
         color: "text-emerald-500",
         bgColor: "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20",
-        title: "AHMN Architecture",
-        desc: "Adaptive Hierarchical Memory Network — our novel architecture that maintains document context across multiple levels of abstraction, from tokens to paragraphs to full documents.",
+        title: "Adaptive Learning Engine",
+        desc: "Our AI maintains document context across multiple levels — from words to paragraphs to full documents — and adapts as your documents evolve over time.",
         bullets: [
-            "Multi-level memory hierarchy",
-            "Dynamic attention mechanisms",
-            "Concept drift detection",
-            "Catastrophic forgetting prevention",
+            "Multi-level document understanding",
+            "Smart context awareness",
+            "Automatic change detection",
+            "Continuous accuracy improvement",
         ],
     },
     {
         icon: <GitBranch className="w-8 h-8" />,
         color: "text-blue-500",
         bgColor: "bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20",
-        title: "RABI Selection",
-        desc: "Reward-Adjusted Bayesian Inference for intelligent model selection. Automatically chooses the best extraction strategy based on document type, complexity, and historical performance.",
+        title: "Smart Model Selection",
+        desc: "The system automatically picks the best extraction approach for each document based on type, complexity, and past performance — no manual configuration needed.",
         bullets: [
-            "Bayesian model selection",
-            "Reward-adjusted posteriors",
-            "Ensemble strategy optimization",
+            "Automatic strategy selection",
+            "Performance-based optimization",
+            "Multi-strategy comparison",
             "Per-document-type tuning",
         ],
     },
@@ -88,12 +88,12 @@ const coreFeatures = [
         icon: <Layers className="w-8 h-8" />,
         color: "text-rose-500",
         bgColor: "bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/20",
-        title: "DAAF Framework",
-        desc: "Dynamic Adaptive Attention Framework that adjusts model attention in real-time based on document layout, content density, and extraction goals for maximum precision.",
+        title: "Layout-Aware Processing",
+        desc: "Our AI understands document layouts and adjusts its focus in real-time based on where the most important information lives, ensuring maximum precision.",
         bullets: [
-            "Layout-aware attention",
+            "Layout-aware reading",
             "Adaptive focus regions",
-            "Multi-head coordination",
+            "Smart section detection",
             "Real-time adjustment",
         ],
     },
@@ -104,8 +104,8 @@ const technicalSpecs = [
     { icon: <RefreshCw className="w-5 h-5" />, label: "Throughput", value: "1000+ docs/minute" },
     { icon: <Eye className="w-5 h-5" />, label: "Accuracy", value: "99.2% field-level" },
     { icon: <Globe className="w-5 h-5" />, label: "Languages", value: "30+ supported" },
-    { icon: <Lock className="w-5 h-5" />, label: "Security", value: "SOC2 compliant" },
-    { icon: <BarChart3 className="w-5 h-5" />, label: "Latency", value: "<500ms average" },
+    { icon: <Lock className="w-5 h-5" />, label: "Security", value: "Enterprise-grade" },
+    { icon: <BarChart3 className="w-5 h-5" />, label: "Speed", value: "<500ms average" },
 ];
 
 export default function FeaturesPage() {
@@ -141,8 +141,8 @@ export default function FeaturesPage() {
                         transition={{ duration: 0.5, delay: 0.2 }}
                         className="text-lg text-slate-600 dark:text-gray-400 mt-6 max-w-3xl mx-auto leading-relaxed"
                     >
-                        Every component of Modular Doc AI is designed for explainability, reliability, and continuous improvement.
-                        Explore the modules that power our document intelligence platform.
+                        Every component of Modular Doc AI is designed for transparency, reliability, and continuous improvement.
+                        Explore the capabilities that power our document intelligence platform.
                     </motion.p>
                 </div>
             </section>

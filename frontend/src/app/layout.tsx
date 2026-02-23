@@ -4,7 +4,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
     title: "Modular Document AI",
-    description: "Explainable AI, Human-in-the-Loop Review, Guardrails & AHMN Admin",
+    description: "Intelligent document processing with transparent AI, expert review, and built-in quality checks",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

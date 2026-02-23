@@ -105,7 +105,7 @@ export default function HITLPage() {
                     <span className="text-5xl mb-4 block">👤</span>
                     <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">No Q&A to Review</h2>
                     <p className="text-slate-500 dark:text-gray-400 mb-6">
-                        Please ask a question first to provide HITL feedback.
+                        Please ask a question first to provide feedback.
                     </p>
                     <Link
                         href="/dashboard/xai"
@@ -158,7 +158,7 @@ export default function HITLPage() {
                     <div>
                         <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
                             <span className="text-3xl">👤</span>
-                            Human-in-the-Loop Review
+                            Human Expert Review
                         </h1>
                         <p className="text-slate-500 dark:text-gray-400 mt-1">
                             Provide feedback to improve the Q&A system
@@ -178,16 +178,16 @@ export default function HITLPage() {
                         { label: "Retrieval", done: true },
                         { label: "Q&A", done: true },
                         { label: "XAI Analysis", done: true },
-                        { label: "HITL Review", current: true },
+                        { label: "Expert Review", current: true },
                         { label: "Knowledge Update", pending: true },
                     ].map((step, idx) => (
                         <div key={idx} className="flex items-center gap-2">
                             <span
                                 className={`px-3 py-1 rounded-full text-xs font-medium ${step.current
-                                        ? "bg-brand-500 text-slate-900 dark:text-white"
-                                        : step.done
-                                            ? "bg-green-500/20 text-green-400"
-                                            : "bg-slate-200 dark:bg-gray-700 text-slate-500 dark:text-gray-500"
+                                    ? "bg-brand-500 text-slate-900 dark:text-white"
+                                    : step.done
+                                        ? "bg-green-500/20 text-green-400"
+                                        : "bg-slate-200 dark:bg-gray-700 text-slate-500 dark:text-gray-500"
                                     }`}
                             >
                                 {step.label}
@@ -236,8 +236,8 @@ export default function HITLPage() {
                                 key={option.value}
                                 onClick={() => setFeedbackType(option.value)}
                                 className={`p-4 rounded-lg border text-left transition-all ${feedbackType === option.value
-                                        ? "border-brand-500 bg-brand-500/10"
-                                        : "border-slate-200 dark:border-gray-700 hover:border-gray-600"
+                                    ? "border-brand-500 bg-brand-500/10"
+                                    : "border-slate-200 dark:border-gray-700 hover:border-gray-600"
                                     }`}
                             >
                                 <div className="font-medium text-slate-900 dark:text-white">{option.label}</div>
@@ -370,8 +370,8 @@ function RatingSlider({
                         key={n}
                         onClick={() => onChange(n)}
                         className={`flex-1 py-2 rounded-lg font-medium transition-all ${value === n
-                                ? "bg-brand-500 text-slate-900 dark:text-white"
-                                : "bg-slate-200 dark:bg-gray-700 text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-gray-600"
+                            ? "bg-brand-500 text-slate-900 dark:text-white"
+                            : "bg-slate-200 dark:bg-gray-700 text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-gray-600"
                             }`}
                     >
                         {n}
@@ -422,8 +422,8 @@ function FeedbackHistory({ history }: { history: HITLFeedback[] }) {
                             <span className="text-xs font-mono text-slate-500 dark:text-gray-500">{feedback.feedback_id}</span>
                             <span
                                 className={`px-2 py-0.5 rounded-full text-xs ${feedback.is_answer_correct
-                                        ? "bg-green-500/20 text-green-400"
-                                        : "bg-red-500/20 text-red-400"
+                                    ? "bg-green-500/20 text-green-400"
+                                    : "bg-red-500/20 text-red-400"
                                     }`}
                             >
                                 {feedback.feedback_type}

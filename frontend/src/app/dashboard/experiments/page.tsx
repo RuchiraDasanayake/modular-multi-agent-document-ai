@@ -46,7 +46,7 @@ export default function ExperimentsPage() {
         ? comparison.ts_cumulative_regret.map((ts, i) => ({
             round: i,
             "TS (no forgetting)": Math.round(ts * 100) / 100,
-            "AHMN-DAAF": Math.round(comparison.daaf_cumulative_regret[i] * 100) / 100,
+            "Adaptive Forgetting": Math.round(comparison.daaf_cumulative_regret[i] * 100) / 100,
         }))
         : [];
 
@@ -83,7 +83,7 @@ export default function ExperimentsPage() {
 
             {/* Interactive Comparison */}
             <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-6">
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">TS vs DAAF – Live Comparison</h2>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Standard vs Adaptive – Live Comparison</h2>
                 <div className="flex items-center gap-4 mb-4">
                     <div>
                         <label className="text-xs text-slate-500 dark:text-gray-500 block mb-1">Drift Magnitude</label>
@@ -129,7 +129,7 @@ export default function ExperimentsPage() {
                                 <p className="text-xl font-bold text-emerald-400">{comparison.total_ts_regret.toFixed(1)}</p>
                             </div>
                             <div className="bg-slate-100 dark:bg-gray-800 rounded-lg p-4 text-center">
-                                <p className="text-sm text-slate-500 dark:text-gray-500">DAAF Regret</p>
+                                <p className="text-sm text-slate-500 dark:text-gray-500">Adaptive Regret</p>
                                 <p className="text-xl font-bold text-red-400">{comparison.total_daaf_regret.toFixed(1)}</p>
                             </div>
                             <div className="bg-slate-100 dark:bg-gray-800 rounded-lg p-4 text-center">
@@ -150,7 +150,7 @@ export default function ExperimentsPage() {
                                 />
                                 <Legend />
                                 <Line type="monotone" dataKey="TS (no forgetting)" stroke="#10b981" strokeWidth={2} dot={false} />
-                                <Line type="monotone" dataKey="AHMN-DAAF" stroke="#ef4444" strokeWidth={2} dot={false} />
+                                <Line type="monotone" dataKey="Adaptive Forgetting" stroke="#ef4444" strokeWidth={2} dot={false} />
                             </LineChart>
                         </ResponsiveContainer>
                     </>

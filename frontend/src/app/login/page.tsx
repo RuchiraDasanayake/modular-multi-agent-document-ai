@@ -52,8 +52,8 @@ export default function LoginPage() {
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white dark:bg-gray-900 border border-brand-500/20 dark:border-brand-500/30 mb-4 shadow-xl shadow-slate-200/50 dark:shadow-brand-500/10 backdrop-blur-md">
                         <span className="text-3xl drop-shadow-sm">🧠</span>
                     </div>
-                    <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">AHMN Dashboard</h1>
-                    <p className="text-slate-500 dark:text-gray-400 mt-2 font-medium">Adaptive Hierarchical Memory Network</p>
+                    <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Modular Doc AI</h1>
+                    <p className="text-slate-500 dark:text-gray-400 mt-2 font-medium">Intelligent Document Processing</p>
                 </div>
 
                 {/* Form */}

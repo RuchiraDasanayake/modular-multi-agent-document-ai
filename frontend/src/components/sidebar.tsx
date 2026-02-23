@@ -15,9 +15,9 @@ interface NavItem {
 }
 
 const USER_NAV: NavItem[] = [
-    { href: "/dashboard/xai", label: "XAI Q&A", icon: "🧠" },
-    { href: "/dashboard/hitl", label: "HITL Review", icon: "👤" },
-    { href: "/dashboard/guardrails", label: "Guardrails", icon: "🛡️" },
+    { href: "/dashboard/xai", label: "AI Q&A", icon: "🧠" },
+    { href: "/dashboard/hitl", label: "Expert Review", icon: "👤" },
+    { href: "/dashboard/guardrails", label: "Quality Checks", icon: "🛡️" },
 ];
 
 const ADMIN_NAV: NavItem[] = [
@@ -25,8 +25,8 @@ const ADMIN_NAV: NavItem[] = [
     { href: "/dashboard/submit", label: "Submit Data", icon: "📝" },
     { href: "/dashboard/architecture", label: "Architecture", icon: "🏗️" },
     { href: "/dashboard/experiments", label: "Experiments", icon: "🎯" },
-    { href: "/dashboard/rabi", label: "RABI Cold Start", icon: "🧊" },
-    { href: "/dashboard/daaf", label: "DAAF Drift", icon: "🌊" },
+    { href: "/dashboard/rabi", label: "Cold Start", icon: "🧊" },
+    { href: "/dashboard/daaf", label: "Drift Monitor", icon: "🌊" },
     { href: "/dashboard/results", label: "Results", icon: "📈" },
     { href: "/dashboard/admin", label: "Users", icon: "🔐" },
 ];
@@ -96,7 +96,7 @@ export default function Sidebar() {
                 {isAdmin && (
                     <>
                         <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">
-                            AHMN Admin
+                            Admin Panel
                         </p>
                         <div className="space-y-1">
                             {ADMIN_NAV.map((item) => (

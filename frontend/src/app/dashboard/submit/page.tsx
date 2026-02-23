@@ -208,7 +208,7 @@ export default function SubmitDataPage() {
                                     <p className="text-slate-900 dark:text-white font-medium">{(advice.confidence * 100).toFixed(1)}%</p>
                                 </div>
                                 <div>
-                                    <p className="text-slate-500 dark:text-gray-400">RABI Used</p>
+                                    <p className="text-slate-500 dark:text-gray-400">Smart Prior Used</p>
                                     <p className="text-slate-900 dark:text-white font-medium">{advice.rabi_used ? "Yes" : "No"}</p>
                                 </div>
                             </div>
@@ -332,7 +332,7 @@ export default function SubmitDataPage() {
                     </div>
                     <div>
                         <p className="text-slate-900 dark:text-white font-medium mb-1">🧠 Step 3</p>
-                        <p>System learns from outcomes via DAAF drift detection and updates Long-Term Memory.</p>
+                        <p>System learns from outcomes via drift detection and updates its knowledge base.</p>
                     </div>
                 </div>
             </div>

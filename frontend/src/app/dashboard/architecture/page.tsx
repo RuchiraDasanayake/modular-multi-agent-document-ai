@@ -5,7 +5,7 @@ export default function ArchitecturePage() {
         <div className="max-w-5xl mx-auto space-y-8">
             <div>
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-white">System Architecture</h1>
-                <p className="text-slate-500 dark:text-gray-500 mt-1">AHMN request lifecycle and component breakdown</p>
+                <p className="text-slate-500 dark:text-gray-500 mt-1">Document processing lifecycle and component breakdown</p>
             </div>
 
             {/* Request Lifecycle */}
@@ -14,14 +14,14 @@ export default function ArchitecturePage() {
                 <div className="flex items-center gap-2 flex-wrap">
                     {[
                         { step: "1", label: "Document arrives", sub: "doc_type + vendor" },
-                        { step: "2", label: "Embed context", sub: "MiniLM-L6 → 384d" },
-                        { step: "3", label: "Query LTM", sub: "pgvector k-NN" },
-                        { step: "4", label: "RABI init", sub: "Softmax-weighted prior" },
-                        { step: "5", label: "Thompson Sample", sub: "Beta(α,β) → policy" },
-                        { step: "6", label: "Return advice", sub: "Cache in STM" },
-                        { step: "7", label: "Observe reward", sub: "F1 score" },
-                        { step: "8", label: "DAAF check", sub: "Drift detection" },
-                        { step: "9", label: "Bayesian update", sub: "α += r, β += (1-r)" },
+                        { step: "2", label: "Embed context", sub: "Text embedding" },
+                        { step: "3", label: "Search knowledge", sub: "Similarity lookup" },
+                        { step: "4", label: "Initialize model", sub: "Smart prior weighting" },
+                        { step: "5", label: "Select strategy", sub: "Probabilistic sampling" },
+                        { step: "6", label: "Return advice", sub: "Cache result" },
+                        { step: "7", label: "Observe reward", sub: "Accuracy score" },
+                        { step: "8", label: "Drift check", sub: "Change detection" },
+                        { step: "9", label: "Update model", sub: "Learn from outcome" },
                     ].map((s, i) => (
                         <div key={i} className="flex items-center gap-2">
                             <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg px-3 py-2 min-w-[130px]">
@@ -59,7 +59,7 @@ export default function ArchitecturePage() {
 
                 {/* RABI */}
                 <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-6">
-                    <h3 className="text-base font-semibold text-cyan-400 mb-3">RABI</h3>
+                    <h3 className="text-base font-semibold text-cyan-400 mb-3">Smart Initialization</h3>
                     <div className="space-y-2 text-sm text-slate-600 dark:text-gray-300">
                         <p>Cold-start solution via knowledge transfer:</p>
                         <div className="bg-slate-100 dark:bg-gray-800 rounded-lg p-3 font-mono text-xs text-slate-700 dark:text-gray-200">
@@ -75,7 +75,7 @@ export default function ArchitecturePage() {
 
                 {/* DAAF */}
                 <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-6">
-                    <h3 className="text-base font-semibold text-violet-400 mb-3">DAAF</h3>
+                    <h3 className="text-base font-semibold text-violet-400 mb-3">Adaptive Forgetting</h3>
                     <div className="space-y-2 text-sm text-slate-600 dark:text-gray-300">
                         <p>Drift-aware forgetting separates noise from drift:</p>
                         <div className="bg-slate-100 dark:bg-gray-800 rounded-lg p-3 font-mono text-xs text-slate-700 dark:text-gray-200">
@@ -84,7 +84,7 @@ export default function ArchitecturePage() {
                             <p>α_new = 1 + (1-γ)(α - 1)</p>
                         </div>
                         <p className="text-slate-500 dark:text-gray-500 text-xs">
-                            Key insight: use Δ (between-window), NOT σ² (within-window).
+                            Key insight: uses between-window divergence rather than within-window variance.
                         </p>
                     </div>
                 </div>
@@ -95,14 +95,14 @@ export default function ArchitecturePage() {
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Tech Stack</h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {[
-                        { label: "API", value: "FastAPI + Uvicorn" },
-                        { label: "Database", value: "PostgreSQL + pgvector" },
-                        { label: "Cache", value: "Redis (STM)" },
-                        { label: "Embeddings", value: "all-MiniLM-L6-v2 (384d)" },
+                        { label: "API", value: "FastAPI" },
+                        { label: "Database", value: "PostgreSQL" },
+                        { label: "Cache", value: "Redis" },
+                        { label: "Embeddings", value: "Sentence Transformers" },
                         { label: "Frontend", value: "Next.js + Tailwind" },
                         { label: "Auth", value: "JWT + bcrypt" },
-                        { label: "Experiments", value: "30 seeds × 7 methods × 4 scenarios" },
-                        { label: "Container", value: "Docker Compose" },
+                        { label: "Experiments", value: "Comprehensive test suites" },
+                        { label: "Deployment", value: "Docker containers" },
                     ].map((t) => (
                         <div key={t.label} className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg px-4 py-3">
                             <p className="text-xs text-slate-500 dark:text-gray-500">{t.label}</p>

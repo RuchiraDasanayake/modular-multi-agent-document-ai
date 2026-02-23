@@ -28,33 +28,33 @@ const stats = [
 const features = [
     {
         icon: <Brain className="w-7 h-7 text-brand-500" />,
-        title: "Explainable AI (XAI)",
-        desc: "Every extraction comes with confidence scores and clear explanations of how the model arrived at its conclusion.",
+        title: "Transparent Results",
+        desc: "Every extraction comes with confidence scores and clear explanations so you always know why the AI made its decisions.",
     },
     {
         icon: <Shield className="w-7 h-7 text-violet-500" />,
-        title: "Robust Guardrails",
-        desc: "Built-in validation ensures extracted data meets strict schema requirements before entering your system.",
+        title: "Built-in Quality Checks",
+        desc: "Automatic validation ensures extracted data is accurate and complete before it reaches your workflow.",
     },
     {
         icon: <Zap className="w-7 h-7 text-amber-500" />,
-        title: "Human-in-the-Loop",
-        desc: "Seamlessly route low-confidence extractions to human reviewers to continuously improve accuracy.",
+        title: "Expert Review When Needed",
+        desc: "Uncertain results are automatically flagged for human review, so nothing slips through the cracks.",
     },
     {
         icon: <BarChart3 className="w-7 h-7 text-emerald-500" />,
-        title: "AHMN Architecture",
-        desc: "Adaptive Hierarchical Memory Network that learns and evolves with every document processed.",
+        title: "Self-Improving AI",
+        desc: "Our system learns and improves with every document you process, getting smarter over time.",
     },
     {
         icon: <Globe className="w-7 h-7 text-blue-500" />,
         title: "Multi-Format Support",
-        desc: "Process PDFs, scanned images, invoices, contracts, medical records, and more with a unified pipeline.",
+        desc: "Process PDFs, scanned images, invoices, contracts, medical records, and more — all in one place.",
     },
     {
         icon: <Lock className="w-7 h-7 text-rose-500" />,
         title: "Enterprise Security",
-        desc: "SOC2-ready architecture with role-based access, audit trails, and end-to-end encryption.",
+        desc: "Bank-grade security with role-based access, audit trails, and end-to-end encryption.",
     },
 ];
 
@@ -62,22 +62,22 @@ const steps = [
     {
         step: "01",
         title: "Upload Documents",
-        desc: "Drag-and-drop or API upload. We support PDFs, images, DOCX, and 50+ other formats.",
+        desc: "Drag-and-drop your files. We support PDFs, images, Word docs, and 50+ other formats.",
     },
     {
         step: "02",
         title: "AI Extraction",
-        desc: "Our AHMN model intelligently extracts entities, fields, and relationships from your documents.",
+        desc: "Our AI reads and understands your documents, pulling out key data like names, dates, amounts, and more.",
     },
     {
         step: "03",
         title: "Validation & Review",
-        desc: "Guardrails validate outputs. Low-confidence results are flagged for human review automatically.",
+        desc: "Results are automatically checked for accuracy. Uncertain items are flagged for expert review.",
     },
     {
         step: "04",
         title: "Export & Integrate",
-        desc: "Structured JSON, CSV, or direct API integration. Your data, clean and ready to use.",
+        desc: "Download your clean, structured data or connect directly to your existing tools and workflows.",
     },
 ];
 
@@ -144,8 +144,8 @@ export default function HomePage() {
                             transition={{ duration: 0.5, delay: 0.2 }}
                             className="text-lg text-slate-600 dark:text-gray-400 max-w-2xl mx-auto lg:mx-0 leading-relaxed"
                         >
-                            Adaptive Hierarchical Memory Network (AHMN) powered by Explainable AI.
-                            Extract, analyze, and validate complex documents with human-in-the-loop precision.
+                            Intelligent document processing powered by AI you can trust.
+                            Extract, analyze, and validate complex documents with unmatched accuracy.
                         </motion.p>
 
                         <motion.div
@@ -210,7 +210,7 @@ export default function HomePage() {
                                     Processing Document
                                 </h2>
                                 <p className="text-sm text-slate-500 dark:text-gray-400 mt-2">
-                                    Extracting entities and relationships...
+                                    Extracting key data...
                                 </p>
                             </motion.div>
                         </motion.div>
@@ -266,7 +266,7 @@ export default function HomePage() {
                             transition={{ delay: 0.1 }}
                             className="text-lg text-slate-600 dark:text-gray-400 mt-4 max-w-2xl mx-auto"
                         >
-                            A modular, enterprise-grade platform combining state-of-the-art AI with human oversight.
+                            A powerful, enterprise-ready platform that combines smart AI with human expertise.
                         </motion.p>
                     </div>
 

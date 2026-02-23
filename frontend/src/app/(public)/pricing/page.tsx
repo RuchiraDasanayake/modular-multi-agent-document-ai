@@ -18,8 +18,8 @@ const plans = [
         features: [
             "100 documents / month",
             "5 document types",
-            "Basic XAI explanations",
-            "Standard guardrails",
+            "Basic AI explanations",
+            "Standard quality checks",
             "Community support",
             "API access (rate-limited)",
             "Single user",
@@ -37,10 +37,10 @@ const plans = [
         features: [
             "10,000 documents / month",
             "All document types",
-            "Full XAI with attention maps",
-            "Advanced guardrails + custom rules",
-            "Human-in-the-loop review",
-            "AHMN + RABI selection",
+            "Full AI transparency & reporting",
+            "Advanced quality checks + custom rules",
+            "Expert review workflow",
+            "Smart model selection",
             "Priority support",
             "Up to 10 team members",
             "Webhook integrations",
@@ -59,10 +59,10 @@ const plans = [
         features: [
             "Unlimited documents",
             "Custom document models",
-            "Full XAI + audit logging",
-            "Enterprise guardrails suite",
-            "Dedicated HITL workforce",
-            "All AI modules (AHMN, RABI, DAAF)",
+            "Full AI transparency + audit logging",
+            "Enterprise quality assurance suite",
+            "Dedicated expert review team",
+            "All AI modules included",
             "24/7 premium support",
             "Unlimited team members",
             "SSO & RBAC",
@@ -135,8 +135,8 @@ export default function PricingPage() {
                         <button
                             onClick={() => setAnnual(false)}
                             className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${!annual
-                                    ? "bg-white dark:bg-gray-900 text-slate-900 dark:text-white shadow-sm"
-                                    : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"
+                                ? "bg-white dark:bg-gray-900 text-slate-900 dark:text-white shadow-sm"
+                                : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"
                                 }`}
                         >
                             Monthly
@@ -144,8 +144,8 @@ export default function PricingPage() {
                         <button
                             onClick={() => setAnnual(true)}
                             className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${annual
-                                    ? "bg-white dark:bg-gray-900 text-slate-900 dark:text-white shadow-sm"
-                                    : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"
+                                ? "bg-white dark:bg-gray-900 text-slate-900 dark:text-white shadow-sm"
+                                : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"
                                 }`}
                         >
                             Annual
@@ -169,8 +169,8 @@ export default function PricingPage() {
                                 viewport={{ once: true }}
                                 transition={{ delay: i * 0.1 }}
                                 className={`relative rounded-3xl p-8 lg:p-10 ${plan.popular
-                                        ? "glass-panel ring-2 ring-brand-500/30 dark:ring-brand-500/20 scale-[1.02]"
-                                        : "glass-card hover:translate-y-0"
+                                    ? "glass-panel ring-2 ring-brand-500/30 dark:ring-brand-500/20 scale-[1.02]"
+                                    : "glass-card hover:translate-y-0"
                                     }`}
                             >
                                 {plan.popular && (
@@ -180,8 +180,8 @@ export default function PricingPage() {
                                 )}
                                 <div className="flex items-center gap-3 mb-4">
                                     <div className={`w-10 h-10 rounded-xl ${plan.popular
-                                            ? "bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/20"
-                                            : "bg-slate-100 dark:bg-gray-800 border-slate-200 dark:border-gray-700"
+                                        ? "bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/20"
+                                        : "bg-slate-100 dark:bg-gray-800 border-slate-200 dark:border-gray-700"
                                         } border flex items-center justify-center ${plan.popular ? "text-brand-500" : "text-slate-600 dark:text-gray-400"
                                         }`}>
                                         {plan.icon}
@@ -202,8 +202,8 @@ export default function PricingPage() {
                                 <Link
                                     href={plan.ctaHref}
                                     className={`w-full py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all ${plan.popular
-                                            ? "glass-button"
-                                            : "bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-gray-700 border border-slate-200 dark:border-gray-700"
+                                        ? "glass-button"
+                                        : "bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-gray-700 border border-slate-200 dark:border-gray-700"
                                         }`}
                                 >
                                     {plan.cta} <ArrowRight className="w-4 h-4" />

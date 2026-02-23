@@ -39,7 +39,7 @@ export default function RABIPage() {
             .map((x, i) => ({
                 x: x.toFixed(2),
                 "Flat Prior Beta(1,1)": result.distribution.flat_pdf[i * 4]?.toFixed(3) || 0,
-                "RABI Prior": result.distribution.rabi_pdf[i * 4]?.toFixed(3) || 0,
+                "Smart Prior": result.distribution.rabi_pdf[i * 4]?.toFixed(3) || 0,
             }))
         : [];
 
@@ -56,9 +56,9 @@ export default function RABIPage() {
     return (
         <div className="max-w-6xl mx-auto space-y-8">
             <div>
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">RABI: Cold-Start Solution</h1>
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Cold-Start Solution</h1>
                 <p className="text-slate-500 dark:text-gray-500 mt-1">
-                    Retrieval-Augmented Bandit Initialization — transfer knowledge from similar contexts
+                    Smart initialization — transfer knowledge from similar contexts
                 </p>
             </div>
 
@@ -67,12 +67,12 @@ export default function RABIPage() {
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">The Cold-Start Problem</h2>
                 <div className="grid grid-cols-2 gap-4 text-sm text-slate-600 dark:text-gray-300">
                     <div>
-                        <p className="font-medium text-red-400 mb-1">Without RABI</p>
+                        <p className="font-medium text-red-400 mb-1">Without Smart Prior</p>
                         <p>New vendor → flat prior Beta(1,1) → needs ~50 rounds of random exploration to learn.</p>
                     </div>
                     <div>
-                        <p className="font-medium text-cyan-400 mb-1">With RABI</p>
-                        <p>New vendor → find similar vendors in LTM → transfer their learned priors → near-optimal from round 1.</p>
+                        <p className="font-medium text-cyan-400 mb-1">With Smart Prior</p>
+                        <p>New vendor → find similar vendors → transfer their learned priors → near-optimal from round 1.</p>
                     </div>
                 </div>
             </div>
@@ -118,7 +118,7 @@ export default function RABIPage() {
                     disabled={loading}
                     className="px-5 py-2.5 bg-brand-600 hover:bg-brand-500 disabled:bg-slate-200 dark:bg-gray-700 rounded-lg text-sm text-slate-900 dark:text-white transition-colors"
                 >
-                    {loading ? "Computing..." : "▶ Run RABI Demo"}
+                    {loading ? "Computing..." : "▶ Run Demo"}
                 </button>
             </div>
 
@@ -127,11 +127,11 @@ export default function RABIPage() {
                     {/* Prior Result */}
                     <div className="grid grid-cols-4 gap-4">
                         <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-4 text-center">
-                            <p className="text-xs text-slate-500 dark:text-gray-500">RABI α</p>
+                            <p className="text-xs text-slate-500 dark:text-gray-500">Prior α</p>
                             <p className="text-xl font-bold text-cyan-400">{result.prior.alpha.toFixed(2)}</p>
                         </div>
                         <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-4 text-center">
-                            <p className="text-xs text-slate-500 dark:text-gray-500">RABI β</p>
+                            <p className="text-xs text-slate-500 dark:text-gray-500">Prior β</p>
                             <p className="text-xl font-bold text-cyan-400">{result.prior.beta.toFixed(2)}</p>
                         </div>
                         <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-4 text-center">
@@ -157,7 +157,7 @@ export default function RABIPage() {
                                     <Tooltip contentStyle={{ background: "#1f2937", border: "1px solid #374151", borderRadius: "8px" }} />
                                     <Legend />
                                     <Line type="monotone" dataKey="Flat Prior Beta(1,1)" stroke="#6b7280" strokeDasharray="5 5" dot={false} />
-                                    <Line type="monotone" dataKey="RABI Prior" stroke="#06b6d4" strokeWidth={2} dot={false} />
+                                    <Line type="monotone" dataKey="Smart Prior" stroke="#06b6d4" strokeWidth={2} dot={false} />
                                 </LineChart>
                             </ResponsiveContainer>
                         </div>

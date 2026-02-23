@@ -38,17 +38,17 @@ const values = [
 ];
 
 const techStack = [
-    { category: "Frontend", items: ["Next.js 15", "React 19", "Tailwind CSS", "Framer Motion"] },
-    { category: "Backend", items: ["FastAPI", "Python 3.12", "PostgreSQL", "Redis"] },
-    { category: "AI/ML", items: ["AHMN", "RABI", "DAAF", "XAI Engine"] },
-    { category: "Infrastructure", items: ["Docker", "Kubernetes", "CI/CD", "Monitoring"] },
+    { category: "Platform", items: ["Web Dashboard", "REST API", "Real-time Processing", "Cloud-ready"] },
+    { category: "Intelligence", items: ["AI Extraction", "Smart Validation", "Auto-improvement", "Explainable Results"] },
+    { category: "Security", items: ["Role-based Access", "Audit Trails", "Encrypted Data", "SOC2 Ready"] },
+    { category: "Integration", items: ["Webhooks", "Export Formats", "SSO Support", "Custom Workflows"] },
 ];
 
 const milestones = [
-    { year: "2024 Q1", title: "Research Phase", desc: "AHMN architecture conceived and validated on synthetic datasets." },
-    { year: "2024 Q2", title: "Core Platform", desc: "XAI engine, guardrails, and HITL feedback loop implemented." },
-    { year: "2024 Q3", title: "Beta Launch", desc: "Multi-agent pipeline with RABI selection and DAAF framework." },
-    { year: "2024 Q4", title: "Production Ready", desc: "Full platform with dashboard, API, and enterprise features." },
+    { year: "2024 Q1", title: "Research Phase", desc: "Core AI architecture designed and validated on real-world datasets." },
+    { year: "2024 Q2", title: "Core Platform", desc: "Explainability engine, quality checks, and expert review workflow built." },
+    { year: "2024 Q3", title: "Beta Launch", desc: "Full document processing pipeline with smart model selection." },
+    { year: "2024 Q4", title: "Production Ready", desc: "Complete platform with dashboard, API, and enterprise features." },
 ];
 
 export default function AboutPage() {
@@ -222,7 +222,7 @@ export default function AboutPage() {
                             viewport={{ once: true }}
                             className="text-3xl lg:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight"
                         >
-                            Built with modern tech
+                            Built with proven technology
                         </motion.h2>
                         <motion.p
                             initial={{ opacity: 0, y: 20 }}
@@ -231,7 +231,7 @@ export default function AboutPage() {
                             transition={{ delay: 0.1 }}
                             className="text-lg text-slate-600 dark:text-gray-400 mt-4"
                         >
-                            A battle-tested stack for reliability and performance.
+                            A reliable, scalable platform you can depend on.
                         </motion.p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

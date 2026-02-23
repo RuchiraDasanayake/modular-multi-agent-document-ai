@@ -95,7 +95,7 @@ export default function XAIPage() {
                         href="/dashboard/hitl"
                         className="px-4 py-2 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-500/20 transition-all duration-150 text-sm font-medium shadow-sm shadow-brand-500/5"
                     >
-                        👤 HITL Review
+                        👤 Expert Review
                     </Link>
                 </div>
             </div>
@@ -216,7 +216,7 @@ export default function XAIPage() {
 
             {/* Footer */}
             <div className="mt-8 text-center text-gray-500 text-sm">
-                Finance Q&A with Explainable AI | Powered by SHAP & LIME
+                Finance Q&A with Explainable AI | AI-Powered Analysis
             </div>
         </div>
     );
@@ -283,8 +283,8 @@ function simulateDemoResponse(question: string): { answer: string; confidence: n
             derivation_steps: [
                 { step_number: 1, action: "Question Analysis", description: "Parsed user question", confidence: 0.95 },
                 { step_number: 2, action: "Context Retrieval", description: "Retrieved relevant paragraph sections", confidence: 0.90 },
-                { step_number: 3, action: "SHAP Analysis", description: "Computed feature importance", confidence: 0.88 },
-                { step_number: 4, action: "LIME Analysis", description: "Generated local explanations", confidence: 0.85 },
+                { step_number: 3, action: "Feature Analysis", description: "Computed feature importance", confidence: 0.88 },
+                { step_number: 4, action: "Local Explanation", description: "Generated local explanations", confidence: 0.85 },
                 { step_number: 5, action: "Answer Synthesis", description: "Formulated final answer", confidence: confidence },
             ],
             evidence_sentences: [

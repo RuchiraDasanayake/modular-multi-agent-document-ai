@@ -104,7 +104,7 @@ async def health():
     return {"status": "ok", "service": "guardrails"}
 
 
-@app.post("/validate", response_model=ValidateResponse)
+@app.post("/guardrails/validate", response_model=ValidateResponse)
 async def validate_response(req: ValidateRequest):
     """
     Validate a RAG extraction through the 5-layer guardrail ensemble.
@@ -174,7 +174,7 @@ async def validate_response(req: ValidateRequest):
     )
 
 
-@app.get("/stats", response_model=StatsResponse)
+@app.get("/guardrails/stats", response_model=StatsResponse)
 async def guardrail_stats():
     """Aggregate statistics from validation runs."""
     total = len(_audit_store)
@@ -204,7 +204,7 @@ async def guardrail_stats():
     )
 
 
-@app.get("/history")
+@app.get("/guardrails/history")
 async def guardrail_history(limit: int = Query(50, ge=1, le=500)):
     """Return recent guardrail audit log entries."""
     return _audit_store[-limit:][::-1]
