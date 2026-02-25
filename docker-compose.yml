@@ -71,6 +71,21 @@ services:
         required: false
     # Stateless — no DB dependency
 
+  # ── IDPO Service (port 8004) ──
+  idpo:
+    build:
+      context: .
+      dockerfile: idpo/Dockerfile
+    container_name: docai_idpo
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./configs:/app/configs
+      - ./inputs:/app/inputs
+      - ./runs:/app/runs
+    # Stateless — no DB dependency
+
   # ── API Gateway (port 8000) ──
   gateway:
     build:
@@ -85,6 +100,7 @@ services:
       AHMN_SERVICE_URL: http://ahmn:8001
       GUARDRAILS_SERVICE_URL: http://guardrails:8002
       XAI_HITL_SERVICE_URL: http://xai-hitl:8003
+      IDPO_SERVICE_URL: http://idpo:8004
     ports:
       - "${GATEWAY_PORT:-8000}:8000"
     depends_on:
@@ -95,6 +111,8 @@ services:
       guardrails:
         condition: service_started
       xai-hitl:
+        condition: service_started
+      idpo:
         condition: service_started
 
   # ── Frontend (port 3000) ──

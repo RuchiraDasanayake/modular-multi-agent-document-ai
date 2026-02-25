@@ -18,6 +18,7 @@ const USER_NAV: NavItem[] = [
     { href: "/dashboard/xai", label: "AI Q&A", icon: "🧠" },
     { href: "/dashboard/hitl", label: "Expert Review", icon: "👤" },
     { href: "/dashboard/guardrails", label: "Quality Checks", icon: "🛡️" },
+    { href: "/dashboard/idpo", label: "Doc Processing", icon: "📄" },
 ];
 
 const ADMIN_NAV: NavItem[] = [

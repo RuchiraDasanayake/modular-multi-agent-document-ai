@@ -5,6 +5,7 @@ A production-ready, microservices-based framework for intelligent document under
 1. **AHMN Core** — Adaptive Hierarchical Memory Network (Thompson Sampling, RABI, DAAF)
 2. **Guardrails** — 5-layer Hallucination Detection Ensemble
 3. **XAI & HITL** — Explainable AI Engine + Human-in-the-Loop Feedback
+4. **IDPO** — Intelligent Document Processing Orchestration
 
 ---
 
@@ -121,6 +122,52 @@ A production-ready, microservices-based framework for intelligent document under
 │   └── tests/
 │       └── test_xai_hitl.py    # Data model + round-trip tests
 │
+├── idpo/                       # Microservice 4: IDPO (Nayanapriya S.A.T.)
+│   ├── cli.py                  # CLI entry point
+│   ├── agents/                 # Multi-agent document processors
+│   │   ├── intake.py           # Document intake
+│   │   ├── preprocess.py       # Preprocessing
+│   │   ├── categorization.py   # Document categorization
+│   │   ├── chunking.py         # Text chunking
+│   │   ├── doc_analysis.py     # Document analysis
+│   │   ├── llm_extraction.py   # LLM-based extraction
+│   │   ├── structuring.py      # Data structuring
+│   │   ├── validation.py       # Validation agent
+│   │   ├── answering.py        # Q&A agent
+│   │   ├── retrieval_agent.py  # Retrieval agent
+│   │   ├── policy.py           # Policy routing
+│   │   ├── escalation.py       # Escalation handling
+│   │   └── recovery.py         # Error recovery
+│   ├── core/                   # Core utilities
+│   │   ├── config.py           # Pipeline configuration
+│   │   ├── types.py            # Type definitions
+│   │   ├── artifacts.py        # Artifact management
+│   │   ├── contracts.py        # Agent contracts
+│   │   ├── metrics.py          # Metrics collection
+│   │   ├── policy_store.py     # Policy storage
+│   │   ├── preflight.py        # Preflight checks
+│   │   └── provenance.py       # Audit trail
+│   ├── pipeline/               # Pipeline orchestration
+│   │   ├── orchestrator.py     # Main orchestrator
+│   │   ├── executor.py         # Pipeline executor
+│   │   ├── planning.py         # Execution planning
+│   │   ├── inbox.py            # Document inbox
+│   │   ├── export.py           # Export utilities
+│   │   └── serialization.py    # Data serialization
+│   ├── retrieval/              # RAG retrieval
+│   │   ├── vector_store.py     # Vector storage
+│   │   ├── bm25.py             # BM25 search
+│   │   ├── hybrid.py           # Hybrid retrieval
+│   │   ├── context_selector.py # Context selection
+│   │   └── index_bundle.py     # Index bundling
+│   ├── evaluation/             # Evaluation framework
+│   │   ├── runner.py           # Evaluation runner
+│   │   └── hooks.py            # Evaluation hooks
+│   └── ui/                     # IDPO UI
+│       ├── app.py              # FastAPI UI app
+│       ├── static/             # Static assets
+│       └── templates/          # HTML templates
+│
 ├── gateway/                    # API Gateway — auth + reverse proxy
 │   ├── main.py                 # FastAPI entry point (:8000)
 │   ├── Dockerfile
@@ -148,11 +195,21 @@ A production-ready, microservices-based framework for intelligent document under
 │       ├── lib/                # API client, auth helpers
 │       └── types/              # TypeScript type definitions
 │
+├── configs/                    # IDPO configuration files
+│   ├── sample_config.json      # Sample pipeline config
+│   ├── policy_store.json       # Policy definitions
+│   └── demo_paths.json         # Demo file paths
+│
+├── docs/                       # Documentation
+│   └── architecture.md         # IDPO architecture docs
+│
 ├── jobs/                       # Background maintenance
 │   ├── promote.py              # MTM → LTM promotion
 │   └── forgetting.py           # DAAF decay job
 ├── scripts/
-│   └── init.sql                # PostgreSQL schema + seeds
+│   ├── init.sql                # PostgreSQL schema + seeds
+│   └── run_demo_ui.ps1         # IDPO demo UI script
+├── pyproject.toml              # IDPO Python project config
 └── docker-compose.yml          # 7 services: db, redis, ahmn, guardrails, xai-hitl, gateway, frontend
 ```
 
@@ -254,6 +311,81 @@ All traffic flows through the gateway at `:8000`.
 | `/dashboard/results`      | Admin  | Comparative analysis      |
 | `/dashboard/architecture` | Admin  | System architecture view  |
 | `/dashboard/admin`        | Admin  | User management           |
+
+---
+
+## IDPO (Intelligent Document Processing Orchestration)
+
+IDPO is a domain-agnostic Document AI system that is fully auditable, multi-agent, preprocessing-aware, and end-to-end from ingestion to provenance export.
+
+### IDPO Installation
+
+```bash
+python -m pip install -e .
+```
+
+### IDPO Commands
+
+#### Ingest
+```bash
+idpo ingest --input data/synthetic/docs --out runs/ingested.json
+```
+
+#### Process + Index
+```bash
+idpo process --input data/synthetic/docs --run-dir runs/demo
+```
+
+To inject domain-specific extraction rules and policy routing, provide a config file via `--config` (see `PipelineConfig.structuring.extraction_rules` and `PipelineConfig.knowledge`). A sample config is in `configs/sample_config.json`.
+
+#### Simple Output Layout
+```bash
+idpo process-simple --input data/demo_inputs --config configs/sample_config.json
+```
+
+This writes all outputs to `data/demo_inputs/output/`, including `entities.xlsx` (or CSV fallback), raw categorized files, and `text_extracted/` per file.
+
+#### Query
+```bash
+idpo query --run-dir runs/demo --question "What is the total charge?" --doc-id doc_001
+```
+
+#### Evaluate
+```bash
+idpo evaluate --input data/synthetic/docs/synthetic_documents.json --run-dir runs/eval
+```
+
+#### Export Provenance
+```bash
+idpo export-provenance --run-dir runs/demo --out runs/demo/provenance_export.json
+```
+
+### Scanned Documents (OCR)
+
+To process scanned images or PDF pages, install OCR extras:
+
+```bash
+python -m pip install -e ".[ocr]"
+```
+
+You also need the Tesseract OCR binary installed and available on PATH. PDF OCR via Pillow may require a PDF renderer (e.g., Ghostscript/Poppler).
+
+### Excel Export (Optional)
+
+```bash
+python -m pip install -e ".[excel]"
+```
+
+This enables the multi-sheet `entities.xlsx` export. If the Excel extras are not installed, the pipeline writes three CSV files instead.
+
+### IDPO Outputs
+
+- `runs/<run-id>/artifacts/` contains raw and cleaned artifacts.
+- `runs/<run-id>/provenance.jsonl` is the append-only audit log.
+- `runs/<run-id>/index/` contains vector + lexical indexes.
+- `runs/<run-id>/results.json` stores per-document structured outputs.
+- `runs/<run-id>/entities.xlsx` stores explicit entities, default entities, and extraction metadata.
+- `runs/<run-id>/evaluation.json` stores evaluation metrics (when run).
 
 ---
 

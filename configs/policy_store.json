@@ -1,0 +1,135 @@
+{
+  "default_policy_id": "default",
+  "policies": [
+    {
+      "policy_id": "forms",
+      "name": "Form Extraction Policy",
+      "conditions": {
+        "content_profile": [
+          "form-centric"
+        ],
+        "doc_type": [
+          "form_document"
+        ]
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "engine": "tesseract",
+            "passes": 2,
+            "lang": "eng",
+            "psm": 6,
+            "oem": 3,
+            "dpi": 300,
+            "alt_psm": [
+              4,
+              11
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "record_id",
+            "document_date",
+            "total_amount",
+            "customer_name"
+          ],
+          "model_tier": "cloud"
+        },
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "chunking": {
+          "chunk_size": 350,
+          "chunk_overlap": 60,
+          "max_chunks": 128
+        },
+        "retrieval": {
+          "dense_k": 12,
+          "sparse_k": 12,
+          "final_k": 12,
+          "mmr_lambda": 0.7,
+          "metadata_boost": 0.15
+        },
+        "token_budget": {
+          "max_tokens": 1600,
+          "reserved_tokens": 200,
+          "strategy": "simple"
+        }
+      },
+      "metadata": {
+        "owner": "policy-team"
+      }
+    },
+    {
+      "policy_id": "default",
+      "name": "Default Policy",
+      "conditions": {},
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "engine": "tesseract",
+            "passes": 2,
+            "lang": "eng",
+            "psm": 6,
+            "oem": 3,
+            "dpi": 300,
+            "alt_psm": [
+              4,
+              11
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [],
+          "model_tier": "cloud"
+        },
+        "recovery": {
+          "strategy": "regex"
+        },
+        "chunking": {
+          "chunk_size": 350,
+          "chunk_overlap": 60,
+          "max_chunks": 128
+        },
+        "retrieval": {
+          "dense_k": 12,
+          "sparse_k": 12,
+          "final_k": 12,
+          "mmr_lambda": 0.7,
+          "metadata_boost": 0.15
+        },
+        "token_budget": {
+          "max_tokens": 1600,
+          "reserved_tokens": 200,
+          "strategy": "simple"
+        }
+      },
+      "metadata": {
+        "owner": "policy-team"
+      }
+    }
+  ]
+}

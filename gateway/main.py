@@ -13,6 +13,7 @@ Route map
 /api/guardrails/*          → Guardrails     (8002)
 /api/xai/*                 → XAI-HITL       (8003)
 /api/hitl/*                → XAI-HITL       (8003)
+/api/idpo/*                → IDPO           (8004)
 """
 
 from __future__ import annotations
@@ -62,6 +63,7 @@ SERVICE_MAP: dict[str, str] = {
     "guardrails": settings.GUARDRAILS_SERVICE_URL,
     "xai": settings.XAI_HITL_SERVICE_URL,
     "hitl": settings.XAI_HITL_SERVICE_URL,
+    "idpo": settings.IDPO_SERVICE_URL,
 }
 
 # ---------------------------------------------------------------------------

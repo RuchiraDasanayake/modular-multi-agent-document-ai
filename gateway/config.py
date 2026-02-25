@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     AHMN_SERVICE_URL: str = "http://ahmn:8001"
     GUARDRAILS_SERVICE_URL: str = "http://guardrails:8002"
     XAI_HITL_SERVICE_URL: str = "http://xai-hitl:8003"
+    IDPO_SERVICE_URL: str = "http://idpo:8004"
 
     # ── Proxy ──
     PROXY_TIMEOUT: float = 60.0
