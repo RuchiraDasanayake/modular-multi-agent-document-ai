@@ -79,6 +79,13 @@ class EscalationConfig:
     enabled: bool = True
     max_cost_units: int = 3
     max_escalations_per_run: int = 5
+    max_cost_per_doc: float = 3.0
+    max_cost_per_minute: float = 12.0
+    max_escalations_per_minute: int = 10
+    flagship_model: Optional[str] = None
+    fallback_mode: str = "simulate"
+    estimated_latency_ms_per_field: float = 800.0
+    estimated_cost_per_field: float = 0.5
 
 
 @dataclass
@@ -86,6 +93,11 @@ class RoutingConfig:
     quality_threshold: float = 0.6
     complexity_threshold: float = 0.5
     retry_threshold: float = 0.55
+    light_route_threshold: float = 0.35
+    heavy_route_threshold: float = 0.7
+    table_specialization_threshold: float = 0.2
+    form_specialization_threshold: float = 0.2
+    image_specialization_threshold: float = 0.5
 
 
 @dataclass
@@ -101,6 +113,7 @@ class ShadowModeConfig:
     sample_rate: float = 0.0
     candidate_policy_ids: list[str] = field(default_factory=list)
     max_policies_per_doc: int = 1
+    comparison_file: str = "comparisons.json"
 
 
 @dataclass
@@ -110,6 +123,8 @@ class RollbackConfig:
     latency_p95_ms: float = 2500.0
     validation_failure_rate: float = 0.2
     quality_drop_threshold: float = 0.05
+    max_latency_regression_pct: float = 0.2
+    min_validation_pass_delta: float = 0.05
 
 
 @dataclass
@@ -118,15 +133,19 @@ class QueueConfig:
     max_workers: int = 4
     per_partition_concurrency: int = 1
     partition_keys: list[str] = field(default_factory=lambda: ["doc_type", "vendor_cluster"])
+    fairness_enabled: bool = True
 
 
 @dataclass
 class AHMNConfig:
     enabled: bool = False
-    mode: str = "mock"
+    mode: str = "http"
     objective: str = "min_cost"
     timeout_ms: int = 500
     endpoint: Optional[str] = None
+    advice_endpoint: str = "/advice"
+    log_endpoint: str = "/log"
+    direct_import: Optional[str] = None
     policy_override_id: Optional[str] = None
     action_overrides: Dict[str, Any] = field(default_factory=dict)
 
@@ -138,6 +157,19 @@ class CalibrationConfig:
     version: str = "v1"
     temperature: float = 1.0
     parameters: Dict[str, float] = field(default_factory=dict)
+    model_path: Optional[str] = None
+    mode: str = "heuristic_only"
+
+
+@dataclass
+class BudgetConfig:
+    max_cost_per_doc: float = 6.0
+    max_cost_per_minute: float = 50.0
+    max_latency_per_doc_ms: float = 10000.0
+    max_retries_per_field: int = 2
+    max_total_retries_per_doc: int = 8
+    escalation_quota_per_doc: int = 2
+    escalation_quota_per_minute: int = 10
 
 
 @dataclass
@@ -169,7 +201,7 @@ class LLMConfig:
     cloud_max_tokens: int = 2000
     allow_cloud_fallback: bool = True
     openai_api_url: str = "https://api.openai.com/v1"
-    openai_api_key: str = "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"
+    openai_api_key: str = "sk-PLACEHOLDER"
 
 
 @dataclass
@@ -188,6 +220,7 @@ class PipelineConfig:
     queue: QueueConfig = field(default_factory=QueueConfig)
     ahmn: AHMNConfig = field(default_factory=AHMNConfig)
     calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
+    budget: BudgetConfig = field(default_factory=BudgetConfig)
     answering: AnsweringConfig = field(default_factory=AnsweringConfig)
     knowledge: KnowledgeConfig = field(default_factory=KnowledgeConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
@@ -224,6 +257,18 @@ def config_from_dict(data: Dict[str, Any]) -> PipelineConfig:
                 version=payload.get("version", "v1"),
                 temperature=payload.get("temperature", 1.0),
                 parameters=payload.get("parameters", {}),
+                model_path=payload.get("model_path"),
+                mode=payload.get("mode", "heuristic_only"),
+            )
+        if cls is BudgetConfig:
+            return BudgetConfig(
+                max_cost_per_doc=float(payload.get("max_cost_per_doc", 6.0)),
+                max_cost_per_minute=float(payload.get("max_cost_per_minute", 50.0)),
+                max_latency_per_doc_ms=float(payload.get("max_latency_per_doc_ms", 10000.0)),
+                max_retries_per_field=int(payload.get("max_retries_per_field", 2)),
+                max_total_retries_per_doc=int(payload.get("max_total_retries_per_doc", 8)),
+                escalation_quota_per_doc=int(payload.get("escalation_quota_per_doc", 2)),
+                escalation_quota_per_minute=int(payload.get("escalation_quota_per_minute", 10)),
             )
         return cls(**payload)
 
@@ -242,6 +287,7 @@ def config_from_dict(data: Dict[str, Any]) -> PipelineConfig:
         queue=_read(QueueConfig, "queue"),
         ahmn=_read(AHMNConfig, "ahmn"),
         calibration=_read(CalibrationConfig, "calibration"),
+        budget=_read(BudgetConfig, "budget"),
         answering=_read(AnsweringConfig, "answering"),
         knowledge=_read(KnowledgeConfig, "knowledge"),
         llm=_read(LLMConfig, "llm"),

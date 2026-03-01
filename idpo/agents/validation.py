@@ -17,6 +17,7 @@ class ValidationAgent(Agent):
         "issues": "list",
         "normalized": "dict",
         "confidence": "dict",
+        "field_details": "dict",
         "signal": "StageSignal",
     }
 
@@ -28,6 +29,9 @@ class ValidationAgent(Agent):
         issues: List[ValidationIssue] = []
         normalized: Dict[str, str] = {}
         confidences: Dict[str, float] = {}
+        field_details: Dict[str, Dict[str, Any]] = {}
+        min_conf_input = payload.get("min_confidence")
+        min_conf = float(ctx.config.validation.min_confidence if min_conf_input is None else min_conf_input)
 
         rules = ctx.config.validation.rules
         for entity in entities:
@@ -35,6 +39,13 @@ class ValidationAgent(Agent):
             rule = self._match_rule(entity.key, rules)
             normalized_value = self._normalize(entity.value, rule.normalize if rule else "strip")
             normalized[entity.key] = normalized_value
+            field_details[entity.key] = {
+                "confidence": entity.confidence,
+                "confidence_type": entity.confidence_type,
+                "extraction_method": entity.extraction_method,
+                "span": entity.span,
+                "page": entity.page,
+            }
 
             if not normalized_value:
                 issues.append(
@@ -46,6 +57,16 @@ class ValidationAgent(Agent):
                 )
                 confidences[entity.key] = max(confidences[entity.key] - 0.2, 0.1)
                 continue
+
+            if entity.confidence < min_conf:
+                issues.append(
+                    ValidationIssue(
+                        field=entity.key,
+                        issue="low_confidence",
+                        severity="medium",
+                        details={"confidence": entity.confidence, "min_confidence": min_conf},
+                    )
+                )
 
             if rule and rule.value_pattern:
                 if not re.match(rule.value_pattern, normalized_value):
@@ -65,6 +86,7 @@ class ValidationAgent(Agent):
                 "issues": [issue.__dict__ for issue in issues],
                 "normalized": normalized,
                 "confidence": confidences,
+                "field_details": field_details,
             },
             kind="validation",
             raw=False,
@@ -99,6 +121,7 @@ class ValidationAgent(Agent):
                 "validation_issues": issues,
                 "normalized_entities": normalized,
                 "field_confidence": confidences,
+                "field_details": field_details,
                 "signal": signal,
                 "validation_artifact": artifact,
             }

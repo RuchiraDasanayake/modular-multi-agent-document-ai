@@ -41,6 +41,12 @@ class DAEOutput:
     content_profile: str
     quality_score: float
     complexity_score: float
+    layout_cluster_id: str = "layout:unknown"
+    route_bin: str = "standard"
+    quality_features: Dict[str, float] = field(default_factory=dict)
+    structural_features: Dict[str, float] = field(default_factory=dict)
+    analysis_confidence: float = 0.5
+    confidence_type: str = "heuristic"
     signals: Dict[str, float] = field(default_factory=dict)
 
 
@@ -49,8 +55,25 @@ class Entity:
     key: str
     value: str
     confidence: float
+    confidence_type: str = "heuristic"
+    extraction_method: str = "rule_based"
     page: Optional[int] = None
     span: Optional[tuple[int, int]] = None
+    bbox: Optional[tuple[int, int, int, int]] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class FieldExtraction:
+    key: str
+    value: str
+    evidence_span: Optional[tuple[int, int]] = None
+    evidence_bbox: Optional[tuple[int, int, int, int]] = None
+    confidence_score: float = 0.0
+    confidence_type: str = "heuristic"
+    extraction_method: str = "rule_based"
+    discovered: bool = False
+    page: Optional[int] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 

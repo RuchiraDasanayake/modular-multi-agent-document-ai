@@ -7,6 +7,7 @@ import shutil
 from pathlib import Path
 
 from idpo.agents.intake import IntakeAgent
+from idpo.core.calibration import ConfidenceCalibrator, load_calibration_samples
 from idpo.core.config import load_config
 from idpo.core.preflight import run_preflight
 from idpo.core.provenance import export_provenance
@@ -67,6 +68,19 @@ def main() -> None:
     prov_parser = subparsers.add_parser("export-provenance", help="Export provenance JSON")
     prov_parser.add_argument("--run-dir", required=True)
     prov_parser.add_argument("--out", required=True)
+
+    calibrate_fit_parser = subparsers.add_parser("calibrate-fit", help="Fit confidence calibrator from JSONL")
+    calibrate_fit_parser.add_argument("--dataset", required=True, help="JSONL with score/label pairs")
+    calibrate_fit_parser.add_argument("--out", required=True, help="Output calibrator JSON path")
+    calibrate_fit_parser.add_argument("--method", choices=["platt", "isotonic"], default="platt")
+    calibrate_fit_parser.add_argument("--bins", type=int, default=10)
+    calibrate_fit_parser.add_argument("--report", default=None, help="Optional evaluation report JSON output")
+
+    calibrate_eval_parser = subparsers.add_parser("calibrate-eval", help="Evaluate confidence calibrator")
+    calibrate_eval_parser.add_argument("--dataset", required=True, help="JSONL with score/label pairs")
+    calibrate_eval_parser.add_argument("--model", required=True, help="Calibrator JSON path")
+    calibrate_eval_parser.add_argument("--out", required=True, help="Evaluation report JSON path")
+    calibrate_eval_parser.add_argument("--bins", type=int, default=10)
 
     args = parser.parse_args()
     intake = IntakeAgent()
@@ -250,6 +264,27 @@ def main() -> None:
     if args.command == "export-provenance":
         base_dir, primary_dir = _resolve_run_dirs(Path(args.run_dir))
         export_provenance(str(primary_dir / "provenance.jsonl"), args.out)
+        return
+
+    if args.command == "calibrate-fit":
+        samples = load_calibration_samples(args.dataset)
+        calibrator = ConfidenceCalibrator(method=args.method)
+        calibrator.fit(samples)
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        calibrator.save(args.out)
+        report = calibrator.evaluate(samples, bins=args.bins)
+        report_path = args.report or str(Path(args.out).with_suffix(".eval.json"))
+        Path(report_path).write_text(json.dumps(report, indent=2), encoding="utf-8")
+        print(json.dumps({"model": args.out, "report": report_path, "count": report.get("count", 0)}, indent=2))
+        return
+
+    if args.command == "calibrate-eval":
+        samples = load_calibration_samples(args.dataset)
+        calibrator = ConfidenceCalibrator.load(args.model)
+        report = calibrator.evaluate(samples, bins=args.bins)
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out).write_text(json.dumps(report, indent=2), encoding="utf-8")
+        print(json.dumps({"model": args.model, "report": args.out, "count": report.get("count", 0)}, indent=2))
         return
 
 

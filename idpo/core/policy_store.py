@@ -106,13 +106,19 @@ class PolicyStore:
                 {
                     "doc_type": dae_output.doc_type,
                     "vendor_cluster": dae_output.vendor_cluster,
+                    "layout_cluster_id": dae_output.layout_cluster_id,
                     "quality_bin": dae_output.quality_bin,
                     "complexity_bin": dae_output.complexity_bin,
                     "content_profile": dae_output.content_profile,
+                    "route_bin": dae_output.route_bin,
                     "quality_score": dae_output.quality_score,
                     "complexity_score": dae_output.complexity_score,
                 }
             )
+            for key, value in dae_output.quality_features.items():
+                value_map[f"quality_features.{key}"] = value
+            for key, value in dae_output.structural_features.items():
+                value_map[f"structural_features.{key}"] = value
             for key, value in dae_output.signals.items():
                 value_map[f"signals.{key}"] = value
         if doc:

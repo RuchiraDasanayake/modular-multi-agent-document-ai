@@ -23,7 +23,15 @@ except Exception:
 
 from idpo.agents.base import Agent, AgentContext
 from idpo.core.contracts import AgentMessage
-from idpo.core.types import AgentResult, Document, Entity, ExtractionPolicy, ModelDecision, StageSignal
+from idpo.core.types import (
+    AgentResult,
+    Document,
+    Entity,
+    ExtractionPolicy,
+    FieldExtraction,
+    ModelDecision,
+    StageSignal,
+)
 
 
 class LLMExtractionAgent(Agent):
@@ -36,11 +44,13 @@ class LLMExtractionAgent(Agent):
         "input_artifact_id": "str|None",
         "explicit_entities": "list|None",
         "field_descriptions": "dict|None",
+        "field_templates": "dict|None",
     }
     output_contract = {
         "explicit_entities": "list",
         "default_entities": "list",
         "entities": "list",
+        "fields": "list",
         "explicit_source": "str",
         "signal": "StageSignal",
     }
@@ -53,9 +63,22 @@ class LLMExtractionAgent(Agent):
         input_artifact_id = payload.get("input_artifact_id")
         explicit_override = payload.get("explicit_entities")
         field_descriptions = payload.get("field_descriptions")
+        field_templates = payload.get("field_templates")
+        if field_templates and not field_descriptions and isinstance(field_templates, dict):
+            field_descriptions = {
+                str(key): str(value.get("description", ""))
+                for key, value in field_templates.items()
+                if isinstance(value, dict)
+            }
 
         generic_entities = self._generic_kv_entities(doc)
-        explicit_keys, explicit_source = self._explicit_keys(policy, ctx, generic_entities, explicit_override)
+        explicit_keys, explicit_source = self._explicit_keys(
+            policy,
+            ctx,
+            generic_entities,
+            explicit_override,
+            field_templates=field_templates,
+        )
 
         explicit_entities = self._extract_explicit(doc, explicit_keys, generic_entities, ctx, policy, model)
         llm_entities: List[Entity] = []
@@ -94,6 +117,16 @@ class LLMExtractionAgent(Agent):
         explicit_entities = self._merge_by_key(explicit_entities + llm_entities + heuristic_entities)
         default_entities = self._dedupe_entities(generic_entities)
         combined_entities = self._merge_entities(explicit_entities, default_entities)
+        combined_entities = [self._apply_calibration(entity, ctx) for entity in combined_entities]
+        explicit_entities = [self._apply_calibration(entity, ctx) for entity in explicit_entities]
+        default_entities = [self._apply_calibration(entity, ctx) for entity in default_entities]
+
+        discovered_mode = explicit_source in {"inferred"} and not field_templates
+        fields = self._to_fields(
+            combined_entities,
+            explicit_keys=explicit_keys,
+            discovered_mode=discovered_mode,
+        )
 
         payload_json = {
             "doc_id": doc.doc_id,
@@ -106,6 +139,7 @@ class LLMExtractionAgent(Agent):
             "llm_entities": [entity.__dict__ for entity in llm_entities],
             "default_entities": [entity.__dict__ for entity in default_entities],
             "combined_entities": [entity.__dict__ for entity in combined_entities],
+            "fields": [field.__dict__ for field in fields],
         }
         artifact = ctx.artifact_store.save_json(
             f"{doc.doc_id}_structured.json",
@@ -158,6 +192,7 @@ class LLMExtractionAgent(Agent):
                 "explicit_entities": explicit_entities,
                 "default_entities": default_entities,
                 "entities": combined_entities,
+                "fields": fields,
                 "explicit_source": explicit_source,
                 "llm_entities": llm_entities,
                 "structured_artifact": artifact,
@@ -171,9 +206,14 @@ class LLMExtractionAgent(Agent):
         ctx: AgentContext,
         generic_entities: List[Entity],
         explicit_override: Optional[List[str]] = None,
+        field_templates: Optional[Dict[str, object]] = None,
     ) -> Tuple[List[str], str]:
         if explicit_override:
             return [self._normalize_key(key) for key in explicit_override], "plan"
+        if field_templates:
+            keys = [self._normalize_key(key) for key in field_templates.keys()]
+            if keys:
+                return keys, "ahmn_template"
         if policy:
             explicit = getattr(policy, "explicit_entities", None)
             if not explicit and hasattr(policy, "actions"):
@@ -206,6 +246,8 @@ class LLMExtractionAgent(Agent):
                         key=rule.key,
                         value=match_value,
                         confidence=0.82,
+                        confidence_type="heuristic",
+                        extraction_method="rule_based",
                         page=page_num,
                         span=span,
                         metadata={
@@ -225,8 +267,11 @@ class LLMExtractionAgent(Agent):
                     key=entity.key,
                     value=entity.value,
                     confidence=max(entity.confidence, 0.62),
+                    confidence_type=entity.confidence_type,
+                    extraction_method=entity.extraction_method,
                     page=entity.page,
                     span=entity.span,
+                    bbox=entity.bbox,
                     metadata={**entity.metadata, "explicit": True, "source": "generic_kv"},
                 )
                 self._pick_best(explicit_map, candidate)
@@ -257,6 +302,8 @@ class LLMExtractionAgent(Agent):
                             key=key,
                             value=value,
                             confidence=0.55,
+                            confidence_type="heuristic",
+                            extraction_method="rule_based",
                             page=page.number,
                             span=span,
                             metadata={"generic_kv": True, "evidence": value},
@@ -298,6 +345,54 @@ class LLMExtractionAgent(Agent):
             seen.add(key)
             deduped.append(entity)
         return deduped
+
+    def _apply_calibration(self, entity: Entity, ctx: AgentContext) -> Entity:
+        calibrator = getattr(ctx, "calibrator", None)
+        if not calibrator:
+            return entity
+        try:
+            calibrated = float(calibrator.calibrate(entity.confidence))
+        except Exception:
+            return entity
+        return Entity(
+            key=entity.key,
+            value=entity.value,
+            confidence=min(max(calibrated, 0.0), 1.0),
+            confidence_type="calibrated",
+            extraction_method=entity.extraction_method,
+            page=entity.page,
+            span=entity.span,
+            bbox=entity.bbox,
+            metadata=dict(entity.metadata),
+        )
+
+    def _to_fields(
+        self,
+        entities: List[Entity],
+        explicit_keys: List[str],
+        discovered_mode: bool,
+    ) -> List[FieldExtraction]:
+        explicit_set = {self._normalize_key(key) for key in explicit_keys}
+        selected: Dict[str, FieldExtraction] = {}
+        for entity in entities:
+            key_norm = self._normalize_key(entity.key)
+            discovered = discovered_mode and key_norm not in explicit_set
+            field = FieldExtraction(
+                key=entity.key,
+                value=entity.value,
+                evidence_span=entity.span,
+                evidence_bbox=entity.bbox,
+                confidence_score=entity.confidence,
+                confidence_type=entity.confidence_type,
+                extraction_method=entity.extraction_method,
+                discovered=discovered,
+                page=entity.page,
+                metadata=dict(entity.metadata),
+            )
+            current = selected.get(key_norm)
+            if not current or field.confidence_score > current.confidence_score:
+                selected[key_norm] = field
+        return list(selected.values())
 
     def _pick_best(self, selected: Dict[str, Entity], candidate: Entity) -> None:
         current = selected.get(candidate.key)
@@ -404,8 +499,11 @@ class LLMExtractionAgent(Agent):
                         key=key,
                         value=match.value,
                         confidence=min(0.6, match.confidence + 0.1),
+                        confidence_type=match.confidence_type,
+                        extraction_method=match.extraction_method,
                         page=match.page,
                         span=match.span,
+                        bbox=match.bbox,
                         metadata={**(match.metadata or {}), "explicit": True, "source": "schema_match"},
                     )
                 )
@@ -454,6 +552,8 @@ class LLMExtractionAgent(Agent):
                     key=key,
                     value=best.strip(),
                     confidence=0.45,
+                    confidence_type="heuristic",
+                    extraction_method="rule_based",
                     metadata={"explicit": True, "source": "schema_regex", "rule": "amount"},
                 )
             currency = re.findall(r"(?:\\$|usd\\s*)\\d{1,3}(?:,\\d{3})*(?:\\.\\d{2})?", text, re.IGNORECASE)
@@ -466,6 +566,8 @@ class LLMExtractionAgent(Agent):
                     key=key,
                     value=best.strip(),
                     confidence=0.4,
+                    confidence_type="heuristic",
+                    extraction_method="rule_based",
                     metadata={"explicit": True, "source": "schema_regex", "rule": "amount_any"},
                 )
         if any(token in lowered for token in ["date", "issued", "invoice_date", "due_date"]):
@@ -475,6 +577,8 @@ class LLMExtractionAgent(Agent):
                     key=key,
                     value=date_match.group(0),
                     confidence=0.45,
+                    confidence_type="heuristic",
+                    extraction_method="rule_based",
                     metadata={"explicit": True, "source": "schema_regex", "rule": "date"},
                 )
         if any(token in lowered for token in ["invoice", "id", "number", "reference"]):
@@ -484,6 +588,8 @@ class LLMExtractionAgent(Agent):
                     key=key,
                     value=id_match.group(0),
                     confidence=0.42,
+                    confidence_type="heuristic",
+                    extraction_method="rule_based",
                     metadata={"explicit": True, "source": "schema_regex", "rule": "id"},
                 )
         if any(token in lowered for token in ["fax", "phone", "telephone", "tel"]):
@@ -497,6 +603,8 @@ class LLMExtractionAgent(Agent):
                     key=key,
                     value=number,
                     confidence=0.45,
+                    confidence_type="heuristic",
+                    extraction_method="rule_based",
                     metadata={"explicit": True, "source": "schema_regex", "rule": "fax"},
                 )
             phone_match = re.search(phone_pattern, text)
@@ -506,6 +614,8 @@ class LLMExtractionAgent(Agent):
                     key=key,
                     value=number,
                     confidence=0.42,
+                    confidence_type="heuristic",
+                    extraction_method="rule_based",
                     metadata={"explicit": True, "source": "schema_regex", "rule": "phone"},
                 )
         return None
@@ -649,6 +759,8 @@ class LLMExtractionAgent(Agent):
                     key=key,
                     value=value,
                     confidence=confidence,
+                    confidence_type="heuristic",
+                    extraction_method="llm_tool",
                     metadata={"explicit": True, "source": source, "model": model_name},
                 )
             )

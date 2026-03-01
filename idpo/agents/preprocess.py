@@ -616,11 +616,18 @@ class TableFormAgent(Agent):
 class PreprocessingRouter(Agent):
     name = "preprocess_router"
     version = "v1"
-    input_contract = {"document": "Document", "analysis": "dict", "input_artifact_id": "str|None", "policy": "ExtractionPolicy|None"}
+    input_contract = {
+        "document": "Document",
+        "analysis": "dict",
+        "input_artifact_id": "str|None",
+        "policy": "ExtractionPolicy|None",
+        "ranked_policies": "list|None",
+    }
     output_contract = {
         "document": "Document",
         "artifacts": "list",
         "route": "list",
+        "route_plan": "dict",
         "signals": "list",
     }
 
@@ -637,7 +644,8 @@ class PreprocessingRouter(Agent):
         input_artifact_id = payload.get("input_artifact_id")
         policy = payload.get("policy")
         result = AgentResult(artifacts={"document": doc})
-        route = self._route(doc, analysis, ctx, policy)
+        ranked_policies = payload.get("ranked_policies") or []
+        route, route_plan = self._route(doc, analysis, ctx, policy, ranked_policies)
         artifacts = []
         signals = []
         current_artifact_id = input_artifact_id
@@ -672,29 +680,64 @@ class PreprocessingRouter(Agent):
             parameters={
                 "quality_score": analysis.get("quality_score", doc.quality_score),
                 "complexity": analysis.get("complexity_score", doc.complexity_score),
+                "base_route": route_plan.get("base_route"),
+                "specialization": route_plan.get("specialization"),
             },
             started=started,
         )
         result.artifacts["route"] = route
+        result.artifacts["route_plan"] = route_plan
         result.artifacts["signals"] = [signal for signal in signals if signal]
         result.artifacts["artifact_ids"] = [art for art in artifacts if art]
         return result
 
-    def _route(self, doc: Document, analysis: Dict[str, float], ctx: AgentContext, policy) -> List[str]:
+    def _route(
+        self,
+        doc: Document,
+        analysis: Dict[str, float],
+        ctx: AgentContext,
+        policy,
+        ranked_policies: List[Dict[str, object]],
+    ) -> tuple[List[str], Dict[str, object]]:
         route = []
+        complexity = analysis.get("complexity_score", doc.complexity_score or 0.0)
+        quality = analysis.get("quality_score", doc.quality_score or 0.0)
+        route_bin = analysis.get("route_bin") or doc.metadata.get("route_bin") or "standard"
+        if route_bin not in {"light", "standard", "heavy"}:
+            route_bin = "standard"
+
+        if doc.profile in {"table-heavy"}:
+            specialization = "table-heavy"
+        elif doc.profile in {"form-centric"}:
+            specialization = "form-centric"
+        elif doc.profile in {"image-heavy"}:
+            specialization = "image-dominant"
+        else:
+            specialization = "text-dominant"
+
         if doc.source in {"scanned", "synthetic"}:
             route.append("ocr")
-        quality = analysis.get("quality_score", doc.quality_score or 0.0)
-        complexity = analysis.get("complexity_score", doc.complexity_score or 0.0)
-        if doc.profile in {"image-heavy", "table-heavy"} or quality < ctx.config.routing.quality_threshold:
+        if route_bin in {"standard", "heavy"} or doc.profile in {"image-heavy", "table-heavy"} or quality < ctx.config.routing.quality_threshold:
             route.append("deskew")
             route.append("denoise")
-        if doc.profile in {"table-heavy", "form-centric"} or complexity > ctx.config.routing.complexity_threshold:
+        if specialization in {"table-heavy", "form-centric"} or complexity > ctx.config.routing.complexity_threshold:
             route.append("table_form")
-        if doc.profile not in {"image-heavy"} and "denoise" not in route:
+        if route_bin == "light" and "denoise" not in route and doc.profile not in {"image-heavy"}:
             route.append("denoise")
         route = self._apply_policy(route, policy)
-        return self._order_route(route)
+        ordered = self._order_route(route)
+        route_plan = {
+            "base_route": route_bin,
+            "specialization": specialization,
+            "operator_stack": {
+                "ocr_passes": 3 if route_bin == "heavy" else (1 if route_bin == "light" else 2),
+                "denoise_strength": "aggressive" if route_bin == "heavy" else ("light" if route_bin == "light" else "standard"),
+                "table_parser_enabled": "table_form" in ordered,
+                "chunker_mode": "small_chunks" if route_bin == "heavy" else "standard",
+            },
+            "ranked_policies": ranked_policies[:5],
+        }
+        return ordered, route_plan
 
     def _apply_policy(self, route: List[str], policy) -> List[str]:
         if not policy:
