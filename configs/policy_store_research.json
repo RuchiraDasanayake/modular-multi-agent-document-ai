@@ -1,0 +1,143 @@
+{
+  "default_policy_id": "default",
+  "policies": [
+    {
+      "policy_id": "table_heavy",
+      "name": "Table Heavy Policy",
+      "conditions": {
+        "content_profile": [
+          "table-heavy"
+        ],
+        "route_bin": [
+          "standard",
+          "heavy"
+        ]
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "aggressive"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "statement_id",
+            "date",
+            "total_amount"
+          ],
+          "model_tier": "local"
+        },
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "chunking": {
+          "chunk_size": 260,
+          "chunk_overlap": 40,
+          "max_chunks": 160
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research"
+      }
+    },
+    {
+      "policy_id": "forms",
+      "name": "Form Extraction Policy",
+      "conditions": {
+        "content_profile": [
+          "form-centric"
+        ]
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 3
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "aggressive"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "invoice_id",
+            "document_date",
+            "total_amount",
+            "customer_name",
+            "approval_code"
+          ],
+          "field_descriptions": {
+            "approval_code": "Approval code required by policy checks."
+          },
+          "model_tier": "cloud"
+        },
+        "recovery": {
+          "strategy": "alternate_ocr"
+        },
+        "escalation": {
+          "target_model": "flagship-model"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research"
+      }
+    },
+    {
+      "policy_id": "default",
+      "name": "Default Policy",
+      "conditions": {},
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "invoice_id",
+            "document_date",
+            "total_amount"
+          ],
+          "model_tier": "local"
+        },
+        "recovery": {
+          "strategy": "regex"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research"
+      }
+    }
+  ]
+}

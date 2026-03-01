@@ -1,0 +1,16 @@
+[
+  {
+    "doc_id": "demo_clean_text",
+    "source": "digital",
+    "metadata": {
+      "vendor": "initech",
+      "domain": "hr"
+    },
+    "pages": [
+      {
+        "number": 1,
+        "text": "Employee Record\nRecord ID: EMP-22\nDocument Date: 01/20/2026\nDepartment: Research\nStatus: Active\n"
+      }
+    ]
+  }
+]
