@@ -1,0 +1,176 @@
+{
+  "structuring": {
+    "allow_generic_kv": true,
+    "heading_max_words": 6,
+    "extraction_rules": [
+      {
+        "key": "invoice_id",
+        "label": "Invoice ID",
+        "pattern": "Invoice\\s*ID[:\\s]+([A-Z0-9-]+)"
+      },
+      {
+        "key": "document_date",
+        "label": "Document Date",
+        "pattern": "Date[:\\s]+([0-9/-]+)"
+      },
+      {
+        "key": "total_amount",
+        "label": "Total Amount",
+        "pattern": "Total\\s*Amount[:\\s]+(?:USD\\s*)?\\$?([0-9,.]+)"
+      }
+    ]
+  },
+  "preprocessing": {
+    "ocr_engine": "tesseract",
+    "ocr_version": "v1",
+    "ocr_lang": "eng",
+    "ocr_psm": 6,
+    "ocr_oem": 3,
+    "ocr_dpi": 300,
+    "ocr_alt_psm": [
+      4,
+      11
+    ],
+    "ocr_passes": 2,
+    "deskew": true,
+    "denoise": true,
+    "table_mode": "heuristic",
+    "max_retries": 3
+  },
+  "validation": {
+    "min_confidence": 0.7,
+    "max_field_errors": 5,
+    "rules": [
+      {
+        "field_pattern": ".*_id$",
+        "value_pattern": "^[A-Z0-9-]+$",
+        "severity": "high",
+        "normalize": "strip"
+      },
+      {
+        "field_pattern": ".*_amount$",
+        "value_pattern": "^\\d+(\\.\\d{2})?$",
+        "severity": "medium",
+        "normalize": "numeric"
+      },
+      {
+        "field_pattern": ".*_date$",
+        "value_pattern": "^\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}$",
+        "severity": "medium",
+        "normalize": "strip"
+      }
+    ]
+  },
+  "routing": {
+    "quality_threshold": 0.6,
+    "complexity_threshold": 0.5,
+    "retry_threshold": 0.55,
+    "light_route_threshold": 0.35,
+    "heavy_route_threshold": 0.7,
+    "table_specialization_threshold": 0.2,
+    "form_specialization_threshold": 0.2,
+    "image_specialization_threshold": 0.5
+  },
+  "plan": {
+    "default_step_timeout_ms": 30000,
+    "default_step_budget_units": 0.7,
+    "max_total_budget_units": 12
+  },
+  "budget": {
+    "max_cost_per_doc": 7,
+    "max_cost_per_minute": 60,
+    "max_latency_per_doc_ms": 12000,
+    "max_retries_per_field": 2,
+    "max_total_retries_per_doc": 8,
+    "escalation_quota_per_doc": 2,
+    "escalation_quota_per_minute": 10
+  },
+  "shadow": {
+    "enabled": true,
+    "sample_rate": 0.1,
+    "candidate_policy_ids": [
+      "forms",
+      "table_heavy",
+      "default"
+    ],
+    "max_policies_per_doc": 2,
+    "comparison_file": "comparisons.json"
+  },
+  "rollback": {
+    "enabled": true,
+    "window_size": 10,
+    "latency_p95_ms": 2500,
+    "validation_failure_rate": 0.25,
+    "quality_drop_threshold": 0.08,
+    "max_latency_regression_pct": 0.25,
+    "min_validation_pass_delta": 0.1
+  },
+  "queue": {
+    "enabled": true,
+    "max_workers": 4,
+    "per_partition_concurrency": 1,
+    "partition_keys": [
+      "doc_type",
+      "vendor_cluster"
+    ],
+    "fairness_enabled": true
+  },
+  "ahmn": {
+    "enabled": false,
+    "mode": "http",
+    "objective": "balanced",
+    "timeout_ms": 500,
+    "endpoint": "http://localhost:8001",
+    "advice_endpoint": "/advice",
+    "log_endpoint": "/log",
+    "direct_import": null,
+    "policy_override_id": null,
+    "action_overrides": {}
+  },
+  "calibration": {
+    "enabled": false,
+    "method": "heuristic",
+    "version": "v1",
+    "temperature": 1,
+    "parameters": {},
+    "model_path": null,
+    "mode": "heuristic_only"
+  },
+  "escalation": {
+    "enabled": true,
+    "max_cost_units": 3,
+    "max_escalations_per_run": 5,
+    "max_cost_per_doc": 3,
+    "max_cost_per_minute": 12,
+    "max_escalations_per_minute": 10,
+    "flagship_model": "flagship-sim",
+    "fallback_mode": "simulate",
+    "estimated_latency_ms_per_field": 900,
+    "estimated_cost_per_field": 0.5
+  },
+  "answering": {
+    "min_confidence": 0.55
+  },
+  "knowledge": {
+    "policy_store_path": "configs/policy_store_research.json",
+    "default_policy_id": "default"
+  },
+  "llm": {
+    "local_model": "phi3:mini",
+    "cloud_model": "gpt-4o-mini",
+    "default_mode": "local",
+    "history_mode": "local",
+    "provider": "ollama",
+    "cloud_provider": "openai",
+    "base_url": "http://localhost:11434",
+    "timeout_s": 60,
+    "cloud_timeout_s": 60,
+    "cloud_temperature": 0.1,
+    "cloud_max_tokens": 2000,
+    "allow_cloud_fallback": true,
+    "openai_api_url": "https://api.openai.com/v1",
+    "openai_api_key": "${OPENAI_API_KEY}",
+    "use_extraction": false,
+    "use_summarization": false
+  }
+}

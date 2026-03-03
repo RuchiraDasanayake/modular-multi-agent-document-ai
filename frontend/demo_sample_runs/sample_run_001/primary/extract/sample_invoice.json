@@ -1,0 +1,22 @@
+{
+  "fields": [
+    {
+      "key": "invoice_id",
+      "value": "INV-7001",
+      "confidence_score": 0.88,
+      "confidence_type": "calibrated",
+      "extraction_method": "rule_based",
+      "evidence_span": [14, 22],
+      "page": 1
+    },
+    {
+      "key": "total_amount",
+      "value": "1200.00",
+      "confidence_score": 0.62,
+      "confidence_type": "heuristic",
+      "extraction_method": "rule_based",
+      "evidence_span": [56, 63],
+      "page": 1
+    }
+  ]
+}

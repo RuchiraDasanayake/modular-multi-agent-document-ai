@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { setToken } from "@/lib/auth";
+import { removeToken, setToken } from "@/lib/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ArrowLeft } from "lucide-react";
 
@@ -13,6 +13,7 @@ export default function LoginPage() {
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
+    const isDev = process.env.NODE_ENV === "development";
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -27,6 +28,11 @@ export default function LoginPage() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleLocalAccess = () => {
+        removeToken();
+        router.push("/dashboard/idpo");
     };
 
     return (
@@ -95,6 +101,16 @@ export default function LoginPage() {
                     >
                         {loading ? "Signing in..." : "Sign In"}
                     </button>
+
+                    {isDev && (
+                        <button
+                            type="button"
+                            onClick={handleLocalAccess}
+                            className="w-full py-3 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 transition-colors"
+                        >
+                            Continue In Local Mode
+                        </button>
+                    )}
 
                     <p className="text-sm text-slate-500 dark:text-gray-400 text-center pt-2">
                         Don&apos;t have an account?{" "}

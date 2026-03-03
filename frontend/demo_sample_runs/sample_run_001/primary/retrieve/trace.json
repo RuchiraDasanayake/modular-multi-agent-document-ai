@@ -1,0 +1,8 @@
+[
+  {
+    "query": "invoice total",
+    "chunks": [
+      {"chunk_id": "sample_invoice_chunk_0", "score": 0.88, "text": "Total Amount: USD 1200.00"}
+    ]
+  }
+]

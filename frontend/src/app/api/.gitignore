@@ -1,0 +1,4 @@
+# Root .gitignore has a global `runs/` rule.
+# Keep Next.js API route directory `/api/runs` tracked in frontend.
+!runs/
+!runs/**

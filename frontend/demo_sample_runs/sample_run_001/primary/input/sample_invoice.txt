@@ -1,0 +1,4 @@
+Invoice ID: INV-7001
+Customer: ACME Corp
+Total Amount: USD 1200.00
+Due Date: 03/10/2026

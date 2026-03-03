@@ -1,0 +1,14 @@
+[
+  {
+    "doc_id": "sample_invoice",
+    "policy_id": "forms",
+    "canonical_latency_ms": 55.2,
+    "shadow_latency_ms": 44.1,
+    "canonical_validation_failure": 1.0,
+    "shadow_validation_failure": 0.0,
+    "canonical_quality_proxy": 0.72,
+    "shadow_quality_proxy": 0.75,
+    "canonical_retrieval_proxy": 0.2,
+    "shadow_retrieval_proxy": 0.22
+  }
+]

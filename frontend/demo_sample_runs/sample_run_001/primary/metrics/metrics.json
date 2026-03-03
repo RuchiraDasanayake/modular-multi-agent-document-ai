@@ -1,0 +1,7 @@
+{
+  "run_id": "sample_run_001",
+  "doc_count": 2,
+  "avg_latency_ms": 43.0,
+  "escalation_count": 1,
+  "validation_issue_total": 1
+}

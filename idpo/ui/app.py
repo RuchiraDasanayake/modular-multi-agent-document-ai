@@ -33,6 +33,7 @@ def index() -> HTMLResponse:
 
 
 @app.post("/idpo/run")
+@app.post("/api/run")
 def run_demo(
     files: List[UploadFile] = File(...),
     fields: str = Form("[]"),
@@ -71,6 +72,7 @@ def run_demo(
 
 
 @app.get("/idpo/runs/{run_id}/docs.xlsx")
+@app.get("/api/runs/{run_id}/docs.xlsx")
 def download_docs(run_id: str):
     run_dir = REPO_ROOT / "runs" / run_id
     xlsx_path = run_dir / "docs.xlsx"
@@ -83,6 +85,7 @@ def download_docs(run_id: str):
 
 
 @app.get("/idpo/runs/{run_id}/run.xlsx")
+@app.get("/api/runs/{run_id}/run.xlsx")
 def download_run(run_id: str):
     run_dir = REPO_ROOT / "runs" / run_id
     xlsx_path = run_dir / "run.xlsx"
@@ -95,6 +98,7 @@ def download_run(run_id: str):
 
 
 @app.get("/idpo/runs/{run_id}/entities.xlsx")
+@app.get("/api/runs/{run_id}/entities.xlsx")
 def download_entities(run_id: str):
     run_dir = REPO_ROOT / "runs" / run_id
     xlsx_path = run_dir / "entities.xlsx"

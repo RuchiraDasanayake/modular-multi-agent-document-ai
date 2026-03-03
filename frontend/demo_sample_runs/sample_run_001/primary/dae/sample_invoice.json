@@ -1,0 +1,9 @@
+{
+  "sample_invoice": {
+    "doc_type": "scanned_document",
+    "vendor_cluster": "acme",
+    "complexity_bin": "2",
+    "route_bin": "standard",
+    "layout_cluster_id": "layout:sample-a"
+  }
+}
