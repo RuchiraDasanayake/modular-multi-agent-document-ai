@@ -57,10 +57,13 @@ interface HITLEntry {
     original_answer: string;
     feedback_type: string;
     is_answer_correct: boolean;
-    explanation_quality: number;
-    highlight_accuracy: number;
-    xai_helpfulness: number;
-    created_at: string;
+    explanation_quality?: number;
+    highlight_accuracy?: number;
+    xai_helpfulness?: number;
+    ratings?: { explanation_quality?: number; highlight_accuracy?: number; xai_helpfulness?: number };
+    timestamp?: string;
+    created_at?: string;
+    priority?: string;
 }
 
 const TABS: { key: Tab; label: string; icon: string; desc: string }[] = [
@@ -425,8 +428,8 @@ function HITLTable({ data }: { data: HITLEntry[] }) {
                         <Td className="max-w-xs truncate text-xs">{row.question}</Td>
                         <Td><Badge color={row.feedback_type === "correct" ? "green" : row.feedback_type === "incorrect" ? "red" : "amber"}>{row.feedback_type}</Badge></Td>
                         <Td>{row.is_answer_correct ? <Badge color="green">Yes</Badge> : <Badge color="red">No</Badge>}</Td>
-                        <Td className="font-mono">{row.explanation_quality}/5</Td>
-                        <Td className="text-xs text-slate-500 dark:text-gray-500">{formatTime(row.created_at)}</Td>
+                        <Td className="font-mono">{(row.explanation_quality ?? row.ratings?.explanation_quality ?? 0)}/5</Td>
+                        <Td className="text-xs text-slate-500 dark:text-gray-500">{formatTime(row.timestamp || row.created_at || '')}</Td>
                     </tr>
                 ))}
             </tbody>

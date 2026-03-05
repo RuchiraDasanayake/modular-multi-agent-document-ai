@@ -37,3 +37,4 @@ class UserResponse(BaseModel):
     username: str
     role: str
     is_active: bool
+    created_at: str | None = None

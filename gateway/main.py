@@ -368,12 +368,13 @@ async def list_users(
 ):
     async with db.cursor() as cur:
         await cur.execute(
-            "SELECT id, email, username, role, is_active FROM users ORDER BY created_at"
+            "SELECT id, email, username, role, is_active, created_at FROM users ORDER BY created_at"
         )
         rows = await cur.fetchall()
     return [
         UserResponse(
-            id=str(r[0]), email=r[1], username=r[2], role=r[3], is_active=r[4]
+            id=str(r[0]), email=r[1], username=r[2], role=r[3], is_active=r[4],
+            created_at=r[5].isoformat() if r[5] else None
         )
         for r in rows
     ]

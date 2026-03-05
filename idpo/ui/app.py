@@ -235,6 +235,48 @@ async def run_demo(
 
     return JSONResponse(response_data)
 
+@app.get("/idpo/runs")
+def list_runs():
+    """List all pipeline runs with metadata, sorted newest-first."""
+    runs = []
+    if not RUNS_ROOT.exists():
+        return {"runs": [], "total": 0}
+    for run_dir in sorted(RUNS_ROOT.iterdir(), reverse=True):
+        if not run_dir.is_dir():
+            continue
+        run_id = run_dir.name
+        run_info: dict[str, Any] = {"run_id": run_id, "status": "completed"}
+
+        # Read run.json for metadata
+        run_json = run_dir / "run.json"
+        if run_json.exists():
+            try:
+                with run_json.open() as f:
+                    meta = json.load(f)
+                run_info["started_at"] = meta.get("started_at")
+                run_info["config_path"] = meta.get("config_path")
+            except Exception:
+                pass
+
+        # Read metrics.json for stats
+        metrics_json = run_dir / "metrics.json"
+        if metrics_json.exists():
+            try:
+                with metrics_json.open() as f:
+                    metrics = json.load(f)
+                run_info["doc_count"] = metrics.get("doc_count", 0)
+                run_info["failed_count"] = metrics.get("failed_count", 0)
+                run_info["duration_ms"] = metrics.get("duration_ms", 0)
+            except Exception:
+                pass
+
+        # Check available exports
+        run_info["has_docs_export"] = (run_dir / "docs.xlsx").exists() or (run_dir / "docs.csv").exists()
+        run_info["has_entities_export"] = (run_dir / "entities.xlsx").exists() or (run_dir / "entities.csv").exists()
+
+        runs.append(run_info)
+    return {"runs": runs, "total": len(runs)}
+
 @app.get("/idpo/runs/{run_id}/docs.xlsx")
 def download_docs(run_id: str):
     try:

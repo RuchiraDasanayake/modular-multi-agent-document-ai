@@ -9,6 +9,7 @@ import type {
   GuardrailValidateRequest,
   GuardrailValidateResponse,
   GuardrailStats,
+  IDPORun,
 } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -156,6 +157,9 @@ export const api = {
     request<unknown[]>(`/api/guardrails/history?limit=${limit}`),
 
   // ── IDPO ──
+
+  getIDPORuns: () =>
+    request<{ runs: IDPORun[]; total: number }>("/api/idpo/runs"),
 
   runIDPO: async (files: File[], fields: { name: string; description: string }[], configPath: string, options?: { enableGuardrails?: boolean; enableXAI?: boolean; enableAHMN?: boolean }) => {
     const token = getToken();

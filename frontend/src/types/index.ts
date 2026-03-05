@@ -4,6 +4,19 @@ export interface User {
   username: string;
   role: "admin" | "viewer";
   is_active: boolean;
+  created_at?: string;
+}
+
+export interface IDPORun {
+  run_id: string;
+  status: string;
+  started_at?: string;
+  config_path?: string;
+  doc_count?: number;
+  failed_count?: number;
+  duration_ms?: number;
+  has_docs_export?: boolean;
+  has_entities_export?: boolean;
 }
 
 export interface Stats {

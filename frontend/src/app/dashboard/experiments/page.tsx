@@ -12,10 +12,11 @@ interface ResultEntry {
     method: string;
     scenario: string;
     seed: number;
-    cumulative_regret: number;
+    total_regret: number;
     convergence_round: number | null;
     final_avg_reward: number;
     policy_accuracy: number;
+    n_rounds?: number;
 }
 
 interface ExperimentData {
@@ -26,9 +27,9 @@ interface ExperimentData {
         total_time_seconds: number;
     };
     main_results: ResultEntry[];
-    ablation_rabi_temperature?: Record<string, { mean_regret: number; std_regret: number; mean_f1: number }>;
-    ablation_daaf_window?: Record<string, { mean_regret: number; std_regret: number; mean_f1: number }>;
-    ablation_similarity_threshold?: Record<string, { mean_regret: number; std_regret: number; mean_f1: number }>;
+    ablation_rabi_temperature?: Record<string, { regret_mean: number; regret_std: number; reward_mean: number; reward_std?: number; convergence_mean?: number; accuracy_mean?: number }>;
+    ablation_daaf_window?: Record<string, { regret_mean: number; regret_std: number; reward_mean: number; reward_std?: number; accuracy_mean?: number }>;
+    ablation_similarity_threshold?: Record<string, { regret_mean: number; regret_std: number; reward_mean: number; reward_std?: number; accuracy_mean?: number }>;
 }
 
 interface ComparisonResult {
@@ -97,7 +98,7 @@ function aggregateResults(results: ResultEntry[]) {
 
     return Object.entries(groups).map(([key, entries]) => {
         const [method, scenario] = key.split("|");
-        const regrets = entries.map(e => e.cumulative_regret);
+        const regrets = entries.map(e => e.total_regret);
         const rewards = entries.map(e => e.final_avg_reward);
         const accuracies = entries.map(e => e.policy_accuracy);
         return {
@@ -153,7 +154,7 @@ export default function ExperimentsPage() {
     const filtered = selectedScenario === "all" ? aggregated : aggregated.filter(a => a.scenario === selectedScenario);
 
     const methodSummary = data
-        ? data.experiment_config.methods.map(method => {
+        ? (data.experiment_config?.methods ?? []).map(method => {
             const entries = (selectedScenario === "all" ? aggregated : filtered).filter(a => a.method === method);
             return {
                 method,
@@ -165,7 +166,7 @@ export default function ExperimentsPage() {
         : [];
 
     const radarData = data
-        ? data.experiment_config.scenarios.map(sc => {
+        ? (data.experiment_config?.scenarios ?? []).map(sc => {
             const row: Record<string, string | number> = { scenario: SCENARIO_LABELS[sc] || sc };
             for (const m of ["TS (base)", "AHMN-RABI", "AHMN-DAAF", "AHMN-Full"]) {
                 const entry = aggregated.find(a => a.method === m && a.scenario === sc);
@@ -222,11 +223,11 @@ export default function ExperimentsPage() {
                         <div className="glass-panel rounded-xl p-4 text-center">
                             <p className="text-xs text-slate-500 dark:text-gray-500 uppercase tracking-wider font-semibold">Total Runs</p>
                             <p className="text-3xl font-black text-slate-900 dark:text-white mt-1">{data.main_results.length}</p>
-                            <p className="text-[10px] text-slate-400 dark:text-gray-600 mt-0.5">{data.experiment_config.n_seeds} seeds each</p>
+                            <p className="text-[10px] text-slate-400 dark:text-gray-600 mt-0.5">{data.experiment_config?.n_seeds ?? '—'} seeds each</p>
                         </div>
                         <div className="glass-panel rounded-xl p-4 text-center">
                             <p className="text-xs text-slate-500 dark:text-gray-500 uppercase tracking-wider font-semibold">Methods</p>
-                            <p className="text-3xl font-black text-slate-900 dark:text-white mt-1">{data.experiment_config.methods.length}</p>
+                            <p className="text-3xl font-black text-slate-900 dark:text-white mt-1">{data.experiment_config?.methods?.length ?? 0}</p>
                             <p className="text-[10px] text-slate-400 dark:text-gray-600 mt-0.5">Bandit strategies</p>
                         </div>
                         <div className="glass-panel rounded-xl p-4 text-center">
@@ -236,14 +237,14 @@ export default function ExperimentsPage() {
                         </div>
                         <div className="glass-panel rounded-xl p-4 text-center">
                             <p className="text-xs text-slate-500 dark:text-gray-500 uppercase tracking-wider font-semibold">Compute Time</p>
-                            <p className="text-3xl font-black text-slate-900 dark:text-white mt-1">{data.experiment_config.total_time_seconds.toFixed(0)}<span className="text-sm">s</span></p>
+                            <p className="text-3xl font-black text-slate-900 dark:text-white mt-1">{(data.experiment_config?.total_time_seconds ?? 0).toFixed(0)}<span className="text-sm">s</span></p>
                             <p className="text-[10px] text-slate-400 dark:text-gray-600 mt-0.5">Full suite</p>
                         </div>
                     </div>
 
                     {/* Scenario Filter */}
                     <div className="flex flex-wrap gap-2">
-                        {["all", ...data.experiment_config.scenarios].map(sc => (
+                        {["all", ...(data.experiment_config?.scenarios ?? [])].map(sc => (
                             <button
                                 key={sc}
                                 onClick={() => setSelectedScenario(sc)}
@@ -299,7 +300,7 @@ export default function ExperimentsPage() {
                         {/* Detailed Results Table */}
                         <div className="glass-panel rounded-2xl p-6 overflow-hidden">
                             <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Detailed Results</h2>
-                            <p className="text-xs text-slate-500 dark:text-gray-500 mb-4">Per method-scenario averages over {data.experiment_config.n_seeds} seeds</p>
+                            <p className="text-xs text-slate-500 dark:text-gray-500 mb-4">Per method-scenario averages over {data.experiment_config?.n_seeds ?? 30} seeds</p>
                             <div className="overflow-auto max-h-[320px]">
                                 <table className="min-w-full text-xs">
                                     <thead className="bg-slate-50 dark:bg-gray-900/50 sticky top-0">
@@ -352,8 +353,8 @@ export default function ExperimentsPage() {
                                                 <div key={k} className="flex items-center justify-between text-xs">
                                                     <span className="text-slate-500 dark:text-gray-400">w={k}</span>
                                                     <div className="flex items-center gap-3">
-                                                        <span className="font-mono text-slate-700 dark:text-gray-300">{v.mean_regret.toFixed(1)}±{v.std_regret.toFixed(1)}</span>
-                                                        <Badge color={v.mean_f1 >= 0.9 ? "green" : "amber"}>F1: {v.mean_f1.toFixed(3)}</Badge>
+                                                        <span className="font-mono text-slate-700 dark:text-gray-300">{v.regret_mean.toFixed(1)}±{v.regret_std.toFixed(1)}</span>
+                                                        <Badge color={(v.accuracy_mean ?? 0) >= 0.75 ? "green" : "amber"}>Acc: {((v.accuracy_mean ?? 0) * 100).toFixed(1)}%</Badge>
                                                     </div>
                                                 </div>
                                             ))}
@@ -368,8 +369,8 @@ export default function ExperimentsPage() {
                                                 <div key={k} className="flex items-center justify-between text-xs">
                                                     <span className="text-slate-500 dark:text-gray-400">τ={k}</span>
                                                     <div className="flex items-center gap-3">
-                                                        <span className="font-mono text-slate-700 dark:text-gray-300">{v.mean_regret.toFixed(1)}±{v.std_regret.toFixed(1)}</span>
-                                                        <Badge color={v.mean_f1 >= 0.9 ? "green" : "amber"}>F1: {v.mean_f1.toFixed(3)}</Badge>
+                                                        <span className="font-mono text-slate-700 dark:text-gray-300">{v.regret_mean.toFixed(1)}±{v.regret_std.toFixed(1)}</span>
+                                                        <Badge color={v.reward_mean >= 0.854 ? "green" : "amber"}>R̄: {v.reward_mean.toFixed(3)}</Badge>
                                                     </div>
                                                 </div>
                                             ))}
@@ -384,8 +385,8 @@ export default function ExperimentsPage() {
                                                 <div key={k} className="flex items-center justify-between text-xs">
                                                     <span className="text-slate-500 dark:text-gray-400">θ={k}</span>
                                                     <div className="flex items-center gap-3">
-                                                        <span className="font-mono text-slate-700 dark:text-gray-300">{v.mean_regret.toFixed(1)}±{v.std_regret.toFixed(1)}</span>
-                                                        <Badge color={v.mean_f1 >= 0.85 ? "green" : "amber"}>F1: {v.mean_f1.toFixed(3)}</Badge>
+                                                        <span className="font-mono text-slate-700 dark:text-gray-300">{v.regret_mean.toFixed(1)}±{v.regret_std.toFixed(1)}</span>
+                                                        <Badge color={v.reward_mean >= 0.855 ? "green" : "amber"}>R̄: {v.reward_mean.toFixed(3)}</Badge>
                                                     </div>
                                                 </div>
                                             ))}

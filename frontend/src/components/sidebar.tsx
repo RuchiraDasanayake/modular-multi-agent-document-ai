@@ -27,6 +27,7 @@ import {
     Crown,
     Zap,
     X,
+    History,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -42,6 +43,7 @@ interface NavItem {
 
 const USER_NAV: NavItem[] = [
     { href: "/dashboard/idpo", label: "Doc Extraction", Icon: FileText, badge: "Core", color: "brand" },
+    { href: "/dashboard/history", label: "Processing History", Icon: History, color: "cyan" },
     { href: "/dashboard/xai", label: "AI Q&A", Icon: MessageSquare, color: "violet" },
     { href: "/dashboard/guardrails", label: "Quality Checks", Icon: ShieldCheck, color: "emerald" },
     { href: "/dashboard/hitl", label: "Expert Review", Icon: UserCheck, color: "amber" },
