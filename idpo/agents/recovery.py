@@ -1,14 +1,14 @@
+"""Error recovery agent for re-extracting failed or low-confidence fields."""
+
 from __future__ import annotations
 
 import re
 import time
-from typing import Dict, List, Optional
 
 from idpo.agents.base import Agent, AgentContext
 from idpo.agents.preprocess import mock_ocr
 from idpo.core.contracts import AgentMessage
 from idpo.core.types import AgentResult, Document, Entity, StageSignal, ValidationIssue
-
 
 class RecoveryAgent(Agent):
     name = "recovery"
@@ -23,8 +23,8 @@ class RecoveryAgent(Agent):
     ) -> AgentResult:
         started = time.time()
         doc: Document = payload["document"]
-        entities: List[Entity] = payload.get("entities", [])
-        issues: List[ValidationIssue] = payload.get("issues", [])
+        entities: list[Entity] = payload.get("entities", [])
+        issues: list[ValidationIssue] = payload.get("issues", [])
         strategy = payload.get("strategy") or "regex"
 
         raw_text = "\n".join((page.raw_text or page.text) for page in doc.pages)
@@ -32,7 +32,7 @@ class RecoveryAgent(Agent):
         if strategy == "alternate_ocr":
             alternate_text = mock_ocr(raw_text, passes=2)
         updated_entities = {entity.key: entity for entity in entities}
-        recovered_fields: Dict[str, str] = {}
+        recovered_fields: dict[str, str] = {}
 
         for issue in issues:
             pattern = self._pattern_for_field(issue.field, strategy)
@@ -43,7 +43,7 @@ class RecoveryAgent(Agent):
             updated_entities[issue.field] = Entity(
                 key=issue.field,
                 value=value,
-                confidence=0.6,
+                confidence=ctx.config.preprocessing.recovery_confidence,
                 metadata={"recovered": True, "pattern": pattern, "strategy": strategy},
             )
             recovered_fields[issue.field] = value
@@ -80,8 +80,10 @@ class RecoveryAgent(Agent):
             }
         )
 
-    def _pattern_for_field(self, field: str, strategy: Optional[str]) -> str:
-        label = field.replace("_", " ")
+    def _pattern_for_field(self, field: str, strategy: str | None) -> str:
+        label = field.replace("_", r"[\\s_]")
         if strategy == "alternate_rules":
-            return rf"{re.escape(label)}\s*[:=\-]\s*(.+)"
-        return rf"{re.escape(label)}[:\s]+(.+)"
+            # More restrictive: capture only up to the next line break or common delimiter
+            return rf"(?i){label}\s*[:=\-]\s*([^\n;|]+?)(?:\s*[\n;|]|$)"
+        # Default: capture value after the label, stop at line break or common separators
+        return rf"(?i){label}[:\s]+([^\n;|]+?)(?:\s*[\n;|]|$)"

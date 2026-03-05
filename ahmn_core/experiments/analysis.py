@@ -17,7 +17,7 @@ import json
 import os
 import sys
 import numpy as np
-from typing import Dict, List, Optional, Tuple
+
 from collections import defaultdict
 
 # scipy for statistical tests
@@ -27,8 +27,7 @@ try:
 except ImportError:
     HAS_SCIPY = False
 
-
-def load_results(path: Optional[str] = None) -> Dict:
+def load_results(path: str | None = None) -> dict:
     """Load experiment results from JSON."""
     if path is None:
         path = os.path.join(
@@ -42,16 +41,14 @@ def load_results(path: Optional[str] = None) -> Dict:
     with open(path) as f:
         return json.load(f)
 
-
-def group_results(results: List[Dict]) -> Dict[str, Dict[str, List[Dict]]]:
+def group_results(results: list[dict]) -> dict[str, dict[str, list[dict]]]:
     """Group results by scenario → method → [seed results]."""
     grouped = defaultdict(lambda: defaultdict(list))
     for r in results:
         grouped[r["scenario"]][r["method"]].append(r)
     return dict(grouped)
 
-
-def print_main_comparison_table(results: List[Dict]):
+def print_main_comparison_table(results: list[dict]):
     """
     Print the main comparison table suitable for a research paper.
     
@@ -96,8 +93,7 @@ def print_main_comparison_table(results: List[Dict]):
             marker = " "
             print(f"  {method:<16s} {reg_str:>14s}  {rew_str:>14s}  {acc_str:>10s}  {conv_str:>12s}{marker}")
 
-
-def print_statistical_tests(results: List[Dict]):
+def print_statistical_tests(results: list[dict]):
     """
     Pairwise Mann-Whitney U tests: AHMN-Full vs. each baseline.
     
@@ -135,8 +131,7 @@ def print_statistical_tests(results: List[Dict]):
             
             print(f"  {scenario_name:<16s} {baseline:<16s} {U:>12.1f}  {p:>10.4f}  {sig:>12s}")
 
-
-def print_ablation_summary(data: Dict, ablation_key: str, param_name: str):
+def print_ablation_summary(data: dict, ablation_key: str, param_name: str):
     """Print ablation study results."""
     if ablation_key not in data:
         return
@@ -151,8 +146,7 @@ def print_ablation_summary(data: Dict, ablation_key: str, param_name: str):
         rew_str = f"{metrics['reward_mean']:.4f} ± {metrics['reward_std']:.4f}"
         print(f"  {param_val:<12s} {reg_str:>20s}  {rew_str:>20s}")
 
-
-def print_latex_table(results: List[Dict]):
+def print_latex_table(results: list[dict]):
     """Generate a LaTeX-ready table for the paper."""
     grouped = group_results(results)
     
@@ -190,8 +184,7 @@ def print_latex_table(results: List[Dict]):
     print(r"\end{tabular}")
     print(r"\end{table}")
 
-
-def print_improvement_summary(results: List[Dict]):
+def print_improvement_summary(results: list[dict]):
     """Print percentage improvements of AHMN-Full over baselines."""
     grouped = group_results(results)
     
@@ -216,7 +209,6 @@ def print_improvement_summary(results: List[Dict]):
                 improvement = ((base_mean - ahmn_mean) / base_mean) * 100
                 print(f"    vs {baseline:<12s}: {improvement:+.1f}% regret reduction "
                       f"({base_mean:.1f} → {ahmn_mean:.1f})")
-
 
 def main():
     # Try loading from output directory  
@@ -263,7 +255,6 @@ def main():
     print_latex_table(results)
     
     print("\n✓ Analysis complete.")
-
 
 if __name__ == "__main__":
     main()

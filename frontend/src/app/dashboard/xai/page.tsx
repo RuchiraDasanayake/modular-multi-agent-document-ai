@@ -3,18 +3,63 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/toast";
 import type { ChatMessage, XAIExplanation } from "@/types";
 
-// Default demo paragraph
+// Default demo paragraph (used when no documents have been extracted)
 const DEFAULT_PARAGRAPH = `Finance is fundamentally the study of resource allocation over time, balancing the promise of future returns against the inherent presence of risk. At its core, it functions as the circulatory system of the global economy, moving capital from those who have an excess of it (savers and investors) to those who can deploy it productively (borrowers and entrepreneurs). This exchange is mediated by various instruments—such as stocks, bonds, and derivatives—and governed by the principle of the time value of money, which asserts that a dollar held today is worth more than a dollar received tomorrow due to its potential earning capacity.`;
 
+interface ExtractedDoc {
+    id: string;
+    filename: string;
+    text: string;
+}
+
 export default function XAIPage() {
+    const { addToast } = useToast();
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [showParagraph, setShowParagraph] = useState(false);
     const [currentExplanation, setCurrentExplanation] = useState<XAIExplanation | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Document context management
+    const [extractedDocs, setExtractedDocs] = useState<ExtractedDoc[]>([]);
+    const [selectedDocId, setSelectedDocId] = useState<string>("default");
+    const [customText, setCustomText] = useState("");
+    const [showDocSelector, setShowDocSelector] = useState(false);
+
+    // Load extracted documents from sessionStorage (saved by IDPO page after processing)
+    useEffect(() => {
+        try {
+            const stored = sessionStorage.getItem("idpo_extracted_docs");
+            if (stored) {
+                const docs: ExtractedDoc[] = JSON.parse(stored);
+                if (docs.length > 0) {
+                    setExtractedDocs(docs);
+                    setSelectedDocId(docs[0].id);
+                }
+            }
+        } catch {
+            // Silently fail — will use default paragraph
+        }
+    }, []);
+
+    // Get the active paragraph text based on selection
+    const getActiveParagraph = (): string => {
+        if (selectedDocId === "custom") return customText;
+        if (selectedDocId === "default") return DEFAULT_PARAGRAPH;
+        const doc = extractedDocs.find(d => d.id === selectedDocId);
+        return doc?.text || DEFAULT_PARAGRAPH;
+    };
+
+    const getActiveLabel = (): string => {
+        if (selectedDocId === "custom") return "Custom Text";
+        if (selectedDocId === "default") return "Demo: Finance Paragraph";
+        const doc = extractedDocs.find(d => d.id === selectedDocId);
+        return doc?.filename || "Document";
+    };
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -40,7 +85,8 @@ export default function XAIPage() {
         setIsLoading(true);
 
         try {
-            const response = await api.askQuestion(DEFAULT_PARAGRAPH, userMessage.content);
+            const activeParagraph = getActiveParagraph();
+            const response = await api.askQuestion(activeParagraph, userMessage.content);
 
             const botMessage: ChatMessage = {
                 id: (Date.now() + 1).toString(),
@@ -52,11 +98,12 @@ export default function XAIPage() {
 
             setMessages((prev) => [...prev, botMessage]);
             setCurrentExplanation(response.explanation);
+            addToast({ type: "success", title: "Answer received", message: `Confidence: ${(response.confidence * 100).toFixed(0)}%` });
 
             // Store in sessionStorage for the explanation page
             sessionStorage.setItem("xai_explanation", JSON.stringify(response.explanation));
             sessionStorage.setItem("xai_question", userMessage.content);
-            sessionStorage.setItem("xai_paragraph", DEFAULT_PARAGRAPH);
+            sessionStorage.setItem("xai_paragraph", activeParagraph);
         } catch {
             // Demo mode: simulate response when API is unavailable
             const demoAnswer = simulateDemoResponse(userMessage.content);
@@ -71,7 +118,7 @@ export default function XAIPage() {
             setCurrentExplanation(demoAnswer.explanation);
             sessionStorage.setItem("xai_explanation", JSON.stringify(demoAnswer.explanation));
             sessionStorage.setItem("xai_question", userMessage.content);
-            sessionStorage.setItem("xai_paragraph", DEFAULT_PARAGRAPH);
+            sessionStorage.setItem("xai_paragraph", getActiveParagraph());
         } finally {
             setIsLoading(false);
         }
@@ -80,24 +127,103 @@ export default function XAIPage() {
     return (
         <div className="max-w-4xl mx-auto">
             {/* Header */}
-            <div className="glass-panel rounded-xl p-6 mb-6">
-                <div className="flex items-center justify-between">
+            <div className="relative overflow-hidden glass-panel rounded-2xl p-6 mb-6">
+                <div className="absolute inset-0 bg-gradient-to-r from-violet-500/5 to-purple-500/5 dark:from-violet-500/[0.03] dark:to-purple-500/[0.03]" />
+                <div className="relative flex items-center justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-                            <span className="text-3xl drop-shadow-sm">🧠</span>
+                        <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-400 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+                                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
                             XAI Q&A System
                         </h1>
-                        <p className="text-slate-500 dark:text-gray-400 mt-1">
-                            Ask questions about finance and see explainable AI analysis
+                        <p className="text-slate-500 dark:text-gray-400 mt-1.5 text-sm">
+                            Ask questions about your documents and see explainable AI analysis
                         </p>
                     </div>
                     <Link
                         href="/dashboard/hitl"
-                        className="px-4 py-2 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-500/20 transition-all duration-150 text-sm font-medium shadow-sm shadow-brand-500/5"
+                        className="px-4 py-2.5 bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 text-amber-700 dark:text-amber-300 rounded-xl hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-all duration-200 text-sm font-semibold shadow-sm"
                     >
                         👤 Expert Review
                     </Link>
                 </div>
+            </div>
+
+            {/* Document Context Selector */}
+            <div className="mb-4 space-y-3">
+                <button
+                    onClick={() => setShowDocSelector(!showDocSelector)}
+                    className="w-full px-4 py-3 glass-panel rounded-lg text-left hover:bg-white/80 dark:hover:bg-gray-800/60 transition-all duration-150"
+                >
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm">📄</span>
+                            <span className="text-slate-700 dark:text-gray-300 text-sm font-medium">
+                                Context: {getActiveLabel()}
+                            </span>
+                            {extractedDocs.length > 0 && selectedDocId !== "default" && (
+                                <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded-full text-[10px] font-medium">
+                                    Connected
+                                </span>
+                            )}
+                        </div>
+                        <span className="text-slate-400 dark:text-gray-500 transition-transform duration-150" style={{ transform: showDocSelector ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+                    </div>
+                </button>
+
+                {showDocSelector && (
+                    <div className="glass-panel rounded-lg p-4 space-y-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Select Document Context</p>
+                        <div className="space-y-1.5">
+                            <button
+                                onClick={() => setSelectedDocId("default")}
+                                className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-medium transition-all border ${selectedDocId === "default"
+                                    ? "bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300"
+                                    : "border-transparent text-slate-600 dark:text-gray-400 hover:bg-slate-50 dark:hover:bg-gray-800"}`}
+                            >
+                                📝 Demo: Finance Paragraph
+                            </button>
+                            {extractedDocs.map(doc => (
+                                <button
+                                    key={doc.id}
+                                    onClick={() => setSelectedDocId(doc.id)}
+                                    className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-medium transition-all border ${selectedDocId === doc.id
+                                        ? "bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300"
+                                        : "border-transparent text-slate-600 dark:text-gray-400 hover:bg-slate-50 dark:hover:bg-gray-800"}`}
+                                >
+                                    📄 {doc.filename} <span className="text-slate-400 dark:text-gray-500 ml-1">({(doc.text.length / 1000).toFixed(1)}k chars)</span>
+                                </button>
+                            ))}
+                            <button
+                                onClick={() => setSelectedDocId("custom")}
+                                className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-medium transition-all border ${selectedDocId === "custom"
+                                    ? "bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300"
+                                    : "border-transparent text-slate-600 dark:text-gray-400 hover:bg-slate-50 dark:hover:bg-gray-800"}`}
+                            >
+                                ✏️ Custom Text
+                            </button>
+                        </div>
+                        {selectedDocId === "custom" && (
+                            <textarea
+                                value={customText}
+                                onChange={(e) => setCustomText(e.target.value)}
+                                placeholder="Paste your own text here to ask questions about it..."
+                                rows={5}
+                                className="w-full glass-input px-3 py-2 text-xs rounded-lg resize-none"
+                            />
+                        )}
+                        {extractedDocs.length === 0 && (
+                            <div className="p-3 bg-amber-50/50 dark:bg-amber-500/5 rounded-lg border border-amber-200 dark:border-amber-500/10">
+                                <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                                    💡 Tip: Process documents in the <Link href="/dashboard/idpo" className="underline font-medium">Document Extraction</Link> page first to ask questions about your own documents.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Context Paragraph Toggle */}
@@ -106,28 +232,30 @@ export default function XAIPage() {
                 className="w-full mb-4 px-4 py-3 glass-panel rounded-lg text-left hover:bg-white/80 dark:hover:bg-gray-800/60 transition-all duration-150"
             >
                 <div className="flex items-center justify-between">
-                    <span className="text-slate-700 dark:text-gray-300 text-sm font-medium">View Context Paragraph</span>
+                    <span className="text-slate-700 dark:text-gray-300 text-sm font-medium">View Context Text</span>
                     <span className="text-slate-400 dark:text-gray-500 transition-transform duration-150" style={{ transform: showParagraph ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
                 </div>
             </button>
 
             {showParagraph && (
-                <div className="mb-6 p-5 glass-panel rounded-lg border-l-4 border-l-brand-500">
-                    <p className="text-slate-700 dark:text-gray-300 leading-relaxed text-sm">{DEFAULT_PARAGRAPH}</p>
+                <div className="mb-6 p-5 glass-panel rounded-lg border-l-4 border-l-brand-500 max-h-[300px] overflow-y-auto">
+                    <p className="text-slate-700 dark:text-gray-300 leading-relaxed text-sm whitespace-pre-wrap">{getActiveParagraph()}</p>
                 </div>
             )}
 
             {/* Chat Container */}
-            <div className="glass-panel rounded-xl overflow-hidden flex flex-col h-[600px]">
+            <div className="glass-panel rounded-2xl overflow-hidden flex flex-col h-[600px]">
                 {/* Messages Area */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
                     {messages.length === 0 ? (
                         <div className="h-full flex items-center justify-center">
                             <div className="text-center text-slate-400">
-                                <span className="text-5xl mb-4 block drop-shadow-sm">💬</span>
-                                <p className="text-lg font-medium text-slate-600 dark:text-gray-300">Ask a question about the finance paragraph</p>
+                                <div className="w-16 h-16 mx-auto rounded-2xl bg-violet-50 dark:bg-violet-500/10 border border-violet-200/60 dark:border-violet-500/20 flex items-center justify-center mb-4">
+                                    <span className="text-3xl">💬</span>
+                                </div>
+                                <p className="text-lg font-bold text-slate-600 dark:text-gray-300">Ask a question about your document</p>
                                 <p className="text-sm mt-2 text-slate-500 dark:text-gray-500">
-                                    Try: &ldquo;What is the time value of money?&rdquo;
+                                    Select a document context above, then ask any question
                                 </p>
                             </div>
                         </div>
@@ -215,8 +343,8 @@ export default function XAIPage() {
             )}
 
             {/* Footer */}
-            <div className="mt-8 text-center text-gray-500 text-sm">
-                Finance Q&A with Explainable AI | AI-Powered Analysis
+            <div className="mt-8 text-center text-slate-400 dark:text-gray-600 text-xs font-medium tracking-wider uppercase">
+                Document Q&A with Explainable AI
             </div>
         </div>
     );

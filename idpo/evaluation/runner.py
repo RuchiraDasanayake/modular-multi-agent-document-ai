@@ -1,9 +1,11 @@
+"""Evaluation runner for computing document and retrieval quality metrics."""
+
 from __future__ import annotations
 
 import json
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from idpo.agents.answering import AnsweringAgent
 from idpo.agents.retrieval_agent import RetrievalAgent
@@ -11,18 +13,17 @@ from idpo.core.metrics import cer, f1_for_sets, ndcg, wer
 from idpo.core.types import Document
 from idpo.pipeline.orchestrator import Pipeline, PipelineResult
 
-
-def evaluate_documents(docs: List[Document], pipeline: Pipeline, run_dir: str) -> Dict[str, Any]:
+def evaluate_documents(docs: list[Document], pipeline: Pipeline, run_dir: str) -> dict[str, Any]:
     started = time.time()
     results = pipeline.process_documents(docs)
     bundle = pipeline.build_index(results, directory=f"{run_dir}/index")
 
-    doc_metrics: List[Dict[str, Any]] = []
-    query_metrics: List[Dict[str, Any]] = []
-    retrieval_ranks: List[int] = []
-    ndcg_scores: List[float] = []
-    grounded_scores: List[bool] = []
-    citation_scores: List[bool] = []
+    doc_metrics: list[dict[str, Any]] = []
+    query_metrics: list[dict[str, Any]] = []
+    retrieval_ranks: list[int] = []
+    ndcg_scores: list[float] = []
+    grounded_scores: list[bool] = []
+    citation_scores: list[bool] = []
 
     retrieval_agent = RetrievalAgent()
     answering_agent = AnsweringAgent()
@@ -143,8 +144,7 @@ def evaluate_documents(docs: List[Document], pipeline: Pipeline, run_dir: str) -
         "error_propagation": _error_propagation_report(results, docs),
     }
 
-
-def _ranks_for_expected(results, expected_doc: str, expected_section: str | None) -> List[int]:
+def _ranks_for_expected(results, expected_doc: str, expected_section: str | None) -> list[int]:
     ranks = []
     for item in results:
         if item.chunk.doc_id != expected_doc:
@@ -153,7 +153,6 @@ def _ranks_for_expected(results, expected_doc: str, expected_section: str | None
             continue
         ranks.append(item.rank)
     return ranks
-
 
 def _sum_cost_units(path: Path) -> float:
     if not path.exists():
@@ -167,8 +166,7 @@ def _sum_cost_units(path: Path) -> float:
             total += float(payload.get("cost_units", 0.0))
     return total
 
-
-def _error_propagation_report(results: List[PipelineResult], docs: List[Document]) -> List[Dict[str, Any]]:
+def _error_propagation_report(results: list[PipelineResult], docs: list[Document]) -> list[dict[str, Any]]:
     report = []
     for doc, result in zip(docs, results):
         signal_map = {}
@@ -195,8 +193,7 @@ def _error_propagation_report(results: List[PipelineResult], docs: List[Document
         )
     return report
 
-
-def _chunk_boundary_f1(result: PipelineResult, ground: Dict[str, Any]) -> float | None:
+def _chunk_boundary_f1(result: PipelineResult, ground: dict[str, Any]) -> float | None:
     boundaries = ground.get("chunk_boundaries")
     if not boundaries:
         return None

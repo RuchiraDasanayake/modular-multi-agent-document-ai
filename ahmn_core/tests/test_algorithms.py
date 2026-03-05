@@ -59,7 +59,6 @@ class TestThompsonSampling:
         with pytest.raises(ValueError):
             get_strategy("nonexistent")
 
-
 # ── RABI (Cold-Start Transfer) ────────────────────────────────────
 
 class TestRABI:
@@ -113,7 +112,6 @@ class TestRABI:
         prior = rabi.initialize_prior(extreme)
         total = abs(prior.alpha - 1.0) + abs(prior.beta - 1.0)
         assert total <= 5.01  # Capped
-
 
 # ── DAAF (Drift Detection & Adaptive Forgetting) ─────────────────
 

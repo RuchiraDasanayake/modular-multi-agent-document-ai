@@ -16,27 +16,30 @@ export default function ExperimentsPage() {
         improvement_pct: number;
     } | null>(null);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
     const [driftMag, setDriftMag] = useState(0.2);
     const [seeds, setSeeds] = useState(10);
 
     const loadResults = async () => {
         setLoading(true);
+        setError("");
         try {
             const res = await api.getResults();
             setData(res);
-        } catch {
-            /* empty */
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to load results");
         }
         setLoading(false);
     };
 
     const runComparison = async () => {
         setLoading(true);
+        setError("");
         try {
             const res = (await api.runComparison({ drift_magnitude: driftMag, seeds })) as typeof comparison;
             setComparison(res);
-        } catch {
-            /* empty */
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to run comparison");
         }
         setLoading(false);
     };
@@ -58,6 +61,11 @@ export default function ExperimentsPage() {
             </div>
 
             {/* Pre-computed results */}
+            {error && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 text-sm text-red-700 dark:text-red-400">
+                    {error}
+                </div>
+            )}
             <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-6">
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Pre-Computed Results (30 seeds × 7 methods × 4 scenarios)</h2>

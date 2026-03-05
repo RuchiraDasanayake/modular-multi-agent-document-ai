@@ -11,7 +11,6 @@ from .config import settings
 
 logger = logging.getLogger(__name__)
 
-
 class DatabasePool:
     _pool: AsyncConnectionPool | None = None
 
@@ -34,7 +33,6 @@ class DatabasePool:
             await cls._pool.close()
             cls._pool = None
             logger.info("Gateway database pool closed")
-
 
 async def get_db_connection() -> AsyncGenerator:
     pool = await DatabasePool.get_pool()

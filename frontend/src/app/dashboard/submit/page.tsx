@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getToken } from "@/lib/auth";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { api } from "@/lib/api";
 
 type AdviceResponse = {
     advice_id: string;
@@ -23,33 +21,6 @@ type LogRequest = {
         success: boolean;
     };
 };
-
-async function apiRequest<T>(
-    method: string,
-    path: string,
-    body?: unknown
-): Promise<T> {
-    const token = getToken();
-    const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-    };
-    if (token) headers.Authorization = `Bearer ${token}`;
-
-    const fetchOptions: RequestInit = {
-        method,
-        headers,
-    };
-    if (body) fetchOptions.body = JSON.stringify(body);
-
-    const response = await fetch(`${API_BASE}${path}`, fetchOptions);
-
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: response.statusText }));
-        throw new Error(error.detail || `API Error ${response.status}`);
-    }
-
-    return response.json();
-}
 
 export default function SubmitDataPage() {
     // Step 1: Get Advice
@@ -75,9 +46,12 @@ export default function SubmitDataPage() {
         setAdviceError("");
 
         try {
-            const data = await apiRequest<AdviceResponse>("POST", "/api/advice", {
-                doc_type: docType,
-                vendor: vendor || "unknown",
+            const data = await api.request<AdviceResponse>("/api/advice", {
+                method: "POST",
+                body: JSON.stringify({
+                    doc_type: docType,
+                    vendor: vendor || "unknown",
+                }),
             });
             setAdvice(data);
             setLogSuccess(false);
@@ -100,15 +74,18 @@ export default function SubmitDataPage() {
         setLogSuccess(false);
 
         try {
-            await apiRequest("POST", "/api/advice/log", {
-                advice_id: advice.advice_id,
-                policy_id_used: advice.policy_id,
-                metrics: {
-                    f1_score: parseFloat(f1Score.toString()),
-                    cost: parseFloat(cost.toString()),
-                    processing_time_ms: parseInt(processingTime.toString()),
-                    success: success,
-                },
+            await api.request("/api/advice/log", {
+                method: "POST",
+                body: JSON.stringify({
+                    advice_id: advice.advice_id,
+                    policy_id_used: advice.policy_id,
+                    metrics: {
+                        f1_score: parseFloat(f1Score.toString()),
+                        cost: parseFloat(cost.toString()),
+                        processing_time_ms: parseInt(processingTime.toString()),
+                        success: success,
+                    },
+                }),
             });
 
             setLogSuccess(true);
@@ -131,9 +108,12 @@ export default function SubmitDataPage() {
         if (!advice) return;
 
         try {
-            await apiRequest("POST", "/api/advice/feedback", {
-                advice_id: advice.advice_id,
-                human_corrected: humanCorrected,
+            await api.request("/api/advice/feedback", {
+                method: "POST",
+                body: JSON.stringify({
+                    advice_id: advice.advice_id,
+                    human_corrected: humanCorrected,
+                }),
             });
 
             setHumanCorrected(!humanCorrected);
@@ -331,7 +311,7 @@ export default function SubmitDataPage() {
                         <p>After processing, log the actual outcome metrics (F1 & accuracy) from your pipeline.</p>
                     </div>
                     <div>
-                        <p className="text-slate-900 dark:text-white font-medium mb-1">🧠 Step 3</p>
+                        <p className="text-slate-900 dark:text-white font-medium mb-1">📊 Step 3</p>
                         <p>System learns from outcomes via drift detection and updates its knowledge base.</p>
                     </div>
                 </div>

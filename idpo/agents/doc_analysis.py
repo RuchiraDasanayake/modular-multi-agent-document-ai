@@ -1,14 +1,14 @@
+"""Document analysis agent for quality assessment and complexity profiling."""
+
 from __future__ import annotations
 
 import re
 import statistics
 import time
-from typing import Dict, List, Tuple
 
 from idpo.agents.base import Agent, AgentContext
 from idpo.core.contracts import AgentMessage
 from idpo.core.types import AgentResult, DAEOutput, Document, StageSignal
-
 
 class DocumentAnalysisAgent(Agent):
     name = "document_analysis"
@@ -28,7 +28,17 @@ class DocumentAnalysisAgent(Agent):
         non_alpha_ratio = self._non_alpha_ratio(doc)
         table_ratio = self._table_ratio(doc)
         form_ratio = self._form_ratio(doc)
-        image_ratio = 1.0 if doc.source == "scanned" or any(page.image_path for page in doc.pages) else 0.2
+        # Only treat as image-heavy if pages lack meaningful text content
+        # PDFs set image_path for rendering but may still have extractable text
+        has_text = any((page.text or "").strip() for page in doc.pages)
+        if doc.source == "scanned" and not has_text:
+            image_ratio = 1.0
+        elif not has_text and any(page.image_path for page in doc.pages):
+            image_ratio = 0.9
+        elif has_text:
+            image_ratio = 0.2
+        else:
+            image_ratio = 0.2
 
         quality_score = max(0.0, 1.0 - non_alpha_ratio)
         complexity_score = min(1.0, (table_ratio + form_ratio + image_ratio) / 3.0)
@@ -118,8 +128,24 @@ class DocumentAnalysisAgent(Agent):
         text = "\n".join(page.text for page in doc.pages if page.text)
         if not text:
             return 0.0
-        hits = len(re.findall(r"\b\d{2,}\b|\|", text))
-        return min(hits / max(len(text), 1), 1.0)
+        lines = text.splitlines()
+        if not lines:
+            return 0.0
+        # Count lines with table-like patterns: pipe separators, tab separators, or consistent column alignment
+        table_lines = 0
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            pipe_count = stripped.count("|")
+            tab_count = stripped.count("\t")
+            if pipe_count >= 2 or tab_count >= 2:
+                table_lines += 1
+            elif re.search(r"\s{3,}", stripped) and re.search(r"\d", stripped):
+                # Lines with large whitespace gaps and numbers (column-aligned data)
+                table_lines += 1
+        non_empty = sum(1 for line in lines if line.strip())
+        return min(table_lines / max(non_empty, 1), 1.0)
 
     def _form_ratio(self, doc: Document) -> float:
         text = "\n".join(page.text for page in doc.pages if page.text)
@@ -134,11 +160,11 @@ class DocumentAnalysisAgent(Agent):
     def _profile(self, table_ratio: float, form_ratio: float, image_ratio: float, avg_len: float) -> str:
         if image_ratio > 0.6:
             return "image-heavy"
-        if table_ratio > 0.02:
+        if table_ratio > 0.15:
             return "table-heavy"
-        if form_ratio > 0.02:
+        if form_ratio > 0.25:
             return "form-centric"
-        return "text-heavy" if avg_len >= 200 else "text-heavy"
+        return "text-heavy" if avg_len >= 200 else "text-light"
 
     def _doc_type(self, doc: Document, content_profile: str) -> str:
         if doc.source == "scanned" or content_profile == "image-heavy":
@@ -177,7 +203,7 @@ class DocumentAnalysisAgent(Agent):
         table_ratio: float,
         form_ratio: float,
         image_ratio: float,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         text = "\n".join(page.text for page in doc.pages if page.text)
         total_chars = len(text)
         alpha_chars = sum(1 for ch in text if ch.isalnum())

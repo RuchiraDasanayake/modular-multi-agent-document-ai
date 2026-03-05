@@ -15,7 +15,7 @@ import hashlib
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 from fastapi import FastAPI, HTTPException, Request, Query
@@ -37,6 +37,7 @@ from .services.rabi import (
     create_rabi_for_production,
 )
 from .services.drift_forgetting import DriftEstimator, DriftType
+from .services.scheduler import AHMNScheduler
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -52,17 +53,18 @@ POSTGRES_URI = os.getenv(
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_DB = int(os.getenv("REDIS_DB", "0"))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
 
 # ─── Globals ─────────────────────────────────────────────────────────────────
 
-_pool: Optional[AsyncConnectionPool] = None
-_redis: Optional[aioredis.Redis] = None
+_pool: AsyncConnectionPool | None = None
+_redis: aioredis.Redis | None = None
 
 _embedding_service = EmbeddingService()
 _rabi = create_rabi_for_production(k=5, similarity_threshold=0.4, temperature=0.5)
 _drift_estimators: dict[str, DriftEstimator] = {}
+_scheduler: AHMNScheduler | None = None
 _RESULTS_DIR = Path(__file__).resolve().parent / "output"
-
 
 async def _register_vector(conn) -> None:  # type: ignore[override]
     """Register pgvector type on new connections (async callback)."""
@@ -73,18 +75,15 @@ async def _register_vector(conn) -> None:  # type: ignore[override]
     except Exception:
         pass
 
-
 def _db() -> AsyncConnectionPool:
     """Return the connection pool, raising if not yet initialised."""
     assert _pool is not None, "Database pool not initialised"
     return _pool
 
-
 def _rds() -> aioredis.Redis:
     """Return the Redis client, raising if not yet initialised."""
     assert _redis is not None, "Redis client not initialised"
     return _redis
-
 
 def _get_drift_estimator(key: str) -> DriftEstimator:
     if key not in _drift_estimators:
@@ -96,14 +95,12 @@ def _get_drift_estimator(key: str) -> DriftEstimator:
         )
     return _drift_estimators[key]
 
-
-def _load_json(name: str) -> Optional[dict]:
+def _load_json(name: str) -> dict | None:
     p = _RESULTS_DIR / name
     if p.exists():
         with open(p) as f:
             return json.load(f)
     return None
-
 
 def _user(request: Request) -> dict:
     """Extract user context from gateway-forwarded headers."""
@@ -112,9 +109,142 @@ def _user(request: Request) -> dict:
         "role": request.headers.get("X-User-Role", "viewer"),
     }
 
-
 # ─── Lifespan ────────────────────────────────────────────────────────────────
 
+# ── LTM Seed Data ─────────────────────────────────────────────────────────
+# These represent the system's initial knowledge about which policies work
+# for which document contexts. AHMN evolves these via Thompson Sampling.
+
+_LTM_SEEDS = [
+    {
+        "doc_type": "table_document",
+        "content_profile": "table-heavy",
+        "policy_id": "table_heavy",
+        "policy_data": {"action": "table_extraction", "origin": "seed"},
+        "alpha": 8.0,
+        "beta": 3.0,
+    },
+    {
+        "doc_type": "form_document",
+        "content_profile": "form-centric",
+        "policy_id": "forms",
+        "policy_data": {"action": "form_extraction", "origin": "seed"},
+        "alpha": 7.0,
+        "beta": 3.0,
+    },
+    {
+        "doc_type": "scanned_document",
+        "content_profile": "scanned",
+        "policy_id": "scanned_text",
+        "policy_data": {"action": "ocr_extraction", "origin": "seed"},
+        "alpha": 6.0,
+        "beta": 4.0,
+    },
+    {
+        "doc_type": "invoice",
+        "content_profile": "table-heavy",
+        "policy_id": "table_heavy",
+        "policy_data": {"action": "invoice_processing", "origin": "seed"},
+        "alpha": 9.0,
+        "beta": 2.0,
+    },
+    {
+        "doc_type": "mixed_document",
+        "content_profile": "mixed",
+        "policy_id": "mixed_content",
+        "policy_data": {"action": "mixed_processing", "origin": "seed"},
+        "alpha": 5.0,
+        "beta": 3.0,
+    },
+    {
+        "doc_type": "unknown",
+        "content_profile": "unknown",
+        "policy_id": "default",
+        "policy_data": {"action": "default_processing", "origin": "seed"},
+        "alpha": 4.0,
+        "beta": 4.0,
+    },
+    {
+        "doc_type": "receipt",
+        "content_profile": "table-heavy",
+        "policy_id": "table_heavy",
+        "policy_data": {"action": "receipt_processing", "origin": "seed"},
+        "alpha": 7.0,
+        "beta": 3.0,
+    },
+    {
+        "doc_type": "contract",
+        "content_profile": "mixed",
+        "policy_id": "mixed_content",
+        "policy_data": {"action": "contract_processing", "origin": "seed"},
+        "alpha": 6.0,
+        "beta": 3.0,
+    },
+    {
+        "doc_type": "text_document",
+        "content_profile": "text-heavy",
+        "policy_id": "scanned_text",
+        "policy_data": {"action": "text_extraction", "origin": "seed"},
+        "alpha": 5.0,
+        "beta": 4.0,
+    },
+    {
+        "doc_type": "clinical_summary",
+        "content_profile": "form-centric",
+        "policy_id": "forms",
+        "policy_data": {"action": "clinical_extraction", "origin": "seed"},
+        "alpha": 6.0,
+        "beta": 3.0,
+    },
+    {
+        "doc_type": "financial_statement",
+        "content_profile": "table-heavy",
+        "policy_id": "table_heavy",
+        "policy_data": {"action": "financial_extraction", "origin": "seed"},
+        "alpha": 7.0,
+        "beta": 4.0,
+    },
+]
+
+async def _seed_ltm_if_empty() -> None:
+    """Seed LTM with initial policy knowledge so AHMN can give informed advice from day one."""
+    async with _db().connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT COUNT(*) FROM ltm_validated_policies")
+            count = (await cur.fetchone())[0]
+            if count > 0:
+                logger.info("LTM already has %d entries — skipping seed", count)
+                return
+
+            logger.info("LTM is empty — seeding with %d initial policies", len(_LTM_SEEDS))
+            for seed in _LTM_SEEDS:
+                context_str = _embedding_service.create_context_string(
+                    seed["doc_type"], None
+                )
+                # Add content_profile to context string for better semantic differentiation
+                if seed.get("content_profile"):
+                    context_str += f". Content profile: {seed['content_profile']}"
+                vector = _embedding_service.generate_embedding(context_str)
+                context_hash = hashlib.sha256(context_str.encode()).hexdigest()
+
+                await cur.execute(
+                    """INSERT INTO ltm_validated_policies
+                       (context_hash, context_embedding, policy_id, policy_data,
+                        validation_metrics, alpha, beta, confidence_score, last_promoted_at)
+                       VALUES (%s, %s::vector, %s, %s::jsonb, %s::jsonb, %s, %s, 0.7, NOW())
+                       ON CONFLICT (context_hash) DO NOTHING""",
+                    (
+                        context_hash,
+                        vector,
+                        seed["policy_id"],
+                        json.dumps(seed["policy_data"]),
+                        json.dumps({"origin": "seed", "f1_score": 0.0}),
+                        seed["alpha"],
+                        seed["beta"],
+                    ),
+                )
+            await conn.commit()
+            logger.info("LTM seeded successfully with %d policies", len(_LTM_SEEDS))
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -133,17 +263,31 @@ async def lifespan(_app: FastAPI):
         host=REDIS_HOST,
         port=REDIS_PORT,
         db=REDIS_DB,
+        password=REDIS_PASSWORD,
         decode_responses=True,
     )
-    logger.info("AHMN service started — Postgres + Redis connected")
+
+    # Seed LTM with initial knowledge so AHMN isn't blind on first run
+    try:
+        await _seed_ltm_if_empty()
+    except Exception as exc:
+        logger.warning("LTM seeding failed (non-fatal): %s", exc)
+
+    # Start background scheduler for promotion & forgetting
+    global _scheduler
+    _scheduler = AHMNScheduler(pool=_pool, embedding_service=_embedding_service)
+    _scheduler.start()
+
+    logger.info("AHMN service started — Postgres + Redis + Scheduler connected")
     yield
 
+    if _scheduler:
+        await _scheduler.stop()
     if _pool:
         await _pool.close()
     if _redis:
         await _redis.close()
     logger.info("AHMN service stopped")
-
 
 # ─── App ─────────────────────────────────────────────────────────────────────
 
@@ -157,23 +301,52 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Internal service — restrict CORS to gateway and local dev only
+_allowed_origins = os.getenv(
+    "CORS_ORIGINS", "http://localhost:3000,http://gateway:8000"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[o.strip() for o in _allowed_origins],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "ahmn"}
+    return {"status": "healthy", "service": "ahmn"}
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# SCHEDULER ROUTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/scheduler/status")
+async def scheduler_status():
+    """Return background scheduler status — promotion & forgetting stats."""
+    if _scheduler:
+        return _scheduler.status()
+    return {"running": False, "error": "Scheduler not initialised"}
+
+@app.post("/scheduler/promote")
+async def trigger_promotion():
+    """Manually trigger a promotion cycle (MTM → LTM)."""
+    if not _scheduler:
+        raise HTTPException(503, "Scheduler not initialised")
+    promoted = await _scheduler._run_promotion()
+    return {"status": "completed", "promoted": promoted}
+
+@app.post("/scheduler/forget")
+async def trigger_forgetting():
+    """Manually trigger a DAAF forgetting cycle."""
+    if not _scheduler:
+        raise HTTPException(503, "Scheduler not initialised")
+    affected = await _scheduler._run_forgetting()
+    return {"status": "completed", "affected": affected}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ADVICE ROUTES
 # ═══════════════════════════════════════════════════════════════════════════════
-
 
 @app.post("/advice", response_model=PolicyResponse)
 async def get_advice(context: DocumentContext, request: Request):
@@ -181,6 +354,9 @@ async def get_advice(context: DocumentContext, request: Request):
     context_str = _embedding_service.create_context_string(
         context.doc_type, context.vendor
     )
+    # Include content_profile for better semantic matching
+    if context.content_profile:
+        context_str += f". Content profile: {context.content_profile}"
     vector = _embedding_service.generate_embedding(context_str)
 
     policy_id = "default_policy"
@@ -233,8 +409,14 @@ async def get_advice(context: DocumentContext, request: Request):
         if selected_row:
             policy_id = selected_row[0]
             policy_data = selected_row[1]
+            # Confidence from RABI prior + contextual similarity
+            # Higher with more evidence (alpha+beta) and better match (similarity)
+            alpha_sel, beta_sel = selected_row[2], selected_row[3]
+            evidence_strength = min(1.0, (alpha_sel + beta_sel) / 20.0)  # Saturates at 20 observations
+            similarity_score = selected_row[5]
             confidence = min(
-                0.95, prior.confidence * 0.6 + selected_row[5] * 0.4
+                0.95,
+                prior.confidence * 0.3 + similarity_score * 0.35 + evidence_strength * 0.35
             )
 
     advice_id = uuid.uuid4()
@@ -258,10 +440,17 @@ async def get_advice(context: DocumentContext, request: Request):
         n_neighbors=n_neighbors_used if rabi_used else None,
     )
 
-
 @app.post("/advice/log")
 async def log_outcome(req: LogRequest, request: Request):
-    """Log processing outcome — triggers DAAF drift detection."""
+    """
+    Log processing outcome — triggers DAAF drift detection and inline promotion.
+
+    This is THE key learning endpoint. It:
+    1. Records the outcome in MTM (mid-term memory)
+    2. Updates existing LTM entries if the policy was already known
+    3. PROMOTES new context→policy mappings to LTM if they perform well
+       (inline promotion — doesn't wait for batch job)
+    """
     redis_data_json = await _rds().get(f"advice:{req.advice_id}")
     if not redis_data_json:
         raise HTTPException(404, "Advice context expired from STM")
@@ -270,12 +459,21 @@ async def log_outcome(req: LogRequest, request: Request):
     source_hash = redis_data.get("source_hash")
     context_dict = redis_data.get("context", {})
 
+    # Build a proper context hash for the ACTUAL policy used (not what was recommended)
+    ctx_str = _embedding_service.create_context_string(
+        context_dict.get("doc_type", "unknown"),
+        context_dict.get("vendor"),
+    )
+    content_profile = context_dict.get("content_profile")
+    if content_profile:
+        ctx_str += f". Content profile: {content_profile}"
+
+    actual_policy_hash = hashlib.sha256(
+        f"{ctx_str}:{req.policy_id_used}".encode()
+    ).hexdigest()
+
     if not source_hash:
-        ctx_str = _embedding_service.create_context_string(
-            context_dict.get("doc_type", "unknown"),
-            context_dict.get("vendor"),
-        )
-        source_hash = hashlib.sha256(ctx_str.encode()).hexdigest()
+        source_hash = actual_policy_hash
 
     reward = max(0.0, min(1.0, req.metrics.f1_score))
 
@@ -287,8 +485,10 @@ async def log_outcome(req: LogRequest, request: Request):
     drift_metrics = estimator.update(reward)
     gamma = drift_metrics.optimal_gamma
 
+    promoted = False
     async with _db().connection() as conn:
         async with conn.cursor() as cur:
+            # 1. Log in MTM (always)
             await cur.execute(
                 """INSERT INTO mtm_outcomes
                    (advice_id, policy_id_used, document_context, outcome_metrics)
@@ -300,32 +500,88 @@ async def log_outcome(req: LogRequest, request: Request):
                     json.dumps(req.metrics.model_dump()),
                 ),
             )
+
+            # 2. Try updating existing LTM entry for this context→policy
             if gamma > 0.001:
                 await cur.execute(
                     """UPDATE ltm_validated_policies
                        SET alpha = (1.0 + (1.0 - %s) * (alpha - 1.0)) + %s,
                            beta  = (1.0 + (1.0 - %s) * (beta  - 1.0)) + (1 - %s),
-                           confidence_score = 1.0,
+                           confidence_score = LEAST(1.0, confidence_score + 0.05),
                            last_promoted_at = NOW()
-                       WHERE context_hash = %s AND policy_id = %s""",
+                       WHERE context_hash = %s AND policy_id = %s
+                       RETURNING id""",
                     (gamma, reward, gamma, reward, source_hash, req.policy_id_used),
                 )
             else:
                 await cur.execute(
                     """UPDATE ltm_validated_policies
                        SET alpha = alpha + %s, beta = beta + (1 - %s),
-                           confidence_score = 1.0, last_promoted_at = NOW()
-                       WHERE context_hash = %s AND policy_id = %s""",
+                           confidence_score = LEAST(1.0, confidence_score + 0.05),
+                           last_promoted_at = NOW()
+                       WHERE context_hash = %s AND policy_id = %s
+                       RETURNING id""",
                     (reward, reward, source_hash, req.policy_id_used),
                 )
+
+            updated = await cur.fetchone()
+
+            # 3. If no existing LTM entry was updated AND the actual policy differs
+            #    from what was in LTM, try with the actual policy hash
+            if not updated and actual_policy_hash != source_hash:
+                await cur.execute(
+                    """UPDATE ltm_validated_policies
+                       SET alpha = alpha + %s, beta = beta + (1 - %s),
+                           confidence_score = LEAST(1.0, confidence_score + 0.05),
+                           last_promoted_at = NOW()
+                       WHERE context_hash = %s AND policy_id = %s
+                       RETURNING id""",
+                    (reward, reward, actual_policy_hash, req.policy_id_used),
+                )
+                updated = await cur.fetchone()
+
+            # 4. INLINE PROMOTION: If reward is decent and no existing entry matches,
+            #    create a new LTM entry so AHMN learns this context→policy mapping
+            if not updated and reward >= 0.4 and req.policy_id_used != "default_policy":
+                vector = _embedding_service.generate_embedding(ctx_str)
+                initial_alpha = 1.0 + reward * 3.0   # Scale prior by reward quality
+                initial_beta = 1.0 + (1.0 - reward) * 3.0
+                await cur.execute(
+                    """INSERT INTO ltm_validated_policies
+                       (context_hash, context_embedding, policy_id, policy_data,
+                        validation_metrics, alpha, beta, confidence_score, last_promoted_at)
+                       VALUES (%s, %s::vector, %s, %s::jsonb, %s::jsonb, %s, %s, 0.6, NOW())
+                       ON CONFLICT (context_hash) DO UPDATE SET
+                           alpha = ltm_validated_policies.alpha + %s,
+                           beta = ltm_validated_policies.beta + (1 - %s),
+                           last_promoted_at = NOW()""",
+                    (
+                        actual_policy_hash,
+                        vector,
+                        req.policy_id_used,
+                        json.dumps({"action": req.policy_id_used, "origin": "inline_promotion"}),
+                        json.dumps({"f1_score": reward, "source": "inline"}),
+                        initial_alpha,
+                        initial_beta,
+                        reward,
+                        reward,
+                    ),
+                )
+                promoted = True
+                logger.info(
+                    "Inline LTM promotion: %s → %s (reward=%.3f)",
+                    context_dict.get("doc_type", "?"), req.policy_id_used, reward,
+                )
+
             await conn.commit()
 
     return {
         "status": "logged",
         "drift_type": drift_metrics.drift_type.value,
         "gamma": round(gamma, 6),
+        "promoted_to_ltm": promoted,
+        "reward": round(reward, 4),
     }
-
 
 @app.post("/advice/feedback")
 async def log_feedback(req: FeedbackRequest):
@@ -339,35 +595,32 @@ async def log_feedback(req: FeedbackRequest):
             await conn.commit()
     return {"status": "feedback_recorded"}
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # DASHBOARD ROUTES
 # ═══════════════════════════════════════════════════════════════════════════════
 
-
 @app.get("/dashboard/stats")
 async def get_stats():
     """Aggregate statistics for the admin overview."""
+    # Single query — fetch all 4 counts in one round-trip
     async with _db().connection() as conn:
         async with conn.cursor() as cur:
-            await cur.execute("SELECT COUNT(*) FROM mtm_outcomes")
+            await cur.execute("""
+                SELECT
+                    (SELECT COUNT(*) FROM mtm_outcomes)      AS total_outcomes,
+                    (SELECT COUNT(*) FROM ltm_validated_policies) AS total_ltm,
+                    (SELECT COUNT(*) FROM experiment_runs)   AS total_experiments,
+                    (SELECT COUNT(*) FROM users)             AS total_users
+            """)
             row = await cur.fetchone()
-            total_outcomes = row[0] if row else 0
+            total_outcomes, total_ltm, total_experiments, total_users = (
+                row if row else (0, 0, 0, 0)
+            )
 
-            await cur.execute("SELECT COUNT(*) FROM ltm_validated_policies")
-            row = await cur.fetchone()
-            total_ltm = row[0] if row else 0
-
-            await cur.execute("SELECT COUNT(*) FROM experiment_runs")
-            row = await cur.fetchone()
-            total_experiments = row[0] if row else 0
-
-            await cur.execute("SELECT COUNT(*) FROM users")
-            row = await cur.fetchone()
-            total_users = row[0] if row else 0
-
+    # Count STM keys without blocking Redis (SCAN instead of KEYS)
+    redis = _rds()
     stm_count = 0
-    async for _ in _rds().scan_iter("advice:*"):
+    async for _ in redis.scan_iter("advice:*", count=500):
         stm_count += 1
 
     return {
@@ -377,7 +630,6 @@ async def get_stats():
         "total_experiments": total_experiments,
         "total_users": total_users,
     }
-
 
 @app.get("/dashboard/memory/stm")
 async def get_stm():
@@ -391,7 +643,6 @@ async def get_stm():
             {"key": key, "ttl_seconds": ttl, "data": json.loads(val) if val else None}
         )
     return entries
-
 
 @app.get("/dashboard/memory/mtm")
 async def get_mtm(limit: int = Query(50, ge=1, le=500)):
@@ -418,7 +669,6 @@ async def get_mtm(limit: int = Query(50, ge=1, le=500)):
         for r in rows
     ]
 
-
 @app.get("/dashboard/memory/ltm")
 async def get_ltm():
     """LTM validated policies with bandit parameters."""
@@ -443,7 +693,6 @@ async def get_ltm():
         for r in rows
     ]
 
-
 @app.get("/dashboard/memory/ltm/chart")
 async def ltm_chart_data():
     """LTM data formatted for charts."""
@@ -467,7 +716,6 @@ async def ltm_chart_data():
         for r in rows
     ]
 
-
 @app.get("/dashboard/activity")
 async def recent_activity(limit: int = Query(20, ge=1, le=100)):
     """Recent system activity for the admin feed."""
@@ -490,11 +738,9 @@ async def recent_activity(limit: int = Query(20, ge=1, le=100)):
         for r in rows
     ]
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # EXPERIMENT ROUTES
 # ═══════════════════════════════════════════════════════════════════════════════
-
 
 @app.get("/experiments/results")
 async def get_results():
@@ -504,7 +750,6 @@ async def get_results():
         raise HTTPException(404, "Experiment results not found. Run experiments first.")
     return data
 
-
 @app.get("/experiments/robustness")
 async def get_robustness():
     """Return robustness sweep results."""
@@ -512,7 +757,6 @@ async def get_robustness():
     if data is None:
         raise HTTPException(404, "Robustness results not found.")
     return data
-
 
 @app.post("/experiments/demo/daaf")
 async def run_daaf_demo(params: dict[str, Any]):
@@ -565,7 +809,6 @@ async def run_daaf_demo(params: dict[str, Any]):
         "detection_delay": (detected_at - drift_round) if detected_at else None,
         "peak_gamma": max(gammas[drift_round:]) if drift_round < len(gammas) else 0,
     }
-
 
 @app.post("/experiments/demo/rabi")
 async def run_rabi_demo(params: dict[str, Any]):
@@ -621,98 +864,102 @@ async def run_rabi_demo(params: dict[str, Any]):
         "distribution": {"x": x, "flat_pdf": flat_pdf, "rabi_pdf": rabi_pdf},
     }
 
-
 @app.post("/experiments/demo/comparison")
 async def run_comparison_demo(params: dict[str, Any]):
     """Run TS vs DAAF comparison under drift."""
-    from .experiments.synthetic_data import (
-        VendorProfile,
-        PolicyConfig,
-        DriftEvent,
-        Scenario,
-        _make_cluster_embedding,
-        POLICY_IDS,
-    )
-    from .experiments.run_experiments import (
-        ThompsonSamplingRunner,
-        AHMNDAAFRunner,
-        run_single,
-    )
+    import asyncio
 
-    drift_magnitude = params.get("drift_magnitude", 0.20)
-    n_seeds = min(params.get("seeds", 10), 20)
+    def _run_comparison(params: dict[str, Any]):
+        from .experiments.synthetic_data import (
+            VendorProfile,
+            PolicyConfig,
+            DriftEvent,
+            Scenario,
+            _make_cluster_embedding,
+            POLICY_IDS,
+        )
+        from .experiments.run_experiments import (
+            ThompsonSamplingRunner,
+            AHMNDAAFRunner,
+            run_single,
+        )
 
-    vendors = [
-        VendorProfile(
-            vendor_id="vendor_drift",
-            doc_type="invoice",
-            policies={
-                "ocr_tesseract": PolicyConfig(true_mean=0.88, noise_std=0.05),
-                "ocr_easyocr": PolicyConfig(true_mean=0.70, noise_std=0.06),
-                "ocr_azure_cv": PolicyConfig(true_mean=0.75, noise_std=0.05),
-            },
-            embedding=_make_cluster_embedding(1, 0),
-            weight=1.0,
-        ),
-    ]
+        drift_magnitude = params.get("drift_magnitude", 0.20)
+        n_seeds = min(params.get("seeds", 10), 20)
 
-    post_tess = max(0.1, 0.88 - drift_magnitude)
-    post_azure = min(0.98, 0.75 + drift_magnitude)
-
-    scenario = Scenario(
-        name="demo_drift",
-        description=f"Drift demo Δ={drift_magnitude}",
-        vendors=vendors,
-        policy_ids=POLICY_IDS,
-        n_rounds=800,
-        drift_events=[
-            DriftEvent(
+        vendors = [
+            VendorProfile(
                 vendor_id="vendor_drift",
-                at_round=400,
-                new_policies={
-                    "ocr_tesseract": PolicyConfig(true_mean=post_tess, noise_std=0.05),
+                doc_type="invoice",
+                policies={
+                    "ocr_tesseract": PolicyConfig(true_mean=0.88, noise_std=0.05),
                     "ocr_easyocr": PolicyConfig(true_mean=0.70, noise_std=0.06),
-                    "ocr_azure_cv": PolicyConfig(true_mean=post_azure, noise_std=0.05),
+                    "ocr_azure_cv": PolicyConfig(true_mean=0.75, noise_std=0.05),
                 },
-            )
-        ],
-    )
+                embedding=_make_cluster_embedding(1, 0),
+                weight=1.0,
+            ),
+        ]
 
-    ts_results = [
-        run_single(ThompsonSamplingRunner(POLICY_IDS), scenario, s)
-        for s in range(n_seeds)
-    ]
-    daaf_results = [
-        run_single(AHMNDAAFRunner(POLICY_IDS), scenario, s)
-        for s in range(n_seeds)
-    ]
+        post_tess = max(0.1, 0.88 - drift_magnitude)
+        post_azure = min(0.98, 0.75 + drift_magnitude)
 
-    ts_avg_regret = np.mean(
-        [r.cumulative_regret for r in ts_results], axis=0
-    ).tolist()
-    daaf_avg_regret = np.mean(
-        [r.cumulative_regret for r in daaf_results], axis=0
-    ).tolist()
+        scenario = Scenario(
+            name="demo_drift",
+            description=f"Drift demo Δ={drift_magnitude}",
+            vendors=vendors,
+            policy_ids=POLICY_IDS,
+            n_rounds=800,
+            drift_events=[
+                DriftEvent(
+                    vendor_id="vendor_drift",
+                    at_round=400,
+                    new_policies={
+                        "ocr_tesseract": PolicyConfig(true_mean=post_tess, noise_std=0.05),
+                        "ocr_easyocr": PolicyConfig(true_mean=0.70, noise_std=0.06),
+                        "ocr_azure_cv": PolicyConfig(true_mean=post_azure, noise_std=0.05),
+                    },
+                )
+            ],
+        )
 
-    window = 50
-    ts_avg_rewards = np.mean([r.rewards for r in ts_results], axis=0)
-    daaf_avg_rewards = np.mean([r.rewards for r in daaf_results], axis=0)
+        ts_results = [
+            run_single(ThompsonSamplingRunner(POLICY_IDS), scenario, s)
+            for s in range(n_seeds)
+        ]
+        daaf_results = [
+            run_single(AHMNDAAFRunner(POLICY_IDS), scenario, s)
+            for s in range(n_seeds)
+        ]
 
-    def rolling(arr, w):
-        return [float(np.mean(arr[max(0, i - w) : i + 1])) for i in range(len(arr))]
+        ts_avg_regret = np.mean(
+            [r.cumulative_regret for r in ts_results], axis=0
+        ).tolist()
+        daaf_avg_regret = np.mean(
+            [r.cumulative_regret for r in daaf_results], axis=0
+        ).tolist()
 
-    return {
-        "ts_cumulative_regret": ts_avg_regret,
-        "daaf_cumulative_regret": daaf_avg_regret,
-        "ts_rolling_reward": rolling(ts_avg_rewards, window),
-        "daaf_rolling_reward": rolling(daaf_avg_rewards, window),
-        "rolling_start": window,
-        "total_ts_regret": round(float(ts_avg_regret[-1]), 2),
-        "total_daaf_regret": round(float(daaf_avg_regret[-1]), 2),
-        "improvement_pct": round(
-            (float(ts_avg_regret[-1]) - float(daaf_avg_regret[-1]))
-            / max(1, float(ts_avg_regret[-1]))
-            * 100,
-            1,
-        ),
-    }
+        window = 50
+        ts_avg_rewards = np.mean([r.rewards for r in ts_results], axis=0)
+        daaf_avg_rewards = np.mean([r.rewards for r in daaf_results], axis=0)
+
+        def rolling(arr, w):
+            return [float(np.mean(arr[max(0, i - w) : i + 1])) for i in range(len(arr))]
+
+        return {
+            "ts_cumulative_regret": ts_avg_regret,
+            "daaf_cumulative_regret": daaf_avg_regret,
+            "ts_rolling_reward": rolling(ts_avg_rewards, window),
+            "daaf_rolling_reward": rolling(daaf_avg_rewards, window),
+            "rolling_start": window,
+            "total_ts_regret": round(float(ts_avg_regret[-1]), 2),
+            "total_daaf_regret": round(float(daaf_avg_regret[-1]), 2),
+            "improvement_pct": round(
+                (float(ts_avg_regret[-1]) - float(daaf_avg_regret[-1]))
+                / max(1, float(ts_avg_regret[-1]))
+                * 100,
+                1,
+            ),
+        }
+
+    return await asyncio.to_thread(_run_comparison, params)

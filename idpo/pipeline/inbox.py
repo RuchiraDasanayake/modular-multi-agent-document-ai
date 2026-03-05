@@ -1,3 +1,5 @@
+"""Inbox-based document processing with batch orchestration and result export."""
+
 from __future__ import annotations
 
 import hashlib
@@ -7,13 +9,12 @@ import shutil
 import time
 import uuid
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Any, Iterable
 
 from idpo.agents.intake import IntakeAgent
 from idpo.core.config import PipelineConfig, load_config
 from idpo.core.preflight import run_preflight
 from idpo.pipeline.orchestrator import Pipeline
-
 
 SUPPORTED_INPUT_EXTS = {".json", ".txt", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
 
@@ -60,13 +61,13 @@ BASE_DOC_HEADERS = [
     "artifacts_path",
 ]
 
-
 def process_inbox(
     root: Path,
-    config_path: Optional[str] = None,
-    extraction_fields: Optional[List[Dict[str, str]]] = None,
-    run_id: Optional[str] = None,
-) -> Dict[str, object]:
+    config_path: str | None = None,
+    extraction_fields: Optional[list[dict[str, str]]] = None,
+    run_id: str | None = None,
+    file_paths: list[str] | None = None,
+) -> dict[str, Any]:
     config = load_config(config_path)
     config.shadow.enabled = False
     preflight_warnings = run_preflight(config)
@@ -79,11 +80,14 @@ def process_inbox(
     processed_dir.mkdir(parents=True, exist_ok=True)
     runs_dir.mkdir(parents=True, exist_ok=True)
 
-    files = [
-        path for path in inbox_dir.iterdir() if path.is_file() and path.suffix.lower() in SUPPORTED_INPUT_EXTS
-    ]
+    if file_paths:
+        files = [Path(p) for p in file_paths if Path(p).exists() and Path(p).suffix.lower() in SUPPORTED_INPUT_EXTS]
+    else:
+        files = [
+            path for path in inbox_dir.iterdir() if path.is_file() and path.suffix.lower() in SUPPORTED_INPUT_EXTS
+        ]
     if not files:
-        raise SystemExit(f"No supported files found in {inbox_dir}. Drop files there and retry.")
+        raise ValueError(f"No supported files found in {inbox_dir}. Drop files there and retry.")
 
     resolved_run_id = run_id or uuid.uuid4().hex
     run_dir = runs_dir / resolved_run_id
@@ -108,7 +112,7 @@ def process_inbox(
     (run_dir / "run.json").write_text(json.dumps(run_payload, indent=2), encoding="utf-8")
 
     intake = IntakeAgent()
-    failed: list[str] = []
+    failed: list[dict[str, str]] = []
     doc_records: list[dict[str, object]] = []
     for file_path in files:
         try:
@@ -135,14 +139,22 @@ def process_inbox(
                 _write_provenance(doc_dir)
                 _append_events(doc_dir, events_path)
                 _normalize_doc_layout(doc_dir)
-                doc_records.append(_doc_record(result, doc_dir, expected_fields))
+                doc_records.append(_doc_record(result, doc_dir, expected_fields, doc))
 
             shutil.move(str(file_path), str(processed_dir / file_path.name))
         except Exception as exc:
-            failed.append(str(file_path))
+            error_msg = str(exc)
+            failed.append({"file": file_path.name, "error": error_msg})
             errors_path.parent.mkdir(parents=True, exist_ok=True)
             with errors_path.open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps({"file": str(file_path), "error": str(exc)}) + "\n")
+                handle.write(json.dumps({"file": str(file_path), "error": error_msg}) + "\n")
+            # Move failed files out of inbox to prevent re-processing on next run
+            failed_dir = root / "inputs" / "failed"
+            failed_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                shutil.move(str(file_path), str(failed_dir / file_path.name))
+            except Exception:
+                pass
 
     metrics_payload = {
         "doc_count": len(files),
@@ -155,9 +167,6 @@ def process_inbox(
     _write_entities_excel(run_dir, doc_records, expected_fields)
     _write_run_excel(run_dir, run_payload, metrics_payload)
 
-    if failed:
-        raise SystemExit(f"Failed to process: {', '.join(failed)}")
-
     return {
         "run_id": resolved_run_id,
         "run_dir": str(run_dir),
@@ -166,10 +175,10 @@ def process_inbox(
         "metrics": metrics_payload,
         "run_payload": run_payload,
         "preflight_warnings": preflight_warnings,
+        "failed": failed,
     }
 
-
-def _apply_field_overrides(config: PipelineConfig, run_dir: Path, fields: List[Dict[str, str]]) -> None:
+def _apply_field_overrides(config: PipelineConfig, run_dir: Path, fields: list[dict[str, str]]) -> None:
     names = [field["key"] for field in fields]
     descriptions = {field["key"]: field.get("description", "") for field in fields if field.get("description")}
     override = {
@@ -193,8 +202,7 @@ def _apply_field_overrides(config: PipelineConfig, run_dir: Path, fields: List[D
     config.knowledge.policy_store_path = str(policy_path)
     config.llm.use_extraction = True
 
-
-def _normalize_fields(fields: List[Dict[str, str]]) -> List[Dict[str, str]]:
+def _normalize_fields(fields: list[dict[str, str]]) -> list[dict[str, str]]:
     normalized = []
     for field in fields:
         name = str(field.get("name", "")).strip()
@@ -205,15 +213,12 @@ def _normalize_fields(fields: List[Dict[str, str]]) -> List[Dict[str, str]]:
         normalized.append({"name": name, "key": key, "description": description})
     return normalized
 
-
-def _write_fields_schema(run_dir: Path, fields: List[Dict[str, str]]) -> None:
+def _write_fields_schema(run_dir: Path, fields: list[dict[str, str]]) -> None:
     schema = {"fields": fields}
     (run_dir / "fields.json").write_text(json.dumps(schema, indent=2), encoding="utf-8")
 
-
 def _normalize_key(raw: str) -> str:
     return "".join(ch.lower() if ch.isalnum() else "_" for ch in raw).strip("_")
-
 
 def _ensure_doc_dirs(doc_dir: Path) -> None:
     for folder in [
@@ -233,13 +238,11 @@ def _ensure_doc_dirs(doc_dir: Path) -> None:
     ]:
         folder.mkdir(parents=True, exist_ok=True)
 
-
 def _copy_original_input(file_path: Path, doc_dir: Path) -> None:
     if not file_path.exists():
         return
     dest = doc_dir / "input" / f"original{file_path.suffix.lower()}"
     shutil.copy2(file_path, dest)
-
 
 def _write_doc_manifest(doc, doc_dir: Path) -> None:
     payload = {
@@ -249,7 +252,6 @@ def _write_doc_manifest(doc, doc_dir: Path) -> None:
         "metadata": doc.metadata,
     }
     (doc_dir / "input" / "manifest.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
 
 def _write_hashes(file_path: Path, doc, doc_dir: Path) -> None:
     sha256 = hashlib.sha256()
@@ -265,7 +267,6 @@ def _write_hashes(file_path: Path, doc, doc_dir: Path) -> None:
     }
     (doc_dir / "input" / "hashes.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
-
 def _write_dae_output(result, doc_dir: Path) -> None:
     payload = {
         "doc_type": result.doc_type,
@@ -279,11 +280,9 @@ def _write_dae_output(result, doc_dir: Path) -> None:
     }
     (doc_dir / "dae" / "output.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
-
 def _write_plan_output(result, doc_dir: Path) -> None:
     payload = result.plan_payload or {}
     (doc_dir / "plan" / "primary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
 
 def _write_structuring(result, doc_dir: Path) -> None:
     extracted = {
@@ -300,7 +299,6 @@ def _write_structuring(result, doc_dir: Path) -> None:
         encoding="utf-8",
     )
 
-
 def _write_validation(result, doc_dir: Path) -> None:
     (doc_dir / "validation" / "results.json").write_text(
         json.dumps({"issues": [issue.__dict__ for issue in result.validation_issues]}, indent=2),
@@ -310,7 +308,6 @@ def _write_validation(result, doc_dir: Path) -> None:
         json.dumps(result.normalized_entities, indent=2),
         encoding="utf-8",
     )
-
 
 def _write_recovery(result, doc_dir: Path) -> None:
     (doc_dir / "recovery" / "attempts.jsonl").write_text(
@@ -322,20 +319,17 @@ def _write_recovery(result, doc_dir: Path) -> None:
         encoding="utf-8",
     )
 
-
 def _write_chunking(result, doc_dir: Path) -> None:
     chunks_path = doc_dir / "chunking" / "chunks.jsonl"
     with chunks_path.open("w", encoding="utf-8") as handle:
         for chunk in result.chunks:
             handle.write(json.dumps(chunk.__dict__) + "\n")
 
-
 def _write_provenance(doc_dir: Path) -> None:
     graph_path = doc_dir / "provenance_graph.json"
     if graph_path.exists():
         target = doc_dir / "provenance" / "graph.json"
         shutil.copy2(graph_path, target)
-
 
 def _write_ocr_output(doc, result, doc_dir: Path) -> None:
     ocr_signal = None
@@ -358,7 +352,6 @@ def _write_ocr_output(doc, result, doc_dir: Path) -> None:
         encoding="utf-8",
     )
 
-
 def _append_events(doc_dir: Path, events_path: Path) -> None:
     src = doc_dir / "provenance.jsonl"
     if not src.exists():
@@ -367,7 +360,6 @@ def _append_events(doc_dir: Path, events_path: Path) -> None:
         for line in handle:
             if line.strip():
                 out.write(line)
-
 
 def _normalize_doc_layout(doc_dir: Path) -> None:
     provenance_dir = doc_dir / "provenance"
@@ -385,11 +377,54 @@ def _normalize_doc_layout(doc_dir: Path) -> None:
     if artifacts_dir.exists():
         shutil.move(str(artifacts_dir), str(provenance_dir / "artifacts"))
 
+def _doc_record(result, doc_dir: Path, expected_fields: list[dict[str, str]], doc=None) -> dict[str, object]:
+    # Build extracted full text from document pages
+    extracted_text = ""
+    if doc and hasattr(doc, "pages") and doc.pages:
+        extracted_text = "\n\n".join(
+            f"--- Page {page.number} ---\n{page.text}"
+            for page in doc.pages
+            if page.text
+        )
 
-def _doc_record(result, doc_dir: Path, expected_fields: List[Dict[str, str]]) -> dict[str, object]:
+    # Build structured entities dict for the frontend
+    entities_dict: dict[str, object] = {}
+    entity_details: list[dict[str, object]] = []
+    for entity in result.entities:
+        key = _normalize_key(entity.key)
+        entities_dict[key] = entity.value
+        entity_details.append({
+            "key": key,
+            "label": entity.key,
+            "value": entity.value,
+            "confidence": round(entity.confidence, 3) if entity.confidence is not None else 0,
+            "page": entity.page,
+            "source": (entity.metadata or {}).get("source", "unknown"),
+            "is_explicit": bool((entity.metadata or {}).get("explicit")),
+        })
+
+    # Build sections list for the frontend
+    sections_list = [
+        {"name": s.name, "text": s.text[:500], "confidence": round(s.confidence, 3)}
+        for s in (result.sections or [])
+    ]
+
+    # Build validation issues for the frontend
+    validation_list = [
+        {"field": vi.field, "issue": vi.issue, "severity": vi.severity}
+        for vi in (result.validation_issues or [])
+    ]
+
+    # Determine original filename from path
+    original_path = Path(result.path)
+    filename = original_path.name
+
     record = {
         "doc_id": result.doc_id,
+        "filename": filename,
         "source": result.source,
+        "status": "success",
+        "category": result.doc_type or result.category or "",
         "doc_type": result.doc_type,
         "vendor_cluster": result.vendor_cluster,
         "quality_bin": result.quality_bin,
@@ -401,6 +436,8 @@ def _doc_record(result, doc_dir: Path, expected_fields: List[Dict[str, str]]) ->
         "policy_name": result.policy_name,
         "plan_id": result.plan_id,
         "plan_source": result.plan_source,
+        "model_used": getattr(result, "model_used", ""),
+        "model_mode": getattr(result, "model_mode", ""),
         "preprocess_route": ",".join(result.preprocess_route),
         "entity_count": len(result.entities),
         "explicit_entity_count": len(result.explicit_entities),
@@ -410,6 +447,13 @@ def _doc_record(result, doc_dir: Path, expected_fields: List[Dict[str, str]]) ->
         "escalated": result.escalated,
         "chunk_count": len(result.chunks),
         "summary": result.summary,
+        "extracted_text": extracted_text,
+        "entities": entities_dict,
+        "entity_details": entity_details,
+        "sections": sections_list,
+        "validation_issues": validation_list,
+        "field_confidence": result.field_confidence or {},
+        "recovered_fields": result.recovered_fields or {},
         "input_original_path": _find_original_path(doc_dir),
         "input_manifest_path": str(doc_dir / "input" / "manifest.json"),
         "input_hashes_path": str(doc_dir / "input" / "hashes.json"),
@@ -442,9 +486,8 @@ def _doc_record(result, doc_dir: Path, expected_fields: List[Dict[str, str]]) ->
 
     return record
 
-
-def _map_entities(entities) -> Dict[str, tuple[str, str, str, str, str]]:
-    mapped: Dict[str, tuple[str, str, str, str, str]] = {}
+def _map_entities(entities) -> dict[str, tuple[str, str, str, str, str]]:
+    mapped: dict[str, tuple[str, str, str, str, str]] = {}
     for entity in entities:
         key = _normalize_key(entity.key)
         value = str(entity.value)
@@ -462,14 +505,12 @@ def _map_entities(entities) -> Dict[str, tuple[str, str, str, str, str]]:
         mapped[key] = (value, confidence, page, span, source)
     return mapped
 
-
 def _find_original_path(doc_dir: Path) -> str:
     input_dir = doc_dir / "input"
     matches = list(input_dir.glob("original.*"))
     if matches:
         return str(matches[0])
     return str(input_dir / "original")
-
 
 def _write_docs_excel(run_dir: Path, records: list[dict[str, object]]) -> None:
     if not records:
@@ -494,7 +535,6 @@ def _write_docs_excel(run_dir: Path, records: list[dict[str, object]]) -> None:
         sheet.append([_excel_safe(record.get(header, "")) for header in headers])
     wb.save(path)
 
-
 def _collect_headers(records: list[dict[str, object]]) -> list[str]:
     if not records:
         return []
@@ -505,8 +545,7 @@ def _collect_headers(records: list[dict[str, object]]) -> list[str]:
     remaining = sorted(key for key in keys if key not in ordered)
     return ordered + remaining
 
-
-def _entity_records(records: list[dict[str, object]], expected_fields: List[Dict[str, str]]) -> list[dict[str, object]]:
+def _entity_records(records: list[dict[str, object]], expected_fields: list[dict[str, str]]) -> list[dict[str, object]]:
     if not expected_fields:
         return []
     field_keys = [field["key"] for field in expected_fields]
@@ -518,11 +557,10 @@ def _entity_records(records: list[dict[str, object]], expected_fields: List[Dict
         entity_records.append(row)
     return entity_records
 
-
 def _write_entities_excel(
     run_dir: Path,
     records: list[dict[str, object]],
-    expected_fields: List[Dict[str, str]],
+    expected_fields: list[dict[str, str]],
 ) -> None:
     entity_records = _entity_records(records, expected_fields)
     if not entity_records:
@@ -547,7 +585,6 @@ def _write_entities_excel(
         sheet.append([record.get(header, "") for header in headers])
     wb.save(path)
 
-
 def _write_run_excel(run_dir: Path, run_payload: dict[str, object], metrics_payload: dict[str, object]) -> None:
     try:
         import openpyxl
@@ -568,7 +605,6 @@ def _write_run_excel(run_dir: Path, run_payload: dict[str, object], metrics_payl
     sheet.append(headers)
     sheet.append([_excel_safe(payload.get(header, "")) for header in headers])
     wb.save(path)
-
 
 def _excel_safe(value: object) -> object:
     if isinstance(value, (list, dict)):

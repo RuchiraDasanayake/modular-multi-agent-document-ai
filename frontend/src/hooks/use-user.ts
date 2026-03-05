@@ -19,12 +19,8 @@ export function useUser() {
             setLoading(false);
             return;
         }
-        // Add a small artificial delay to show off the 3D loading screen
-        Promise.all([
-            api.me(),
-            new Promise(resolve => setTimeout(resolve, 1500))
-        ])
-            .then(([userData]) => setUser(userData))
+        api.me()
+            .then((userData) => setUser(userData))
             .catch((err) => setError(err.message))
             .finally(() => setLoading(false));
     }, []);

@@ -1,4 +1,4 @@
-import { getToken } from "./auth";
+import { getToken, removeToken } from "./auth";
 import type {
   User,
   Stats,
@@ -23,6 +23,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
+  // Auto-logout on 401 (expired or invalid token)
+  if (res.status === 401) {
+    removeToken();
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+      window.location.href = "/login";
+    }
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.detail || `API ${res.status}`);
@@ -32,6 +40,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 // ── Auth ──
 export const api = {
+  request,
+
   login: (username: string, password: string) =>
     request<{ access_token: string }>("/api/auth/login", {
       method: "POST",
@@ -42,6 +52,24 @@ export const api = {
     request<{ access_token: string }>("/api/auth/signup", {
       method: "POST",
       body: JSON.stringify({ email, username, password }),
+    }),
+
+  forgotPassword: (email: string) =>
+    request<{ message: string; token: string | null }>("/api/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  resetPassword: (token: string, new_password: string) =>
+    request<{ message: string }>("/api/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, new_password }),
+    }),
+
+  changePassword: (current_password: string, new_password: string) =>
+    request<{ message: string }>("/api/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ current_password, new_password }),
     }),
 
   me: () => request<User>("/api/auth/me"),
@@ -126,4 +154,42 @@ export const api = {
 
   getGuardrailHistory: (limit = 50) =>
     request<unknown[]>(`/api/guardrails/history?limit=${limit}`),
+
+  // ── IDPO ──
+
+  runIDPO: async (files: File[], fields: { name: string; description: string }[], configPath: string, options?: { enableGuardrails?: boolean; enableXAI?: boolean; enableAHMN?: boolean }) => {
+    const token = getToken();
+    const formData = new FormData();
+    files.forEach((file) => formData.append("files", file));
+    formData.append("fields", JSON.stringify(fields));
+    formData.append("config_path", configPath);
+    formData.append("skip_guardrails", String(!(options?.enableGuardrails ?? true)));
+    formData.append("skip_xai", String(!(options?.enableXAI ?? true)));
+    formData.append("skip_ahmn", String(!(options?.enableAHMN ?? true)));
+
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const res = await fetch(`${API_BASE}/api/idpo/run`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || body.detail || `API ${res.status}`);
+    }
+    return res.json();
+  },
+
+  downloadIDPOFile: async (runId: string, file: "docs.xlsx" | "entities.xlsx" | "run.xlsx") => {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const res = await fetch(`${API_BASE}/api/idpo/runs/${runId}/${file}`, { headers });
+    if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+    return res.blob();
+  },
 };

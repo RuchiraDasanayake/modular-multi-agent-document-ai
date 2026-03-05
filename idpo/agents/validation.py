@@ -1,13 +1,14 @@
+"""Entity validation agent for verifying extracted data quality."""
+
 from __future__ import annotations
 
 import re
 import time
-from typing import Any, Dict, List
+from typing import Any
 
 from idpo.agents.base import Agent, AgentContext
 from idpo.core.contracts import AgentMessage
 from idpo.core.types import AgentResult, Document, Entity, StageSignal, ValidationIssue
-
 
 class ValidationAgent(Agent):
     name = "validation"
@@ -23,11 +24,11 @@ class ValidationAgent(Agent):
     def run(self, payload: AgentMessage, ctx: AgentContext) -> AgentResult:
         started = time.time()
         doc: Document = payload["document"]
-        entities: List[Entity] = payload.get("entities", [])
+        entities: list[Entity] = payload.get("entities", [])
         stage: str = payload.get("stage", "initial")
-        issues: List[ValidationIssue] = []
-        normalized: Dict[str, str] = {}
-        confidences: Dict[str, float] = {}
+        issues: list[ValidationIssue] = []
+        normalized: dict[str, str] = {}
+        confidences: dict[str, float] = {}
 
         rules = ctx.config.validation.rules
         for entity in entities:
@@ -71,12 +72,21 @@ class ValidationAgent(Agent):
             metadata={"doc_id": doc.doc_id, "agent": self.name, "version": self.version, "stage": stage},
         )
         confidence_score = sum(confidences.values()) / len(confidences) if confidences else 0.4
+
+        # Categorize entities by confidence tier
+        confirmed_entities = [k for k, c in confidences.items() if c >= 0.55]
+        low_confidence_entities = [k for k, c in confidences.items() if 0.30 <= c < 0.55]
+        rejected_entities = [k for k, c in confidences.items() if c < 0.30]
+
         signal = StageSignal(
             stage=self.name,
             confidence=confidence_score,
             uncertainty=1.0 - confidence_score,
             metadata={
                 "issue_count": len(issues),
+                "confirmed_count": len(confirmed_entities),
+                "low_confidence_count": len(low_confidence_entities),
+                "rejected_count": len(rejected_entities),
                 "calibration": {
                     "enabled": ctx.config.calibration.enabled,
                     "method": ctx.config.calibration.method,
@@ -101,6 +111,11 @@ class ValidationAgent(Agent):
                 "field_confidence": confidences,
                 "signal": signal,
                 "validation_artifact": artifact,
+                "entity_tiers": {
+                    "confirmed": confirmed_entities,
+                    "low_confidence": low_confidence_entities,
+                    "rejected": rejected_entities,
+                },
             }
         )
 

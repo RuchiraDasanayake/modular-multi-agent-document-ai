@@ -28,38 +28,38 @@ const sections = [
 const apiEndpoints = [
     {
         method: "POST",
-        path: "/api/v1/extract",
-        desc: "Submit a document for extraction",
+        path: "/api/idpo/run",
+        desc: "Submit documents for extraction (multipart form)",
         color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
     },
     {
         method: "GET",
-        path: "/api/v1/results/{id}",
-        desc: "Retrieve extraction results",
-        color: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10",
-    },
-    {
-        method: "GET",
-        path: "/api/v1/explain/{id}",
-        desc: "Get AI explanation for an extraction",
+        path: "/api/idpo/runs/{run_id}/docs.xlsx",
+        desc: "Download extraction results as Excel",
         color: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10",
     },
     {
         method: "POST",
-        path: "/api/v1/validate",
-        desc: "Validate extracted data against quality rules",
+        path: "/api/xai/ask",
+        desc: "Ask a question with explainable AI analysis",
         color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
     },
     {
         method: "POST",
-        path: "/api/v1/review",
-        desc: "Submit an expert review decision",
+        path: "/api/guardrails/validate",
+        desc: "Validate extracted data with 5-layer quality checks",
+        color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
+    },
+    {
+        method: "POST",
+        path: "/api/hitl/feedback",
+        desc: "Submit expert review feedback",
         color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
     },
     {
         method: "GET",
-        path: "/api/v1/health",
-        desc: "Health check endpoint",
+        path: "/api/services/health",
+        desc: "Health check for all microservices",
         color: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10",
     },
 ];
@@ -199,30 +199,32 @@ export default function DocsPage() {
 
                         <div className="space-y-6">
                             <div>
-                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">1. Create your account</h3>
+                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">1. Clone and start services</h3>
                                 <CodeBlock
-                                    language="text"
-                                    code={`Sign up at modular-doc-ai.com/signup
-You'll receive an API key in your dashboard.`}
+                                    language="bash"
+                                    code={`git clone <repo-url> && cd modular-multi-agent-document-ai
+docker compose up --build -d
+# Services start on: Gateway :8000, Frontend :3000`}
                                 />
                             </div>
                             <div>
-                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">2. Configure document types</h3>
+                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">2. Log in to the dashboard</h3>
                                 <CodeBlock
                                     language="text"
-                                    code={`In the dashboard, go to Settings → Document Types
-Choose from built-in types (invoice, receipt, contract...)
-or create custom document schemas.`}
+                                    code={`Open http://localhost:3000 in your browser.
+Sign up for an account or log in with default admin credentials.
+Navigate to Document Extraction to start processing.`}
                                 />
                             </div>
                             <div>
                                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">3. Submit a document</h3>
                                 <CodeBlock
                                     language="bash"
-                                    code={`curl -X POST https://api.modular-doc-ai.com/v1/extract \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
-  -F "file=@invoice.pdf" \\
-  -F "doc_type=invoice"`}
+                                    code={`curl -X POST http://localhost:8000/api/idpo/run \\
+  -H "Authorization: Bearer YOUR_TOKEN" \\
+  -F "files=@invoice.pdf" \\
+  -F 'fields=[{"name":"total_amount","description":"Total due"}]' \\
+  -F "config_path=configs/config.json"`}
                                 />
                             </div>
                             <div>
@@ -287,9 +289,14 @@ or create custom document schemas.`}
                             <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Authentication</h3>
                             <CodeBlock
                                 language="bash"
-                                code={`# Use your API key in all requests
-curl https://api.modular-doc-ai.com/v1/results \\
-  -H "Authorization: Bearer YOUR_API_KEY"`}
+                                code={`# Login to get a JWT token
+curl -X POST http://localhost:8000/api/auth/login \\
+  -H "Content-Type: application/json" \\
+  -d '{"username": "admin", "password": "your_password"}'
+
+# Use the token in all requests
+curl http://localhost:8000/api/dashboard/stats \\
+  -H "Authorization: Bearer YOUR_TOKEN"`}
                             />
                         </div>
                     </motion.div>

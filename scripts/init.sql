@@ -16,6 +16,21 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- ═══════════════════════════════════════════════════════════════
+-- PASSWORD RESET TOKENS
+-- ═══════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token TEXT UNIQUE NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_reset_token ON password_reset_tokens (token);
+CREATE INDEX IF NOT EXISTS idx_reset_user ON password_reset_tokens (user_id);
+
+-- ═══════════════════════════════════════════════════════════════
 -- AHMN MEMORY TIERS
 -- ═══════════════════════════════════════════════════════════════
 
@@ -79,6 +94,33 @@ CREATE TABLE IF NOT EXISTS guardrail_audit_log (
 CREATE INDEX IF NOT EXISTS idx_guardrail_created ON guardrail_audit_log (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_guardrail_doc_type ON guardrail_audit_log (doc_type);
 
+-- ═══════════════════════════════════════════════════════════════
+-- XAI-HITL FEEDBACK
+-- ═══════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS xai_hitl_feedback (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    feedback_id TEXT UNIQUE NOT NULL,
+    question TEXT NOT NULL,
+    original_answer TEXT NOT NULL,
+    feedback_type TEXT NOT NULL,
+    is_answer_correct BOOLEAN NOT NULL,
+    corrected_answer TEXT,
+    explanation_quality INT NOT NULL,
+    highlight_accuracy INT NOT NULL,
+    xai_helpfulness INT NOT NULL,
+    additional_context TEXT,
+    knowledge_update TEXT,
+    priority TEXT NOT NULL DEFAULT 'medium',
+    reviewer_notes TEXT,
+    tags JSONB NOT NULL DEFAULT '[]',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_hitl_feedback_id ON xai_hitl_feedback (feedback_id);
+CREATE INDEX IF NOT EXISTS idx_hitl_created ON xai_hitl_feedback (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_hitl_type ON xai_hitl_feedback (feedback_type);
+
 CREATE TABLE IF NOT EXISTS system_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     event_type TEXT NOT NULL,
@@ -97,13 +139,14 @@ CREATE INDEX IF NOT EXISTS idx_experiment_method ON experiment_runs (method, sce
 CREATE INDEX IF NOT EXISTS idx_events_type ON system_events (event_type, created_at DESC);
 
 -- ═══════════════════════════════════════════════════════════════
--- SEED DEFAULT ADMIN (password: admin123 — change in production)
--- bcrypt hash of 'admin123'
+-- SEED DEFAULT ADMIN
+-- Default password: Adm!n_DocAI_2025 — CHANGE IMMEDIATELY in production
+-- bcrypt hash of 'Adm!n_DocAI_2025'
 -- ═══════════════════════════════════════════════════════════════
 INSERT INTO users (email, username, hashed_password, role)
 VALUES (
     'admin@ahmn.local',
     'admin',
-    '$2b$12$YRr1xDvXvkC61Q9sJIbw6uK4NrJ1HpOC8lq7iIzwzrT9FVgi..96O',
+    '$2b$12$bNc0mZF7OZMmfaW.CwZmQeyQA3h5xWvq2jZYBiv1i3vMzrY/a/A1.',
     'admin'
 ) ON CONFLICT (username) DO NOTHING;

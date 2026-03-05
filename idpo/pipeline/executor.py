@@ -1,8 +1,9 @@
+"""Stage-wise pipeline executor for processing agent chains."""
+
 from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 
 from idpo.agents.answering import AnsweringAgent
 from idpo.agents.base import AgentContext
@@ -25,29 +26,27 @@ from idpo.core.types import (
     ValidationIssue,
 )
 
-
 @dataclass
 class ExecutionState:
     document: Document
-    entities: List[Entity] = field(default_factory=list)
-    explicit_entities: List[Entity] = field(default_factory=list)
-    default_entities: List[Entity] = field(default_factory=list)
+    entities: list[Entity] = field(default_factory=list)
+    explicit_entities: list[Entity] = field(default_factory=list)
+    default_entities: list[Entity] = field(default_factory=list)
     explicit_source: str = ""
-    sections: List[Section] = field(default_factory=list)
+    sections: list[Section] = field(default_factory=list)
     summary: str = ""
-    validation_issues: List[ValidationIssue] = field(default_factory=list)
-    normalized_entities: Dict[str, str] = field(default_factory=dict)
-    field_confidence: Dict[str, float] = field(default_factory=dict)
-    recovered_fields: Dict[str, str] = field(default_factory=dict)
+    validation_issues: list[ValidationIssue] = field(default_factory=list)
+    normalized_entities: dict[str, str] = field(default_factory=dict)
+    field_confidence: dict[str, float] = field(default_factory=dict)
+    recovered_fields: dict[str, str] = field(default_factory=dict)
     escalated: bool = False
-    chunks: List[Chunk] = field(default_factory=list)
+    chunks: list[Chunk] = field(default_factory=list)
     chunk_artifact_id: str = ""
-    preprocess_route: List[str] = field(default_factory=list)
-    preprocess_artifacts: List[str] = field(default_factory=list)
-    stage_signals: List[StageSignal] = field(default_factory=list)
-    artifacts: Dict[str, str] = field(default_factory=dict)
-    last_artifact_id: Optional[str] = None
-
+    preprocess_route: list[str] = field(default_factory=list)
+    preprocess_artifacts: list[str] = field(default_factory=list)
+    stage_signals: list[StageSignal] = field(default_factory=list)
+    artifacts: dict[str, str] = field(default_factory=dict)
+    last_artifact_id: str | None = None
 
 class BudgetTracker:
     def __init__(self, max_cost_units: float) -> None:
@@ -59,7 +58,6 @@ class BudgetTracker:
 
     def spend(self, units: float) -> None:
         self.spent += units
-
 
 class PlanExecutor:
     def __init__(self) -> None:
@@ -251,7 +249,7 @@ class PlanExecutor:
         if signal:
             state.stage_signals.append(signal)
 
-    def _model_from_params(self, params: Dict[str, object], ctx: AgentContext) -> ModelDecision:
+    def _model_from_params(self, params: dict[str, object], ctx: AgentContext) -> ModelDecision:
         model_tier = str(params.get("model_tier", ctx.config.llm.default_mode))
         mode = "cloud" if model_tier in {"cloud", "tier2"} else "local"
         model_name = ctx.config.llm.cloud_model if mode == "cloud" else ctx.config.llm.local_model

@@ -1,15 +1,16 @@
+"""Document processing policy storage, selection, and override logic."""
+
 from __future__ import annotations
 
 import json
 from dataclasses import asdict
 from pathlib import Path
-from typing import Dict, Iterable, Optional, Tuple
+from typing import Iterable
 
 from idpo.core.types import DAEOutput, Document, PolicyDefinition
 
-
 class PolicyStore:
-    def __init__(self, path: Optional[str], default_policy_id: str = "default") -> None:
+    def __init__(self, path: str | None, default_policy_id: str = "default") -> None:
         self.path = Path(path) if path else None
         self.default_policy_id = default_policy_id
         self.policies = self._load()
@@ -17,9 +18,9 @@ class PolicyStore:
 
     def select_policy(
         self,
-        dae_output: Optional[DAEOutput],
-        doc: Optional[Document] = None,
-    ) -> Tuple[PolicyDefinition, str]:
+        dae_output: DAEOutput | None,
+        doc: Document | None = None,
+    ) -> tuple[PolicyDefinition, str]:
         policy_id = doc.metadata.get("policy_id") if doc else None
         if policy_id and policy_id in self._policy_map:
             return self._policy_map[policy_id], "metadata"
@@ -33,7 +34,7 @@ class PolicyStore:
             return fallback, "default"
         return self.policies[0], "fallback"
 
-    def to_payload(self, policy: PolicyDefinition, reason: str) -> Dict[str, object]:
+    def to_payload(self, policy: PolicyDefinition, reason: str) -> dict[str, object]:
         payload = asdict(policy)
         payload["selection_reason"] = reason
         return payload
@@ -58,7 +59,7 @@ class PolicyStore:
         policies_list.append(self._default_policy())
         return policies_list
 
-    def _policy_from_dict(self, payload: Dict[str, object]) -> PolicyDefinition:
+    def _policy_from_dict(self, payload: dict[str, object]) -> PolicyDefinition:
         if "actions" in payload or "conditions" in payload:
             conditions = payload.get("conditions", {}) if isinstance(payload.get("conditions"), dict) else {}
             actions = payload.get("actions", {}) if isinstance(payload.get("actions"), dict) else {}
@@ -94,13 +95,13 @@ class PolicyStore:
 
     def _matches(
         self,
-        conditions: Dict[str, object],
-        dae_output: Optional[DAEOutput],
-        doc: Optional[Document],
+        conditions: dict[str, object],
+        dae_output: DAEOutput | None,
+        doc: Document | None,
     ) -> bool:
         if not conditions:
             return False
-        value_map: Dict[str, object] = {}
+        value_map: dict[str, object] = {}
         if dae_output:
             value_map.update(
                 {

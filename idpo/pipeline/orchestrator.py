@@ -1,3 +1,5 @@
+"""Main pipeline orchestrator coordinating all IDPO agents."""
+
 from __future__ import annotations
 
 import concurrent.futures
@@ -9,7 +11,6 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 from idpo.agents.base import AgentContext
 from idpo.agents.doc_analysis import DocumentAnalysisAgent
@@ -35,9 +36,7 @@ from idpo.pipeline.planning import PlanRouter, build_plan
 from idpo.pipeline.export import export_simple_workspace as write_simple_workspace
 from idpo.pipeline.export import export_structured_results as write_structured_export
 
-
 logger = logging.getLogger("idpo.pipeline")
-
 
 @dataclass
 class PipelineResult:
@@ -54,46 +53,45 @@ class PipelineResult:
     bin: str
     quality_score: float
     complexity_score: float
-    entities: List[Entity]
-    explicit_entities: List[Entity]
-    default_entities: List[Entity]
+    entities: list[Entity]
+    explicit_entities: list[Entity]
+    default_entities: list[Entity]
     explicit_source: str
-    sections: List[Section]
-    chunks: List[Chunk]
+    sections: list[Section]
+    chunks: list[Chunk]
     summary: str
-    normalized_entities: Dict[str, str]
-    validation_issues: List[ValidationIssue]
-    recovered_fields: Dict[str, str]
+    normalized_entities: dict[str, str]
+    validation_issues: list[ValidationIssue]
+    recovered_fields: dict[str, str]
     escalated: bool
-    field_confidence: Dict[str, float]
-    stage_signals: List[StageSignal]
+    field_confidence: dict[str, float]
+    stage_signals: list[StageSignal]
     chunk_artifact_id: str
-    preprocess_route: List[str]
-    preprocess_artifacts: List[str]
+    preprocess_route: list[str]
+    preprocess_artifacts: list[str]
     policy_id: str
     policy_name: str
     policy_reason: str
     plan_id: str
     plan_source: str
-    plan_budgets: Dict[str, object]
-    plan_retrieval: Dict[str, object]
-    plan_token_budget: Dict[str, object]
+    plan_budgets: dict[str, object]
+    plan_retrieval: dict[str, object]
+    plan_token_budget: dict[str, object]
     model_used: str
     model_mode: str
     model_reason: str
-    dae_signals: Dict[str, object] = field(default_factory=dict)
+    dae_signals: dict[str, object] = field(default_factory=dict)
     queue_partition: str = ""
     queue_wait_ms: float = 0.0
-    artifacts: Dict[str, str] = field(default_factory=dict)
+    artifacts: dict[str, str] = field(default_factory=dict)
     latency_ms: float = 0.0
-    plan_payload: Dict[str, object] = field(default_factory=dict)
-
+    plan_payload: dict[str, object] = field(default_factory=dict)
 
 class PolicyRollbackMonitor:
     def __init__(self, run_dir: Path, config: PipelineConfig) -> None:
         self.config = config
         self.path = Path(run_dir) / "policy_rollbacks.json"
-        self.history: Dict[str, List[Dict[str, float]]] = {}
+        self.history: dict[str, list[dict[str, float]]] = {}
         self.blocked: set[str] = set()
         self._lock = threading.Lock()
         self._load()
@@ -112,7 +110,7 @@ class PolicyRollbackMonitor:
     def is_blocked(self, policy_id: str) -> bool:
         return policy_id in self.blocked
 
-    def update(self, policy_id: str, metrics: Dict[str, float], baseline_policy_id: str) -> bool:
+    def update(self, policy_id: str, metrics: dict[str, float], baseline_policy_id: str) -> bool:
         if not self.config.rollback.enabled:
             return False
         with self._lock:
@@ -157,8 +155,7 @@ class PolicyRollbackMonitor:
             return True
         return False
 
-
-def _percentile(values: List[float], percentile: int) -> float:
+def _percentile(values: list[float], percentile: int) -> float:
     if not values:
         return 0.0
     sorted_vals = sorted(values)
@@ -166,12 +163,11 @@ def _percentile(values: List[float], percentile: int) -> float:
     idx = max(0, min(idx, len(sorted_vals) - 1))
     return sorted_vals[idx]
 
-
 class Pipeline:
     def __init__(
         self,
-        config: Optional[PipelineConfig] = None,
-        run_dir: Optional[str] = None,
+        config: PipelineConfig | None = None,
+        run_dir: str | None = None,
         read_only: bool = False,
     ) -> None:
         self.base_run_dir = Path(run_dir) if run_dir else Path("runs") / uuid.uuid4().hex
@@ -236,7 +232,7 @@ class Pipeline:
         }
         (self.base_run_dir / "run_metadata.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
-    def process_documents(self, docs: List[Document]) -> List[PipelineResult]:
+    def process_documents(self, docs: list[Document]) -> list[PipelineResult]:
         if not self.config.queue.enabled:
             return [self.process_document(doc) for doc in docs]
 
@@ -247,18 +243,18 @@ class Pipeline:
             analysis_signal = analysis_result.artifacts.get("signal")
             dae_payloads.append((doc, dae_output, analysis_signal))
 
-        partitions: Dict[str, List[Tuple[Document, DAEOutput, Optional[StageSignal]]]] = {}
+        partitions: dict[str, list[tuple[Document, DAEOutput, StageSignal | None]]] = {}
         for doc, dae_output, analysis_signal in dae_payloads:
             key = self._queue_partition_key(dae_output, doc)
             partitions.setdefault(key, []).append((doc, dae_output, analysis_signal))
 
-        queue_metrics: Dict[str, List[Dict[str, float]]] = {}
-        results: List[PipelineResult] = []
+        queue_metrics: dict[str, list[dict[str, float]]] = {}
+        results: list[PipelineResult] = []
         max_workers = max(1, self.config.queue.max_workers)
         concurrency = max(1, self.config.queue.per_partition_concurrency)
         semaphores = {key: threading.Semaphore(concurrency) for key in partitions}
 
-        def _run(item: Tuple[Document, DAEOutput, Optional[StageSignal]], partition_key: str, depth: int):
+        def _run(item: tuple[Document, DAEOutput, StageSignal | None], partition_key: str, depth: int):
             doc_item, dae_output, analysis_signal = item
             start_wait = time.time()
             with semaphores[partition_key]:
@@ -290,8 +286,8 @@ class Pipeline:
     def process_document(
         self,
         doc: Document,
-        dae_output: Optional[DAEOutput] = None,
-        analysis_signal: Optional[StageSignal] = None,
+        dae_output: DAEOutput | None = None,
+        analysis_signal: StageSignal | None = None,
         queue_partition: str = "",
         queue_wait_ms: float = 0.0,
     ) -> PipelineResult:
@@ -373,7 +369,7 @@ class Pipeline:
         )
 
         shadow_executor = None
-        shadow_futures: List[concurrent.futures.Future] = []
+        shadow_futures: list[concurrent.futures.Future] = []
         if self._should_run_shadow():
             shadow_executor, shadow_futures = self._dispatch_shadow_plans(doc, dae_output, constraints)
 
@@ -469,7 +465,7 @@ class Pipeline:
             latency_ms=latency_ms,
         )
 
-    def _categorize(self, dae_output: DAEOutput, doc: Document) -> Tuple[str, str]:
+    def _categorize(self, dae_output: DAEOutput, doc: Document) -> tuple[str, str]:
         content = dae_output.content_profile
         if dae_output.doc_type == "scanned_document" or content == "image-heavy":
             category = "scanned"
@@ -492,7 +488,7 @@ class Pipeline:
             parts.append(str(value))
         return "|".join(parts)
 
-    def _plan_model_info(self, plan: ExecutionPlan) -> Tuple[str, str, str]:
+    def _plan_model_info(self, plan: ExecutionPlan) -> tuple[str, str, str]:
         for step in plan.steps:
             if step.operator == "structuring.extract":
                 model_tier = str(step.params.get("model_tier", self.config.llm.default_mode))
@@ -509,14 +505,14 @@ class Pipeline:
         doc: Document,
         dae_output: DAEOutput,
         constraints: SystemConstraints,
-    ) -> Tuple[Optional[concurrent.futures.ThreadPoolExecutor], List[concurrent.futures.Future]]:
+    ) -> tuple[concurrent.futures.ThreadPoolExecutor | None, list[concurrent.futures.Future]]:
         candidates = [pid for pid in self.config.shadow.candidate_policy_ids if pid in self.policy_store._policy_map]
         if not candidates:
             return None, []
         max_policies = max(1, self.config.shadow.max_policies_per_doc)
         selected = candidates[:max_policies]
 
-        futures: List[concurrent.futures.Future] = []
+        futures: list[concurrent.futures.Future] = []
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=len(selected))
         for policy_id in selected:
             if self.rollback_monitor.is_blocked(policy_id):
@@ -542,7 +538,7 @@ class Pipeline:
         dae_output: DAEOutput,
         policy_id: str,
         plan: ExecutionPlan,
-    ) -> Optional[Dict[str, object]]:
+    ) -> dict[str, object] | None:
         shadow_dir = self.base_run_dir / "shadow" / policy_id
         shadow_dir.mkdir(parents=True, exist_ok=True)
         artifacts = ArtifactStore(str(shadow_dir / "artifacts"))
@@ -573,7 +569,7 @@ class Pipeline:
         (shadow_dir / "shadow_result.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
         return {"policy_id": policy_id, "metrics": metrics}
 
-    def _quality_metrics(self, state: ExecutionState, latency_ms: float) -> Dict[str, float]:
+    def _quality_metrics(self, state: ExecutionState, latency_ms: float) -> dict[str, float]:
         if state.field_confidence:
             avg_conf = sum(state.field_confidence.values()) / max(len(state.field_confidence), 1)
         elif state.entities:
@@ -615,9 +611,9 @@ class Pipeline:
             dae_signals=dict(doc.dae_signals),
         )
 
-    def build_index(self, results: List[PipelineResult], directory: Optional[str] = None) -> IndexBundle:
-        chunks: Dict[str, Chunk] = {}
-        chunk_artifact_ids: List[str] = []
+    def build_index(self, results: list[PipelineResult], directory: str | None = None) -> IndexBundle:
+        chunks: dict[str, Chunk] = {}
+        chunk_artifact_ids: list[str] = []
         for result in results:
             for chunk in result.chunks:
                 chunks[chunk.chunk_id] = chunk
@@ -646,7 +642,7 @@ class Pipeline:
             )
         return bundle
 
-    def export_structured_results(self, results: List[PipelineResult], output_path: str) -> Dict[str, object]:
+    def export_structured_results(self, results: list[PipelineResult], output_path: str) -> dict[str, object]:
         export_payload = write_structured_export(results, output_path)
         artifact_ids = []
         if export_payload.get("format") == "xlsx":
@@ -675,8 +671,8 @@ class Pipeline:
         return export_payload
 
     def export_simple_workspace(
-        self, docs: List[Document], results: List[PipelineResult], output_dir: str
-    ) -> Dict[str, object]:
+        self, docs: list[Document], results: list[PipelineResult], output_dir: str
+    ) -> dict[str, object]:
         payload = write_simple_workspace(docs, results, output_dir)
         artifact = self.artifacts.register_external(
             payload["manifest"],

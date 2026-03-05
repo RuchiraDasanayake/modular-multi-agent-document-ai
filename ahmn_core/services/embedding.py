@@ -1,5 +1,7 @@
+"""Sentence embedding service using SentenceTransformers."""
+
 from sentence_transformers import SentenceTransformer
-from typing import List
+
 import threading
 
 class EmbeddingService:
@@ -15,7 +17,7 @@ class EmbeddingService:
                     cls._model = SentenceTransformer('all-MiniLM-L6-v2')
         return cls._instance
 
-    def generate_embedding(self, text: str) -> List[float]:
+    def generate_embedding(self, text: str) -> list[float]:
         """Generate vector embedding for the given text."""
         if not self._model:
             self._model = SentenceTransformer('all-MiniLM-L6-v2')

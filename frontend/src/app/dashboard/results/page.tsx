@@ -25,7 +25,7 @@ export default function ResultsPage() {
             .then((data) => {
                 setResults((data as { main_results: MainResult[] }).main_results || []);
             })
-            .catch(() => { })
+            .catch((err) => { console.error("Results fetch failed:", err); })
             .finally(() => setLoading(false));
     }, []);
 

@@ -16,8 +16,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY idpo/ ./idpo/
 COPY configs/ ./configs/
 
-# Create necessary directories
-RUN mkdir -p inputs/inbox runs
+# Create necessary directories and non-root user
+RUN useradd --create-home --shell /bin/bash appuser \
+    && mkdir -p inputs/inbox runs \
+    && chown -R appuser:appuser /app
+USER appuser
 
 EXPOSE 8004
 

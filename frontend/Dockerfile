@@ -2,7 +2,7 @@ FROM node:20-alpine AS deps
 LABEL stage=deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps && npm audit fix
+RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
 FROM node:20-alpine AS builder
 RUN apk update && apk upgrade

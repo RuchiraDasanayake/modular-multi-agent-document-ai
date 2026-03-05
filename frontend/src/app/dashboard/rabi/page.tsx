@@ -21,13 +21,16 @@ export default function RABIPage() {
     const [threshold, setThreshold] = useState(0.3);
     const [k, setK] = useState(5);
 
+    const [error, setError] = useState("");
+
     const run = async () => {
         setLoading(true);
+        setError("");
         try {
             const res = (await api.runRABIDemo({ temperature, threshold, k })) as RABIResult;
             setResult(res);
-        } catch {
-            /* empty */
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to run RABI demo");
         }
         setLoading(false);
     };
@@ -61,6 +64,12 @@ export default function RABIPage() {
                     Smart initialization — transfer knowledge from similar contexts
                 </p>
             </div>
+
+            {error && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 text-sm text-red-700 dark:text-red-400">
+                    {error}
+                </div>
+            )}
 
             {/* Concept */}
             <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl p-6">

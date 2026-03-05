@@ -1,20 +1,20 @@
+"""Index bundle for persisting and loading retrieval indices."""
+
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List
 
 from idpo.core.types import Chunk
 from idpo.retrieval.bm25 import BM25Index
 from idpo.retrieval.vector_store import HashingEmbedder, VectorStore
 
-
 @dataclass
 class IndexBundle:
     vector_store: VectorStore
     bm25: BM25Index
-    chunks: Dict[str, Chunk]
+    chunks: dict[str, Chunk]
 
     def save(self, directory: str) -> None:
         out_dir = Path(directory)

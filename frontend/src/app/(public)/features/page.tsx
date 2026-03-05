@@ -100,12 +100,12 @@ const coreFeatures = [
 ];
 
 const technicalSpecs = [
-    { icon: <Database className="w-5 h-5" />, label: "Processing", value: "50+ document formats" },
-    { icon: <RefreshCw className="w-5 h-5" />, label: "Throughput", value: "1000+ docs/minute" },
-    { icon: <Eye className="w-5 h-5" />, label: "Accuracy", value: "99.2% field-level" },
-    { icon: <Globe className="w-5 h-5" />, label: "Languages", value: "30+ supported" },
+    { icon: <Database className="w-5 h-5" />, label: "Processing", value: "Multiple formats" },
+    { icon: <RefreshCw className="w-5 h-5" />, label: "Throughput", value: "High throughput" },
+    { icon: <Eye className="w-5 h-5" />, label: "Accuracy", value: "High accuracy" },
+    { icon: <Globe className="w-5 h-5" />, label: "Languages", value: "Multi-language" },
     { icon: <Lock className="w-5 h-5" />, label: "Security", value: "Enterprise-grade" },
-    { icon: <BarChart3 className="w-5 h-5" />, label: "Speed", value: "<500ms average" },
+    { icon: <BarChart3 className="w-5 h-5" />, label: "Speed", value: "Low latency" },
 ];
 
 export default function FeaturesPage() {

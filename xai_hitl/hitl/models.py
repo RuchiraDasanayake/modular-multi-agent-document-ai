@@ -7,9 +7,8 @@ Author: Pathirana M.M. (Malith)
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any
+from typing import Any
 from enum import Enum
-
 
 class FeedbackType(Enum):
     """Types of human feedback."""
@@ -19,14 +18,12 @@ class FeedbackType(Enum):
     NEEDS_MORE_CONTEXT = "needs_more_context"
     XAI_UNCLEAR = "xai_unclear"
 
-
 class FeedbackPriority(Enum):
     """Priority levels for feedback."""
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
-
 
 @dataclass
 class HITLFeedback:
@@ -37,17 +34,17 @@ class HITLFeedback:
     original_answer: str
     feedback_type: FeedbackType
     is_answer_correct: bool
-    corrected_answer: Optional[str] = None
+    corrected_answer: str | None = None
     explanation_quality: int = 3  # 1-5 scale
     highlight_accuracy: int = 3  # 1-5 scale
     xai_helpfulness: int = 3  # 1-5 scale
-    additional_context: Optional[str] = None
-    knowledge_update: Optional[str] = None
+    additional_context: str | None = None
+    knowledge_update: str | None = None
     priority: FeedbackPriority = FeedbackPriority.MEDIUM
-    reviewer_notes: Optional[str] = None
-    tags: List[str] = field(default_factory=list)
+    reviewer_notes: str | None = None
+    tags: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for API submission."""
         return {
             "feedback_id": self.feedback_id,
@@ -70,7 +67,7 @@ class HITLFeedback:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> HITLFeedback:
+    def from_dict(cls, data: dict[str, Any]) -> HITLFeedback:
         """Create HITLFeedback from dictionary."""
         ratings = data.get("ratings", {})
         return cls(

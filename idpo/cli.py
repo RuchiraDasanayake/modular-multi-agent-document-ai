@@ -1,3 +1,5 @@
+"""Command-line interface for the IDPO document processing pipeline."""
+
 from __future__ import annotations
 
 import argparse
@@ -16,9 +18,7 @@ from idpo.pipeline.serialization import document_to_dict, result_to_dict
 from idpo.pipeline.inbox import process_inbox
 from idpo.retrieval.index_bundle import IndexBundle
 
-
 SUPPORTED_INPUT_EXTS = {".json", ".txt", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="idpo")
@@ -251,7 +251,6 @@ def main() -> None:
         base_dir, primary_dir = _resolve_run_dirs(Path(args.run_dir))
         export_provenance(str(primary_dir / "provenance.jsonl"), args.out)
         return
-
 
 if __name__ == "__main__":
     main()

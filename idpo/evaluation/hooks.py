@@ -1,18 +1,19 @@
+"""Evaluation hooks for comparing preprocessing configurations."""
+
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from idpo.core.config import load_config
 from idpo.evaluation.runner import evaluate_documents
 from idpo.pipeline.orchestrator import Pipeline
 
-
 def compare_preprocessing_routes(
     docs,
     base_run_dir: str,
-    config_paths: List[str],
-) -> Dict[str, Any]:
+    config_paths: list[str],
+) -> dict[str, Any]:
     results = []
     for config_path in config_paths:
         config = load_config(config_path)
@@ -22,12 +23,11 @@ def compare_preprocessing_routes(
         results.append({"config": config_path, "run_dir": run_dir, "metrics": metrics})
     return {"mode": "preprocessing_routes", "results": results}
 
-
 def compare_retrieval_strategies(
     docs,
     base_run_dir: str,
-    config_paths: List[str],
-) -> Dict[str, Any]:
+    config_paths: list[str],
+) -> dict[str, Any]:
     results = []
     for config_path in config_paths:
         config = load_config(config_path)

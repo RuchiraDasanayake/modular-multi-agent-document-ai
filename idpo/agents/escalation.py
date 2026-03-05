@@ -1,12 +1,12 @@
+"""Escalation agent for deciding when to flag documents for human review."""
+
 from __future__ import annotations
 
 import time
-from typing import List
 
 from idpo.agents.base import Agent, AgentContext
 from idpo.core.contracts import AgentMessage
 from idpo.core.types import AgentResult, Document, StageSignal, ValidationIssue
-
 
 class EscalationAgent(Agent):
     name = "escalation"
@@ -24,7 +24,7 @@ class EscalationAgent(Agent):
     def run(self, payload: AgentMessage, ctx: AgentContext) -> AgentResult:
         started = time.time()
         doc: Document = payload["document"]
-        issues: List[ValidationIssue] = payload.get("issues", [])
+        issues: list[ValidationIssue] = payload.get("issues", [])
         prior_signal = payload.get("signal")
         count = payload.get("count", 0)
         fields = payload.get("fields") or [issue.field for issue in issues]

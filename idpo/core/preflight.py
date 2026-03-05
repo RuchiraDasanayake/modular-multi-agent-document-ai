@@ -1,3 +1,5 @@
+"""Pre-flight checks for system dependencies and environment readiness."""
+
 from __future__ import annotations
 
 import json
@@ -6,13 +8,11 @@ import shutil
 import urllib.error
 import urllib.request
 import sys
-from typing import List
 
 from idpo.core.config import PipelineConfig
 
-
-def run_preflight(config: PipelineConfig, strict: bool = False) -> List[str]:
-    issues: List[str] = []
+def run_preflight(config: PipelineConfig, strict: bool = False) -> list[str]:
+    issues: list[str] = []
 
     issues.extend(_check_python_deps())
     issues.extend(_check_tesseract())
@@ -31,8 +31,7 @@ def run_preflight(config: PipelineConfig, strict: bool = False) -> List[str]:
         print(message, file=sys.stderr)
     return issues
 
-
-def _check_python_deps() -> List[str]:
+def _check_python_deps() -> list[str]:
     missing = []
     try:
         import PIL  # noqa: F401
@@ -48,14 +47,12 @@ def _check_python_deps() -> List[str]:
         missing.append("Python package pdf2image is missing (install with pip install -e .[ocr])")
     return missing
 
-
-def _check_tesseract() -> List[str]:
+def _check_tesseract() -> list[str]:
     if shutil.which("tesseract"):
         return []
     return ["Tesseract OCR is not on PATH (install and add tesseract.exe to PATH)"]
 
-
-def _check_poppler() -> List[str]:
+def _check_poppler() -> list[str]:
     env_path = os.environ.get("POPPLER_PATH")
     if env_path and (shutil.which("pdftoppm") or os.path.exists(env_path)):
         return []
@@ -63,8 +60,7 @@ def _check_poppler() -> List[str]:
         return []
     return ["Poppler pdftoppm is not available (install Poppler and set POPPLER_PATH if needed)"]
 
-
-def _check_ollama(base_url: str, model: str) -> List[str]:
+def _check_ollama(base_url: str, model: str) -> list[str]:
     url = base_url.rstrip("/") + "/api/tags"
     req = urllib.request.Request(url, headers={"Content-Type": "application/json"})
     try:
@@ -85,8 +81,7 @@ def _check_ollama(base_url: str, model: str) -> List[str]:
         return [f"Ollama model '{model}' not found (run 'ollama pull {model}')"]
     return []
 
-
-def _check_cloud_provider(provider: str, config: PipelineConfig) -> List[str]:
+def _check_cloud_provider(provider: str, config: PipelineConfig) -> list[str]:
     provider_name = (provider or "").lower()
     if provider_name == "openai":
         try:
@@ -100,6 +95,8 @@ def _check_cloud_provider(provider: str, config: PipelineConfig) -> List[str]:
             return ["OPENAI_API_KEY is not set (or provide llm.openai_api_key in config)"]
         if key == "sk-PLACEHOLDER":
             return ["OpenAI API key is set to placeholder value"]
+        if key.startswith("${"):
+            return ["OpenAI API key contains unresolved variable reference (check config and .env)"]
         return []
     if provider_name == "anthropic":
         try:

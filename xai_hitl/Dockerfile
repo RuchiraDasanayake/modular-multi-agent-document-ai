@@ -13,9 +13,13 @@ RUN python -c "from transformers import pipeline; pipeline('question-answering',
 
 COPY xai_hitl/ ./xai_hitl/
 
+# Run as non-root user
+RUN useradd --create-home --shell /bin/bash appuser
+USER appuser
+
 EXPOSE 8003
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8003/health', timeout=5)"
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"
 
 CMD ["uvicorn", "xai_hitl.main:app", "--host", "0.0.0.0", "--port", "8003"]

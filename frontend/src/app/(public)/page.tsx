@@ -9,52 +9,52 @@ import {
     Sparkles,
     ArrowRight,
     Shield,
-    Brain,
+    Eye,
     Zap,
     BarChart3,
     Globe,
-    Lock,
+    Workflow,
     CheckCircle2,
     ChevronRight,
 } from "lucide-react";
 
 const stats = [
-    { value: "99.2%", label: "Extraction Accuracy" },
-    { value: "<500ms", label: "Avg. Latency" },
-    { value: "50+", label: "Document Types" },
-    { value: "10M+", label: "Documents Processed" },
+    { value: "13", label: "Extraction Agents" },
+    { value: "5", label: "Validation Layers" },
+    { value: "8", label: "Microservices" },
+    { value: "3", label: "Research Algorithms" },
 ];
 
 const features = [
     {
-        icon: <Brain className="w-7 h-7 text-brand-500" />,
+        icon: <Eye className="w-7 h-7 text-brand-500" />,
         title: "Transparent Results",
-        desc: "Every extraction comes with confidence scores and clear explanations so you always know why the AI made its decisions.",
+        desc: "Every extraction comes with SHAP/LIME explanations and confidence scores — full explainability for every decision.",
     },
     {
         icon: <Shield className="w-7 h-7 text-violet-500" />,
-        title: "Built-in Quality Checks",
-        desc: "Automatic validation ensures extracted data is accurate and complete before it reaches your workflow.",
+        title: "5-Layer Validation",
+        desc: "Guardrails ensemble validates coherence, hallucination, PII, format, and semantics across all extracted entities.",
     },
     {
         icon: <Zap className="w-7 h-7 text-amber-500" />,
-        title: "Expert Review When Needed",
-        desc: "Uncertain results are automatically flagged for human review, so nothing slips through the cracks.",
+        title: "Human-in-the-Loop",
+        desc: "Uncertain results are flagged for expert review with ranked priority queues and annotation tools.",
     },
     {
         icon: <BarChart3 className="w-7 h-7 text-emerald-500" />,
-        title: "Self-Improving AI",
-        desc: "Our system learns and improves with every document you process, getting smarter over time.",
+        title: "Adaptive Learning",
+        desc: "Thompson Sampling bandits with RABI cold-start and DAAF drift detection continuously improve policy selection.",
     },
     {
         icon: <Globe className="w-7 h-7 text-blue-500" />,
         title: "Multi-Format Support",
-        desc: "Process PDFs, scanned images, invoices, contracts, medical records, and more — all in one place.",
+        desc: "Process PDFs, scanned images, invoices, contracts, and more — all through a unified extraction pipeline.",
     },
     {
-        icon: <Lock className="w-7 h-7 text-rose-500" />,
-        title: "Enterprise Security",
-        desc: "Bank-grade security with role-based access, audit trails, and end-to-end encryption.",
+        icon: <Workflow className="w-7 h-7 text-rose-500" />,
+        title: "Modular Architecture",
+        desc: "8 Docker microservices with independent scaling, health monitoring, and graceful fault isolation.",
     },
 ];
 
@@ -62,22 +62,22 @@ const steps = [
     {
         step: "01",
         title: "Upload Documents",
-        desc: "Drag-and-drop your files. We support PDFs, images, Word docs, and 50+ other formats.",
+        desc: "Drag-and-drop your files. Supports PDFs, images, text files, and structured data formats.",
     },
     {
         step: "02",
         title: "AI Extraction",
-        desc: "Our AI reads and understands your documents, pulling out key data like names, dates, amounts, and more.",
+        desc: "13 specialized agents analyze your document, extracting entities with confidence scoring.",
     },
     {
         step: "03",
-        title: "Validation & Review",
-        desc: "Results are automatically checked for accuracy. Uncertain items are flagged for expert review.",
+        title: "Validation & Explain",
+        desc: "5-layer guardrails validate results. XAI provides SHAP/LIME explanations for every extraction.",
     },
     {
         step: "04",
-        title: "Export & Integrate",
-        desc: "Download your clean, structured data or connect directly to your existing tools and workflows.",
+        title: "Learn & Export",
+        desc: "AHMN learns from outcomes via bandit feedback. Export clean, structured data in Excel format.",
     },
 ];
 
@@ -116,26 +116,17 @@ export default function HomePage() {
                 <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-8 py-20 flex flex-col lg:flex-row items-center justify-between gap-16 w-full">
                     {/* Left Content */}
                     <div className="flex-1 space-y-8 text-center lg:text-left">
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.5 }}
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 text-sm font-medium"
-                        >
-                            <Sparkles className="w-4 h-4" />
-                            Next-Gen Document Extraction
-                        </motion.div>
-
                         <motion.h1
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.5, delay: 0.1 }}
                             className="text-5xl lg:text-7xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-[1.1]"
                         >
-                            Understand your <br />
+                            Understand your{" "}
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-violet-500">
-                                documents with AI
+                                documents
                             </span>
+                            <br />with adaptive AI
                         </motion.h1>
 
                         <motion.p
@@ -144,8 +135,8 @@ export default function HomePage() {
                             transition={{ duration: 0.5, delay: 0.2 }}
                             className="text-lg text-slate-600 dark:text-gray-400 max-w-2xl mx-auto lg:mx-0 leading-relaxed"
                         >
-                            Intelligent document processing powered by AI you can trust.
-                            Extract, analyze, and validate complex documents with unmatched accuracy.
+                            Extract, validate, and learn from any document with our multi-agent AI pipeline.
+                            Powered by explainable AI, smart validation, and continuous adaptive learning.
                         </motion.p>
 
                         <motion.div
@@ -349,14 +340,14 @@ export default function HomePage() {
                         className="glass-panel rounded-3xl p-12 lg:p-16"
                     >
                         <h2 className="text-3xl lg:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight mb-6">
-                            Ready to transform your{" "}
+                            Experience intelligent{" "}
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-violet-500">
-                                document workflow?
+                                document extraction
                             </span>
                         </h2>
                         <p className="text-lg text-slate-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto">
-                            Join thousands of teams using Modular Doc AI to extract, validate, and understand their documents
-                            with unprecedented accuracy.
+                            Join thousands of teams already using Modular Doc AI to transform
+                            their document workflows with intelligent, explainable extraction.
                         </p>
                         <div className="flex items-center justify-center gap-4 flex-wrap">
                             <Link

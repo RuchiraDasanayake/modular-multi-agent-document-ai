@@ -1,13 +1,13 @@
+"""Document chunking agent for splitting documents into processable segments."""
+
 from __future__ import annotations
 
 import time
-from typing import List
 
 from idpo.agents.base import Agent, AgentContext
 from idpo.core.metrics import token_count
 from idpo.core.contracts import AgentMessage
 from idpo.core.types import AgentResult, Chunk, Document, Section, StageSignal
-
 
 class ChunkingAgent(Agent):
     name = "chunking"
@@ -18,12 +18,12 @@ class ChunkingAgent(Agent):
     def run(self, payload: AgentMessage, ctx: AgentContext) -> AgentResult:
         started = time.time()
         doc: Document = payload["document"]
-        sections: List[Section] = payload.get("sections", [])
+        sections: list[Section] = payload.get("sections", [])
         input_artifact_id = payload.get("input_artifact_id")
         chunk_size = int(payload.get("chunk_size", ctx.config.chunking.chunk_size))
         overlap = int(payload.get("chunk_overlap", ctx.config.chunking.chunk_overlap))
         max_chunks = int(payload.get("max_chunks", ctx.config.chunking.max_chunks))
-        chunks: List[Chunk] = []
+        chunks: list[Chunk] = []
         chunk_id = 0
 
         def _chunk_text(text: str, section_name: str | None, page_range: tuple[int, int]) -> None:

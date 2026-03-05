@@ -142,3 +142,4 @@ ipython_config.py
 # Simulation / experiment results
 simulation_results.json
 output/
+inputs

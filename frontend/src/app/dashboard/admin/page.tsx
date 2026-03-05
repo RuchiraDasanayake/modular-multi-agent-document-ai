@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { useUser } from "@/hooks/use-user";
 
 interface User {
     id: string;
@@ -12,6 +13,7 @@ interface User {
 }
 
 export default function AdminPage() {
+    const { isAdmin, loading: userLoading } = useUser();
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
@@ -21,7 +23,7 @@ export default function AdminPage() {
     const load = () => {
         api.getUsers()
             .then(setUsers)
-            .catch(() => { })
+            .catch((err) => { setError(err instanceof Error ? err.message : "Failed to load users"); })
             .finally(() => setLoading(false));
     };
 
@@ -41,14 +43,32 @@ export default function AdminPage() {
     };
 
     const handleToggle = async (userId: string) => {
-        await api.toggleUser(userId);
-        load();
+        try {
+            await api.toggleUser(userId);
+            load();
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "Failed to toggle user");
+        }
     };
 
-    if (loading) {
+    if (loading || userLoading) {
         return (
             <div className="flex items-center justify-center h-64">
                 <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
+
+    if (!isAdmin) {
+        return (
+            <div className="max-w-4xl mx-auto">
+                <div className="glass-panel rounded-2xl p-12 text-center">
+                    <div className="w-16 h-16 mx-auto rounded-2xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 flex items-center justify-center mb-4">
+                        <span className="text-3xl">🔒</span>
+                    </div>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Access Denied</h2>
+                    <p className="text-slate-500 dark:text-gray-400 text-sm">You need administrator privileges to access this page.</p>
+                </div>
             </div>
         );
     }
@@ -146,8 +166,8 @@ export default function AdminPage() {
                                 <td className="py-3 px-4">
                                     <span
                                         className={`text-xs font-medium px-2 py-0.5 rounded ${u.role === "admin"
-                                                ? "bg-brand-500/10 text-brand-400"
-                                                : "bg-slate-200 dark:bg-gray-700 text-slate-500 dark:text-gray-400"
+                                            ? "bg-brand-500/10 text-brand-400"
+                                            : "bg-slate-200 dark:bg-gray-700 text-slate-500 dark:text-gray-400"
                                             }`}
                                     >
                                         {u.role}

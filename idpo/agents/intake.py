@@ -1,17 +1,18 @@
+"""Document intake agent for ingesting files into the pipeline."""
+
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import List, Optional, Tuple
 
+from idpo.agents.degarble import is_garbled
 from idpo.core.types import Document, Page
-
 
 class IntakeAgent:
     name = "intake"
     version = "v1"
 
-    def ingest(self, input_path: str) -> List[Document]:
+    def ingest(self, input_path: str) -> list[Document]:
         path = Path(input_path)
         if path.is_dir():
             docs = []
@@ -46,7 +47,7 @@ class IntakeAgent:
             metadata={},
         )
 
-    def _load_json(self, path: Path) -> List[Document]:
+    def _load_json(self, path: Path) -> list[Document]:
         payload = json.loads(path.read_text(encoding="utf-8"))
         if isinstance(payload, dict):
             payload = [payload]
@@ -83,7 +84,7 @@ class IntakeAgent:
             metadata={},
         )
 
-    def _load_pdf(self, path: Path) -> List[Document]:
+    def _load_pdf(self, path: Path) -> list[Document]:
         pages, has_text = self._extract_pdf_text(path)
         source = "digital" if has_text else "scanned"
         doc = Document(
@@ -95,20 +96,27 @@ class IntakeAgent:
         )
         return [doc]
 
-    def _extract_pdf_text(self, path: Path) -> Tuple[List[Page], bool]:
+    def _extract_pdf_text(self, path: Path) -> tuple[list[Page], bool]:
         try:
             from pypdf import PdfReader
         except Exception:
             pages = [Page(number=1, text="", raw_text="", image_path=str(path), metadata={"file_type": ".pdf", "pdf_page_index": 0})]
             return pages, False
         reader = PdfReader(str(path))
-        pages: List[Page] = []
+        pages: list[Page] = []
         has_text = False
+        garbled_detected = False
         for idx, page in enumerate(reader.pages, start=1):
-            text = page.extract_text() or ""
-            raw_text = text
+            raw_text = page.extract_text() or ""
+            # Normalize whitespace: collapse double/triple spaces from PDF extractors
+            import re
+            text = re.sub(r"[ \t]+", " ", raw_text).strip()
+            text = re.sub(r"\n{3,}", "\n\n", text)
             if text.strip():
                 has_text = True
+            # Detect garbled font encoding (custom CMap PDFs)
+            if text and is_garbled(text):
+                garbled_detected = True
             pages.append(
                 Page(
                     number=idx,
@@ -120,4 +128,9 @@ class IntakeAgent:
             )
         if not pages:
             pages = [Page(number=1, text="", raw_text="", image_path=str(path), metadata={"file_type": ".pdf", "pdf_page_index": 0})]
+        # If garbled encoding detected, mark as scanned to force OCR
+        if garbled_detected:
+            has_text = False
+            for p in pages:
+                p.metadata["garbled_pdf"] = True
         return pages, has_text

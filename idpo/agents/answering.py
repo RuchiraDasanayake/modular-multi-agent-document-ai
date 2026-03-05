@@ -1,13 +1,13 @@
+"""Question answering agent using retrieved context and extracted entities."""
+
 from __future__ import annotations
 
 import re
 import time
-from typing import Dict, List, Optional
 
 from idpo.agents.base import Agent, AgentContext
 from idpo.core.contracts import AgentMessage
 from idpo.core.types import AgentResult, Answer, Chunk, Entity, StageSignal
-
 
 class AnsweringAgent(Agent):
     name = "answering"
@@ -22,8 +22,8 @@ class AnsweringAgent(Agent):
     ) -> AgentResult:
         started = time.time()
         question: str = payload["question"]
-        context_chunks: List[Chunk] = payload.get("context_chunks", [])
-        entities: List[Entity] = payload.get("entities", [])
+        context_chunks: list[Chunk] = payload.get("context_chunks", [])
+        entities: list[Entity] = payload.get("entities", [])
         signals = payload.get("signals", [])
         min_confidence = payload.get("min_confidence", 0.55)
 
@@ -70,7 +70,7 @@ class AnsweringAgent(Agent):
         )
         return AgentResult(artifacts={"answer": answer, "signal": signal, "answer_artifact": answer_artifact})
 
-    def _answer_from_entities(self, question: str, entities: List[Entity]) -> tuple[str, float]:
+    def _answer_from_entities(self, question: str, entities: list[Entity]) -> tuple[str, float]:
         q = question.lower()
         best = ("", 0.0)
         for entity in entities:
@@ -87,7 +87,7 @@ class AnsweringAgent(Agent):
                 best = (entity.value, score)
         return best
 
-    def _build_citations(self, chunks: List[Chunk], answer_text: str) -> List[Dict[str, str]]:
+    def _build_citations(self, chunks: list[Chunk], answer_text: str) -> list[dict[str, str]]:
         citations = []
         for chunk in chunks[:3]:
             if answer_text and answer_text not in chunk.text:

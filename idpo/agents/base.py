@@ -1,15 +1,16 @@
+"""Base agent class, execution context, and contract enforcement."""
+
 from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any
 
 from idpo.core.artifacts import ArtifactStore
 from idpo.core.config import PipelineConfig
 from idpo.core.provenance import ProvenanceRecorder
 from idpo.core.contracts import AgentContract, AgentMessage
 from idpo.core.types import AgentResult
-
 
 @dataclass
 class AgentContext:
@@ -18,12 +19,11 @@ class AgentContext:
     provenance: ProvenanceRecorder
     run_id: str
 
-
 class Agent:
     name: str = "agent"
     version: str = "v0"
-    input_contract: Dict[str, Any] = {}
-    output_contract: Dict[str, Any] = {}
+    input_contract: dict[str, Any] = {}
+    output_contract: dict[str, Any] = {}
 
     def contract(self) -> AgentContract:
         return AgentContract(
@@ -39,9 +39,9 @@ class Agent:
     def _record(
         self,
         ctx: AgentContext,
-        inputs: Dict[str, Any],
-        outputs: Dict[str, Any],
-        parameters: Dict[str, Any],
+        inputs: dict[str, Any],
+        outputs: dict[str, Any],
+        parameters: dict[str, Any],
         artifacts: list[str] | None = None,
         input_artifacts: list[str] | None = None,
         output_artifacts: list[str] | None = None,

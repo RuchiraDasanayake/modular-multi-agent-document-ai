@@ -16,7 +16,8 @@
           <p class="eyebrow">Document AI Demo</p>
           <h1>IDPO Extraction Studio</h1>
           <p class="subhead">
-            Drop a batch, define the fields, and get a structured table with traceable artifacts.
+            Drop a batch, define the fields, and get a structured table with
+            traceable artifacts.
           </p>
         </div>
         <div class="status" id="status-pill">Idle</div>
@@ -35,20 +36,22 @@
             <div class="fields">
               <div class="fields-header">
                 <span>Fields to extract</span>
-                <button type="button" id="add-field" class="ghost">Add field</button>
+                <button type="button" id="add-field" class="ghost">
+                  Add field
+                </button>
               </div>
               <div id="field-list"></div>
             </div>
 
             <label class="block">
               <span>Config path</span>
-              <input id="config-path" type="text" value="configs/sample_config.json" />
-              <span class="hint">Uses local Ollama when enabled in config.</span>
+              <input id="config-path" type="text" value="configs/config.json" />
+              <span class="hint"
+                >Uses local Ollama when enabled in config.</span
+              >
             </label>
 
-            <button class="primary" type="submit">
-              Run Extraction
-            </button>
+            <button class="primary" type="submit">Run Extraction</button>
             <p class="hint" id="form-hint"></p>
           </form>
         </div>
@@ -57,9 +60,19 @@
           <div class="results-header">
             <h2>Run Output</h2>
             <div class="downloads">
-              <a id="download-entities" class="ghost" href="#" aria-disabled="true">Entities table</a>
-              <a id="download-docs" class="ghost" href="#" aria-disabled="true">Docs table</a>
-              <a id="download-run" class="ghost" href="#" aria-disabled="true">Run summary</a>
+              <a
+                id="download-entities"
+                class="ghost"
+                href="#"
+                aria-disabled="true"
+                >Entities table</a
+              >
+              <a id="download-docs" class="ghost" href="#" aria-disabled="true"
+                >Docs table</a
+              >
+              <a id="download-run" class="ghost" href="#" aria-disabled="true"
+                >Run summary</a
+              >
             </div>
           </div>
           <div class="run-meta" id="run-meta">
@@ -77,8 +90,12 @@
             </div>
           </div>
           <div class="view-tabs">
-            <button type="button" class="tab active" data-view="entities">Entities view</button>
-            <button type="button" class="tab" data-view="docs">Docs view</button>
+            <button type="button" class="tab active" data-view="entities">
+              Entities view
+            </button>
+            <button type="button" class="tab" data-view="docs">
+              Docs view
+            </button>
           </div>
           <div class="table-wrap">
             <table id="results-table">

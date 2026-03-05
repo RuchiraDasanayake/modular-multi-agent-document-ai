@@ -1,20 +1,19 @@
-from __future__ import annotations
+"""Token-budget-aware context selection from retrieval results."""
 
-from typing import List, Tuple
+from __future__ import annotations
 
 from idpo.core.metrics import token_count, term_overlap_score
 from idpo.core.types import Chunk, RetrievalResult, TokenBudget
 
-
 def select_context(
-    results: List[RetrievalResult],
+    results: list[RetrievalResult],
     budget: TokenBudget,
     diversity_penalty: float,
-) -> Tuple[List[Chunk], int, List[dict]]:
-    selected: List[Chunk] = []
+) -> tuple[list[Chunk], int, list[dict]]:
+    selected: list[Chunk] = []
     used_tokens = 0
     selected_terms = None
-    decisions: List[dict] = []
+    decisions: list[dict] = []
     for item in results:
         chunk = item.chunk
         chunk_tokens = chunk.tokens or token_count(chunk.text)
@@ -57,7 +56,6 @@ def select_context(
         if used_tokens >= budget.available:
             break
     return selected, used_tokens, decisions
-
 
 def _overlap_ratio(base, new) -> float:
     if not base or not new:

@@ -1,21 +1,21 @@
+"""Execution planning with AHMN integration and policy-driven step selection."""
+
 from __future__ import annotations
 
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from idpo.core.config import PipelineConfig
 from idpo.core.policy_store import PolicyStore
 from idpo.core.types import DAEOutput, ExecutionPlan, PlanStep, PolicyDefinition, SystemConstraints
 
-
 @dataclass(frozen=True)
 class AHMNRecommendation:
-    policy_id: Optional[str]
-    action_overrides: Dict[str, Any]
+    policy_id: str | None
+    action_overrides: dict[str, Any]
     source: str = "ahmn"
-
 
 class AHMNAdapter:
     def __init__(self, config: PipelineConfig) -> None:
@@ -25,8 +25,8 @@ class AHMNAdapter:
         self,
         dae_output: DAEOutput,
         objective: str,
-        slo_state: Optional[Dict[str, Any]] = None,
-    ) -> Optional[AHMNRecommendation]:
+        slo_state: dict[str, Any] | None = None,
+    ) -> AHMNRecommendation | None:
         if not self.config.ahmn.enabled:
             return None
         if self.config.ahmn.mode != "mock":
@@ -35,7 +35,6 @@ class AHMNAdapter:
             policy_id=self.config.ahmn.policy_override_id,
             action_overrides=self.config.ahmn.action_overrides or {},
         )
-
 
 class PlanRouter:
     def __init__(self, config: PipelineConfig, policy_store: PolicyStore) -> None:
@@ -47,13 +46,13 @@ class PlanRouter:
         self,
         dae_output: DAEOutput,
         system_constraints: SystemConstraints,
-        doc_metadata: Optional[Dict[str, Any]] = None,
-        doc: Optional[object] = None,
-        slo_state: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[ExecutionPlan, PolicyDefinition, str]:
+        doc_metadata: dict[str, Any] | None = None,
+        doc: object | None = None,
+        slo_state: dict[str, Any] | None = None,
+    ) -> tuple[ExecutionPlan, PolicyDefinition, str]:
         policy, reason = self.policy_store.select_policy(dae_output, doc)
         source = "config"
-        action_overrides: Dict[str, Any] = {}
+        action_overrides: dict[str, Any] = {}
 
         recommendation = self.ahmn.recommend(dae_output, self.config.ahmn.objective, slo_state)
         if recommendation:
@@ -75,13 +74,12 @@ class PlanRouter:
         )
         return plan, policy, source
 
-
 def build_plan(
     config: PipelineConfig,
     dae_output: DAEOutput,
     policy: PolicyDefinition,
     system_constraints: SystemConstraints,
-    action_overrides: Optional[Dict[str, Any]] = None,
+    action_overrides: dict[str, Any] | None = None,
     source: str = "config",
     rationale: str = "",
 ) -> ExecutionPlan:
@@ -101,7 +99,7 @@ def build_plan(
     step_budgets = actions.get("step_budgets", {})
     step_fallbacks = actions.get("fallbacks", {})
 
-    steps: List[PlanStep] = []
+    steps: list[PlanStep] = []
     for idx, spec in enumerate(operator_specs):
         operator = spec["operator"]
         params = _params_for_operator(operator, actions, config, spec.get("params"))
@@ -159,9 +157,8 @@ def build_plan(
         created_at=time.time(),
     )
 
-
-def _default_operator_specs(dae_output: DAEOutput, actions: Dict[str, Any]) -> List[Dict[str, Any]]:
-    specs: List[Dict[str, Any]] = []
+def _default_operator_specs(dae_output: DAEOutput, actions: dict[str, Any]) -> list[dict[str, Any]]:
+    specs: list[dict[str, Any]] = []
     preprocess = actions.get("preprocess", {})
     if dae_output.doc_type == "scanned_document" or dae_output.content_profile == "image-heavy":
         if preprocess.get("ocr", {}).get("enabled", True):
@@ -191,9 +188,8 @@ def _default_operator_specs(dae_output: DAEOutput, actions: Dict[str, Any]) -> L
     )
     return specs
 
-
-def _normalize_operator_specs(operators: List[Any]) -> List[Dict[str, Any]]:
-    specs: List[Dict[str, Any]] = []
+def _normalize_operator_specs(operators: list[Any]) -> list[dict[str, Any]]:
+    specs: list[dict[str, Any]] = []
     for item in operators:
         if isinstance(item, str):
             specs.append({"operator": item})
@@ -201,13 +197,12 @@ def _normalize_operator_specs(operators: List[Any]) -> List[Dict[str, Any]]:
             specs.append(item)
     return specs
 
-
 def _params_for_operator(
     operator: str,
-    actions: Dict[str, Any],
+    actions: dict[str, Any],
     config: PipelineConfig,
-    inline_params: Optional[Dict[str, Any]],
-) -> Dict[str, Any]:
+    inline_params: dict[str, Any] | None,
+) -> dict[str, Any]:
     if inline_params:
         return inline_params
     if operator == "preprocess.ocr":
@@ -259,8 +254,7 @@ def _params_for_operator(
         }
     return {}
 
-
-def _merge_dicts(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+def _merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     if not override:
         return dict(base)
     merged = dict(base)

@@ -1,12 +1,12 @@
+"""Document categorization agent for classifying document type and category."""
+
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 from idpo.agents.base import Agent, AgentContext
 from idpo.core.contracts import AgentMessage
 from idpo.core.types import AgentResult, Document, StageSignal
-
 
 class CategorizationAgent(Agent):
     name = "categorization"
@@ -61,7 +61,7 @@ class CategorizationAgent(Agent):
             return "form"
         return "text"
 
-    def _bin(self, category: str, domain: Optional[str]) -> str:
+    def _bin(self, category: str, domain: str | None) -> str:
         base = category or "unknown"
         if domain:
             return f"{base}:{domain}"

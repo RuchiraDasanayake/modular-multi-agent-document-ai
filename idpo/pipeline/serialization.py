@@ -1,12 +1,13 @@
+"""Serialization utilities for converting pipeline results to dictionaries."""
+
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
 
 from idpo.core.types import Chunk, Document, Entity, Page, Section, StageSignal, ValidationIssue
 from idpo.pipeline.orchestrator import PipelineResult
 
-
-def page_to_dict(page: Page) -> Dict[str, Any]:
+def page_to_dict(page: Page) -> dict[str, Any]:
     return {
         "number": page.number,
         "text": page.text,
@@ -15,8 +16,7 @@ def page_to_dict(page: Page) -> Dict[str, Any]:
         "metadata": page.metadata,
     }
 
-
-def document_to_dict(doc: Document) -> Dict[str, Any]:
+def document_to_dict(doc: Document) -> dict[str, Any]:
     return {
         "doc_id": doc.doc_id,
         "source": doc.source,
@@ -34,28 +34,22 @@ def document_to_dict(doc: Document) -> Dict[str, Any]:
         "dae_signals": doc.dae_signals,
     }
 
-
-def entity_to_dict(entity: Entity) -> Dict[str, Any]:
+def entity_to_dict(entity: Entity) -> dict[str, Any]:
     return entity.__dict__
 
-
-def section_to_dict(section: Section) -> Dict[str, Any]:
+def section_to_dict(section: Section) -> dict[str, Any]:
     return section.__dict__
 
-
-def chunk_to_dict(chunk: Chunk) -> Dict[str, Any]:
+def chunk_to_dict(chunk: Chunk) -> dict[str, Any]:
     return chunk.__dict__
 
-
-def issue_to_dict(issue: ValidationIssue) -> Dict[str, Any]:
+def issue_to_dict(issue: ValidationIssue) -> dict[str, Any]:
     return issue.__dict__
 
-
-def signal_to_dict(signal: StageSignal) -> Dict[str, Any]:
+def signal_to_dict(signal: StageSignal) -> dict[str, Any]:
     return signal.__dict__
 
-
-def result_to_dict(result: PipelineResult) -> Dict[str, Any]:
+def result_to_dict(result: PipelineResult) -> dict[str, Any]:
     return {
         "doc_id": result.doc_id,
         "path": result.path,
