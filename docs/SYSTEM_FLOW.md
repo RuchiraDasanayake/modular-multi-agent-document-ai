@@ -12,11 +12,16 @@
 4. [Integration Cycle (IDPO Orchestration)](#integration-cycle)
 5. [F1 Score Computation](#f1-score-computation)
 6. [AHMN Learning Loop](#ahmn-learning-loop)
-7. [Memory Hierarchy (STM → MTM → LTM)](#memory-hierarchy)
-8. [Background Jobs](#background-jobs)
-9. [Human-in-the-Loop (HITL) Feedback](#hitl-feedback)
-10. [Guardrails Validation Pipeline](#guardrails-validation)
-11. [XAI Explanation Engine](#xai-explanation-engine)
+7. [AHMN Algorithms — Detailed Reference](#ahmn-algorithms)
+8. [Dual Reward System](#dual-reward-system)
+9. [Memory Hierarchy (STM → MTM → LTM)](#memory-hierarchy)
+10. [Advice ID & Policy ID Mapping](#advice-and-policy-mapping)
+11. [Background Jobs](#background-jobs)
+12. [Human-in-the-Loop (HITL) Feedback](#hitl-feedback)
+13. [Guardrails Validation Pipeline](#guardrails-validation)
+14. [XAI Explanation Engine](#xai-explanation-engine)
+15. [Dashboard & Admin Pages](#dashboard-pages)
+16. [Configuration Reference](#configuration-reference)
 
 ---
 
@@ -285,6 +290,219 @@ Instead of fixed-rate memory decay, DAAF dynamically adjusts:
 
 ---
 
+## AHMN Algorithms — Detailed Reference
+
+### 1. Thompson Sampling (Beta-Bernoulli Bandit)
+
+**Four selection strategies** implemented in `ahmn_core/services/selection_strategies.py`:
+
+| Strategy | Formula | When Used |
+|----------|---------|-----------|
+| **Thompson Sampling** | Sample θ_p ~ Beta(α_p, β_p), select max θ | Default — optimal explore/exploit |
+| **UCB1** | UCB(i) = x̄_i + √(c·ln(t)/n_i), c=2.0 | Hoeffding-based upper confidence bound |
+| **Epsilon-Greedy** | ε(t) = max(0.01, 1.0·e^(-0.001·t)) | Decaying exploration — pure exploit at floor |
+| **Random** | Uniform random selection | Baseline comparator |
+
+Each "arm" is an `ArmState` with: `policy_id`, `alpha`, `beta`, `pulls`, `total_reward`, `last_pulled`.
+
+**Why Thompson Sampling?** It naturally balances exploration and exploitation — policies with uncertain Beta distributions get sampled more variably (explored), while high-performing policies converge to deterministic selection (exploited).
+
+### 2. RABI (Retrieval-Augmented Bandit Initialization)
+
+**Mathematical Foundation** (in `ahmn_core/services/rabi.py`):
+
+The cold-start problem: a new document type has no historical outcomes. Standard TS starts with Beta(1,1) — uniform distribution — meaning the system must explore all K policies from scratch.
+
+RABI transfers knowledge from similar contexts in LTM:
+
+```
+Step 1: Embed the new context (doc_type + vendor + content_profile)
+        → 384-dimensional vector via all-MiniLM-L6-v2
+
+Step 2: Query pgvector for k-nearest LTM entries by cosine similarity
+
+Step 3: Compute softmax weights with temperature τ:
+        w_i = exp(sim_i / τ) / Σ_j exp(sim_j / τ)
+
+Step 4: Transfer pseudocounts (NOT raw parameters):
+        α_init = 1 + Σ_i w_i · (α_i - 1)
+        β_init = 1 + Σ_i w_i · (β_i - 1)
+
+Step 5: Use warm-started Beta(α_init, β_init) for Thompson Sampling
+```
+
+**Key insight:** Transfers `(α - 1, β - 1)` (pseudocounts from observations), NOT raw `(α, β)`. This preserves the "prior belief" vs "observed evidence" distinction.
+
+**Theoretical guarantee:** Under Lipschitz continuity, RABI reduces cold-start regret from O(K) to O(L·d_avg), where L = Lipschitz constant, d_avg = average embedding distance to neighbors.
+
+**Configuration parameters:**
+- `temperature τ = 1.0`: Controls weight sharpness (low τ → trusts closest neighbor, high τ → uniform)
+- `k_neighbors = 5`: Number of nearest neighbors to query
+- `similarity_threshold = 0.3`: Minimum cosine similarity to use a neighbor
+
+### 3. DAAF (Drift-Aware Adaptive Forgetting)
+
+**Mathematical Foundation** (in `ahmn_core/services/drift_forgetting.py`):
+
+The concept drift problem: document distributions change over time (new vendors, format changes, regulatory updates). Stale knowledge in LTM leads to suboptimal policy selections.
+
+**Core formula:**
+```
+γ* = √(Δ² / ln(t))
+
+Where:
+  Δ = |μ_recent - μ_older|  (between-window mean shift = TRUE drift)
+  t = total observations
+  σ² = within-window variance (noise — ignored for γ calculation)
+```
+
+**Critical separation:**
+- **Noise (σ²)** = within-window variance = inherent stochasticity → IGNORED
+- **Drift (Δ)** = between-window mean shift = actual distribution change → DRIVES γ*
+
+**Forgetting applied to Beta parameters:**
+```
+α_new = 1 + (1 - γ)(α_old - 1)
+β_new = 1 + (1 - γ)(β_old - 1)
+```
+
+This preserves the Beta(1,1) prior floor while exponentially decaying accumulated evidence.
+
+**Drift classification:**
+| Drift Level | Condition | Action |
+|-------------|-----------|--------|
+| NONE | Δ < 0.05 | No forgetting |
+| GRADUAL | 0.05 ≤ Δ < 0.15 | Standard γ* applied |
+| ABRUPT | Δ ≥ 0.15 | γ* doubled + Beta parameters halved |
+
+**DriftEstimator** uses two sliding windows (`window_size=20`), with γ* bounded to [0.001, 0.3].
+
+**AdaptiveForgettingManager** combines per-arm drift estimators + global drift estimator, using whichever detects higher drift magnitude.
+
+---
+
+## Dual Reward System
+
+AHMN uses two complementary reward signals to learn which policies work best:
+
+### Signal 1: Automated F1 Proxy (Fast, Every Document)
+
+Every document processed generates an automated F1 score:
+
+```
+F1_proxy = 0.5 × F1_entity + 0.3 × success_rate + 0.2 × avg_confidence
+
+Where:
+  precision = entities_with_confidence_≥_0.5 / total_entities
+  recall    = min(avg_entities_per_doc / 10.0, 1.0)
+  F1_entity = 2 × precision × recall / (precision + recall)
+  success_rate = docs_passing_guardrails / total_docs
+  avg_confidence = mean(all entity confidence scores)
+```
+
+**How it updates AHMN:**
+```
+POST /advice/log { advice_id, policy_id_used, metrics: { f1_score: 0.82 } }
+
+AHMN updates the Beta distribution:
+  α += f1_score        (0.82 evidence of success)
+  β += (1 - f1_score)  (0.18 evidence of failure)
+```
+
+This happens for **every document** — fast, automatic, no human needed.
+
+### Signal 2: Human Expert Feedback (Precise, Selective)
+
+A human reviewer on the HITL page evaluates extraction quality:
+
+```
+Expert submits: { feedback_type: "incorrect", corrected_answer: "..." }
+
+IDPO bridges to AHMN:
+  POST /advice/feedback { advice_id, human_corrected: true }
+
+AHMN marks the MTM outcome:
+  outcome.human_corrected = true
+```
+
+**Impact on learning:**
+- `human_corrected = true` → The extraction was wrong, despite potentially having a high automated F1. This **penalizes** the policy in future promotion decisions.
+- `human_corrected = false` → The expert confirmed it was correct, **reinforcing** the policy.
+- Human-corrected outcomes carry **greater weight** during MTM→LTM promotion — a policy with frequent human corrections gets deprioritized even if its automated F1 is decent.
+
+### Why Dual Rewards?
+
+| Property | Automated F1 | Human Feedback |
+|----------|-------------|----------------|
+| **Speed** | Every document, real-time | Selective, asynchronous |
+| **Volume** | High — hundreds per day | Low — tens per day |
+| **Accuracy** | Proxy metric (no ground truth) | True ground truth |
+| **Signal** | Updates α/β directly | Sets `human_corrected` flag |
+| **Role** | Rapid adaptation | Precision calibration |
+
+The combination means AHMN adapts quickly to new patterns (via automated F1) while staying calibrated to real-world accuracy (via human corrections). Automated F1 drives the bandit's explore/exploit; human feedback corrects systematic biases.
+
+---
+
+## Advice ID & Policy ID Mapping
+
+### How Advice IDs Work
+
+```
+1. IDPO sends context → AHMN POST /advice
+   { doc_type: "invoice", vendor: "acme", content_profile: "table-heavy" }
+
+2. AHMN generates a unique advice_id (UUID)
+   Caches in Redis STM: advice:{uuid} → { context, source_hash }
+   TTL: 30 minutes
+
+3. AHMN returns recommendation:
+   { advice_id: "abc-123", policy_id: "table_heavy", policy_data: {...},
+     confidence: 0.78, source: "LTM", rabi_used: false }
+
+4. IDPO executes pipeline with the recommended policy
+   (or may use a different policy if conditions override)
+
+5. IDPO logs the outcome back:
+   POST /advice/log { advice_id: "abc-123", policy_id_used: "table_heavy",
+                       metrics: { f1_score: 0.85 } }
+
+6. AHMN retrieves context from STM via advice_id
+   Links the outcome to the original context for learning
+```
+
+### Policy ID Mapping
+
+Five aligned policy IDs across the entire system:
+
+| policy_id | Document Types | Processing Config |
+|-----------|---------------|-------------------|
+| `table_heavy` | Invoices, receipts, financial statements | High OCR, table-aware chunking, structured retrieval |
+| `forms` | Application forms, clinical summaries | Form-field extraction, key-value pair focus |
+| `scanned_text` | Scanned documents, low-quality images | Enhanced OCR preprocessing, noise reduction |
+| `mixed_content` | Contracts, mixed documents | Balanced extraction, multi-modal handling |
+| `default` | Unknown, fallback | Conservative defaults, broad extraction |
+
+These are defined in:
+- **IDPO**: `configs/policy_store.json` — full processing configuration per policy
+- **AHMN LTM**: `ltm_validated_policies` table — learned Beta(α,β) per context→policy pair
+- **AHMN Seeds**: `scripts/reset_and_seed_db.py` — initial LTM entries
+
+### Where Confidence Appears
+
+```
+Pipeline Stage → Confidence Source:
+
+[AHMN Advice]        → advice.confidence (Thompson Sampling mean: α/(α+β))
+[LLM Extraction]     → per-entity confidence from the LLM
+[Validation Agent]   → cross-field consistency confidence
+[Guardrails]         → per-check pass/fail + overall pass rate
+[XAI Engine]         → DistilBERT answer span probability
+[F1 Proxy]           → weighted blend of above → sent to AHMN as reward
+```
+
+---
+
 ## Memory Hierarchy
 
 ### Three-Tier Architecture
@@ -483,6 +701,74 @@ IDPO maps its internal doc types to Guardrails-recognized types:
 ### Performance Note
 
 XAI runs on CPU (no GPU required) with DistilBERT, which is lightweight but still needs up to **90 seconds** per document. The system uses a longer timeout (`_XAI_TIMEOUT = 90.0`) to accommodate this.
+
+---
+
+## Dashboard & Admin Pages
+
+### Dashboard Pages (all under `/dashboard`)
+
+| Page | Path | Description | Key Features |
+|------|------|-------------|--------------|
+| **Overview** | `/dashboard` | Hero CTA, KPI cards, service health, algorithm cards | 5 stat cards, 4 service health dots (polled every 30s), memory architecture diagram, recent activity feed |
+| **DAAF Demo** | `/dashboard/daaf` | Interactive drift detection simulation | Controls: pre/post drift mean, noise std, drift round, window size. Charts: reward stream, drift magnitude + gamma, drift type classification |
+| **RABI Demo** | `/dashboard/rabi` | Interactive cold-start simulation | Controls: temperature τ, similarity threshold, k neighbors. Charts: Beta distribution (flat vs RABI prior), neighbor similarity weights |
+| **Experiments** | `/dashboard/experiments` | Pre-computed experiment results | 30 seeds × 7 methods × 4 scenarios = 840 runs. Live TS vs DAAF+RABI comparison chart |
+| **Architecture** | `/dashboard/architecture` | System design visualization | 9-step request lifecycle, 3 algorithm detail cards with formulas, tech stack grid |
+| **XAI Q&A** | `/dashboard/xai` | Chat interface for document QA | Supports default demo paragraph, extracted docs from IDPO, or custom text. Shows highlighted spans, SHAP/LIME explanations, derivation steps |
+| **HITL Review** | `/dashboard/hitl` | Expert feedback form | Feedback types (correct/incorrect/partially_correct/needs_more_context), 3 rating sliders, corrected answer input, knowledge suggestions |
+| **Database** | `/dashboard/database` | Raw data explorer | 6 tabs: LTM Policies (α/β/confidence), MTM Outcomes (f1/human_corrected), STM Cache (TTL), Users, Guardrail Audit, HITL Feedback |
+| **IDPO** | `/dashboard/idpo` | Document upload and processing | Multi-file upload, field configuration, pipeline toggle options (Guardrails/XAI/AHMN), result display |
+| **Guardrails** | `/dashboard/guardrails` | Validation testing | Direct guardrail validation testing interface |
+| **Admin** | `/dashboard/admin` | User management | Create/toggle/view users, role management |
+
+### AHMN-Specific Demo Pages for PP2
+
+1. **RABI Demo** (`/dashboard/rabi`): Shows cold-start → warm-start transition visually
+2. **DAAF Demo** (`/dashboard/daaf`): Shows real-time drift detection and adaptive forgetting
+3. **Experiments** (`/dashboard/experiments`): Shows statistical superiority of DAAF+RABI
+4. **Database → LTM tab** (`/dashboard/database`): Shows live α/β/confidence for all learned policies
+
+---
+
+## Configuration Reference
+
+### AHMN Parameters (`ahmn_core/config.py`)
+
+| Parameter | Value | Justification |
+|-----------|-------|---------------|
+| `stm_ttl` | 1800s (30 min) | Session-scoped; prevents Redis bloat |
+| `ltm_retention_days` | 90 | Quarterly cycles; GDPR-compatible |
+| `rabi_k_neighbors` | 5 | Empirically tested; top-3 too narrow, top-10 introduces noise |
+| `embedding_model` | all-MiniLM-L6-v2 | 384-dim, 50ms inference, CPU-optimized |
+| `default_alpha/beta` | 1.0 / 1.0 | Uniform Beta(1,1) = maximum uncertainty |
+| `ucb_exploration_constant` | 2.0 | Hoeffding-derived theoretical optimum |
+| `epsilon_initial` | 1.0 → decays to 0.01 | Pure exploration → 1% floor |
+| `min_observations` | 10 | Statistical significance at p<0.05 |
+| `confidence_threshold` | 0.70 | 70% success rate target |
+| `forgetting_start_days` | 30 | Starts after 30 days inactivity |
+| `forgetting_max_age_days` | 90 | Ebbinghaus-inspired memory decay |
+| `promotion_window_size` | 1000 | Standard bandit convergence window |
+
+### AHMN API Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `POST /advice` | POST | Thompson Sampling policy recommendation |
+| `POST /advice/log` | POST | Log outcome metrics (the LEARNING endpoint) |
+| `POST /advice/feedback` | POST | Forward human correction |
+| `GET /dashboard/stats` | GET | Aggregate counts (outcomes, LTM, experiments, users) |
+| `GET /dashboard/memory/stm` | GET | Active Redis entries with TTL |
+| `GET /dashboard/memory/mtm` | GET | Recent MTM outcomes |
+| `GET /dashboard/memory/ltm` | GET | All LTM policies with α/β/confidence |
+| `GET /dashboard/memory/ltm/chart` | GET | LTM aggregated by policy_id |
+| `GET /dashboard/activity` | GET | Recent MTM outcomes as activity feed |
+| `GET /scheduler/status` | GET | Background job stats |
+| `POST /scheduler/promote` | POST | Manual MTM→LTM promotion |
+| `POST /scheduler/forget` | POST | Manual DAAF forgetting cycle |
+| `POST /experiments/demo/daaf` | POST | Interactive DAAF demo |
+| `POST /experiments/demo/rabi` | POST | Interactive RABI demo |
+| `POST /experiments/demo/comparison` | POST | TS vs DAAF+RABI comparison |
 
 ---
 

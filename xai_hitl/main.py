@@ -543,9 +543,10 @@ async def submit_feedback(body: FeedbackSubmitRequest):
 @app.get("/hitl/history", response_model=FeedbackHistory)
 async def get_feedback_history(limit: int = 20):
     """Return the most recent feedback entries."""
-    items = _feedback_store[-limit:]
-    total = len(_feedback_store)
-    correct = sum(1 for f in _feedback_store if f.is_answer_correct)
+    store_list = list(_feedback_store)
+    items = store_list[-limit:]
+    total = len(store_list)
+    correct = sum(1 for f in store_list if f.is_answer_correct)
     accuracy = (correct / total * 100) if total > 0 else 0.0
     return FeedbackHistory(items=items, total=total, accuracy_rate=accuracy)
 

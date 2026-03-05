@@ -266,4 +266,5 @@ async def guardrail_stats():
 @app.get("/guardrails/history")
 async def guardrail_history(limit: int = Query(50, ge=1, le=500)):
     """Return recent guardrail audit log entries."""
-    return _audit_store[-limit:][::-1]
+    store_list = list(_audit_store)
+    return store_list[-limit:][::-1]

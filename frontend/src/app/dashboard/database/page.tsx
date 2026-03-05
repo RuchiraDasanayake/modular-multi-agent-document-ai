@@ -179,7 +179,7 @@ export default function DatabaseExplorerPage() {
                 case "guardrails": setGuardrails(await api.getGuardrailHistory(200) as GuardrailEntry[]); break;
                 case "hitl": {
                     const h = await api.getFeedbackHistory(200);
-                    setHitl(((h as unknown as Record<string, unknown>)?.entries || h) as HITLEntry[]);
+                    setHitl(((h as unknown as Record<string, unknown>)?.items || []) as HITLEntry[]);
                     break;
                 }
             }

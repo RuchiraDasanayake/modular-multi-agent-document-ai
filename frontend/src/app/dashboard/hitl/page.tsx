@@ -27,10 +27,10 @@ export default function HITLPage() {
     const [knowledgeSuggestion, setKnowledgeSuggestion] = useState("");
 
     useEffect(() => {
-        // Load from sessionStorage
-        const storedExplanation = sessionStorage.getItem("xai_explanation");
-        const storedQuestion = sessionStorage.getItem("xai_question");
-        const storedParagraph = sessionStorage.getItem("xai_paragraph");
+        // Load from sessionStorage first, fall back to localStorage for cross-tab/reload support
+        const storedExplanation = sessionStorage.getItem("xai_explanation") || localStorage.getItem("xai_explanation");
+        const storedQuestion = sessionStorage.getItem("xai_question") || localStorage.getItem("xai_question");
+        const storedParagraph = sessionStorage.getItem("xai_paragraph") || localStorage.getItem("xai_paragraph");
 
         if (storedExplanation) {
             try { setExplanation(JSON.parse(storedExplanation)); } catch { /* invalid data */ }

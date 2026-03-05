@@ -104,6 +104,10 @@ export default function XAIPage() {
             sessionStorage.setItem("xai_explanation", JSON.stringify(response.explanation));
             sessionStorage.setItem("xai_question", userMessage.content);
             sessionStorage.setItem("xai_paragraph", activeParagraph);
+            // Also persist to localStorage so HITL page works across tabs/reloads
+            localStorage.setItem("xai_explanation", JSON.stringify(response.explanation));
+            localStorage.setItem("xai_question", userMessage.content);
+            localStorage.setItem("xai_paragraph", activeParagraph);
         } catch {
             // Demo mode: simulate response when API is unavailable
             const demoAnswer = simulateDemoResponse(userMessage.content);
@@ -119,6 +123,10 @@ export default function XAIPage() {
             sessionStorage.setItem("xai_explanation", JSON.stringify(demoAnswer.explanation));
             sessionStorage.setItem("xai_question", userMessage.content);
             sessionStorage.setItem("xai_paragraph", getActiveParagraph());
+            // Also persist to localStorage so HITL page works across tabs/reloads
+            localStorage.setItem("xai_explanation", JSON.stringify(demoAnswer.explanation));
+            localStorage.setItem("xai_question", userMessage.content);
+            localStorage.setItem("xai_paragraph", getActiveParagraph());
         } finally {
             setIsLoading(false);
         }
