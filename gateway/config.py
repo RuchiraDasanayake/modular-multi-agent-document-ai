@@ -75,7 +75,7 @@ class Settings(BaseSettings):
     IDPO_SERVICE_URL: str = "http://idpo:8004"
 
     # ── Proxy ──
-    PROXY_TIMEOUT: float = 600.0
+    PROXY_TIMEOUT: float = 120.0
 
     model_config = SettingsConfigDict(
         env_file=_env_path,

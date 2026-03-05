@@ -18,20 +18,46 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
 
   # ── Cache ──
   redis:
     image: redis:alpine
     container_name: docai_redis
     restart: unless-stopped
-    command: redis-server --requirepass ${REDIS_PASSWORD:-docai_redis_secret}
+    command: redis-server --requirepass ${REDIS_PASSWORD:-docai_redis_secret} --appendonly yes
     ports:
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-docai_redis_secret}", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
 
   # ── AHMN Service (port 8001) ──
   ahmn:
@@ -60,7 +86,19 @@ services:
       timeout: 10s
       retries: 8
       start_period: 90s
-    # Internal only — not exposed to host
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
+      - external  # Needs internet for HuggingFace model downloads
 
   # ── Guardrails Service (port 8002) ──
   guardrails:
@@ -83,7 +121,18 @@ services:
       timeout: 5s
       retries: 8
       start_period: 120s
-    # Stateless — no DB dependency
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
 
   # ── XAI-HITL Service (port 8003) ──
   xai-hitl:
@@ -106,7 +155,18 @@ services:
       timeout: 10s
       retries: 10
       start_period: 180s
-    # Stateless — no DB dependency
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
 
   # ── IDPO Service (port 8004) ──
   idpo:
@@ -123,7 +183,7 @@ services:
       GUARDRAILS_SERVICE_URL: http://guardrails:8002
       XAI_HITL_SERVICE_URL: http://xai-hitl:8003
     volumes:
-      - ./configs:/app/configs
+      - ./configs:/app/configs:ro
       - ./inputs:/app/inputs
       - ./runs:/app/runs
     depends_on:
@@ -139,6 +199,18 @@ services:
       timeout: 5s
       retries: 8
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
 
   # ── API Gateway (port 8000) ──
   gateway:
@@ -158,7 +230,7 @@ services:
       XAI_HITL_SERVICE_URL: http://xai-hitl:8003
       IDPO_SERVICE_URL: http://idpo:8004
     ports:
-      - "${GATEWAY_PORT:-8000}:8000"
+      - "127.0.0.1:${GATEWAY_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -178,6 +250,19 @@ services:
       timeout: 5s
       retries: 8
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
+      - external
 
   # ── Frontend (port 3000) ──
   frontend:
@@ -192,7 +277,7 @@ services:
       - INTERNAL_API_URL=http://gateway:8000
       - HOSTNAME=0.0.0.0
     ports:
-      - "3000:3000"
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
     depends_on:
       gateway:
         condition: service_healthy
@@ -202,6 +287,26 @@ services:
       timeout: 10s
       retries: 8
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - external
+
+networks:
+  internal:
+    driver: bridge
+    internal: true          # No internet access — services talk only to each other
+  external:
+    driver: bridge          # Frontend + Gateway face the host
 
 volumes:
   postgres_data:
+  redis_data:

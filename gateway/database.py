@@ -22,6 +22,9 @@ class DatabasePool:
                 open=False,
                 min_size=2,
                 max_size=10,
+                timeout=30.0,         # max wait for a connection from pool
+                max_idle=300.0,       # close idle connections after 5 min
+                max_lifetime=3600.0,  # recycle connections after 1 hour
             )
             await cls._pool.open()
             logger.info("Gateway database pool opened")

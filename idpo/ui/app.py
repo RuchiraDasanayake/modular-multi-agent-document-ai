@@ -253,7 +253,12 @@ def list_runs():
             try:
                 with run_json.open() as f:
                     meta = json.load(f)
-                run_info["started_at"] = meta.get("started_at")
+                raw_ts = meta.get("started_at")
+                if isinstance(raw_ts, (int, float)):
+                    from datetime import datetime, timezone
+                    run_info["started_at"] = datetime.fromtimestamp(raw_ts, tz=timezone.utc).isoformat()
+                elif raw_ts:
+                    run_info["started_at"] = str(raw_ts)
                 run_info["config_path"] = meta.get("config_path")
             except Exception:
                 pass
@@ -285,10 +290,13 @@ def download_docs(run_id: str):
         return JSONResponse({"error": "invalid run_id"}, status_code=400)
     xlsx_path = run_dir / "docs.xlsx"
     if xlsx_path.exists():
-        return FileResponse(xlsx_path, filename="docs.xlsx")
+        return FileResponse(
+            xlsx_path, filename="docs.xlsx",
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
     csv_path = run_dir / "docs.csv"
     if csv_path.exists():
-        return FileResponse(csv_path, filename="docs.csv")
+        return FileResponse(csv_path, filename="docs.csv", media_type="text/csv")
     return JSONResponse({"error": "docs export not found"}, status_code=404)
 
 @app.get("/idpo/runs/{run_id}/run.xlsx")
@@ -299,10 +307,13 @@ def download_run(run_id: str):
         return JSONResponse({"error": "invalid run_id"}, status_code=400)
     xlsx_path = run_dir / "run.xlsx"
     if xlsx_path.exists():
-        return FileResponse(xlsx_path, filename="run.xlsx")
+        return FileResponse(
+            xlsx_path, filename="run.xlsx",
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
     csv_path = run_dir / "run.csv"
     if csv_path.exists():
-        return FileResponse(csv_path, filename="run.csv")
+        return FileResponse(csv_path, filename="run.csv", media_type="text/csv")
     return JSONResponse({"error": "run export not found"}, status_code=404)
 
 @app.get("/idpo/runs/{run_id}/entities.xlsx")
@@ -313,10 +324,13 @@ def download_entities(run_id: str):
         return JSONResponse({"error": "invalid run_id"}, status_code=400)
     xlsx_path = run_dir / "entities.xlsx"
     if xlsx_path.exists():
-        return FileResponse(xlsx_path, filename="entities.xlsx")
+        return FileResponse(
+            xlsx_path, filename="entities.xlsx",
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
     csv_path = run_dir / "entities.csv"
     if csv_path.exists():
-        return FileResponse(csv_path, filename="entities.csv")
+        return FileResponse(csv_path, filename="entities.csv", media_type="text/csv")
     return JSONResponse({"error": "entities export not found"}, status_code=404)
 
 def _parse_fields(fields_payload: str) -> list[dict[str, str]]:

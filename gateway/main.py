@@ -139,8 +139,21 @@ async def _is_token_revoked(jti: str) -> bool:
 # ---------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    global _http_client
+    _http_client = httpx.AsyncClient(
+        timeout=httpx.Timeout(
+            connect=15.0,
+            read=settings.PROXY_TIMEOUT,
+            write=120.0,
+            pool=15.0,
+        ),
+        limits=httpx.Limits(
+            max_connections=100,
+            max_keepalive_connections=20,
+        ),
+    )
     await DatabasePool.get_pool()
-    logger.info("Gateway started — DB pool ready")
+    logger.info("Gateway started — DB pool + httpx client ready")
     yield
     await DatabasePool.close_pool()
     if _http_client:
@@ -168,8 +181,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
 )
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -178,7 +191,24 @@ app.add_middleware(
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "service": "gateway"}
+    """Deep health check — verifies DB and Redis connectivity."""
+    checks: dict[str, str] = {"service": "gateway"}
+    try:
+        pool = await DatabasePool.get_pool()
+        async with pool.connection() as conn:
+            await conn.execute("SELECT 1")
+        checks["db"] = "ok"
+    except Exception as exc:
+        checks["db"] = f"error: {exc}"
+    try:
+        r = await _get_redis()
+        await r.ping()
+        checks["redis"] = "ok"
+    except Exception as exc:
+        checks["redis"] = f"error: {exc}"
+    all_ok = checks.get("db") == "ok" and checks.get("redis") == "ok"
+    checks["status"] = "healthy" if all_ok else "degraded"
+    return checks
 
 @app.get("/api/health")
 async def api_health():
@@ -616,8 +646,14 @@ async def proxy(
             media_type=upstream_resp.headers.get("content-type", "application/json"),
         )
 
+    # Forward success response with important headers (Content-Disposition for file downloads)
+    fwd_headers = {
+        k: v for k, v in upstream_resp.headers.items()
+        if k.lower() in ("content-disposition", "x-request-id", "cache-control")
+    }
     return Response(
         content=upstream_resp.content,
         status_code=upstream_resp.status_code,
         media_type=upstream_resp.headers.get("content-type", "application/json"),
+        headers=fwd_headers,
     )

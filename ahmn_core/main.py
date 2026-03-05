@@ -315,7 +315,28 @@ app.add_middleware(
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "service": "ahmn"}
+    """Deep health check — verifies DB pool and Redis connectivity."""
+    checks: dict[str, str] = {"service": "ahmn"}
+    try:
+        if _pool:
+            async with _pool.connection() as conn:
+                await conn.execute("SELECT 1")
+            checks["db"] = "ok"
+        else:
+            checks["db"] = "pool_not_initialized"
+    except Exception as exc:
+        checks["db"] = f"error: {exc}"
+    try:
+        if _redis:
+            await _redis.ping()
+            checks["redis"] = "ok"
+        else:
+            checks["redis"] = "not_initialized"
+    except Exception as exc:
+        checks["redis"] = f"error: {exc}"
+    all_ok = checks.get("db") == "ok" and checks.get("redis") == "ok"
+    checks["status"] = "healthy" if all_ok else "degraded"
+    return checks
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SCHEDULER ROUTES
