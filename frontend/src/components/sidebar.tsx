@@ -20,6 +20,7 @@ import {
     Waves,
     TrendingUp,
     Lock,
+    Database,
     Upload,
     ChevronRight,
     LogOut,
@@ -55,6 +56,7 @@ const ADMIN_NAV: NavItem[] = [
     { href: "/dashboard/daaf", label: "Drift Monitor", Icon: Waves, color: "violet" },
     { href: "/dashboard/results", label: "Results", Icon: TrendingUp, color: "emerald" },
     { href: "/dashboard/admin", label: "Users", Icon: Lock, color: "amber" },
+    { href: "/dashboard/database", label: "Database", Icon: Database, color: "cyan" },
 ];
 
 const COLOR_MAP: Record<string, { activeBg: string; activeText: string; iconBg: string; iconBorder: string; hoverBg: string }> = {

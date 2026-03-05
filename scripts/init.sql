@@ -145,7 +145,7 @@ CREATE INDEX IF NOT EXISTS idx_events_type ON system_events (event_type, created
 -- ═══════════════════════════════════════════════════════════════
 INSERT INTO users (email, username, hashed_password, role)
 VALUES (
-    'admin@ahmn.local',
+    'admin@ahmn.dev',
     'admin',
     '$2b$12$bNc0mZF7OZMmfaW.CwZmQeyQA3h5xWvq2jZYBiv1i3vMzrY/a/A1.',
     'admin'

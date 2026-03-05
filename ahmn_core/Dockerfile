@@ -15,6 +15,9 @@ RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTr
 # Copy the AHMN core package
 COPY ahmn_core/ ./ahmn_core/
 
+# Copy seed/reset scripts (needed for fresh_deploy.py)
+COPY scripts/ ./scripts/
+
 # Run as non-root user
 RUN useradd --create-home --shell /bin/bash appuser
 USER appuser

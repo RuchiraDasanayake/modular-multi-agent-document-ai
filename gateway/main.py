@@ -434,9 +434,11 @@ async def forgot_password(
         await db.commit()
 
     logger.info("Password reset token generated for user %s", row[1])
-    # Token stored in DB — never returned in response for security
+    # In demo/prototype mode, return the token so the frontend can redirect
+    # directly to the reset page. In production, this would be sent via email.
     return {
         "message": "If that email is registered, a reset link has been generated.",
+        "token": token,
     }
 
 @app.post("/api/auth/reset-password")

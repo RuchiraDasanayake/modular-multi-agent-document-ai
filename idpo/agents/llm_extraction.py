@@ -798,7 +798,14 @@ class LLMExtractionAgent(Agent):
             if not OPENAI_AVAILABLE:
                 return []
             api_key = os.getenv("OPENAI_API_KEY") or ctx.config.llm.openai_api_key
-            if not api_key or api_key.strip() == "sk-PLACEHOLDER" or api_key.startswith("${"):
+            _key = (api_key or "").strip().lower()
+            if (
+                not _key
+                or _key == "sk-placeholder"
+                or _key.startswith("${")
+                or "your" in _key and "key" in _key   # e.g. sk-your-key-here
+                or _key in ("sk-", "sk-xxx", "sk-test", "changeme", "replace-me")
+            ):
                 return []
             base_url = os.getenv("OPENAI_API_URL") or ctx.config.llm.openai_api_url
             base_url = self._normalize_openai_base_url(base_url)

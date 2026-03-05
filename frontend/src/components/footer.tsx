@@ -100,9 +100,6 @@ export function Footer() {
                     <p className="text-sm text-slate-500 dark:text-gray-500">
                         &copy; {new Date().getFullYear()} Modular Doc AI. All rights reserved.
                     </p>
-                    <p className="text-sm text-slate-500 dark:text-gray-500 flex items-center gap-1">
-                        Built with <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500" /> Next.js, FastAPI &amp; Python
-                    </p>
                 </div>
             </div>
         </footer>
