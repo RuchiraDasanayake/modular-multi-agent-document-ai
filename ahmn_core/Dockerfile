@@ -21,7 +21,7 @@ USER appuser
 
 EXPOSE 8001
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+HEALTHCHECK --interval=10s --timeout=10s --start-period=90s --retries=8 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"
 
 CMD ["uvicorn", "ahmn_core.main:app", "--host", "0.0.0.0", "--port", "8001"]

@@ -113,14 +113,14 @@ export default function HomePage() {
                 <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-brand-500/20 dark:bg-brand-500/10 rounded-full blur-[150px] pointer-events-none" />
                 <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-violet-500/20 dark:bg-violet-500/10 rounded-full blur-[150px] pointer-events-none" />
 
-                <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-8 py-20 flex flex-col lg:flex-row items-center justify-between gap-16 w-full">
+                <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20 flex flex-col lg:flex-row items-center justify-between gap-10 lg:gap-16 w-full">
                     {/* Left Content */}
                     <div className="flex-1 space-y-8 text-center lg:text-left">
                         <motion.h1
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.5, delay: 0.1 }}
-                            className="text-5xl lg:text-7xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-[1.1]"
+                            className="text-4xl sm:text-5xl lg:text-7xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-[1.1]"
                         >
                             Understand your{" "}
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-violet-500">
@@ -143,17 +143,17 @@ export default function HomePage() {
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.5, delay: 0.3 }}
-                            className="flex items-center justify-center lg:justify-start gap-4 pt-4"
+                            className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 sm:gap-4 pt-4"
                         >
                             <Link
                                 href="/signup"
-                                className="px-8 py-4 glass-button rounded-xl text-lg flex items-center gap-2"
+                                className="w-full sm:w-auto px-8 py-4 glass-button rounded-xl text-lg flex items-center justify-center gap-2"
                             >
                                 Start Extracting <ArrowRight className="w-5 h-5" />
                             </Link>
                             <Link
                                 href="/features"
-                                className="px-8 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-xl text-lg font-medium transition-all shadow-sm"
+                                className="w-full sm:w-auto px-8 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-xl text-lg font-medium transition-all shadow-sm text-center"
                             >
                                 Learn More
                             </Link>
@@ -165,7 +165,7 @@ export default function HomePage() {
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ duration: 0.6, delay: 0.2 }}
-                        className="flex-1 flex justify-center perspective-1000"
+                        className="hidden sm:flex flex-1 justify-center perspective-1000"
                     >
                         <motion.div
                             style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
@@ -211,7 +211,7 @@ export default function HomePage() {
 
             {/* ── Stats Bar ── */}
             <section className="relative z-10 border-y border-slate-200/60 dark:border-white/10 bg-white/60 dark:bg-gray-900/30 backdrop-blur-md">
-                <div className="max-w-7xl mx-auto px-6 lg:px-8 py-12">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
                         {stats.map((stat, i) => (
                             <motion.div
@@ -237,7 +237,7 @@ export default function HomePage() {
             {/* ── Features Grid ── */}
             <section className="relative z-10 py-24 lg:py-32">
                 <div className="absolute top-1/2 left-0 w-[500px] h-[500px] bg-brand-500/10 dark:bg-brand-500/5 rounded-full blur-[150px] pointer-events-none -translate-y-1/2" />
-                <div className="max-w-7xl mx-auto px-6 lg:px-8 relative">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
                     <div className="text-center mb-16">
                         <motion.h2
                             initial={{ opacity: 0, y: 20 }}
@@ -284,7 +284,7 @@ export default function HomePage() {
 
             {/* ── How It Works ── */}
             <section className="relative z-10 py-24 lg:py-32 border-t border-slate-200/60 dark:border-white/10 bg-white/40 dark:bg-gray-900/20 backdrop-blur-sm">
-                <div className="max-w-7xl mx-auto px-6 lg:px-8">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center mb-16">
                         <motion.h2
                             initial={{ opacity: 0, y: 20 }}
@@ -332,7 +332,7 @@ export default function HomePage() {
             {/* ── CTA Section ── */}
             <section className="relative z-10 py-24 lg:py-32">
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent via-brand-500/5 to-transparent dark:via-brand-500/5 pointer-events-none" />
-                <div className="max-w-4xl mx-auto px-6 lg:px-8 text-center relative">
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
@@ -349,21 +349,21 @@ export default function HomePage() {
                             Join thousands of teams already using Modular Doc AI to transform
                             their document workflows with intelligent, explainable extraction.
                         </p>
-                        <div className="flex items-center justify-center gap-4 flex-wrap">
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 flex-wrap">
                             <Link
                                 href="/signup"
-                                className="px-8 py-4 glass-button rounded-xl text-lg flex items-center gap-2"
+                                className="w-full sm:w-auto px-8 py-4 glass-button rounded-xl text-lg flex items-center justify-center gap-2"
                             >
                                 Get Started Free <ArrowRight className="w-5 h-5" />
                             </Link>
                             <Link
                                 href="/contact"
-                                className="px-8 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-xl text-lg font-medium transition-all shadow-sm"
+                                className="w-full sm:w-auto px-8 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-xl text-lg font-medium transition-all shadow-sm text-center"
                             >
                                 Talk to Sales
                             </Link>
                         </div>
-                        <div className="mt-8 flex items-center justify-center gap-6 text-sm text-slate-500 dark:text-gray-500">
+                        <div className="mt-8 flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-sm text-slate-500 dark:text-gray-500">
                             <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Free tier available</span>
                             <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> No credit card required</span>
                             <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Setup in 5 minutes</span>

@@ -123,7 +123,7 @@ export default function SubmitDataPage() {
     };
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8">
+        <div className="max-w-4xl 3xl:max-w-5xl mx-auto space-y-8">
             {/* Header */}
             <div>
                 <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Submit Data</h1>

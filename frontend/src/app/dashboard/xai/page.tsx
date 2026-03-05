@@ -125,7 +125,7 @@ export default function XAIPage() {
     };
 
     return (
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-4xl 3xl:max-w-5xl mx-auto">
             {/* Header */}
             <div className="relative overflow-hidden glass-panel rounded-2xl p-6 mb-6">
                 <div className="absolute inset-0 bg-gradient-to-r from-violet-500/5 to-purple-500/5 dark:from-violet-500/[0.03] dark:to-purple-500/[0.03]" />

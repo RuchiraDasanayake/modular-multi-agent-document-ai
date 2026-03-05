@@ -112,9 +112,9 @@ export default function DashboardOverview() {
     const healthyCount = health.filter((h) => h.status === "healthy").length;
 
     return (
-        <div className="max-w-7xl mx-auto space-y-6">
+        <div className="max-w-7xl 3xl:max-w-[1800px] mx-auto space-y-4 sm:space-y-6">
             {/* ── Hero: Document Extraction CTA ── */}
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-500 via-cyan-500 to-brand-600 dark:from-brand-600 dark:via-cyan-600 dark:to-brand-700 p-8 shadow-2xl shadow-brand-500/25 border border-white/10">
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-500 via-cyan-500 to-brand-600 dark:from-brand-600 dark:via-cyan-600 dark:to-brand-700 p-5 sm:p-8 shadow-2xl shadow-brand-500/25 border border-white/10">
                 {/* Background pattern */}
                 <div className="absolute inset-0 opacity-10">
                     <div className="absolute top-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
@@ -139,7 +139,7 @@ export default function DashboardOverview() {
                                 </div>
                             )}
                         </div>
-                        <h1 className="text-3xl lg:text-4xl font-extrabold text-white tracking-tight leading-tight">
+                        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white tracking-tight leading-tight">
                             Intelligent Document<br />Extraction
                         </h1>
                         <p className="text-white/75 mt-3 max-w-lg text-sm leading-relaxed">
@@ -173,10 +173,10 @@ export default function DashboardOverview() {
                     </div>
 
                     {/* CTA */}
-                    <div className="flex flex-col items-center gap-3 flex-shrink-0">
+                    <div className="flex flex-col items-center gap-3 flex-shrink-0 w-full sm:w-auto">
                         <Link
                             href="/dashboard/idpo"
-                            className="group flex items-center gap-3 px-8 py-4 rounded-2xl bg-white/95 backdrop-blur-md text-brand-700 font-bold text-base shadow-xl shadow-black/10 hover:shadow-2xl hover:shadow-brand-500/20 hover:scale-105 active:scale-100 transition-all duration-200 border border-white/60"
+                            className="group flex items-center gap-3 px-6 sm:px-8 py-3 sm:py-4 rounded-2xl bg-white/95 backdrop-blur-md text-brand-700 font-bold text-sm sm:text-base shadow-xl shadow-black/10 hover:shadow-2xl hover:shadow-brand-500/20 hover:scale-105 active:scale-100 transition-all duration-200 border border-white/60 w-full sm:w-auto justify-center"
                         >
                             <svg className="w-6 h-6 text-brand-500 group-hover:rotate-6 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -192,7 +192,7 @@ export default function DashboardOverview() {
             </div>
 
             {/* ── Stat Cards ── */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 3xl:gap-4">
                 <StatCard icon="📄" label="Documents Processed" value={stats?.total_outcomes ?? 0} />
                 <StatCard icon="🎯" label="Learned Policies" value={stats?.total_ltm_policies ?? 0} />
                 <StatCard icon="🧪" label="Experiments" value={stats?.total_experiments ?? 0} />
@@ -201,9 +201,8 @@ export default function DashboardOverview() {
             </div>
 
             {/* ── Quick Actions Grid + Service Health ── */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                {/* Quick Actions */}
-                <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-5 3xl:gap-6">
+                <div className="xl:col-span-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     <Link href="/dashboard/xai" className="group glass-card-glow rounded-2xl p-5 flex flex-col gap-3 hover:border-violet-300 dark:hover:border-violet-500/30">
                         <div className="w-11 h-11 rounded-xl bg-violet-50 dark:bg-violet-500/10 border border-violet-200/60 dark:border-violet-500/20 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
                             💬
@@ -278,12 +277,12 @@ export default function DashboardOverview() {
             </div>
 
             {/* ── AI Capabilities + Recent Activity ── */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                <div className="lg:col-span-2 glass-panel rounded-2xl p-6 relative overflow-hidden">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-5 3xl:gap-6">
+                <div className="xl:col-span-2 glass-panel rounded-2xl p-5 sm:p-6 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-brand-500/5 to-cyan-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
                     <h2 className="text-sm font-bold text-slate-900 dark:text-white mb-1 relative z-10">Research Algorithms</h2>
                     <p className="text-xs text-slate-500 dark:text-gray-500 mb-4 relative z-10">Core innovations powering the extraction pipeline</p>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         {[
                             {
                                 icon: "🎯",
@@ -347,11 +346,11 @@ export default function DashboardOverview() {
             </div>
 
             {/* ── Memory Architecture ── */}
-            <div className="glass-panel rounded-2xl p-6 relative overflow-hidden">
-                <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-emerald-500/5 to-cyan-500/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/4 pointer-events-none" />
+            <div className="glass-panel rounded-2xl p-5 sm:p-6 relative overflow-hidden">
+                <div className="absolute bottom-0 left-0 w-40 h-40 bg-gradient-to-br from-brand-500/5 to-cyan-500/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/4 pointer-events-none" />
                 <h2 className="text-sm font-bold text-slate-900 dark:text-white mb-1 relative z-10">Memory Architecture</h2>
                 <p className="text-xs text-slate-500 dark:text-gray-500 mb-4 relative z-10">Three-tier adaptive memory system (STM → MTM → LTM)</p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {[
                         { tier: "STM", store: "Redis Cache", ttl: "30 min", desc: "Transient advice context during processing", color: "red", icon: "⚡" },
                         { tier: "MTM", store: "PostgreSQL", ttl: "90 days", desc: "Raw outcome logs and processing history", color: "yellow", icon: "📋" },

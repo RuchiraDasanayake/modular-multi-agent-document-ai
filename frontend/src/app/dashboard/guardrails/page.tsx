@@ -102,7 +102,7 @@ export default function GuardrailsPage() {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="max-w-7xl 3xl:max-w-[1800px] mx-auto space-y-6">
             {/* Header */}
             <div className="relative overflow-hidden glass-panel rounded-2xl p-6">
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-green-500/5 dark:from-emerald-500/[0.03] dark:to-green-500/[0.03]" />

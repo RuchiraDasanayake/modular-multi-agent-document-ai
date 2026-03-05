@@ -260,7 +260,7 @@ export default function IDPOPage() {
     const integration = result?.pipeline_integration;
 
     return (
-        <div className="max-w-7xl mx-auto space-y-5">
+        <div className="max-w-7xl 3xl:max-w-[1800px] mx-auto space-y-5">
             {/* ── Header ── */}
             <div className="relative overflow-hidden glass-panel rounded-2xl p-6">
                 <div className="absolute inset-0 bg-gradient-to-r from-brand-500/5 to-cyan-500/5 dark:from-brand-500/[0.03] dark:to-cyan-500/[0.03]" />

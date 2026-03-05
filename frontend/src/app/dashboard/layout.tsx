@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import Sidebar from "@/components/sidebar";
 import LoadingScreen from "@/components/loading-screen";
 import { useUser } from "@/hooks/use-user";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Menu, Zap } from "lucide-react";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
     const { loading } = useUser();
+    const [sidebarOpen, setSidebarOpen] = useState(false);
 
     return (
         <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900 relative overflow-hidden transition-colors duration-300">
@@ -20,14 +23,40 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(0,0,0,0.03)_1px,transparent_0)] dark:bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.02)_1px,transparent_0)] bg-[length:24px_24px]" />
             </div>
 
-            {/* Theme Toggle */}
-            <div className="fixed top-6 right-8 z-50">
+            {/* Mobile overlay backdrop */}
+            {sidebarOpen && (
+                <div
+                    className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30 lg:hidden"
+                    onClick={() => setSidebarOpen(false)}
+                />
+            )}
+
+            {/* Mobile top bar */}
+            <div className="fixed top-0 left-0 right-0 h-14 z-40 flex items-center justify-between px-4 lg:hidden bg-white/80 dark:bg-gray-950/80 backdrop-blur-xl border-b border-slate-200/60 dark:border-gray-800/40 shadow-sm">
+                <button
+                    onClick={() => setSidebarOpen(true)}
+                    aria-label="Open navigation"
+                    className="w-9 h-9 rounded-lg flex items-center justify-center bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-gray-700 transition-colors"
+                >
+                    <Menu className="w-5 h-5" />
+                </button>
+                <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-cyan-500 flex items-center justify-center shadow-md shadow-brand-500/30">
+                        <Zap className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+                    </div>
+                    <span className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Modular Doc AI</span>
+                </div>
+                <ThemeToggle />
+            </div>
+
+            {/* Desktop Theme Toggle */}
+            <div className="hidden lg:block fixed top-6 right-8 z-50">
                 <ThemeToggle />
             </div>
 
             {loading && <LoadingScreen />}
-            <Sidebar />
-            <main className="flex-1 ml-[var(--sidebar-width)] p-8 relative z-10">{children}</main>
+            <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+            <main className="flex-1 lg:ml-[var(--sidebar-width)] pt-14 lg:pt-0 p-4 sm:p-6 lg:p-8 3xl:p-10 relative z-10 min-w-0">{children}</main>
         </div>
     );
 }

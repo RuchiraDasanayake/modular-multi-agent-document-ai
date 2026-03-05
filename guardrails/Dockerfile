@@ -20,7 +20,7 @@ USER appuser
 
 EXPOSE 8002
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+HEALTHCHECK --interval=10s --timeout=10s --start-period=120s --retries=8 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"
 
 CMD ["uvicorn", "guardrails.main:app", "--host", "0.0.0.0", "--port", "8002"]

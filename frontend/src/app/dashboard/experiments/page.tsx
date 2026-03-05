@@ -54,7 +54,7 @@ export default function ExperimentsPage() {
         : [];
 
     return (
-        <div className="max-w-6xl mx-auto space-y-8">
+        <div className="max-w-6xl 3xl:max-w-7xl mx-auto space-y-8">
             <div>
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Live Experiments</h1>
                 <p className="text-slate-500 dark:text-gray-500 mt-1">Run comparisons and view pre-computed results from 840 experiment runs</p>

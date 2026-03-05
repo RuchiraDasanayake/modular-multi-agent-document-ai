@@ -108,7 +108,7 @@ export default function HITLPage() {
 
     if (!explanation) {
         return (
-            <div className="max-w-4xl mx-auto">
+            <div className="max-w-4xl 3xl:max-w-5xl mx-auto">
                 <div className="bg-white/80 dark:bg-gray-800/50 border border-slate-200 dark:border-gray-700 rounded-2xl p-8 text-center">
                     <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 flex items-center justify-center mb-4">
                         <span className="text-3xl">👤</span>
@@ -130,7 +130,7 @@ export default function HITLPage() {
 
     if (submitted) {
         return (
-            <div className="max-w-4xl mx-auto">
+            <div className="max-w-4xl 3xl:max-w-5xl mx-auto">
                 <div className="glass-panel rounded-2xl p-8 text-center border-green-500/20">
                     <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center shadow-lg shadow-green-500/20">
                         <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -163,7 +163,7 @@ export default function HITLPage() {
     }
 
     return (
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="max-w-4xl 3xl:max-w-5xl mx-auto space-y-6">
             {/* Header */}
             <div className="relative overflow-hidden glass-panel rounded-2xl p-6">
                 <div className="absolute inset-0 bg-gradient-to-r from-amber-500/5 to-orange-500/5 dark:from-amber-500/[0.03] dark:to-orange-500/[0.03]" />

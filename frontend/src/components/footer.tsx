@@ -38,11 +38,11 @@ const socialLinks = [
 export function Footer() {
     return (
         <footer className="relative border-t border-slate-200/60 dark:border-white/10 bg-white/50 dark:bg-gray-950/50 backdrop-blur-lg">
-            <div className="max-w-7xl mx-auto px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 {/* Main Footer */}
-                <div className="py-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12">
+                <div className="py-12 sm:py-16 grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-8 sm:gap-12">
                     {/* Brand */}
-                    <div className="lg:col-span-2 space-y-4">
+                    <div className="col-span-2 lg:col-span-2 space-y-4">
                         <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-md shadow-brand-500/25">
                                 <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>

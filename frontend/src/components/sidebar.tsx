@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { removeToken } from "@/lib/auth";
 import { useUser } from "@/hooks/use-user";
 import { clsx } from "clsx";
@@ -24,6 +25,7 @@ import {
     LogOut,
     Crown,
     Zap,
+    X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -152,10 +154,21 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
     );
 }
 
-export default function Sidebar() {
+interface SidebarProps {
+    isOpen?: boolean;
+    onClose?: () => void;
+}
+
+export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     const pathname = usePathname();
     const router = useRouter();
     const { user, isAdmin } = useUser();
+
+    // Auto-close sidebar on navigation (mobile)
+    useEffect(() => {
+        onClose?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pathname]);
 
     const handleLogout = () => {
         removeToken();
@@ -163,24 +176,40 @@ export default function Sidebar() {
     };
 
     return (
-        <aside className="fixed left-0 top-0 h-screen w-[var(--sidebar-width)] bg-white/70 dark:bg-gray-950/70 backdrop-blur-3xl border-r border-white/80 dark:border-gray-800/40 flex flex-col z-40 shadow-2xl shadow-slate-200/40 dark:shadow-black/60 transition-colors duration-300">
+        <aside className={clsx(
+            "fixed left-0 top-0 h-screen w-[var(--sidebar-width)] bg-white/70 dark:bg-gray-950/70 backdrop-blur-3xl border-r border-white/80 dark:border-gray-800/40 flex flex-col z-40 shadow-2xl shadow-slate-200/40 dark:shadow-black/60 transition-all duration-300",
+            "lg:translate-x-0",
+            isOpen ? "translate-x-0" : "-translate-x-full"
+        )}>
             {/* Subtle inner gradient overlay */}
             <div className="absolute inset-0 bg-gradient-to-b from-white/30 via-transparent to-slate-50/40 dark:from-gray-900/20 dark:via-transparent dark:to-gray-950/30 pointer-events-none rounded-r-none" />
 
             {/* Brand */}
             <div className="relative px-5 py-5 border-b border-slate-100/80 dark:border-gray-800/50">
-                <Link href="/dashboard" className="flex items-center gap-3 group">
-                    <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-brand-500/30 group-hover:shadow-brand-500/50 transition-all duration-300 group-hover:scale-105">
-                        <Zap className="w-5 h-5 text-white" strokeWidth={2.5} />
-                        <div className="absolute inset-0 rounded-xl bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Modular Doc AI</h2>
-                        <p className="text-[10px] font-semibold tracking-wide uppercase bg-gradient-to-r from-brand-500 to-cyan-500 bg-clip-text text-transparent">
-                            {isAdmin ? "Admin Console" : "Processing Hub"}
-                        </p>
-                    </div>
-                </Link>
+                <div className="flex items-center gap-3">
+                    <Link href="/dashboard" onClick={onClose} className="flex items-center gap-3 group flex-1 min-w-0">
+                        <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-brand-500/30 group-hover:shadow-brand-500/50 transition-all duration-300 group-hover:scale-105 flex-shrink-0">
+                            <Zap className="w-5 h-5 text-white" strokeWidth={2.5} />
+                            <div className="absolute inset-0 rounded-xl bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Modular Doc AI</h2>
+                            <p className="text-[10px] font-semibold tracking-wide uppercase bg-gradient-to-r from-brand-500 to-cyan-500 bg-clip-text text-transparent">
+                                {isAdmin ? "Admin Console" : "Processing Hub"}
+                            </p>
+                        </div>
+                    </Link>
+                    {/* Close button – mobile only */}
+                    {onClose && (
+                        <button
+                            onClick={onClose}
+                            aria-label="Close navigation"
+                            className="lg:hidden w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 dark:text-gray-500 hover:text-slate-700 dark:hover:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800 transition-all flex-shrink-0"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Quick Action — Primary CTA */}

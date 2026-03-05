@@ -6,6 +6,11 @@
   --sidebar-width: 260px;
 }
 
+/* Ensure no horizontal overflow on mobile */
+html, body {
+  overflow-x: hidden;
+}
+
 body {
   @apply bg-slate-50 text-slate-900 antialiased transition-colors duration-300;
 }

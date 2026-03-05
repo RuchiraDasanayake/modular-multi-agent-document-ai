@@ -61,7 +61,7 @@ export default function AdminPage() {
 
     if (!isAdmin) {
         return (
-            <div className="max-w-4xl mx-auto">
+            <div className="max-w-4xl 3xl:max-w-5xl mx-auto">
                 <div className="glass-panel rounded-2xl p-12 text-center">
                     <div className="w-16 h-16 mx-auto rounded-2xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 flex items-center justify-center mb-4">
                         <span className="text-3xl">🔒</span>
@@ -74,7 +74,7 @@ export default function AdminPage() {
     }
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8">
+        <div className="max-w-4xl 3xl:max-w-5xl mx-auto space-y-8">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900 dark:text-white">User Management</h1>

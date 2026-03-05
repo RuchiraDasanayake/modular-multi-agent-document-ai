@@ -25,7 +25,7 @@ export default function ExplanationPage() {
 
     if (!explanation) {
         return (
-            <div className="max-w-4xl mx-auto">
+            <div className="max-w-4xl 3xl:max-w-5xl mx-auto">
                 <div className="bg-white/80 dark:bg-gray-800/50 border border-slate-200 dark:border-gray-700 rounded-xl p-8 text-center">
                     <span className="text-5xl mb-4 block">🔍</span>
                     <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">No Explanation Available</h2>
@@ -42,7 +42,7 @@ export default function ExplanationPage() {
     }
 
     return (
-        <div className="max-w-5xl mx-auto space-y-6">
+        <div className="max-w-5xl 3xl:max-w-6xl mx-auto space-y-6">
             {/* Header */}
             <div className="bg-white/80 dark:bg-gray-800/50 border border-slate-200 dark:border-gray-700 rounded-xl p-6">
                 <div className="flex items-center justify-between">

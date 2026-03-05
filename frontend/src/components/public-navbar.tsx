@@ -40,7 +40,7 @@ export function PublicNavbar() {
                     : "bg-transparent"
                     }`}
             >
-                <div className="max-w-7xl mx-auto px-6 lg:px-8">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center justify-between h-16 lg:h-20">
                         {/* Logo */}
                         <Link href="/" className="flex items-center gap-3 group">
@@ -114,7 +114,7 @@ export function PublicNavbar() {
                         transition={{ duration: 0.2 }}
                         className="fixed inset-x-0 top-16 z-40 bg-white/95 dark:bg-gray-950/95 backdrop-blur-xl border-b border-slate-200/60 dark:border-white/10 shadow-lg lg:hidden"
                     >
-                        <div className="max-w-7xl mx-auto px-6 py-4 space-y-1">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 space-y-1">
                             {navLinks.map((link) => {
                                 const isActive = pathname === link.href;
                                 return (

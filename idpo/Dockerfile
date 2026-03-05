@@ -24,7 +24,7 @@ USER appuser
 
 EXPOSE 8004
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=10s --timeout=10s --start-period=30s --retries=8 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8004/health')" || exit 1
 
 CMD ["uvicorn", "idpo.ui.app:app", "--host", "0.0.0.0", "--port", "8004"]

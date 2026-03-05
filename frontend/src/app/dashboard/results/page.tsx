@@ -66,7 +66,7 @@ export default function ResultsPage() {
     const COLORS = ["#10b981", "#06b6d4", "#8b5cf6", "#f59e0b", "#ef4444", "#ec4899", "#6b7280"];
 
     return (
-        <div className="max-w-7xl mx-auto space-y-8">
+        <div className="max-w-7xl 3xl:max-w-[1800px] mx-auto space-y-8">
             <div>
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Experiment Results</h1>
                 <p className="text-slate-500 dark:text-gray-500 mt-1">
