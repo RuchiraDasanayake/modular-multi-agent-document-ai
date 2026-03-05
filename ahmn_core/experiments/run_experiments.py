@@ -707,7 +707,7 @@ def main():
     elapsed = time.time() - t_start
     
     # ── Save results ──
-    output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ahmn_core", "output")
+    output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "output")
     os.makedirs(output_dir, exist_ok=True)
     
     output = {
