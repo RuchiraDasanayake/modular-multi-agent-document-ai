@@ -10,12 +10,10 @@ interface LTMEntry {
     id: string;
     context_hash: string;
     policy_id: string;
-    policy_data: Record<string, unknown>;
     alpha: number;
     beta: number;
     confidence_score: number;
     last_promoted_at: string;
-    validation_metrics?: Record<string, unknown>;
 }
 
 interface MTMEntry {
@@ -30,7 +28,7 @@ interface MTMEntry {
 
 interface STMEntry {
     key: string;
-    ttl: number;
+    ttl_seconds: number;
     data: Record<string, unknown>;
 }
 
@@ -44,13 +42,13 @@ interface UserEntry {
 }
 
 interface GuardrailEntry {
-    id: string;
+    audit_log_id: string;
     document_id: string | null;
     doc_type: string;
     overall_passes: boolean;
     processing_time_ms: number;
     checks: Record<string, unknown>;
-    created_at: string;
+    timestamp: string;
 }
 
 interface HITLEntry {
@@ -92,8 +90,9 @@ function Badge({ children, color = "gray" }: { children: React.ReactNode; color?
 
 function JsonCell({ data }: { data: unknown }) {
     const [expanded, setExpanded] = useState(false);
+    if (data === undefined || data === null) return <span className="text-slate-400 dark:text-gray-600 italic text-xs">—</span>;
     const text = JSON.stringify(data, null, 2);
-    const preview = JSON.stringify(data);
+    const preview = JSON.stringify(data) ?? "null";
     const isLong = preview.length > 60;
 
     return (
@@ -288,7 +287,7 @@ function LTMTable({ data }: { data: LTMEntry[] }) {
     return (
         <table className="min-w-full divide-y divide-slate-200/60 dark:divide-gray-800/60">
             <thead className="bg-slate-50/50 dark:bg-gray-900/30"><tr>
-                <Th>Policy ID</Th><Th>α (alpha)</Th><Th>β (beta)</Th><Th>Mean</Th><Th>Confidence</Th><Th>Policy Data</Th><Th>Last Promoted</Th>
+                <Th>Policy ID</Th><Th>α (alpha)</Th><Th>β (beta)</Th><Th>Mean</Th><Th>Confidence</Th><Th>Context Hash</Th><Th>Last Promoted</Th>
             </tr></thead>
             <tbody className="divide-y divide-slate-100 dark:divide-gray-800/40">
                 {data.map((row, i) => {
@@ -300,7 +299,7 @@ function LTMTable({ data }: { data: LTMEntry[] }) {
                             <Td className="font-mono">{row.beta.toFixed(1)}</Td>
                             <Td className="font-mono font-semibold">{mean.toFixed(3)}</Td>
                             <Td className="font-mono">{row.confidence_score?.toFixed(2) ?? "—"}</Td>
-                            <Td><JsonCell data={row.policy_data} /></Td>
+                            <Td className="font-mono text-xs text-slate-500 dark:text-gray-500 max-w-[120px] truncate"><span title={row.context_hash}>{row.context_hash?.slice(0, 12) ?? "—"}…</span></Td>
                             <Td className="text-xs text-slate-500 dark:text-gray-500">{formatTime(row.last_promoted_at)}</Td>
                         </tr>
                     );
@@ -357,8 +356,8 @@ function STMTable({ data }: { data: STMEntry[] }) {
                     <tr key={row.key || i} className="hover:bg-slate-50/50 dark:hover:bg-gray-800/20 transition-colors">
                         <Td className="font-mono text-xs">{row.key}</Td>
                         <Td className="font-mono">
-                            <span className={row.ttl < 300 ? "text-red-500" : row.ttl < 900 ? "text-amber-500" : "text-emerald-500"}>
-                                {row.ttl}s
+                            <span className={row.ttl_seconds < 300 ? "text-red-500" : row.ttl_seconds < 900 ? "text-amber-500" : "text-emerald-500"}>
+                                {row.ttl_seconds}s
                             </span>
                         </Td>
                         <Td><JsonCell data={row.data} /></Td>
@@ -400,12 +399,12 @@ function GuardrailsTable({ data }: { data: GuardrailEntry[] }) {
             </tr></thead>
             <tbody className="divide-y divide-slate-100 dark:divide-gray-800/40">
                 {data.map((row, i) => (
-                    <tr key={row.id || i} className="hover:bg-slate-50/50 dark:hover:bg-gray-800/20 transition-colors">
+                    <tr key={row.audit_log_id || i} className="hover:bg-slate-50/50 dark:hover:bg-gray-800/20 transition-colors">
                         <Td className="text-xs">{row.doc_type}</Td>
                         <Td>{row.overall_passes ? <Badge color="green">PASS</Badge> : <Badge color="red">FAIL</Badge>}</Td>
                         <Td className="font-mono">{row.processing_time_ms?.toFixed(0)}</Td>
                         <Td><JsonCell data={row.checks} /></Td>
-                        <Td className="text-xs text-slate-500 dark:text-gray-500">{formatTime(row.created_at)}</Td>
+                        <Td className="text-xs text-slate-500 dark:text-gray-500">{formatTime(row.timestamp)}</Td>
                     </tr>
                 ))}
             </tbody>
