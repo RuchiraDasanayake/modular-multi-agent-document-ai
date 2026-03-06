@@ -133,6 +133,7 @@ services:
         max-file: "3"
     networks:
       - internal
+      - external  # Needs internet for HuggingFace model downloads
 
   # ── XAI-HITL Service (port 8003) ──
   xai-hitl:
@@ -167,6 +168,7 @@ services:
         max-file: "3"
     networks:
       - internal
+      - external  # Needs internet for HuggingFace model downloads
 
   # ── IDPO Service (port 8004) ──
   idpo:
