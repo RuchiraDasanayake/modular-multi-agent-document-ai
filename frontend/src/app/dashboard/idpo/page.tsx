@@ -501,7 +501,7 @@ export default function IDPOPage() {
                             <div className="space-y-2">
                                 {([
                                     { key: "ahmn" as const, icon: "🎯", label: "AHMN Advice", desc: "Bandit-guided policy selection (~1-3s)", checked: enableAHMN, setter: setEnableAHMN },
-                                    { key: "guardrails" as const, icon: "🛡️", label: "Guardrails", desc: "5-layer quality validation (~8-20s)", checked: enableGuardrails, setter: setEnableGuardrails },
+                                    { key: "guardrails" as const, icon: "🛡️", label: "Guardrails", desc: "6-layer quality validation (~8-20s)", checked: enableGuardrails, setter: setEnableGuardrails },
                                     { key: "xai" as const, icon: "📊", label: "Explain", desc: "Component-level explanations (~1s)", checked: enableXAI, setter: setEnableXAI },
                                 ]).map((opt) => (
                                     <label key={opt.key} className={`flex items-center justify-between cursor-pointer px-3 py-2.5 rounded-lg border transition-all duration-150 ${opt.checked ? "bg-brand-50/50 dark:bg-brand-500/5 border-brand-200 dark:border-brand-500/20" : "bg-white/30 dark:bg-gray-800/20 border-slate-200/60 dark:border-gray-700/40 hover:border-slate-300 dark:hover:border-gray-600"}`}>
@@ -1117,7 +1117,7 @@ function GuardrailsPanel({ results, skipped }: { results: GuardrailDocResult[]; 
         <div className="glass-panel rounded-xl p-8 text-center">
             <span className="text-3xl block mb-3">🛡️</span>
             <p className="text-sm font-medium text-slate-600 dark:text-gray-300 mb-1">Guardrails Validation Skipped</p>
-            <p className="text-xs text-slate-400 dark:text-gray-500">Enable guardrails in Pipeline Options to run 5-layer quality validation</p>
+            <p className="text-xs text-slate-400 dark:text-gray-500">Enable guardrails in Pipeline Options to run 6-layer quality validation</p>
         </div>
     );
     if (results.length === 0) return <div className="glass-panel rounded-xl p-8 text-center text-slate-400 dark:text-gray-500 text-sm">No guardrail validations available</div>;

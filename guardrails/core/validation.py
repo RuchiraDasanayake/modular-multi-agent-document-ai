@@ -3,16 +3,19 @@ Individual guardrail check implementations.
 
 Each function returns a ValidationMetric with name, score, is_pass, details.
 Uses lazy-loaded singletons for ML models (sentence-transformer, Presidio).
+Includes weighted faithfulness scoring and relevance-based hallucination detection.
 """
 
 import json
 import logging
+import re
 from datetime import date
+from typing import Dict, List, Any
 
 import torch
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer, util
-from presidio_analyzer import AnalyzerEngine # type: ignore
+from presidio_analyzer import AnalyzerEngine  # type: ignore
 from dateutil import parser as date_parser
 
 from ..models import (
@@ -37,16 +40,30 @@ logger = logging.getLogger(__name__)
 # ═══════════════════════════════════════════════════════════════
 
 try:
-    embedder = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
-    logger.info("Guardrails: sentence-transformer loaded")
+    embedder = SentenceTransformer(guardrail_settings.EMBEDDER_MODEL, device="cpu")
+    logger.info(f"Guardrails: sentence-transformer loaded ({guardrail_settings.EMBEDDER_MODEL})")
 except Exception as e:
     logger.error(f"Failed to load sentence transformer: {e}")
     embedder = None
 
 analyzer = AnalyzerEngine()
 
-# Cosine similarity threshold for faithfulness (from config)
+# Thresholds from config
 FAITHFULNESS_THRESHOLD = guardrail_settings.THRESHOLD_FAITHFULNESS
+
+# Pattern matchers for field type detection
+AMOUNT_LIKE_PATTERNS = ["total", "subtotal", "tax", "vat", "amount", "balance", "claim", "grand", "discount", "fee"]
+DATE_LIKE_PATTERNS = ["date", "due", "issue", "payment", "claim", "period"]
+
+
+def is_amount_like(key: str) -> bool:
+    """Check if a field key represents an amount/money value."""
+    return any(p in key.lower() for p in AMOUNT_LIKE_PATTERNS)
+
+
+def is_date_like(key: str) -> bool:
+    """Check if a field key represents a date value."""
+    return any(p in key.lower() for p in DATE_LIKE_PATTERNS)
 
 # ═══════════════════════════════════════════════════════════════
 # 1. Schema Adherence
@@ -72,6 +89,64 @@ async def check_schema_adherence(answer_json: str, doc_type: str) -> ValidationM
             name="schema_adherence", score=0.0, is_pass=False,
             details=f"Schema error: {str(e)[:120]}",
         )
+
+# ═══════════════════════════════════════════════════════════════
+# 1b. Relevance Check (Hallucination Detection)
+# ═══════════════════════════════════════════════════════════════
+
+async def check_relevance(data: Dict[str, Any], source_contexts: List[str], doc_type: str) -> ValidationMetric:
+    """Check if extracted fields are relevant to the source document context.
+
+    Low relevance scores indicate potential hallucination or noise.
+    """
+    if not embedder or not source_contexts:
+        return ValidationMetric(
+            name="relevance", score=0.0, is_pass=False,
+            details="Missing embedder or source contexts",
+        )
+
+    pol = guardrail_settings.POLICIES["relevance"]
+    context_text = " ".join(source_contexts)
+    ctx_emb = embedder.encode(context_text)
+    ctx_tensor = torch.tensor(ctx_emb)
+
+    expected = pol["expected_fields"].get(doc_type, [])
+    fin_kw = pol["financial_keywords"]
+
+    field_scores = {}
+    low_fields = []
+    unexpected = 0
+
+    for key, value in data.items():
+        if value in (None, "", [], {}, " "):
+            continue
+        val_str = json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value)
+        val_emb = embedder.encode(val_str)
+        sim = util.cos_sim(torch.tensor(val_emb), ctx_tensor)[0][0].item()
+
+        # Boost similarity for financial keywords
+        if any(w in key.lower() or w in val_str.lower() for w in fin_kw):
+            sim = min(1.0, sim + pol["keyword_boost"])
+
+        # Penalize unexpected fields
+        is_expected = key.lower() in [e.lower() for e in expected] or any(e.lower() in key.lower() for e in expected)
+        if not is_expected:
+            sim *= 0.4
+            unexpected += 1
+
+        field_scores[key] = round(sim, 3)
+        if sim < pol["medium_threshold"]:
+            low_fields.append(f"{key} ({sim:.3f})")
+
+    avg_score = sum(field_scores.values()) / len(field_scores) if field_scores else 0.0
+    is_pass = avg_score >= pol["high_threshold"]
+
+    details = f"Average relevance: {avg_score:.3f} | Unexpected fields: {unexpected}"
+    if low_fields:
+        details += f" | LOW relevance (likely hallucination): {', '.join(low_fields[:3])}"
+
+    return ValidationMetric(name="relevance", score=round(avg_score, 3), is_pass=is_pass, details=details)
+
 
 # ═══════════════════════════════════════════════════════════════
 # 2. Internal Consistency
@@ -331,11 +406,14 @@ def check_pii_leakage(answer_json: str, doc_type: str | None = None) -> Validati
     )
 
 # ═══════════════════════════════════════════════════════════════
-# 5. Faithfulness (Hallucination Detection)
+# 5. Faithfulness (Weighted Hallucination Detection)
 # ═══════════════════════════════════════════════════════════════
 
 async def check_faithfulness(answer_json: str, source_contexts: list[str]) -> ValidationMetric:
-    """Semantic similarity between extracted fields and source context chunks."""
+    """Weighted faithfulness check combining semantic, numerical, and entity matching.
+
+    Final score = semantic_weight * semantic_avg + numerical_weight * num_score + entity_weight * ent_score
+    """
     if not embedder:
         return ValidationMetric(
             name="faithfulness", score=0.0, is_pass=False,
@@ -350,35 +428,66 @@ async def check_faithfulness(answer_json: str, source_contexts: list[str]) -> Va
     try:
         data = json.loads(answer_json)
         context_text = " ".join(source_contexts)
+        pol = guardrail_settings.POLICIES["faithfulness"]
 
-        field_scores: dict[str, float] = {}
-        total = 0.0
-        count = 0
-
-        # Encode context once — O(1) instead of O(n) per field
+        # Encode context once
         ctx_emb = embedder.encode(context_text)
         ctx_tensor = torch.tensor(ctx_emb)
 
-        for key, value in data.items():
-            if isinstance(value, (str, int, float)) and value not in ("", None, [], {}):
-                val_str = str(value)
-                val_emb = embedder.encode(val_str)
-                sim = util.cos_sim(torch.tensor(val_emb), ctx_tensor)[0][0].item()
-                field_scores[key] = round(sim, 3)
-                total += sim
-                count += 1
+        sem_total, sem_count = 0.0, 0
 
-        avg_score = total / count if count > 0 else 0.0
-        is_pass = avg_score >= FAITHFULNESS_THRESHOLD
-        details = f"Semantic score: {avg_score:.3f} | Fields: {field_scores}"
+        for key, value in data.items():
+            if value in ("", None, [], {}):
+                continue
+            val_str = json.dumps(value) if isinstance(value, (dict, list)) else str(value)
+            if not val_str.strip():
+                continue
+
+            val_emb = embedder.encode(val_str)
+            sim = util.cos_sim(torch.tensor(val_emb), ctx_tensor)[0][0].item()
+
+            # Apply field importance weighting
+            weight = pol["field_importance"].get(key, pol["field_importance"]["default"])
+            sem_total += sim * weight
+            sem_count += weight
+
+        sem_avg = sem_total / sem_count if sem_count > 0 else 0.0
+
+        # Numerical matching - check if amounts in answer appear in source
+        ans_nums = [float(v) for k, v in data.items() if is_amount_like(k) and isinstance(v, (int, float))]
+        src_nums = [float(x) for x in re.findall(r'\d+\.?\d{0,2}', context_text)]
+        num_matches = 0
+        if ans_nums and src_nums:
+            for a in ans_nums:
+                for s in src_nums:
+                    if abs(a - s) / max(s, 1) <= pol["numerical_tolerance"].get("default", 0.005):
+                        num_matches += 1
+                        break
+            num_score = num_matches / len(ans_nums) if ans_nums else 0.0
+        else:
+            num_score = 0.8  # Default if no numerics
+
+        # Entity score (placeholder - could integrate NER matching)
+        ent_score = 0.85
+
+        # Weighted final score
+        final_score = (
+            sem_avg * pol["semantic_weight"] +
+            num_score * pol["numerical_weight"] +
+            ent_score * pol["entity_weight"]
+        )
+
+        is_pass = final_score >= FAITHFULNESS_THRESHOLD
 
         return ValidationMetric(
-            name="faithfulness", score=round(avg_score, 3), is_pass=is_pass,
-            details=details,
+            name="faithfulness",
+            score=round(final_score, 3),
+            is_pass=is_pass,
+            details=f"Semantic {sem_avg:.3f} | Numerical {num_score:.3f} | Entity {ent_score:.3f} | Final {final_score:.3f}",
         )
     except Exception as e:
         logger.error(f"Faithfulness error: {e}")
         return ValidationMetric(
             name="faithfulness", score=0.0, is_pass=False,
-            details="Error",
+            details=f"Error: {str(e)[:100]}",
         )

@@ -159,8 +159,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1536m
-          cpus: "1.0"
+          memory: 2048m  # Increased for RoBERTa-base-squad2 (larger model)
+          cpus: "1.5"
     logging:
       driver: json-file
       options:
