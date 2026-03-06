@@ -344,6 +344,8 @@ export interface AHMNFeedback {
     cost?: number;
     processing_time_ms?: number;
     success?: boolean;
+    precision?: number;
+    recall?: number;
   };
   error: string | null;
 }

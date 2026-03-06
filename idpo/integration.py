@@ -340,6 +340,12 @@ def _validate_single_doc(
     except httpx.ConnectError:
         gr.error = "Guardrails service unreachable"
         logger.warning("Guardrails service unreachable at %s", GUARDRAILS_URL)
+    except (httpx.RemoteProtocolError, httpx.ReadError):
+        gr.error = "Guardrails service disconnected — the container may have run out of memory"
+        logger.warning("Guardrails service disconnected for %s (possible OOM)", doc.get("doc_id", "?"))
+    except httpx.ReadTimeout:
+        gr.error = "Guardrails validation timed out"
+        logger.warning("Guardrails timed out for %s", doc.get("doc_id", "?"))
     except Exception as exc:
         gr.error = str(exc)
         logger.warning("Guardrails validation failed for %s: %s", doc.get("doc_id", "?"), exc)
@@ -480,18 +486,26 @@ def log_ahmn_feedback(
         expected_fields = _POLICY_EXPECTED_FIELDS.get(used_policy, [])
 
         doc_f1_scores: list[float] = []
+        doc_precisions: list[float] = []
+        doc_recalls: list[float] = []
         for doc in doc_records:
-            # Collect extracted entity keys (with confidence >= 0.5 as "valid")
+            # Collect extracted entity keys that were EXPLICITLY targeted by the
+            # policy (is_explicit=True) with confidence >= 0.5.  Including all
+            # discovered entities would inflate the denominator and crush
+            # precision — only policy-targeted fields should be measured.
             extracted_keys: set[str] = set()
             details = doc.get("entity_details", [])
             if details:
                 for ed in details:
                     key = (ed.get("key") or "") if isinstance(ed, dict) else getattr(ed, "key", "")
                     conf = ed.get("confidence", 0) if isinstance(ed, dict) else getattr(ed, "confidence", 0)
-                    if key and isinstance(conf, (int, float)) and conf >= 0.5:
+                    is_explicit = (ed.get("is_explicit", False) if isinstance(ed, dict)
+                                   else getattr(ed, "is_explicit", False))
+                    if key and isinstance(conf, (int, float)) and conf >= 0.5 and is_explicit:
                         extracted_keys.add(key.lower())
             else:
-                # Fallback: field_confidence dict
+                # Fallback: field_confidence dict (no is_explicit flag available,
+                # so include all with sufficient confidence)
                 fc = doc.get("field_confidence", {})
                 if fc and isinstance(fc, dict):
                     for k, v in fc.items():
@@ -518,11 +532,17 @@ def log_ahmn_feedback(
                     if isinstance(c, (int, float)) and c > 0:
                         confs.append(float(c))
                 f1 = sum(confs) / len(confs) if confs else 0.0
+                precision = f1  # no ground truth; mirror confidence
+                recall = f1
 
             doc_f1_scores.append(f1)
+            doc_precisions.append(precision)
+            doc_recalls.append(recall)
 
         f1_score = sum(doc_f1_scores) / len(doc_f1_scores) if doc_f1_scores else 0.0
         f1_score = max(0.0, min(1.0, f1_score))
+        avg_precision = sum(doc_precisions) / len(doc_precisions) if doc_precisions else 0.0
+        avg_recall = sum(doc_recalls) / len(doc_recalls) if doc_recalls else 0.0
 
         total_docs = len(doc_records)
         successful_validations = sum(1 for gr in guardrail_results if gr.overall_passes and not gr.error)
@@ -534,6 +554,8 @@ def log_ahmn_feedback(
             "cost": total_docs * 0.01,
             "processing_time_ms": round(processing_time_ms, 1),
             "success": f1_score >= 0.4 or success_rate >= 0.5,
+            "precision": round(avg_precision, 4),
+            "recall": round(avg_recall, 4),
         }
 
         payload = {
