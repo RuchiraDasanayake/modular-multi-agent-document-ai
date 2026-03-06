@@ -17,17 +17,40 @@ from fastapi.testclient import TestClient
 @pytest.fixture(autouse=True)
 def _mock_dependencies(monkeypatch):
     """Patch heavy dependencies so tests run without Postgres / Redis."""
-    # Patch the DatabasePool so lifespan doesn't need a real DB
-    mock_pool = AsyncMock()
+    # Mock pool with proper async context manager for connection()
+    mock_conn = AsyncMock()
+    mock_pool = MagicMock()
+    _cm = AsyncMock()
+    _cm.__aenter__ = AsyncMock(return_value=mock_conn)
+    _cm.__aexit__ = AsyncMock(return_value=False)
+    mock_pool.connection = MagicMock(return_value=_cm)
     monkeypatch.setattr("gateway.database.DatabasePool.get_pool", AsyncMock(return_value=mock_pool))
     monkeypatch.setattr("gateway.database.DatabasePool.close_pool", AsyncMock())
+    # Also mock Redis so /health doesn't fail
+    monkeypatch.setattr("gateway.main._get_redis", AsyncMock(return_value=AsyncMock(ping=AsyncMock())))
 
 @pytest.fixture()
 def client():
     """Create a TestClient for the gateway app."""
     from gateway.main import app
+    from gateway.deps import get_db
+
+    # Override get_db to yield a proper AsyncMock connection
+    async def _mock_get_db():
+        mock_db = AsyncMock()
+        mock_cursor = AsyncMock()
+        mock_cursor.fetchone = AsyncMock(return_value=None)
+        mock_cursor.fetchall = AsyncMock(return_value=[])
+        _cm = AsyncMock()
+        _cm.__aenter__ = AsyncMock(return_value=mock_cursor)
+        _cm.__aexit__ = AsyncMock(return_value=False)
+        mock_db.cursor = MagicMock(return_value=_cm)
+        return mock_db
+
+    app.dependency_overrides[get_db] = _mock_get_db
     with TestClient(app, raise_server_exceptions=False) as c:
         yield c
+    app.dependency_overrides.clear()
 
 # ═══════════════════════════════════════════════════════════════
 # Health Endpoints
@@ -125,21 +148,11 @@ def test_login_missing_body(client):
 
 def test_login_invalid_credentials(client):
     """Login with non-existent user should return 401."""
-    with patch("gateway.main.get_db") as mock_get_db:
-        mock_conn = AsyncMock()
-        mock_cursor = AsyncMock()
-        mock_cursor.fetchone = AsyncMock(return_value=None)
-        mock_conn.cursor = MagicMock(return_value=AsyncMock(
-            __aenter__=AsyncMock(return_value=mock_cursor),
-            __aexit__=AsyncMock(return_value=False),
-        ))
-        mock_get_db.return_value = mock_conn
-
-        resp = client.post(
-            "/api/auth/login",
-            json={"username": "nonexistent", "password": "wrong"},
-        )
-        assert resp.status_code in (401, 500)
+    resp = client.post(
+        "/api/auth/login",
+        json={"username": "nonexistent", "password": "wrong"},
+    )
+    assert resp.status_code in (401, 500)
 
 def test_signup_missing_fields(client):
     resp = client.post("/api/auth/signup", json={})
