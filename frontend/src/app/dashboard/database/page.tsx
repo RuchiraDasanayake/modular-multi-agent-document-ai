@@ -10,6 +10,7 @@ interface LTMEntry {
     id: string;
     context_hash: string;
     policy_id: string;
+    policy_data: Record<string, unknown>;
     alpha: number;
     beta: number;
     confidence_score: number;
@@ -290,19 +291,23 @@ function LTMTable({ data }: { data: LTMEntry[] }) {
     return (
         <table className="min-w-full divide-y divide-slate-200/60 dark:divide-gray-800/60">
             <thead className="bg-slate-50/50 dark:bg-gray-900/30"><tr>
-                <Th>Policy ID</Th><Th>α (alpha)</Th><Th>β (beta)</Th><Th>Mean</Th><Th>Confidence</Th><Th>Context Hash</Th><Th>Last Promoted</Th>
+                <Th>Doc Type</Th><Th>Policy ID</Th><Th>Content Profile</Th><Th>α (alpha)</Th><Th>β (beta)</Th><Th>Mean</Th><Th>Confidence</Th><Th>Last Promoted</Th>
             </tr></thead>
             <tbody className="divide-y divide-slate-100 dark:divide-gray-800/40">
                 {data.map((row, i) => {
                     const mean = row.alpha / (row.alpha + row.beta);
+                    const policyData = row.policy_data || {};
+                    const docType = (policyData as Record<string, string>).doc_type || "—";
+                    const contentProfile = (policyData as Record<string, string>).content_profile || "—";
                     return (
                         <tr key={row.id || i} className="hover:bg-slate-50/50 dark:hover:bg-gray-800/20 transition-colors">
+                            <Td className="text-xs font-medium">{docType}</Td>
                             <Td><Badge color={policyColor(row.policy_id)}>{row.policy_id}</Badge></Td>
+                            <Td className="text-xs text-slate-500 dark:text-gray-500">{contentProfile}</Td>
                             <Td className="font-mono">{row.alpha.toFixed(1)}</Td>
                             <Td className="font-mono">{row.beta.toFixed(1)}</Td>
                             <Td className="font-mono font-semibold">{mean.toFixed(3)}</Td>
                             <Td className="font-mono">{row.confidence_score?.toFixed(2) ?? "—"}</Td>
-                            <Td className="font-mono text-xs text-slate-500 dark:text-gray-500 max-w-[120px] truncate"><span title={row.context_hash}>{row.context_hash?.slice(0, 12) ?? "—"}…</span></Td>
                             <Td className="text-xs text-slate-500 dark:text-gray-500">{formatTime(row.last_promoted_at)}</Td>
                         </tr>
                     );
