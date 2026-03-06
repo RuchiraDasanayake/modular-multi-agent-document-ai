@@ -225,7 +225,7 @@ async def _seed_ltm_if_empty() -> None:
                 if seed.get("content_profile"):
                     context_str += f". Content profile: {seed['content_profile']}"
                 vector = _embedding_service.generate_embedding(context_str)
-                context_hash = hashlib.sha256(context_str.encode()).hexdigest()
+                context_hash = hashlib.sha256(f"{context_str}:{seed['policy_id']}".encode()).hexdigest()
 
                 await cur.execute(
                     """INSERT INTO ltm_validated_policies
