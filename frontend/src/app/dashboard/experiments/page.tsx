@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-    BarChart, Bar, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+    BarChart, Bar, Cell,
 } from "recharts";
 
 /* ─── Types ─── */
@@ -122,8 +122,6 @@ export default function ExperimentsPage() {
     const [error, setError] = useState("");
     const [driftMag, setDriftMag] = useState(0.2);
     const [seeds, setSeeds] = useState(10);
-    const [selectedScenario, setSelectedScenario] = useState<string>("all");
-
     const loadResults = useCallback(async () => {
         setLoading(true);
         setError("");
@@ -151,28 +149,17 @@ export default function ExperimentsPage() {
     };
 
     const aggregated = data ? aggregateResults(data.main_results) : [];
-    const filtered = selectedScenario === "all" ? aggregated : aggregated.filter(a => a.scenario === selectedScenario);
+    const filtered = aggregated;
 
     const methodSummary = data
         ? (data.experiment_config?.methods ?? []).map(method => {
-            const entries = (selectedScenario === "all" ? aggregated : filtered).filter(a => a.method === method);
+            const entries = aggregated.filter(a => a.method === method);
             return {
                 method,
                 mean_regret: avg(entries.map(e => e.mean_regret)),
                 mean_reward: avg(entries.map(e => e.mean_reward)),
                 mean_accuracy: avg(entries.map(e => e.mean_accuracy)),
             };
-        })
-        : [];
-
-    const radarData = data
-        ? (data.experiment_config?.scenarios ?? []).map(sc => {
-            const row: Record<string, string | number> = { scenario: SCENARIO_LABELS[sc] || sc };
-            for (const m of ["TS (base)", "AHMN-RABI", "AHMN-DAAF", "AHMN-Full"]) {
-                const entry = aggregated.find(a => a.method === m && a.scenario === sc);
-                row[m] = entry ? Math.round(entry.mean_accuracy * 100) : 0;
-            }
-            return row;
         })
         : [];
 
@@ -242,26 +229,10 @@ export default function ExperimentsPage() {
                         </div>
                     </div>
 
-                    {/* Scenario Filter */}
-                    <div className="flex flex-wrap gap-2">
-                        {["all", ...(data.experiment_config?.scenarios ?? [])].map(sc => (
-                            <button
-                                key={sc}
-                                onClick={() => setSelectedScenario(sc)}
-                                className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${selectedScenario === sc
-                                    ? "bg-brand-500/10 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300 border border-brand-200/60 dark:border-brand-500/20 shadow-sm"
-                                    : "text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800 border border-transparent"
-                                    }`}
-                            >
-                                {sc === "all" ? "All Scenarios" : SCENARIO_LABELS[sc] || sc}
-                            </button>
-                        ))}
-                    </div>
-
                     {/* Regret Bar Chart */}
                     <div className="glass-panel rounded-2xl p-6">
                         <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Mean Cumulative Regret by Method</h2>
-                        <p className="text-xs text-slate-500 dark:text-gray-500 mb-4">Lower is better — averaged across {selectedScenario === "all" ? "all scenarios" : SCENARIO_LABELS[selectedScenario]}</p>
+                        <p className="text-xs text-slate-500 dark:text-gray-500 mb-4">Lower is better — averaged across all scenarios</p>
                         <ResponsiveContainer width="100%" height={320}>
                             <BarChart data={methodSummary} layout="vertical" margin={{ left: 100 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -277,28 +248,8 @@ export default function ExperimentsPage() {
                         </ResponsiveContainer>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Radar: Policy Accuracy */}
-                        <div className="glass-panel rounded-2xl p-6">
-                            <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Policy Selection Accuracy (%)</h2>
-                            <p className="text-xs text-slate-500 dark:text-gray-500 mb-4">How often each method picks the optimal policy</p>
-                            <ResponsiveContainer width="100%" height={300}>
-                                <RadarChart data={radarData}>
-                                    <PolarGrid stroke="#e2e8f0" />
-                                    <PolarAngleAxis dataKey="scenario" tick={{ fontSize: 11 }} />
-                                    <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 10 }} />
-                                    <Radar name="TS (base)" dataKey="TS (base)" stroke="#10b981" fill="#10b981" fillOpacity={0.15} strokeWidth={2} />
-                                    <Radar name="AHMN-RABI" dataKey="AHMN-RABI" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.15} strokeWidth={2} />
-                                    <Radar name="AHMN-DAAF" dataKey="AHMN-DAAF" stroke="#ef4444" fill="#ef4444" fillOpacity={0.15} strokeWidth={2} />
-                                    <Radar name="AHMN-Full" dataKey="AHMN-Full" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.25} strokeWidth={2} />
-                                    <Legend />
-                                    <Tooltip />
-                                </RadarChart>
-                            </ResponsiveContainer>
-                        </div>
-
-                        {/* Detailed Results Table */}
-                        <div className="glass-panel rounded-2xl p-6 overflow-hidden">
+                    {/* Detailed Results Table */}
+                    <div className="glass-panel rounded-2xl p-6 overflow-hidden">
                             <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Detailed Results</h2>
                             <p className="text-xs text-slate-500 dark:text-gray-500 mb-4">Per method-scenario averages over {data.experiment_config?.n_seeds ?? 30} seeds</p>
                             <div className="overflow-auto max-h-[320px]">
@@ -336,7 +287,6 @@ export default function ExperimentsPage() {
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
                     </div>
 
                     {/* Ablation Studies */}

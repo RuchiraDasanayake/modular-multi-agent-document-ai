@@ -18,7 +18,6 @@ import {
     Target,
     Snowflake,
     Waves,
-    TrendingUp,
     Lock,
     Database,
     Upload,
@@ -51,11 +50,10 @@ const USER_NAV: NavItem[] = [
 
 const ADMIN_NAV: NavItem[] = [
     { href: "/dashboard", label: "Overview", Icon: LayoutDashboard, color: "brand" },
-    { href: "/dashboard/submit", label: "Submit Data", Icon: SendHorizonal, color: "cyan" },
+    { href: "/dashboard/submit", label: "Policy Check", Icon: SendHorizonal, color: "cyan" },
     { href: "/dashboard/experiments", label: "Experiments", Icon: FlaskConical, color: "emerald" },
     { href: "/dashboard/rabi", label: "Cold Start", Icon: Snowflake, color: "cyan" },
     { href: "/dashboard/daaf", label: "Drift Monitor", Icon: Waves, color: "violet" },
-    { href: "/dashboard/results", label: "Results", Icon: TrendingUp, color: "emerald" },
     { href: "/dashboard/admin", label: "Users", Icon: Lock, color: "amber" },
     { href: "/dashboard/database", label: "Database", Icon: Database, color: "cyan" },
 ];

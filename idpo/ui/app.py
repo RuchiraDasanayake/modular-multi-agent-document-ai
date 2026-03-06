@@ -106,12 +106,27 @@ async def run_demo(
         if _exts & {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp"}:
             inferred_doc_type = "scanned_document"
             inferred_content_profile = "image-heavy"
-        elif any(kw in _names_lower for kw in ("invoice", "receipt", "bill")):
+        elif any(kw in _names_lower for kw in ("invoice", "receipt", "bill", "purchase_order", "po_")):
             inferred_doc_type = "invoice"
             inferred_content_profile = "table-heavy"
         elif any(kw in _names_lower for kw in ("form", "application", "questionnaire")):
             inferred_doc_type = "form_document"
             inferred_content_profile = "form"
+        elif any(kw in _names_lower for kw in ("contract", "agreement", "lease", "nda")):
+            inferred_doc_type = "mixed_document"
+            inferred_content_profile = "mixed"
+        elif any(kw in _names_lower for kw in ("clinical", "patient", "medical", "diagnosis", "prescription")):
+            inferred_doc_type = "clinical_summary"
+            inferred_content_profile = "form"
+        elif any(kw in _names_lower for kw in ("bank", "statement", "ledger", "financial")):
+            inferred_doc_type = "bank_statement"
+            inferred_content_profile = "table-heavy"
+        elif any(kw in _names_lower for kw in ("insurance", "claim", "policy")):
+            inferred_doc_type = "insurance_claim"
+            inferred_content_profile = "form"
+        elif _exts & {".pdf"}:
+            inferred_doc_type = "text_document"
+            inferred_content_profile = "text-heavy"
 
         AHMN_ADVICE_TIMEOUT_S = 10  # Don't let a slow AHMN block the pipeline
         try:

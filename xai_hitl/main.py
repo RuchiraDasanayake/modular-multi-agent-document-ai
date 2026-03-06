@@ -454,10 +454,10 @@ async def ask_question(body: QARequest):
     if _engine_available:
         try:
             engine = _get_engine()
-            # 30 second timeout to prevent hanging
+            # 45 second timeout for RoBERTa-SQuAD2 (larger model)
             exp = await asyncio.wait_for(
                 asyncio.to_thread(engine.generate_explanation, body.paragraph, body.question),
-                timeout=30.0
+                timeout=45.0
             )
             schema_exp = _engine_explanation_to_schema(exp)
             response = QAResponse(
@@ -468,7 +468,7 @@ async def ask_question(body: QARequest):
             _explanation_cache[qa_id] = response
             return response
         except asyncio.TimeoutError:
-            logger.warning("Engine timed out after 30s, falling back to demo")
+            logger.warning("Engine timed out after 45s, falling back to demo")
         except Exception as exc:
             logger.error("Engine failed, falling back to demo: %s", exc)
 

@@ -8,9 +8,9 @@ WORKDIR /app
 COPY xai_hitl/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-download DistilBERT model at build time into shared cache
+# Pre-download RoBERTa-SQuAD2 model at build time (better accuracy + unanswerable detection)
 ENV HF_HOME=/app/.cache/huggingface
-RUN python -c "from transformers import pipeline; pipeline('question-answering', model='distilbert/distilbert-base-cased-distilled-squad'); print('distilbert-base-cased-distilled-squad cached')"
+RUN python -c "from transformers import pipeline; pipeline('question-answering', model='deepset/roberta-base-squad2', handle_impossible_answer=True); print('roberta-base-squad2 cached')"
 ENV TRANSFORMERS_OFFLINE=1
 
 COPY xai_hitl/ ./xai_hitl/
