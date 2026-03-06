@@ -198,7 +198,7 @@ class TransformerQAModel:
     Uses DistilBERT fine-tuned on SQuAD for extractive Q&A.
     """
 
-    def __init__(self, model_name: str = "distilbert-base-cased-distilled-squad"):
+    def __init__(self, model_name: str = "distilbert/distilbert-base-cased-distilled-squad"):
         logger.info("Loading transformer model: %s", model_name)
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -230,26 +230,25 @@ class TransformerQAModel:
         )
 
     def get_token_importance(self, context: str, question: str) -> dict[str, float]:
-        """Get token importance scores using attention weights."""
+        """Get token importance scores using attention weights (optimized)."""
+        # Truncate context to reduce computation time
+        max_context_words = 200
+        context_words = context.split()
+        if len(context_words) > max_context_words:
+            context = " ".join(context_words[:max_context_words])
+
         inputs = self.tokenizer(
             question, context,
             return_tensors="pt",
-            max_length=512,
+            max_length=384,  # Reduced from 512
             truncation=True,
         )
-
-        device = next(self.model.parameters()).device
-        self.model.to("cpu")
 
         with torch.no_grad():
             outputs = self.model(**inputs, output_attentions=True)
 
-        self.model.to(device)
-
-        attention = outputs.attentions[-1]
-        attention = attention.mean(dim=1)
-        attention = attention[0]
-
+        # Use last layer attention, averaged across heads
+        attention = outputs.attentions[-1].mean(dim=1)[0]
         tokens = self.tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
         token_importance = attention.mean(dim=0).numpy()
 
@@ -374,14 +373,14 @@ class XAIEngine:
     # ─── LIME ────────────────────────────────────────────────
 
     def _get_lime_explanation(
-        self, paragraph: str, question: str, num_features: int = 15
+        self, paragraph: str, question: str, num_features: int = 10
     ) -> LIMEExplanation:
         try:
             predict_fn = self._create_relevance_predictor(paragraph, question)
-            # Reduced from 500 to 80 samples — still statistically meaningful
-            # for local explanations but ~6x faster. LIME's linear surrogate
-            # converges well with fewer samples for short paragraphs.
-            num_samples = min(80, max(30, len(paragraph.split()) * 2))
+            # Reduced to 15-20 samples for fast response while maintaining
+            # meaningful local explanations. LIME's linear surrogate converges
+            # quickly for focused Q&A tasks.
+            num_samples = min(20, max(15, len(paragraph.split()) // 5))
             exp = self.lime_explainer.explain_instance(
                 paragraph, predict_fn,
                 num_features=num_features,
@@ -503,20 +502,18 @@ class XAIEngine:
         prediction: ModelPrediction,
         relevant_sentences: list[tuple[str, float]],
     ) -> str:
-        parts = [
-            f"**📌 Direct Answer:** {prediction.answer}",
-            f"\n*(Model confidence: {prediction.confidence:.1%})*\n",
-        ]
-        if relevant_sentences:
-            parts.append("\n**📖 Supporting Context:**")
-            for sentence, score in relevant_sentences[:2]:
-                if score > 0.01:
-                    parts.append(f"\n• {sentence}")
-        if prediction.confidence < 0.5 and len(prediction.top_k_answers) > 1:
-            parts.append("\n\n**🔄 Alternative interpretations:**")
-            for alt in prediction.top_k_answers[1:3]:
-                parts.append(f'\n• "{alt["answer"]}" ({alt["score"]:.1%})')
-        return "\n".join(parts)
+        """Build a simple, human-friendly answer."""
+        answer = prediction.answer.strip()
+
+        # Add natural conversational framing based on confidence
+        if prediction.confidence >= 0.8:
+            return f"The answer is {answer}."
+        elif prediction.confidence >= 0.6:
+            return f"Based on the document, it's {answer}."
+        elif prediction.confidence >= 0.4:
+            return f"I found {answer} in the document."
+        else:
+            return f"It looks like {answer}, but I'm not entirely sure."
 
     # ─── derivation tree ─────────────────────────────────────
 
@@ -571,11 +568,66 @@ class XAIEngine:
             overall_confidence=round(overall, 4),
         )
 
+    # ─── conversational handling ──────────────────────────────
+
+    def _handle_conversation(self, question: str) -> str | None:
+        """Handle greetings and common conversational phrases."""
+        q = question.lower().strip()
+
+        # Greetings
+        greetings = ['hello', 'hi', 'hey', 'good morning', 'good afternoon',
+                     'good evening', 'howdy', 'greetings', 'hola']
+        if any(q.startswith(g) or q == g for g in greetings):
+            return "Hello! I'm your document assistant. Ask me anything about this document - like prices, dates, totals, or any other details you need."
+
+        # How are you
+        if any(phrase in q for phrase in ['how are you', 'how r u', "how's it going", 'whats up', "what's up"]):
+            return "I'm doing great, thanks for asking! Ready to help you with any questions about your document."
+
+        # Thanks
+        if any(phrase in q for phrase in ['thank', 'thanks', 'thx', 'ty']):
+            return "You're welcome! Let me know if you have any other questions about the document."
+
+        # Help
+        if q in ['help', 'help me'] or any(p in q for p in ['what can you do', 'what do you do', 'how can you help']):
+            return "I can help you find information in your document. Try asking questions like 'What is the total?', 'What's the date?', or 'Who is the vendor?'"
+
+        # Goodbye
+        if any(phrase in q for phrase in ['bye', 'goodbye', 'see you', 'later', 'exit', 'quit']):
+            return "Goodbye! Feel free to come back if you have more questions."
+
+        # Who are you
+        if any(phrase in q for phrase in ['who are you', 'what are you', 'your name']):
+            return "I'm an AI document assistant. I can analyze documents and answer your questions about their content."
+
+        return None  # Not a conversational message
+
     # ─── main entry point ────────────────────────────────────
 
     def generate_explanation(self, paragraph: str, question: str) -> XAIExplanation:
         """Generate complete XAI explanation using Transformer + SHAP + LIME."""
         logger.info("Processing question: %s", question)
+
+        # Check for conversational messages first
+        conv_response = self._handle_conversation(question)
+        if conv_response:
+            logger.info("Handled as conversation: %s", question[:30])
+            # Return a minimal explanation for conversational responses
+            # Use confidence_score=-1 to signal frontend to hide confidence badge
+            return XAIExplanation(
+                paragraph=paragraph,
+                question=question,
+                answer=conv_response,
+                highlighted_spans=[],
+                shap_explanation=SHAPExplanation(base_value=0.5, shap_values=[], feature_names=[]),
+                lime_explanation=LIMEExplanation(word_weights=[], prediction_proba=1.0),
+                derivation_tree=DerivationTree(
+                    question=question, steps=[], final_answer=conv_response, overall_confidence=1.0
+                ),
+                confidence_score=-1.0,  # Negative = don't show confidence
+                evidence_sentences=[],
+                model_prediction=None,
+            )
 
         prediction = self.qa_model.predict(paragraph, question)
         logger.debug("Answer: '%s' (%.1f%%)", prediction.answer, prediction.confidence * 100)

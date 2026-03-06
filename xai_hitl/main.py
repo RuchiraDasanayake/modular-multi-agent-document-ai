@@ -17,6 +17,7 @@ GET  /health             — liveness probe
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import uuid
@@ -453,8 +454,11 @@ async def ask_question(body: QARequest):
     if _engine_available:
         try:
             engine = _get_engine()
-            import asyncio
-            exp = await asyncio.to_thread(engine.generate_explanation, body.paragraph, body.question)
+            # 30 second timeout to prevent hanging
+            exp = await asyncio.wait_for(
+                asyncio.to_thread(engine.generate_explanation, body.paragraph, body.question),
+                timeout=30.0
+            )
             schema_exp = _engine_explanation_to_schema(exp)
             response = QAResponse(
                 answer=exp.answer,
@@ -463,43 +467,19 @@ async def ask_question(body: QARequest):
             )
             _explanation_cache[qa_id] = response
             return response
+        except asyncio.TimeoutError:
+            logger.warning("Engine timed out after 30s, falling back to demo")
         except Exception as exc:
             logger.error("Engine failed, falling back to demo: %s", exc)
 
-    # Demo fallback — deterministic answers for common question patterns
-    q = body.question.lower()
-    if "time value" in q or "dollar" in q:
-        answer = (
-            "The time value of money asserts that a dollar held today is "
-            "worth more than a dollar received tomorrow due to its "
-            "potential earning capacity."
-        )
-        confidence = 0.92
-    elif "function" in q or "core" in q:
-        answer = (
-            "At its core, finance functions as the circulatory system of "
-            "the global economy, moving capital from savers and investors "
-            "to borrowers and entrepreneurs."
-        )
-        confidence = 0.88
-    elif "instrument" in q or "stock" in q or "bond" in q:
-        answer = (
-            "Financial exchange is mediated by various instruments such "
-            "as stocks, bonds, and derivatives."
-        )
-        confidence = 0.90
-    else:
-        answer = (
-            "Finance is the study of resource allocation over time, "
-            "balancing returns against risk, and functions as the "
-            "circulatory system of the global economy."
-        )
-        confidence = 0.75
+    # Fallback when engine is unavailable - give helpful error message
+    answer = "I'm having trouble processing your question right now. Please try again in a moment."
+    confidence = -1.0  # Hide confidence for error responses
 
     response = QAResponse(
         answer=answer,
         confidence=confidence,
-        explanation=_demo_explanation(body.question, answer, confidence),
+        explanation=_demo_explanation(body.question, answer, 0.0),
     )
     _explanation_cache[qa_id] = response
     return response

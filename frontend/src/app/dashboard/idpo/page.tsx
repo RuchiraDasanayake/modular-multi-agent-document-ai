@@ -118,7 +118,7 @@ export default function IDPOPage() {
         setDocProgress(files.map((f) => ({ name: f.name, status: "queued" as const })));
         let currentDoc = 0;
         // Cycle through docs with realistic timing
-        const baseMs = (enableGuardrails && enableXAI) ? 6000 : enableGuardrails ? 3500 : 1800;
+        const baseMs = enableGuardrails ? 3500 : enableXAI ? 2000 : 1800;
         const tickMs = 500;
         const interval = setInterval(() => {
             const elapsed = Date.now() - progressStartRef.current;
@@ -357,7 +357,7 @@ export default function IDPOPage() {
                                 <div className="h-full rounded-full bg-gradient-to-r from-brand-500 via-cyan-400 to-violet-500" style={{
                                     backgroundSize: "200% 100%",
                                     animation: "gradientMove 1.5s ease-in-out infinite",
-                                    width: `${Math.min(95, (elapsedSec / (enableXAI ? 60 : enableGuardrails ? 30 : 10)) * 100)}%`,
+                                    width: `${Math.min(95, (elapsedSec / (enableGuardrails ? 30 : enableXAI ? 15 : 10)) * 100)}%`,
                                     transition: "width 1s ease-out"
                                 }} />
                             </div>
@@ -502,7 +502,7 @@ export default function IDPOPage() {
                                 {([
                                     { key: "ahmn" as const, icon: "🎯", label: "AHMN Advice", desc: "Bandit-guided policy selection (~1-3s)", checked: enableAHMN, setter: setEnableAHMN },
                                     { key: "guardrails" as const, icon: "🛡️", label: "Guardrails", desc: "5-layer quality validation (~8-20s)", checked: enableGuardrails, setter: setEnableGuardrails },
-                                    { key: "xai" as const, icon: "🔍", label: "XAI Explain", desc: "SHAP/LIME explanations (~15-30s)", checked: enableXAI, setter: setEnableXAI },
+                                    { key: "xai" as const, icon: "📊", label: "Explain", desc: "Component-level explanations (~1s)", checked: enableXAI, setter: setEnableXAI },
                                 ]).map((opt) => (
                                     <label key={opt.key} className={`flex items-center justify-between cursor-pointer px-3 py-2.5 rounded-lg border transition-all duration-150 ${opt.checked ? "bg-brand-50/50 dark:bg-brand-500/5 border-brand-200 dark:border-brand-500/20" : "bg-white/30 dark:bg-gray-800/20 border-slate-200/60 dark:border-gray-700/40 hover:border-slate-300 dark:hover:border-gray-600"}`}>
                                         <div className="flex items-center gap-2.5">
@@ -521,7 +521,7 @@ export default function IDPOPage() {
                                 ))}
                             </div>
                             <p className="text-[9px] text-slate-400 dark:text-gray-500 text-center pt-1">
-                                Estimated time: ~{enableXAI ? "30-60s" : enableGuardrails ? "15-30s" : "3-8s"} per document
+                                Estimated time: ~{enableGuardrails ? "15-30s" : enableXAI ? "5-10s" : "3-8s"} per document
                             </p>
                         </div>
 
@@ -662,8 +662,8 @@ export default function IDPOPage() {
                                     value={integration.skipped_guardrails ? "Skipped" : `${integration.guardrails.filter(g => g.overall_passes).length}/${integration.guardrails.length} passed`}
                                     status={integration.skipped_guardrails ? null : integration.guardrails.every(g => g.overall_passes || !!g.error)}
                                     detail={integration.skipped_guardrails ? "Disabled by user" : integration.guardrails.some(g => g.error) ? "Some checks unavailable" : undefined} />
-                                <SummaryRow icon="�" label="XAI Explain"
-                                    value={integration.skipped_xai ? "Skipped" : `${integration.xai_explanations.filter(x => !x.error).length} explanations`}
+                                <SummaryRow icon="📊" label="Explanations"
+                                    value={integration.skipped_xai ? "Skipped" : `${integration.xai_explanations.filter(x => !x.error).length} docs explained`}
                                     status={integration.skipped_xai ? null : integration.xai_explanations.some(x => !x.error)}
                                     detail={integration.skipped_xai ? "Disabled by user" : integration.xai_explanations.some(x => x.error) ? "Some unavailable" : undefined} />
                                 <SummaryRow icon="�" label="AHMN Learn"
@@ -1030,7 +1030,7 @@ function IntegrationPanel({ integration, activeSubTab, onSubTabChange, durationM
     const tabs = [
         { key: "advice" as const, icon: "🎯", label: "AHMN Advice" },
         { key: "guardrails" as const, icon: "🛡️", label: "Guardrails" },
-        { key: "xai" as const, icon: "�", label: "XAI Explain" },
+        { key: "xai" as const, icon: "📊", label: "Explanations" },
         { key: "feedback" as const, icon: "�", label: "AHMN Learn" },
     ];
     return (
@@ -1163,48 +1163,113 @@ function GuardrailsPanel({ results, skipped }: { results: GuardrailDocResult[]; 
     );
 }
 
+function ComponentCard({ comp }: { comp: { component: string; title: string; summary: string; details: Array<{ step: number; action: string; description: string; outcome: string; passed?: boolean }>; status: string; metrics: Record<string, unknown> } }) {
+    const statusColors = {
+        success: "border-l-emerald-500 bg-emerald-50/30 dark:bg-emerald-500/5",
+        warning: "border-l-amber-500 bg-amber-50/30 dark:bg-amber-500/5",
+        error: "border-l-red-500 bg-red-50/30 dark:bg-red-500/5",
+        info: "border-l-slate-400 bg-slate-50/30 dark:bg-slate-500/5",
+    };
+    const icons = {
+        ahmn: "🎯",
+        idpo: "⚙️",
+        guardrails: "🛡️",
+    };
+    const bgClass = statusColors[comp.status as keyof typeof statusColors] || statusColors.info;
+    const icon = icons[comp.component as keyof typeof icons] || "📋";
+
+    return (
+        <div className={`rounded-xl border-l-4 p-4 ${bgClass}`}>
+            <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                    <span className="text-lg">{icon}</span>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{comp.title}</p>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium uppercase ${
+                    comp.status === "success" ? "bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" :
+                    comp.status === "warning" ? "bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300" :
+                    comp.status === "error" ? "bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-300" :
+                    "bg-slate-100 dark:bg-slate-500/10 text-slate-600 dark:text-slate-300"
+                }`}>{comp.status}</span>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-gray-300 mb-3">{comp.summary}</p>
+            {comp.details.length > 0 && (
+                <div className="space-y-1.5">
+                    {comp.details.map((detail, i) => (
+                        <div key={i} className="flex items-start gap-2 text-[11px]">
+                            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${
+                                detail.passed === true ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" :
+                                detail.passed === false ? "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300" :
+                                "bg-brand-100 dark:bg-brand-500/20 text-brand-700 dark:text-brand-300"
+                            }`}>{detail.step}</span>
+                            <div className="flex-1 min-w-0">
+                                <p className="font-medium text-slate-800 dark:text-gray-200">{detail.action}</p>
+                                <p className="text-slate-500 dark:text-gray-400">{detail.description}</p>
+                                <p className={`mt-0.5 ${
+                                    detail.passed === true ? "text-emerald-600 dark:text-emerald-400" :
+                                    detail.passed === false ? "text-red-600 dark:text-red-400" :
+                                    "text-slate-600 dark:text-gray-300"
+                                }`}>→ {detail.outcome}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 function XAIPanel({ explanations, skipped }: { explanations: XAIDocExplanation[]; skipped?: boolean }) {
     if (skipped) return (
         <div className="glass-panel rounded-xl p-8 text-center">
-            <span className="text-3xl block mb-3">�</span>
-            <p className="text-sm font-medium text-slate-600 dark:text-gray-300 mb-1">XAI Explanations Skipped</p>
-            <p className="text-xs text-slate-400 dark:text-gray-500">Enable XAI in Pipeline Options to get SHAP/LIME analysis of extraction decisions</p>
+            <span className="text-3xl block mb-3">📊</span>
+            <p className="text-sm font-medium text-slate-600 dark:text-gray-300 mb-1">Component Explanations Skipped</p>
+            <p className="text-xs text-slate-400 dark:text-gray-500">Enable XAI in Pipeline Options to see how AHMN, IDPO, and Guardrails processed your documents</p>
         </div>
     );
-    if (explanations.length === 0) return <div className="glass-panel rounded-xl p-8 text-center text-slate-400 dark:text-gray-500 text-sm">No XAI explanations available</div>;
+    if (explanations.length === 0) return <div className="glass-panel rounded-xl p-8 text-center text-slate-400 dark:text-gray-500 text-sm">No component explanations available</div>;
+
     return (
-        <div className="space-y-3">
+        <div className="space-y-4">
             {explanations.map((xai) => (
-                <div key={xai.document_id} className={`glass-panel rounded-xl p-4 border-l-4 ${xai.error ? "border-l-amber-500" : "border-l-violet-500"}`}>
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2"><span className="text-base">�</span><p className="text-xs font-medium text-slate-900 dark:text-white">Doc: {xai.document_id.slice(0, 12)}...</p></div>
-                        {!xai.error && <span className="px-2 py-0.5 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 text-violet-700 dark:text-violet-300 rounded-full text-[10px] font-medium">{(xai.confidence * 100).toFixed(0)}% confident</span>}
+                <div key={xai.document_id} className="glass-panel rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200 dark:border-gray-700">
+                        <div className="flex items-center gap-2">
+                            <span className="text-base">📄</span>
+                            <p className="text-sm font-medium text-slate-900 dark:text-white">Doc: {xai.document_id.slice(0, 12)}...</p>
+                        </div>
+                        {!xai.error && (
+                            <span className="px-2.5 py-1 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 text-violet-700 dark:text-violet-300 rounded-full text-[10px] font-semibold">
+                                {(xai.confidence * 100).toFixed(0)}% overall confidence
+                            </span>
+                        )}
                     </div>
-                    {xai.error ? <p className="text-xs text-amber-600 dark:text-amber-400">{xai.error}</p> : (
+
+                    {xai.error ? (
+                        <div className="p-3 bg-amber-50/50 dark:bg-amber-500/5 rounded-lg border border-amber-200 dark:border-amber-500/10">
+                            <p className="text-xs text-amber-600 dark:text-amber-400">{xai.error}</p>
+                        </div>
+                    ) : (
                         <div className="space-y-3">
-                            <div className="p-3 bg-violet-50/30 dark:bg-violet-500/5 rounded-lg border border-violet-100 dark:border-violet-500/10">
-                                <p className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-wider mb-1.5">Analysis</p>
-                                <p className="text-xs text-slate-700 dark:text-gray-300 leading-relaxed">{xai.answer}</p>
+                            {/* Summary */}
+                            <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
+                                <p className="text-xs text-slate-700 dark:text-gray-300">{xai.answer}</p>
                             </div>
-                            {(() => {
-                                const spans = xai.explanation?.highlighted_spans;
-                                if (!spans || !Array.isArray(spans)) return null;
-                                const typed = spans as Array<{ text: string; type: string; shap_score: number }>;
-                                return (
-                                    <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
-                                        <p className="text-[10px] font-semibold text-slate-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">Key Factors</p>
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {typed.slice(0, 8).map((span, i) => (
-                                                <span key={i} className={`px-2 py-0.5 rounded text-[10px] font-medium ${span.type === "positive" ? "bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                                                    : span.type === "negative" ? "bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-300"
-                                                        : "bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-300"}`}>
-                                                    {span.text} ({span.shap_score > 0 ? "+" : ""}{span.shap_score.toFixed(2)})
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                );
-                            })()}
+
+                            {/* Component Explanations */}
+                            {xai.component_explanations && xai.component_explanations.length > 0 ? (
+                                <div className="space-y-3">
+                                    {xai.component_explanations.map((comp, i) => (
+                                        <ComponentCard key={i} comp={comp} />
+                                    ))}
+                                </div>
+                            ) : (
+                                /* Fallback for old format without component_explanations */
+                                <div className="p-3 bg-violet-50/30 dark:bg-violet-500/5 rounded-lg border border-violet-100 dark:border-violet-500/10">
+                                    <p className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-wider mb-1.5">Analysis</p>
+                                    <p className="text-xs text-slate-700 dark:text-gray-300 leading-relaxed">{xai.answer}</p>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -1663,15 +1728,32 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai }: {
                         </div>
                     )}
 
-                    {/* Inline XAI */}
+                    {/* Inline Component Explanations */}
                     {xai && !xai.error && (
-                        <div className="p-3 bg-violet-50/30 dark:bg-violet-500/5 rounded-xl border border-violet-200 dark:border-violet-500/10">
-                            <div className="flex items-center justify-between mb-1">
-                                <p className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-wider">� XAI Analysis</p>
+                        <details className="group">
+                            <summary className="flex items-center gap-2 cursor-pointer hover:text-slate-600 dark:hover:text-gray-300 transition-colors">
+                                <svg className="w-3.5 h-3.5 text-violet-400 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                                <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-wider">📊 Component Explanations</span>
                                 <span className="text-[9px] text-violet-500">{(xai.confidence * 100).toFixed(0)}% confident</span>
+                            </summary>
+                            <div className="mt-2 space-y-2">
+                                <p className="text-xs text-slate-700 dark:text-gray-300 p-2 bg-slate-50 dark:bg-gray-800/50 rounded-lg">{xai.answer}</p>
+                                {xai.component_explanations && xai.component_explanations.map((comp, i) => (
+                                    <div key={i} className={`p-2.5 rounded-lg border-l-2 ${
+                                        comp.status === "success" ? "border-l-emerald-500 bg-emerald-50/30 dark:bg-emerald-500/5" :
+                                        comp.status === "warning" ? "border-l-amber-500 bg-amber-50/30 dark:bg-amber-500/5" :
+                                        comp.status === "error" ? "border-l-red-500 bg-red-50/30 dark:bg-red-500/5" :
+                                        "border-l-slate-400 bg-slate-50/30 dark:bg-slate-500/5"
+                                    }`}>
+                                        <div className="flex items-center gap-1.5 mb-1">
+                                            <span className="text-sm">{comp.component === "ahmn" ? "🎯" : comp.component === "idpo" ? "⚙️" : "🛡️"}</span>
+                                            <span className="text-[10px] font-semibold text-slate-700 dark:text-gray-200">{comp.title}</span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-600 dark:text-gray-400">{comp.summary}</p>
+                                    </div>
+                                ))}
                             </div>
-                            <p className="text-xs text-slate-700 dark:text-gray-300 leading-relaxed">{xai.answer}</p>
-                        </div>
+                        </details>
                     )}
 
 

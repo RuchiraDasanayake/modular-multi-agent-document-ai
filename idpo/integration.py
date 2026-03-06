@@ -169,12 +169,35 @@ class GuardrailResult:
         }
 
 @dataclass
+class ComponentExplanation:
+    """Explanation for a single component (AHMN, IDPO, or Guardrails)."""
+    component: str = ""  # "ahmn" | "idpo" | "guardrails"
+    title: str = ""
+    summary: str = ""
+    details: list[dict[str, Any]] = field(default_factory=list)
+    status: str = "info"  # "success" | "warning" | "error" | "info"
+    metrics: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return {
+            "component": self.component,
+            "title": self.title,
+            "summary": self.summary,
+            "details": self.details,
+            "status": self.status,
+            "metrics": self.metrics,
+        }
+
+
+@dataclass
 class XAIExplanation:
     document_id: str = ""
     answer: str = ""
     confidence: float = 0.0
     explanation: dict[str, Any] = field(default_factory=dict)
     error: str | None = None
+    # New: component-level explanations
+    component_explanations: list[ComponentExplanation] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -183,6 +206,7 @@ class XAIExplanation:
             "confidence": self.confidence,
             "explanation": self.explanation,
             "error": self.error,
+            "component_explanations": [c.to_dict() for c in self.component_explanations],
         }
 
 @dataclass
@@ -369,78 +393,301 @@ def validate_with_guardrails(
 # Step 4: XAI Explanation
 # ═══════════════════════════════════════════════════════════════════════════
 
+def _build_ahmn_explanation(doc: dict[str, Any], ahmn_advice: AHMNAdvice | None) -> ComponentExplanation:
+    """Build AHMN policy selection explanation from actual data."""
+    if not ahmn_advice or ahmn_advice.error:
+        return ComponentExplanation(
+            component="ahmn",
+            title="AHMN Policy Selection",
+            summary="Policy selection unavailable" if not ahmn_advice else ahmn_advice.error or "Error",
+            status="error" if ahmn_advice and ahmn_advice.error else "info",
+        )
+
+    policy_id = ahmn_advice.policy_id
+    confidence = ahmn_advice.confidence
+    rabi_used = ahmn_advice.rabi_used
+    retrieval_source = ahmn_advice.retrieval_source
+    policy_data = ahmn_advice.policy_data or {}
+
+    # Build explanation based on how the policy was selected
+    details = []
+    if rabi_used:
+        details.append({
+            "step": 1,
+            "action": "RABI Neighbor Search",
+            "description": f"Found {ahmn_advice.n_neighbors or 'N'} similar document contexts in memory",
+            "outcome": "Used neighbor-based retrieval for policy selection",
+        })
+    else:
+        details.append({
+            "step": 1,
+            "action": "Thompson Sampling",
+            "description": "Selected policy using multi-armed bandit with alpha/beta priors",
+            "outcome": f"Confidence score: {confidence:.1%}",
+        })
+
+    details.append({
+        "step": 2,
+        "action": "Policy Selected",
+        "description": f"Policy '{policy_id}' chosen from {retrieval_source}",
+        "outcome": policy_data.get("action", "Document processing"),
+    })
+
+    # Summary based on confidence
+    if confidence >= 0.8:
+        summary = f"High confidence ({confidence:.0%}) - Policy '{policy_id}' strongly recommended based on past performance"
+    elif confidence >= 0.5:
+        summary = f"Moderate confidence ({confidence:.0%}) - Policy '{policy_id}' selected, may benefit from more data"
+    else:
+        summary = f"Low confidence ({confidence:.0%}) - Policy '{policy_id}' selected, exploring new approach"
+
+    return ComponentExplanation(
+        component="ahmn",
+        title="AHMN Policy Selection",
+        summary=summary,
+        details=details,
+        status="success" if confidence >= 0.5 else "warning",
+        metrics={
+            "confidence": round(confidence, 3),
+            "policy_id": policy_id,
+            "rabi_used": rabi_used,
+            "retrieval_source": retrieval_source,
+        },
+    )
+
+
+def _build_idpo_explanation(doc: dict[str, Any]) -> ComponentExplanation:
+    """Build IDPO orchestration explanation from extraction metadata."""
+    details = []
+    step = 0
+
+    # Model selection
+    model_used = doc.get("model_used", "default")
+    model_reason = doc.get("model_reason", "")
+    if model_used:
+        step += 1
+        details.append({
+            "step": step,
+            "action": "Model Selection",
+            "description": f"Selected model: {model_used}",
+            "outcome": model_reason or "Based on document complexity",
+        })
+
+    # Policy/Plan info
+    policy_name = doc.get("policy_name", doc.get("policy_id", ""))
+    plan_source = doc.get("plan_source", "")
+    if policy_name:
+        step += 1
+        details.append({
+            "step": step,
+            "action": "Execution Plan",
+            "description": f"Applied policy: {policy_name}",
+            "outcome": f"Plan source: {plan_source}" if plan_source else "Dynamic planning",
+        })
+
+    # Document analysis
+    doc_type = doc.get("doc_type", "unknown")
+    quality_bin = doc.get("quality_bin", "medium")
+    complexity_bin = doc.get("complexity_bin", "medium")
+    step += 1
+    details.append({
+        "step": step,
+        "action": "Document Analysis",
+        "description": f"Classified as '{doc_type}' document",
+        "outcome": f"Quality: {quality_bin}, Complexity: {complexity_bin}",
+    })
+
+    # Entity extraction
+    entity_count = doc.get("entity_count", 0)
+    entities = doc.get("entities", {})
+    if isinstance(entities, dict):
+        field_names = list(entities.keys())[:5]
+    else:
+        field_names = []
+    step += 1
+    details.append({
+        "step": step,
+        "action": "Entity Extraction",
+        "description": f"Extracted {entity_count} entities from document",
+        "outcome": f"Fields: {', '.join(field_names)}" if field_names else "No fields extracted",
+    })
+
+    # Stage signals if available
+    stage_signals = doc.get("stage_signals", [])
+    if stage_signals and isinstance(stage_signals, list):
+        stages_completed = len([s for s in stage_signals if isinstance(s, dict) and s.get("completed", True)])
+        step += 1
+        details.append({
+            "step": step,
+            "action": "Pipeline Stages",
+            "description": f"Completed {stages_completed}/{len(stage_signals)} processing stages",
+            "outcome": "All stages successful" if stages_completed == len(stage_signals) else "Some stages had issues",
+        })
+
+    # Calculate overall status
+    status = "success" if entity_count > 0 else "warning"
+    summary = f"Extracted {entity_count} fields from {doc_type} document using {model_used} model"
+
+    return ComponentExplanation(
+        component="idpo",
+        title="IDPO Extraction Pipeline",
+        summary=summary,
+        details=details,
+        status=status,
+        metrics={
+            "entity_count": entity_count,
+            "doc_type": doc_type,
+            "model_used": model_used,
+            "quality_bin": quality_bin,
+            "complexity_bin": complexity_bin,
+        },
+    )
+
+
+def _build_guardrails_explanation(gr: GuardrailResult | None) -> ComponentExplanation:
+    """Build Guardrails validation explanation from check results."""
+    if not gr:
+        return ComponentExplanation(
+            component="guardrails",
+            title="Guardrails Validation",
+            summary="Validation skipped",
+            status="info",
+        )
+
+    if gr.error:
+        return ComponentExplanation(
+            component="guardrails",
+            title="Guardrails Validation",
+            summary=f"Validation error: {gr.error}",
+            status="error",
+        )
+
+    details = []
+    passed_checks = 0
+    failed_checks = []
+
+    for i, check in enumerate(gr.validation_results, 1):
+        check_name = check.get("name", f"Check {i}").replace("_", " ").title()
+        is_pass = check.get("is_pass", False)
+        score = check.get("score", 0.0)
+        check_details = check.get("details", "")
+
+        if is_pass:
+            passed_checks += 1
+
+        details.append({
+            "step": i,
+            "action": check_name,
+            "description": check_details or f"Score: {score:.2f}",
+            "outcome": "PASS" if is_pass else "FAIL",
+            "score": round(score, 3),
+            "passed": is_pass,
+        })
+
+        if not is_pass:
+            failed_checks.append(check_name)
+
+    total_checks = len(gr.validation_results)
+    if gr.overall_passes:
+        summary = f"All {total_checks} validation checks passed"
+        status = "success"
+    elif passed_checks > 0:
+        summary = f"{passed_checks}/{total_checks} checks passed. Failed: {', '.join(failed_checks)}"
+        status = "warning"
+    else:
+        summary = f"All {total_checks} validation checks failed"
+        status = "error"
+
+    return ComponentExplanation(
+        component="guardrails",
+        title="Guardrails Validation",
+        summary=summary,
+        details=details,
+        status=status,
+        metrics={
+            "total_checks": total_checks,
+            "passed_checks": passed_checks,
+            "failed_checks": len(failed_checks),
+            "overall_passes": gr.overall_passes,
+            "processing_time_ms": round(gr.processing_time_ms, 1),
+        },
+    )
+
+
 def _explain_single_doc(
     doc: dict[str, Any],
     gr: GuardrailResult | None,
-    client: httpx.Client,
+    ahmn_advice: AHMNAdvice | None = None,
 ) -> XAIExplanation:
-    """Get XAI explanation for a single document."""
+    """Generate component-level explanations for a document.
+
+    Instead of calling an external XAI service with SHAP/LIME, this builds
+    real explanations from the actual processing data:
+    1. AHMN: Why this policy was selected
+    2. IDPO: What extraction steps were performed
+    3. Guardrails: How validation checks passed/failed
+    """
     xai = XAIExplanation(document_id=str(doc.get("doc_id", "")))
+
     try:
-        summary = doc.get("summary", "")
-        doc_type = doc.get("doc_type", "document")
+        # Build component explanations from actual data
+        ahmn_exp = _build_ahmn_explanation(doc, ahmn_advice)
+        idpo_exp = _build_idpo_explanation(doc)
+        guardrails_exp = _build_guardrails_explanation(gr)
+
+        xai.component_explanations = [ahmn_exp, idpo_exp, guardrails_exp]
+
+        # Calculate overall confidence from components
+        ahmn_conf = ahmn_advice.confidence if ahmn_advice and not ahmn_advice.error else 0.5
+        gr_conf = 1.0 if (gr and gr.overall_passes) else (0.5 if gr else 0.7)
         entity_count = doc.get("entity_count", 0)
-        quality = doc.get("quality_bin", "medium")
+        idpo_conf = min(1.0, entity_count / 10.0) if entity_count > 0 else 0.3
 
+        xai.confidence = (ahmn_conf * 0.3 + idpo_conf * 0.4 + gr_conf * 0.3)
+
+        # Build summary answer
+        entity_count = doc.get("entity_count", 0)
+        doc_type = doc.get("doc_type", "document")
         validation_status = "passed" if (gr and gr.overall_passes) else "needs review"
-        checks_passed = len([v for v in (gr.validation_results if gr else []) if v.get("is_pass")])
-        total_checks = len(gr.validation_results) if gr else 0
 
-        paragraph = (
-            f"Document type: {doc_type}. Quality: {quality}. "
-            f"Extracted {entity_count} entities. "
-            f"Guardrails validation: {validation_status} "
-            f"({checks_passed}/{total_checks} checks passed). "
-            f"Summary: {summary[:500] if summary else 'No summary available.'}"
+        xai.answer = (
+            f"Extracted {entity_count} fields from {doc_type} document. "
+            f"Policy '{ahmn_advice.policy_id if ahmn_advice else 'default'}' "
+            f"selected with {ahmn_conf:.0%} confidence. "
+            f"Validation {validation_status}."
         )
 
-        question = (
-            f"Analyze the extraction quality and explain whether the results "
-            f"for this {doc_type} document are reliable. "
-            f"What is the confidence assessment?"
-        )
-
-        logger.info("Requesting XAI explanation for doc %s", doc.get("doc_id", "?"))
-        resp = _request_with_retry(
-            "POST",
-            f"{XAI_HITL_URL}/xai/ask",
-            json_data={"paragraph": paragraph, "question": question},
-            timeout=_XAI_TIMEOUT,
-        )
-        data = resp.json()
-
-        xai.answer = data.get("answer", "")
-        xai.confidence = data.get("confidence", 0.0)
-        xai.explanation = data.get("explanation", {})
         logger.info(
-            "XAI explanation for %s: confidence=%.3f",
+            "Component explanations built for %s: confidence=%.3f",
             doc.get("doc_id", "?"), xai.confidence,
         )
-    except httpx.ConnectError:
-        xai.error = "XAI service unreachable"
-        logger.warning("XAI service unreachable at %s", XAI_HITL_URL)
     except Exception as exc:
         xai.error = str(exc)
-        logger.warning("XAI explanation failed for %s: %s", doc.get("doc_id", "?"), exc)
+        logger.warning("Failed to build explanations for %s: %s", doc.get("doc_id", "?"), exc)
+
     return xai
 
 def get_xai_explanations(
     doc_records: list[dict[str, Any]],
     guardrail_results: list[GuardrailResult],
+    ahmn_advice: AHMNAdvice | None = None,
 ) -> list[XAIExplanation]:
-    """Get XAI explanations for extraction results (parallelized)."""
+    """Build component-level explanations for extraction results.
+
+    Instead of calling an external XAI service, this generates real
+    explanations from the actual processing data (AHMN, IDPO, Guardrails).
+    """
     if not doc_records:
         return []
-    client = _get_client()
     if len(doc_records) == 1:
         gr = guardrail_results[0] if guardrail_results else None
-        return [_explain_single_doc(doc_records[0], gr, client)]
-    # Parallelize XAI calls
+        return [_explain_single_doc(doc_records[0], gr, ahmn_advice)]
+    # Parallelize explanation building
     with concurrent.futures.ThreadPoolExecutor(max_workers=min(4, len(doc_records))) as pool:
         futures = []
         for i, doc in enumerate(doc_records):
             gr = guardrail_results[i] if i < len(guardrail_results) else None
-            futures.append(pool.submit(_explain_single_doc, doc, gr, client))
+            futures.append(pool.submit(_explain_single_doc, doc, gr, ahmn_advice))
         return [f.result() for f in futures]
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -621,12 +868,14 @@ def run_integration_cycle(
     else:
         result.guardrails = validate_with_guardrails(doc_records)
 
-    # Step 4: XAI explanations
+    # Step 4: Component-level explanations (replaces external XAI service)
     if skip_xai:
-        logger.info("XAI explanations skipped by user")
+        logger.info("Component explanations skipped by user")
         result.xai_explanations = []
     else:
-        result.xai_explanations = get_xai_explanations(doc_records, result.guardrails)
+        result.xai_explanations = get_xai_explanations(
+            doc_records, result.guardrails, ahmn_advice
+        )
 
     # Step 5: AHMN feedback loop
     if ahmn_advice and ahmn_advice.advice_id:

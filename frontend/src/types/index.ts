@@ -327,12 +327,31 @@ export interface GuardrailDocResult {
   error: string | null;
 }
 
+export interface ComponentExplanationDetail {
+  step: number;
+  action: string;
+  description: string;
+  outcome: string;
+  score?: number;
+  passed?: boolean;
+}
+
+export interface ComponentExplanation {
+  component: "ahmn" | "idpo" | "guardrails";
+  title: string;
+  summary: string;
+  details: ComponentExplanationDetail[];
+  status: "success" | "warning" | "error" | "info";
+  metrics: Record<string, unknown>;
+}
+
 export interface XAIDocExplanation {
   document_id: string;
   answer: string;
   confidence: number;
   explanation: Record<string, unknown>;
   error: string | null;
+  component_explanations?: ComponentExplanation[];
 }
 
 export interface AHMNFeedback {
