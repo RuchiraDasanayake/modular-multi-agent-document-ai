@@ -15,6 +15,8 @@ class OutcomeMetrics(BaseModel):
     cost: float
     processing_time_ms: float
     success: bool
+    precision: float | None = None
+    recall: float | None = None
 
 class LogRequest(BaseModel):
     advice_id: UUID

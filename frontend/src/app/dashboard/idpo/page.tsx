@@ -22,7 +22,7 @@ export default function IDPOPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [result, setResult] = useState<IDPORunResult | null>(null);
-    const [activeTab, setActiveTab] = useState<"documents" | "entities" | "fulltext" | "metrics" | "integration">("documents");
+    const [activeTab, setActiveTab] = useState<"documents" | "entities" | "fulltext" | "integration">("documents");
     const [expandedDoc, setExpandedDoc] = useState<string | null>(null);
     const [dragActive, setDragActive] = useState(false);
     const [showConfig, setShowConfig] = useState(false);
@@ -253,9 +253,6 @@ export default function IDPOPage() {
         if (ext === "json") return "📋";
         return "📃";
     };
-
-    const formatMetricKey = (key: string) =>
-        key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
     const integration = result?.pipeline_integration;
 
@@ -676,7 +673,7 @@ export default function IDPOPage() {
                                         ? `F1: ${(integration.ahmn_feedback.metrics_sent.f1_score * 100).toFixed(1)}%` : undefined)} />
                             </div>
                             <div className="pt-2 border-t border-slate-200 dark:border-gray-700">
-                                <p className="text-[10px] text-slate-400 dark:text-gray-500">Cycle time: {integration.cycle_time_ms.toFixed(0)} ms</p>
+                                <p className="text-[10px] text-slate-400 dark:text-gray-500">Cycle time: {(integration.cycle_time_ms / 1000).toFixed(1)}s</p>
                             </div>
                         </div>
                     )}
@@ -726,7 +723,7 @@ export default function IDPOPage() {
                                         <>
                                             <div className="h-4 w-px bg-slate-200 dark:bg-gray-700" />
                                             <div className="text-xs text-slate-500 dark:text-gray-400">
-                                                <span className="text-slate-700 dark:text-gray-200 font-medium">{Math.round(result.metrics.duration_ms)}</span> ms
+                                                <span className="text-slate-700 dark:text-gray-200 font-medium">{(result.metrics.duration_ms / 1000).toFixed(1)}</span>s
                                             </div>
                                         </>
                                     )}
@@ -734,7 +731,7 @@ export default function IDPOPage() {
                                         <>
                                             <div className="h-4 w-px bg-slate-200 dark:bg-gray-700" />
                                             <div className="text-xs text-slate-500 dark:text-gray-400">
-                                                Cycle: <span className="text-slate-700 dark:text-gray-200 font-medium">{integration.cycle_time_ms.toFixed(0)}</span> ms
+                                                Cycle: <span className="text-slate-700 dark:text-gray-200 font-medium">{(integration.cycle_time_ms / 1000).toFixed(1)}</span>s
                                             </div>
                                         </>
                                     )}
@@ -765,7 +762,7 @@ export default function IDPOPage() {
 
                             {/* Tab Bar */}
                             <div className="glass-panel rounded-xl p-1.5 flex gap-1" role="tablist" aria-label="Result views">
-                                {(["documents", "entities", "fulltext", "metrics", "integration"] as const).map((tab) => (
+                                {(["documents", "entities", "fulltext", "integration"] as const).map((tab) => (
                                     <button key={tab} onClick={() => setActiveTab(tab)}
                                         role="tab"
                                         aria-selected={activeTab === tab}
@@ -779,7 +776,6 @@ export default function IDPOPage() {
                                         {tab === "documents" && `📄 Docs (${result.docs.length})`}
                                         {tab === "entities" && `🏷️ Entities (${result.entities?.length || 0})`}
                                         {tab === "fulltext" && "📝 Full Text"}
-                                        {tab === "metrics" && "📊 Metrics"}
                                         {tab === "integration" && "🔄 Pipeline"}
                                     </button>
                                 ))}
@@ -968,27 +964,8 @@ export default function IDPOPage() {
                                     )
                                 )}
 
-                                {activeTab === "metrics" && (
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                        {Object.entries(result.metrics).map(([key, value]) => (
-                                            <div key={key} className="glass-card rounded-xl p-4">
-                                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">{formatMetricKey(key)}</p>
-                                                <p className="text-xl font-bold text-slate-900 dark:text-white">
-                                                    {typeof value === "number"
-                                                        ? key.includes("time") || key.includes("duration") || key.includes("ms")
-                                                            ? `${Math.round(value)} ms`
-                                                            : value < 1 && value > 0
-                                                                ? `${(value * 100).toFixed(1)}%`
-                                                                : String(value)
-                                                        : String(value)}
-                                                </p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-
                                 {activeTab === "integration" && integration && (
-                                    <IntegrationPanel integration={integration} activeSubTab={integrationTab} onSubTabChange={setIntegrationTab} />
+                                    <IntegrationPanel integration={integration} activeSubTab={integrationTab} onSubTabChange={setIntegrationTab} durationMs={result.metrics?.duration_ms} />
                                 )}
                                 {activeTab === "integration" && !integration && (
                                     <div className="glass-panel rounded-xl p-8 text-center text-slate-400 dark:text-gray-500 text-sm">
@@ -1044,10 +1021,11 @@ function SummaryRow({ icon, label, value, status, detail }: { icon: string; labe
     );
 }
 
-function IntegrationPanel({ integration, activeSubTab, onSubTabChange }: {
+function IntegrationPanel({ integration, activeSubTab, onSubTabChange, durationMs }: {
     integration: PipelineIntegration;
     activeSubTab: "advice" | "guardrails" | "xai" | "feedback";
     onSubTabChange: (tab: "advice" | "guardrails" | "xai" | "feedback") => void;
+    durationMs?: number;
 }) {
     const tabs = [
         { key: "advice" as const, icon: "🎯", label: "AHMN Advice" },
@@ -1057,6 +1035,7 @@ function IntegrationPanel({ integration, activeSubTab, onSubTabChange }: {
     ];
     return (
         <div className="space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex gap-1.5 flex-wrap">
                 {tabs.map((tab) => (
                     <button key={tab.key} onClick={() => onSubTabChange(tab.key)}
@@ -1066,6 +1045,11 @@ function IntegrationPanel({ integration, activeSubTab, onSubTabChange }: {
                         <span>{tab.icon}</span>{tab.label}
                     </button>
                 ))}
+            </div>
+            <div className="flex items-center gap-3 text-[10px] text-slate-400 dark:text-gray-500">
+                {durationMs != null && <span>Total: <span className="font-medium text-slate-600 dark:text-gray-300">{(durationMs / 1000).toFixed(1)}s</span></span>}
+                <span>Cycle: <span className="font-medium text-slate-600 dark:text-gray-300">{(integration.cycle_time_ms / 1000).toFixed(1)}s</span></span>
+            </div>
             </div>
             {activeSubTab === "advice" && <AdvicePanel advice={integration.ahmn_advice} />}
             {activeSubTab === "guardrails" && <GuardrailsPanel results={integration.guardrails} skipped={integration.skipped_guardrails} />}
@@ -1147,7 +1131,7 @@ function GuardrailsPanel({ results, skipped }: { results: GuardrailDocResult[]; 
                             <p className="text-xs font-medium text-slate-900 dark:text-white">Doc: {gr.document_id.slice(0, 12)}...</p>
                         </div>
                         <div className="flex items-center gap-2">
-                            {gr.processing_time_ms > 0 && <span className="text-[10px] text-slate-400 dark:text-gray-500">{gr.processing_time_ms.toFixed(0)} ms</span>}
+                            {gr.processing_time_ms > 0 && <span className="text-[10px] text-slate-400 dark:text-gray-500">{(gr.processing_time_ms / 1000).toFixed(1)}s</span>}
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium border ${gr.error
                                 ? "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20 text-amber-700 dark:text-amber-300"
                                 : gr.overall_passes
@@ -1248,14 +1232,22 @@ function FeedbackPanel({ feedback }: { feedback: PipelineIntegration["ahmn_feedb
             )}
             {feedback.status === "logged" && (
                 <>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-3 gap-3">
                         <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
                             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">F1 Score</p>
                             <p className="text-lg font-bold text-slate-900 dark:text-white">{feedback.metrics_sent.f1_score ? `${(feedback.metrics_sent.f1_score * 100).toFixed(1)}%` : "—"}</p>
                         </div>
                         <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Precision</p>
+                            <p className="text-lg font-bold text-slate-900 dark:text-white">{feedback.metrics_sent.precision != null ? `${(feedback.metrics_sent.precision * 100).toFixed(1)}%` : "—"}</p>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Recall</p>
+                            <p className="text-lg font-bold text-slate-900 dark:text-white">{feedback.metrics_sent.recall != null ? `${(feedback.metrics_sent.recall * 100).toFixed(1)}%` : "—"}</p>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
                             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Processing Time</p>
-                            <p className="text-lg font-bold text-slate-900 dark:text-white">{feedback.metrics_sent.processing_time_ms ? `${Math.round(feedback.metrics_sent.processing_time_ms)} ms` : "—"}</p>
+                            <p className="text-lg font-bold text-slate-900 dark:text-white">{feedback.metrics_sent.processing_time_ms ? `${(feedback.metrics_sent.processing_time_ms / 1000).toFixed(1)}s` : "—"}</p>
                         </div>
                         <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
                             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Success</p>
@@ -1659,7 +1651,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai }: {
                                 <p className={`text-[10px] font-semibold uppercase tracking-wider ${guardrail.overall_passes ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                                     🛡️ Guardrails: {guardrail.overall_passes ? "PASSED" : "FAILED"}
                                 </p>
-                                <span className="text-[9px] text-slate-400">{guardrail.processing_time_ms.toFixed(0)} ms</span>
+                                <span className="text-[9px] text-slate-400">{(guardrail.processing_time_ms / 1000).toFixed(1)}s</span>
                             </div>
                             <div className="flex flex-wrap gap-1.5">
                                 {guardrail.validation_results.map((vr, i) => (
@@ -1682,34 +1674,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai }: {
                         </div>
                     )}
 
-                    {/* Policy & Plan Info */}
-                    {(doc.policy_id || doc.plan_id) && (
-                        <details className="group">
-                            <summary className="flex items-center gap-2 cursor-pointer hover:text-slate-600 dark:hover:text-gray-300 transition-colors">
-                                <svg className="w-3.5 h-3.5 text-slate-400 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                                <span className="text-[10px] font-semibold text-slate-400 dark:text-gray-500 uppercase tracking-wider">Pipeline Details</span>
-                            </summary>
-                            <div className="mt-2 p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
-                                <div className="grid grid-cols-2 gap-2">
-                                    {doc.policy_id && (
-                                        <div><span className="text-[10px] text-slate-400 block">Policy</span><span className="text-xs font-medium text-slate-700 dark:text-gray-200 font-mono">{doc.policy_id}</span></div>
-                                    )}
-                                    {doc.policy_name && (
-                                        <div><span className="text-[10px] text-slate-400 block">Policy Name</span><span className="text-xs font-medium text-slate-700 dark:text-gray-200">{String(doc.policy_name)}</span></div>
-                                    )}
-                                    {doc.plan_id && (
-                                        <div><span className="text-[10px] text-slate-400 block">Plan</span><span className="text-xs font-medium text-slate-700 dark:text-gray-200 font-mono">{String(doc.plan_id)}</span></div>
-                                    )}
-                                    {doc.escalated && (
-                                        <div><span className="text-[10px] text-slate-400 block">Escalated</span><span className="text-xs font-medium text-amber-600 dark:text-amber-400">Yes</span></div>
-                                    )}
-                                    {doc.chunk_count != null && (
-                                        <div><span className="text-[10px] text-slate-400 block">Chunks</span><span className="text-xs font-medium text-slate-700 dark:text-gray-200">{doc.chunk_count}</span></div>
-                                    )}
-                                </div>
-                            </div>
-                        </details>
-                    )}
+
                 </div>
             )}
         </div>

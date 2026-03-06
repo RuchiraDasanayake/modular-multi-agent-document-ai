@@ -30,6 +30,7 @@ from .schemas import (
     LogRequest,
     FeedbackRequest,
 )
+from .seeds import LTM_SEEDS
 from .services.embedding import EmbeddingService
 from .services.rabi import (
     RABIInitializer,
@@ -112,99 +113,7 @@ def _user(request: Request) -> dict:
 # ─── Lifespan ────────────────────────────────────────────────────────────────
 
 # ── LTM Seed Data ─────────────────────────────────────────────────────────
-# These represent the system's initial knowledge about which policies work
-# for which document contexts. AHMN evolves these via Thompson Sampling.
-
-_LTM_SEEDS = [
-    {
-        "doc_type": "table_document",
-        "content_profile": "table-heavy",
-        "policy_id": "table_heavy",
-        "policy_data": {"action": "table_extraction", "origin": "seed"},
-        "alpha": 8.0,
-        "beta": 3.0,
-    },
-    {
-        "doc_type": "form_document",
-        "content_profile": "form-centric",
-        "policy_id": "forms",
-        "policy_data": {"action": "form_extraction", "origin": "seed"},
-        "alpha": 7.0,
-        "beta": 3.0,
-    },
-    {
-        "doc_type": "scanned_document",
-        "content_profile": "scanned",
-        "policy_id": "scanned_text",
-        "policy_data": {"action": "ocr_extraction", "origin": "seed"},
-        "alpha": 6.0,
-        "beta": 4.0,
-    },
-    {
-        "doc_type": "invoice",
-        "content_profile": "table-heavy",
-        "policy_id": "table_heavy",
-        "policy_data": {"action": "invoice_processing", "origin": "seed"},
-        "alpha": 9.0,
-        "beta": 2.0,
-    },
-    {
-        "doc_type": "mixed_document",
-        "content_profile": "mixed",
-        "policy_id": "mixed_content",
-        "policy_data": {"action": "mixed_processing", "origin": "seed"},
-        "alpha": 5.0,
-        "beta": 3.0,
-    },
-    {
-        "doc_type": "unknown",
-        "content_profile": "unknown",
-        "policy_id": "default",
-        "policy_data": {"action": "default_processing", "origin": "seed"},
-        "alpha": 4.0,
-        "beta": 4.0,
-    },
-    {
-        "doc_type": "receipt",
-        "content_profile": "table-heavy",
-        "policy_id": "table_heavy",
-        "policy_data": {"action": "receipt_processing", "origin": "seed"},
-        "alpha": 7.0,
-        "beta": 3.0,
-    },
-    {
-        "doc_type": "contract",
-        "content_profile": "mixed",
-        "policy_id": "mixed_content",
-        "policy_data": {"action": "contract_processing", "origin": "seed"},
-        "alpha": 6.0,
-        "beta": 3.0,
-    },
-    {
-        "doc_type": "text_document",
-        "content_profile": "text-heavy",
-        "policy_id": "scanned_text",
-        "policy_data": {"action": "text_extraction", "origin": "seed"},
-        "alpha": 5.0,
-        "beta": 4.0,
-    },
-    {
-        "doc_type": "clinical_summary",
-        "content_profile": "form-centric",
-        "policy_id": "forms",
-        "policy_data": {"action": "clinical_extraction", "origin": "seed"},
-        "alpha": 6.0,
-        "beta": 3.0,
-    },
-    {
-        "doc_type": "financial_statement",
-        "content_profile": "table-heavy",
-        "policy_id": "table_heavy",
-        "policy_data": {"action": "financial_extraction", "origin": "seed"},
-        "alpha": 7.0,
-        "beta": 4.0,
-    },
-]
+# Seed data is now defined in ahmn_core.seeds module
 
 async def _seed_ltm_if_empty() -> None:
     """Seed LTM with initial policy knowledge so AHMN can give informed advice from day one."""
@@ -216,8 +125,8 @@ async def _seed_ltm_if_empty() -> None:
                 logger.info("LTM already has %d entries — skipping seed", count)
                 return
 
-            logger.info("LTM is empty — seeding with %d initial policies", len(_LTM_SEEDS))
-            for seed in _LTM_SEEDS:
+            logger.info("LTM is empty — seeding with %d initial policies", len(LTM_SEEDS))
+            for seed in LTM_SEEDS:
                 context_str = _embedding_service.create_context_string(
                     seed["doc_type"], None
                 )
@@ -225,7 +134,7 @@ async def _seed_ltm_if_empty() -> None:
                 if seed.get("content_profile"):
                     context_str += f". Content profile: {seed['content_profile']}"
                 vector = _embedding_service.generate_embedding(context_str)
-                context_hash = hashlib.sha256(context_str.encode()).hexdigest()
+                context_hash = hashlib.sha256(f"{context_str}:{seed['policy_id']}".encode()).hexdigest()
 
                 await cur.execute(
                     """INSERT INTO ltm_validated_policies
@@ -244,7 +153,7 @@ async def _seed_ltm_if_empty() -> None:
                     ),
                 )
             await conn.commit()
-            logger.info("LTM seeded successfully with %d policies", len(_LTM_SEEDS))
+            logger.info("LTM seeded successfully with %d policies", len(LTM_SEEDS))
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -692,11 +601,11 @@ async def get_mtm(limit: int = Query(50, ge=1, le=500)):
 
 @app.get("/dashboard/memory/ltm")
 async def get_ltm():
-    """LTM validated policies with bandit parameters."""
+    """LTM validated policies with bandit parameters and document context."""
     async with _db().connection() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                """SELECT id, context_hash, policy_id, alpha, beta,
+                """SELECT id, context_hash, policy_id, policy_data, alpha, beta,
                           confidence_score, last_promoted_at
                    FROM ltm_validated_policies ORDER BY last_promoted_at DESC"""
             )
@@ -706,10 +615,11 @@ async def get_ltm():
             "id": str(r[0]),
             "context_hash": r[1],
             "policy_id": r[2],
-            "alpha": r[3],
-            "beta": r[4],
-            "confidence_score": r[5],
-            "last_promoted_at": r[6].isoformat() if r[6] else "",
+            "policy_data": r[3],
+            "alpha": r[4],
+            "beta": r[5],
+            "confidence_score": r[6],
+            "last_promoted_at": r[7].isoformat() if r[7] else "",
         }
         for r in rows
     ]

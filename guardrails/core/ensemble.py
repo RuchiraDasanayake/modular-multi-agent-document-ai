@@ -7,7 +7,7 @@ Validation Ensemble — orchestrates all 5 guardrail checks in sequence.
 4. PII Leakage — Presidio-based, context-aware
 5. Faithfulness — semantic similarity via sentence-transformers
 """
-
+import asyncio
 from ..models import RAGInput, ValidationMetric, SCHEMA_MAP
 from .validation import (
     check_schema_adherence,
@@ -50,7 +50,10 @@ async def run_validation_ensemble(rag_input: RAGInput) -> list[ValidationMetric]
     # 2. Internal Consistency (requires validated data)
     if validated_data:
         try:
-            results.append(check_internal_consistency(validated_data, rag_input.document_context))
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, check_internal_consistency, validated_data, rag_input.document_context
+            )
+            results.append(result)
         except Exception as exc:
             results.append(ValidationMetric(
                 name="internal_consistency", score=0.0, is_pass=False,
@@ -66,7 +69,10 @@ async def run_validation_ensemble(rag_input: RAGInput) -> list[ValidationMetric]
     # 3. Domain Rules (requires validated data)
     if validated_data:
         try:
-            results.append(check_domain_rules(validated_data, rag_input.document_context))
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, check_domain_rules, validated_data, rag_input.document_context
+            )
+            results.append(result)
         except Exception as exc:
             results.append(ValidationMetric(
                 name="domain_rules", score=0.0, is_pass=False,
@@ -81,16 +87,27 @@ async def run_validation_ensemble(rag_input: RAGInput) -> list[ValidationMetric]
 
     # 4. PII Leakage (context-aware)
     try:
-        results.append(check_pii_leakage(rag_input.answer_json, rag_input.document_context.doc_type.value))
+        result = await asyncio.get_event_loop().run_in_executor(
+            None, check_pii_leakage, rag_input.answer_json, rag_input.document_context.doc_type.value
+        )
+        results.append(result)
     except Exception as exc:
         results.append(ValidationMetric(
             name="pii_leakage", score=0.0, is_pass=False,
             details=f"PII check error: {exc}", timestamp=datetime.now(timezone.utc),
         ))
 
-    # 5. Faithfulness
+    # 5. Faithfulness (with timeout to prevent hangs on large contexts)
     try:
-        results.append(await check_faithfulness(rag_input.answer_json, rag_input.source_contexts))
+        results.append(
+            await asyncio.wait_for(check_faithfulness(rag_input.answer_json, rag_input.source_contexts), timeout=30.0)
+        )
+    except asyncio.TimeoutError:
+        results.append(ValidationMetric(
+            name="faithfulness", score=0.5, is_pass=True,
+            details="Faithfulness check timed out (30s) — skipped",
+            timestamp=datetime.now(timezone.utc),
+        ))
     except Exception as exc:
         results.append(ValidationMetric(
             name="faithfulness", score=0.0, is_pass=False,

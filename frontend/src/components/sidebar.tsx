@@ -52,7 +52,6 @@ const USER_NAV: NavItem[] = [
 const ADMIN_NAV: NavItem[] = [
     { href: "/dashboard", label: "Overview", Icon: LayoutDashboard, color: "brand" },
     { href: "/dashboard/submit", label: "Submit Data", Icon: SendHorizonal, color: "cyan" },
-    { href: "/dashboard/architecture", label: "Architecture", Icon: Blocks, color: "violet" },
     { href: "/dashboard/experiments", label: "Experiments", Icon: FlaskConical, color: "emerald" },
     { href: "/dashboard/rabi", label: "Cold Start", Icon: Snowflake, color: "cyan" },
     { href: "/dashboard/daaf", label: "Drift Monitor", Icon: Waves, color: "violet" },

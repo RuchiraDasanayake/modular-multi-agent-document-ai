@@ -27,6 +27,7 @@ from datetime import datetime, timedelta, timezone
 # Allow running from repo root
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from ahmn_core.seeds import LTM_SEEDS
 from psycopg_pool import AsyncConnectionPool
 
 POSTGRES_URI = os.getenv(
@@ -59,143 +60,9 @@ def _context_hash(ctx_str: str, policy_id: str) -> str:
     return hashlib.sha256(f"{ctx_str}:{policy_id}".encode()).hexdigest()
 
 # ═══════════════════════════════════════════════════════════════════════════
-# SEED DATA — properly matched to policy_store.json and sample documents
+# SEED DATA — imported from ahmn_core.seeds
 # ═══════════════════════════════════════════════════════════════════════════
-
-LTM_SEEDS = [
-    # ── Invoice documents → table_heavy policy ──
-    {
-        "doc_type": "invoice",
-        "content_profile": "table-heavy",
-        "vendor": None,
-        "policy_id": "table_heavy",
-        "policy_data": {"action": "invoice_processing", "origin": "seed"},
-        "alpha": 9.0,
-        "beta": 2.0,
-        "confidence": 0.82,
-    },
-    # ── Table documents → table_heavy policy ──
-    {
-        "doc_type": "table_document",
-        "content_profile": "table-heavy",
-        "vendor": None,
-        "policy_id": "table_heavy",
-        "policy_data": {"action": "table_extraction", "origin": "seed"},
-        "alpha": 8.0,
-        "beta": 3.0,
-        "confidence": 0.73,
-    },
-    # ── Receipt → table_heavy ──
-    {
-        "doc_type": "receipt",
-        "content_profile": "table-heavy",
-        "vendor": None,
-        "policy_id": "table_heavy",
-        "policy_data": {"action": "receipt_processing", "origin": "seed"},
-        "alpha": 7.0,
-        "beta": 3.0,
-        "confidence": 0.70,
-    },
-    # ── Form documents → forms policy ──
-    {
-        "doc_type": "form_document",
-        "content_profile": "form-centric",
-        "vendor": None,
-        "policy_id": "forms",
-        "policy_data": {"action": "form_extraction", "origin": "seed"},
-        "alpha": 7.0,
-        "beta": 3.0,
-        "confidence": 0.70,
-    },
-    # ── Scanned documents → scanned_text policy ──
-    {
-        "doc_type": "scanned_document",
-        "content_profile": "scanned",
-        "vendor": None,
-        "policy_id": "scanned_text",
-        "policy_data": {"action": "ocr_extraction", "origin": "seed"},
-        "alpha": 6.0,
-        "beta": 4.0,
-        "confidence": 0.60,
-    },
-    # ── Mixed content → mixed_content policy ──
-    {
-        "doc_type": "mixed_document",
-        "content_profile": "mixed",
-        "vendor": None,
-        "policy_id": "mixed_content",
-        "policy_data": {"action": "mixed_processing", "origin": "seed"},
-        "alpha": 5.0,
-        "beta": 3.0,
-        "confidence": 0.63,
-    },
-    # ── Contract → mixed_content (contracts are multi-section) ──
-    {
-        "doc_type": "contract",
-        "content_profile": "mixed",
-        "vendor": None,
-        "policy_id": "mixed_content",
-        "policy_data": {"action": "contract_processing", "origin": "seed"},
-        "alpha": 6.0,
-        "beta": 3.0,
-        "confidence": 0.67,
-    },
-    # ── Financial report → table_heavy (numbers + tables) ──
-    {
-        "doc_type": "financial_statement",
-        "content_profile": "table-heavy",
-        "vendor": None,
-        "policy_id": "table_heavy",
-        "policy_data": {"action": "financial_extraction", "origin": "seed"},
-        "alpha": 7.0,
-        "beta": 4.0,
-        "confidence": 0.64,
-    },
-    # ── Text document → scanned_text ──
-    {
-        "doc_type": "text_document",
-        "content_profile": "text-heavy",
-        "vendor": None,
-        "policy_id": "scanned_text",
-        "policy_data": {"action": "text_extraction", "origin": "seed"},
-        "alpha": 5.0,
-        "beta": 4.0,
-        "confidence": 0.56,
-    },
-    # ── Unknown → default policy with flat prior ──
-    {
-        "doc_type": "unknown",
-        "content_profile": "unknown",
-        "vendor": None,
-        "policy_id": "default",
-        "policy_data": {"action": "default_processing", "origin": "seed"},
-        "alpha": 4.0,
-        "beta": 4.0,
-        "confidence": 0.50,
-    },
-    # ── Clinical summary → forms (structured extraction) ──  
-    {
-        "doc_type": "clinical_summary",
-        "content_profile": "form-centric",
-        "vendor": None,
-        "policy_id": "forms",
-        "policy_data": {"action": "clinical_extraction", "origin": "seed"},
-        "alpha": 6.0,
-        "beta": 3.0,
-        "confidence": 0.67,
-    },
-    # ── Medical record → forms ──
-    {
-        "doc_type": "medical_record",
-        "content_profile": "form-centric",
-        "vendor": None,
-        "policy_id": "forms",
-        "policy_data": {"action": "medical_extraction", "origin": "seed"},
-        "alpha": 6.0,
-        "beta": 4.0,
-        "confidence": 0.60,
-    },
-]
+# LTM_SEEDS is now defined in ahmn_core.seeds module and imported above
 
 # ── MTM seed outcomes matching the sample documents ──
 MTM_SEEDS = [
