@@ -22,6 +22,11 @@ class LogRequest(BaseModel):
     advice_id: UUID
     policy_id_used: str
     metrics: OutcomeMetrics
+    document_context: dict[str, Any] | None = Field(
+        default=None,
+        description="Actual document context discovered during processing. "
+        "When provided, overrides the stale pre-processing context stored in STM.",
+    )
 
 class FeedbackRequest(BaseModel):
     advice_id: UUID

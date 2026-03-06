@@ -406,7 +406,15 @@ async def log_outcome(req: LogRequest, request: Request):
 
     redis_data = json.loads(redis_data_json)
     source_hash = redis_data.get("source_hash")
-    context_dict = redis_data.get("context", {})
+    stm_context = redis_data.get("context", {})
+
+    # Prefer the real document context discovered during processing over the
+    # stale pre-processing guess stored in STM (which is often "unknown" when
+    # the doc_type could only be inferred from the filename).
+    if req.document_context:
+        context_dict = {**stm_context, **req.document_context}
+    else:
+        context_dict = stm_context
 
     # Build a proper context hash for the ACTUAL policy used (not what was recommended)
     ctx_str = _embedding_service.create_context_string(

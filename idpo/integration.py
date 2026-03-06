@@ -558,15 +558,33 @@ def log_ahmn_feedback(
             "recall": round(avg_recall, 4),
         }
 
-        payload = {
+        # Extract the REAL document context discovered during pipeline
+        # processing so AHMN stores the correct doc_type (not the pre-
+        # processing guess which is often "unknown").
+        real_context: dict[str, Any] = {}
+        for doc in doc_records:
+            dt = doc.get("doc_type") or doc.get("metadata", {}).get("doc_type")
+            if dt and dt != "unknown":
+                real_context["doc_type"] = dt
+                real_context["vendor"] = doc.get("vendor_cluster") or doc.get("vendor")
+                real_context["content_profile"] = (
+                    doc.get("content_profile")
+                    or doc.get("metadata", {}).get("content_profile")
+                )
+                break
+
+        payload: dict[str, Any] = {
             "advice_id": advice.advice_id,
             "policy_id_used": used_policy,
             "metrics": metrics,
         }
+        if real_context:
+            payload["document_context"] = real_context
 
         logger.info(
-            "Logging AHMN feedback: advice=%s f1=%.3f success=%s actual_policy=%s",
+            "Logging AHMN feedback: advice=%s f1=%.3f success=%s actual_policy=%s doc_type=%s",
             advice.advice_id, f1_score, metrics["success"], used_policy,
+            real_context.get("doc_type", "(not overridden)"),
         )
         resp = _request_with_retry("POST", f"{AHMN_URL}/advice/log", json_data=payload)
 
