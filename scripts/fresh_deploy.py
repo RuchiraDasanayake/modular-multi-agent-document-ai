@@ -200,7 +200,7 @@ def main() -> None:
   └── Password:  Adm!n_DocAI_2025
 
   {BOLD}Database tables seeded:{RESET}
-  ├── LTM: 12 policy entries (5 policy types × multiple doc types)
+  ├── LTM: 12 context→policy mappings (5 policies × multiple doc types per policy)
   ├── MTM: 8 sample outcomes (matching sample documents)
   └── Users: 1 admin account
 
