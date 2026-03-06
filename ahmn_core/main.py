@@ -280,7 +280,16 @@ async def trigger_forgetting():
 
 @app.post("/advice", response_model=PolicyResponse)
 async def get_advice(context: DocumentContext, request: Request):
-    """Thompson Sampling policy recommendation with RABI prior transfer."""
+    """Policy recommendation with deterministic selection and optional exploration.
+
+    Uses the expected value (mean) of the Beta distribution by default so the
+    same input always returns the same policy.  When ``explore=true`` is sent
+    as a query-parameter, Thompson Sampling is used instead — but even then
+    the random seed is derived from the input context so identical requests
+    still produce identical results within the same LTM state.
+    """
+    explore = (request.query_params.get("explore", "false").lower() == "true")
+
     context_str = _embedding_service.create_context_string(
         context.doc_type, context.vendor
     )
@@ -324,16 +333,26 @@ async def get_advice(context: DocumentContext, request: Request):
         rabi_used = True
         n_neighbors_used = prior.n_neighbors
 
-        best_sample = -1.0
+        # Create a deterministic seed from the input context so that
+        # identical requests always produce identical Thompson Sampling draws.
+        ctx_seed = int(hashlib.sha256(context_str.encode()).hexdigest(), 16) % (2**31)
+        ts_rng = random.Random(ctx_seed)
+
+        best_score = -1.0
         for row in rows:
             _pid, _pdata, alpha, beta, _chash, sim = row
-            blended_alpha = prior.alpha + (alpha - 1) * sim
-            blended_beta = prior.beta + (beta - 1) * sim
-            sample = random.betavariate(
-                max(0.1, blended_alpha), max(0.1, blended_beta)
-            )
-            if sample > best_sample:
-                best_sample = sample
+            blended_alpha = max(0.1, prior.alpha + (alpha - 1) * sim)
+            blended_beta = max(0.1, prior.beta + (beta - 1) * sim)
+
+            if explore:
+                # Thompson Sampling (exploratory) — seeded for reproducibility
+                score = ts_rng.betavariate(blended_alpha, blended_beta)
+            else:
+                # Deterministic: use expected value E[θ] = α / (α + β)
+                score = blended_alpha / (blended_alpha + blended_beta)
+
+            if score > best_score:
+                best_score = score
                 selected_row = row
 
         if selected_row:
@@ -387,7 +406,15 @@ async def log_outcome(req: LogRequest, request: Request):
 
     redis_data = json.loads(redis_data_json)
     source_hash = redis_data.get("source_hash")
-    context_dict = redis_data.get("context", {})
+    stm_context = redis_data.get("context", {})
+
+    # Prefer the real document context discovered during processing over the
+    # stale pre-processing guess stored in STM (which is often "unknown" when
+    # the doc_type could only be inferred from the filename).
+    if req.document_context:
+        context_dict = {**stm_context, **req.document_context}
+    else:
+        context_dict = stm_context
 
     # Build a proper context hash for the ACTUAL policy used (not what was recommended)
     ctx_str = _embedding_service.create_context_string(
@@ -745,6 +772,7 @@ async def run_daaf_demo(params: dict[str, Any]):
 async def run_rabi_demo(params: dict[str, Any]):
     """Run interactive RABI cold-start demo."""
     from .services.rabi import RABIInitializer
+    from .seeds import LTM_SEEDS
 
     temperature = params.get("temperature", 0.5)
     threshold = params.get("threshold", 0.3)
@@ -752,16 +780,18 @@ async def run_rabi_demo(params: dict[str, Any]):
 
     rabi = RABIInitializer(k=k, similarity_threshold=threshold, temperature=temperature)
 
+    # Use real LTM seed data for neighbors
+    seed_subset = LTM_SEEDS[:k]
     neighbors = [
         NeighborInfo(
-            context_hash=f"ctx_{i}",
-            policy_id="ocr_tesseract",
-            alpha=15 + i * 3,
-            beta=3 + i,
-            similarity=0.9 - i * 0.1,
-            n_samples=15 + i,
+            context_hash=seed["doc_type"],
+            policy_id=seed["policy_id"],
+            alpha=seed["alpha"],
+            beta=seed["beta"],
+            similarity=round(seed["confidence"] + 0.15 * (1 - i / max(k - 1, 1)), 3),
+            n_samples=int(seed["alpha"] + seed["beta"]),
         )
-        for i in range(k)
+        for i, seed in enumerate(seed_subset)
     ]
 
     prior = rabi.initialize_prior(neighbors)
