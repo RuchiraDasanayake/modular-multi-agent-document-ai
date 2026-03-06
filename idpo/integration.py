@@ -24,8 +24,35 @@ from typing import Any
 import concurrent.futures
 
 import httpx
+from pathlib import Path
 
 logger = logging.getLogger("idpo.integration")
+
+# ---------------------------------------------------------------------------
+# Policy store: maps policy_id → list of expected entity field names.
+# Used to compute direct F1 against the policy's defined extraction targets.
+# ---------------------------------------------------------------------------
+
+def _load_expected_fields() -> dict[str, list[str]]:
+    """Load explicit_entities per policy from policy_store.json."""
+    store_path = Path(__file__).resolve().parents[1] / "configs" / "policy_store.json"
+    mapping: dict[str, list[str]] = {}
+    try:
+        with open(store_path) as f:
+            store = json.load(f)
+        for policy in store.get("policies", []):
+            pid = policy.get("policy_id", "")
+            entities = (
+                policy.get("actions", {})
+                .get("extraction", {})
+                .get("explicit_entities", [])
+            )
+            mapping[pid] = [e.lower() for e in entities]
+    except Exception as exc:
+        logger.warning("Could not load policy_store.json for F1 computation: %s", exc)
+    return mapping
+
+_POLICY_EXPECTED_FIELDS: dict[str, list[str]] = _load_expected_fields()
 
 # ---------------------------------------------------------------------------
 # Service URLs — resolved from environment or Docker defaults
@@ -434,67 +461,9 @@ def log_ahmn_feedback(
         return feedback
 
     try:
-        # Compute aggregate metrics
-        total_docs = len(doc_records)
-        successful_validations = sum(1 for gr in guardrail_results if gr.overall_passes and not gr.error)
-        guardrails_ran = len(guardrail_results) > 0 and not all(gr.error for gr in guardrail_results)
-        success_rate = successful_validations / max(total_docs, 1) if guardrails_ran else 1.0
-
-        # Collect per-entity confidence scores from all docs
-        all_confidences: list[float] = []
-        for doc in doc_records:
-            # Try entity_details first (list of dicts with 'confidence')
-            details = doc.get("entity_details", [])
-            if details:
-                for ed in details:
-                    c = ed.get("confidence", 0) if isinstance(ed, dict) else getattr(ed, "confidence", 0)
-                    if isinstance(c, (int, float)) and c > 0:
-                        all_confidences.append(float(c))
-            # Fallback: field_confidence dict
-            fc = doc.get("field_confidence", {})
-            if fc and isinstance(fc, dict):
-                for v in fc.values():
-                    if isinstance(v, (int, float)) and v > 0:
-                        all_confidences.append(float(v))
-
-        entity_counts = [doc.get("entity_count", 0) for doc in doc_records]
-        avg_entities = sum(entity_counts) / max(len(entity_counts), 1)
-
-        # Compute a proper F1-style score using entity confidence
-        if all_confidences:
-            avg_confidence = sum(all_confidences) / len(all_confidences)
-            # Precision proxy: ratio of entities with confidence >= 0.5
-            high_conf = sum(1 for c in all_confidences if c >= 0.5)
-            precision_proxy = high_conf / max(len(all_confidences), 1)
-            # Recall proxy: extraction coverage (entities extracted / expected ~10)
-            recall_proxy = min(avg_entities / 10.0, 1.0)
-            # Harmonic mean (F1 style)
-            if precision_proxy + recall_proxy > 0:
-                f1_entity = 2 * precision_proxy * recall_proxy / (precision_proxy + recall_proxy)
-            else:
-                f1_entity = 0.0
-            # Blend with guardrails if they ran, otherwise rely on entity quality
-            if guardrails_ran:
-                f1_proxy = 0.5 * f1_entity + 0.3 * success_rate + 0.2 * avg_confidence
-            else:
-                f1_proxy = 0.7 * f1_entity + 0.3 * avg_confidence
-        else:
-            # No confidence data available — use entity count heuristic
-            f1_proxy = min(1.0, min(avg_entities / 10.0, 1.0) * 0.6 + success_rate * 0.4)
-
-        f1_proxy = max(0.0, min(1.0, f1_proxy))
-
-        metrics = {
-            "f1_score": round(f1_proxy, 4),
-            "cost": total_docs * 0.01,  # placeholder cost
-            "processing_time_ms": round(processing_time_ms, 1),
-            "success": success_rate >= 0.5 or (avg_entities >= 3 and (not all_confidences or sum(all_confidences) / max(len(all_confidences), 1) >= 0.4)),
-        }
-
-        # Determine the actual policy IDPO used — NOT what AHMN recommended
+        # Determine the actual policy IDPO used
         used_policy = actual_policy_id
         if not used_policy:
-            # Try to extract from doc_records
             for doc in doc_records:
                 pid = doc.get("policy_id")
                 if pid and pid != "default_policy":
@@ -502,6 +471,70 @@ def log_ahmn_feedback(
                     break
         if not used_policy:
             used_policy = advice.policy_id or "default_policy"
+
+        # ----- Direct F1 Score Computation -----
+        # Instead of a proxy, we compute set-based precision/recall/F1
+        # using the policy's explicit_entities as the ground truth
+        # field set and the actually extracted entity keys as predictions.
+
+        expected_fields = _POLICY_EXPECTED_FIELDS.get(used_policy, [])
+
+        doc_f1_scores: list[float] = []
+        for doc in doc_records:
+            # Collect extracted entity keys (with confidence >= 0.5 as "valid")
+            extracted_keys: set[str] = set()
+            details = doc.get("entity_details", [])
+            if details:
+                for ed in details:
+                    key = (ed.get("key") or "") if isinstance(ed, dict) else getattr(ed, "key", "")
+                    conf = ed.get("confidence", 0) if isinstance(ed, dict) else getattr(ed, "confidence", 0)
+                    if key and isinstance(conf, (int, float)) and conf >= 0.5:
+                        extracted_keys.add(key.lower())
+            else:
+                # Fallback: field_confidence dict
+                fc = doc.get("field_confidence", {})
+                if fc and isinstance(fc, dict):
+                    for k, v in fc.items():
+                        if isinstance(v, (int, float)) and v >= 0.5:
+                            extracted_keys.add(k.lower())
+
+            if expected_fields:
+                # Direct set-based F1
+                expected_set = set(expected_fields)
+                true_positives = extracted_keys & expected_set
+                tp = len(true_positives)
+                precision = tp / len(extracted_keys) if extracted_keys else 0.0
+                recall = tp / len(expected_set)
+                if precision + recall > 0:
+                    f1 = 2 * precision * recall / (precision + recall)
+                else:
+                    f1 = 0.0
+            else:
+                # No expected fields defined (default policy):
+                # Use mean confidence of extracted entities as quality signal
+                confs: list[float] = []
+                for ed in details:
+                    c = ed.get("confidence", 0) if isinstance(ed, dict) else getattr(ed, "confidence", 0)
+                    if isinstance(c, (int, float)) and c > 0:
+                        confs.append(float(c))
+                f1 = sum(confs) / len(confs) if confs else 0.0
+
+            doc_f1_scores.append(f1)
+
+        f1_score = sum(doc_f1_scores) / len(doc_f1_scores) if doc_f1_scores else 0.0
+        f1_score = max(0.0, min(1.0, f1_score))
+
+        total_docs = len(doc_records)
+        successful_validations = sum(1 for gr in guardrail_results if gr.overall_passes and not gr.error)
+        guardrails_ran = len(guardrail_results) > 0 and not all(gr.error for gr in guardrail_results)
+        success_rate = successful_validations / max(total_docs, 1) if guardrails_ran else 1.0
+
+        metrics = {
+            "f1_score": round(f1_score, 4),
+            "cost": total_docs * 0.01,
+            "processing_time_ms": round(processing_time_ms, 1),
+            "success": f1_score >= 0.4 or success_rate >= 0.5,
+        }
 
         payload = {
             "advice_id": advice.advice_id,
@@ -511,7 +544,7 @@ def log_ahmn_feedback(
 
         logger.info(
             "Logging AHMN feedback: advice=%s f1=%.3f success=%s actual_policy=%s",
-            advice.advice_id, f1_proxy, metrics["success"], used_policy,
+            advice.advice_id, f1_score, metrics["success"], used_policy,
         )
         resp = _request_with_retry("POST", f"{AHMN_URL}/advice/log", json_data=payload)
 
