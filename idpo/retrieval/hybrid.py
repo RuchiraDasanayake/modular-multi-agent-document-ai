@@ -1,13 +1,12 @@
-from __future__ import annotations
+"""Hybrid retriever combining dense vector and sparse BM25 search."""
 
-from typing import Dict, List, Tuple
+from __future__ import annotations
 
 import numpy as np
 
 from idpo.core.types import Chunk, RetrievalResult
 from idpo.retrieval.bm25 import BM25Index
 from idpo.retrieval.vector_store import VectorStore
-
 
 class HybridRetriever:
     def __init__(self, vector_store: VectorStore, bm25: BM25Index) -> None:
@@ -17,23 +16,23 @@ class HybridRetriever:
     def retrieve(
         self,
         query: str,
-        chunks: Dict[str, Chunk],
+        chunks: dict[str, Chunk],
         dense_k: int,
         sparse_k: int,
         final_k: int,
         metadata_boost: float,
         mmr_lambda: float,
-    ) -> List[RetrievalResult]:
+    ) -> list[RetrievalResult]:
         dense = self.vector_store.search(query, top_k=dense_k)
         sparse = self.bm25.search(query, top_k=sparse_k)
 
-        score_map: Dict[str, Dict[str, float]] = {}
+        score_map: dict[str, dict[str, float]] = {}
         for chunk_id, score in dense:
             score_map.setdefault(chunk_id, {})["dense"] = score
         for chunk_id, score in sparse:
             score_map.setdefault(chunk_id, {})["sparse"] = score
 
-        results: List[RetrievalResult] = []
+        results: list[RetrievalResult] = []
         for idx, (chunk_id, scores) in enumerate(score_map.items()):
             chunk = chunks.get(chunk_id)
             if not chunk:
@@ -58,11 +57,11 @@ class HybridRetriever:
         return reranked
 
     def _mmr_rerank(
-        self, results: List[RetrievalResult], k: int, mmr_lambda: float
-    ) -> List[RetrievalResult]:
+        self, results: list[RetrievalResult], k: int, mmr_lambda: float
+    ) -> list[RetrievalResult]:
         if not results:
             return []
-        selected: List[RetrievalResult] = []
+        selected: list[RetrievalResult] = []
         candidates = results.copy()
         while candidates and len(selected) < k:
             if not selected:

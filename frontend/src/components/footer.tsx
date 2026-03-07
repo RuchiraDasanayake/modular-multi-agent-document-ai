@@ -8,7 +8,6 @@ const footerLinks = {
             { label: "Features", href: "/features" },
             { label: "Pricing", href: "/pricing" },
             { label: "Documentation", href: "/docs" },
-            { label: "API Reference", href: "/docs#api" },
         ],
     },
     company: {
@@ -16,17 +15,15 @@ const footerLinks = {
         links: [
             { label: "About", href: "/about" },
             { label: "Contact", href: "/contact" },
-            { label: "Careers", href: "/contact" },
-            { label: "Blog", href: "/docs" },
+            { label: "Careers", href: "#" },
         ],
     },
     resources: {
         title: "Resources",
         links: [
             { label: "Getting Started", href: "/docs" },
-            { label: "Support", href: "/contact" },
-            { label: "Privacy Policy", href: "#" },
-            { label: "Terms of Service", href: "#" },
+            { label: "API Reference", href: "/docs" },
+            { label: "GitHub", href: "#" },
         ],
     },
 };
@@ -41,14 +38,16 @@ const socialLinks = [
 export function Footer() {
     return (
         <footer className="relative border-t border-slate-200/60 dark:border-white/10 bg-white/50 dark:bg-gray-950/50 backdrop-blur-lg">
-            <div className="max-w-7xl mx-auto px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 {/* Main Footer */}
-                <div className="py-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12">
+                <div className="py-12 sm:py-16 grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-8 sm:gap-12">
                     {/* Brand */}
-                    <div className="lg:col-span-2 space-y-4">
+                    <div className="col-span-2 lg:col-span-2 space-y-4">
                         <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-white dark:bg-gray-900 border border-brand-500/20 dark:border-brand-500/30 flex items-center justify-center shadow-md">
-                                <span className="text-xl">🧠</span>
+                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-md shadow-brand-500/25">
+                                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                </svg>
                             </div>
                             <span className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
                                 Modular Doc AI
@@ -100,9 +99,6 @@ export function Footer() {
                 <div className="py-6 border-t border-slate-200/60 dark:border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
                     <p className="text-sm text-slate-500 dark:text-gray-500">
                         &copy; {new Date().getFullYear()} Modular Doc AI. All rights reserved.
-                    </p>
-                    <p className="text-sm text-slate-500 dark:text-gray-500 flex items-center gap-1">
-                        Built with <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500" /> using Next.js &amp; Tailwind CSS
                     </p>
                 </div>
             </div>

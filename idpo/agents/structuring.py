@@ -1,14 +1,14 @@
+"""Entity extraction, sectioning, and document summarization agents."""
+
 from __future__ import annotations
 
 import re
 import time
-from typing import List
 
 from idpo.agents.base import Agent, AgentContext
 from idpo.agents.llm_extraction import LLMExtractionAgent
 from idpo.core.contracts import AgentMessage
 from idpo.core.types import AgentResult, Document, Entity, Section, StageSignal
-
 
 class EntityExtractionAgent(Agent):
     name = "entity_extraction"
@@ -19,7 +19,7 @@ class EntityExtractionAgent(Agent):
     def run(self, payload: AgentMessage, ctx: AgentContext) -> AgentResult:
         started = time.time()
         doc: Document = payload["document"]
-        entities: List[Entity] = []
+        entities: list[Entity] = []
         full_text = "\n".join(page.text for page in doc.pages)
 
         rules = ctx.config.structuring.extraction_rules
@@ -62,8 +62,8 @@ class EntityExtractionAgent(Agent):
         )
         return AgentResult(artifacts={"entities": entities, "entities_artifact": artifact, "signal": signal})
 
-    def _generic_kv_entities(self, doc: Document) -> List[Entity]:
-        entities: List[Entity] = []
+    def _generic_kv_entities(self, doc: Document) -> list[Entity]:
+        entities: list[Entity] = []
         lines = []
         for page in doc.pages:
             lines.extend(page.text.splitlines())
@@ -85,7 +85,6 @@ class EntityExtractionAgent(Agent):
             )
         return entities
 
-
 class SectioningAgent(Agent):
     name = "sectioning"
     version = "v1"
@@ -95,7 +94,7 @@ class SectioningAgent(Agent):
     def run(self, payload: AgentMessage, ctx: AgentContext) -> AgentResult:
         started = time.time()
         doc: Document = payload["document"]
-        sections: List[Section] = []
+        sections: list[Section] = []
         current = {"name": "section_1", "text": []}
         max_words = ctx.config.structuring.heading_max_words
 
@@ -168,7 +167,6 @@ class SectioningAgent(Agent):
         key = re.sub(r"[^a-z0-9]+", "_", stripped).strip("_")
         return key or "section"
 
-
 class ClassificationAgent(Agent):
     name = "classification"
     version = "v1"
@@ -199,7 +197,6 @@ class ClassificationAgent(Agent):
         )
         return AgentResult(artifacts={"doc_type": doc_type, "signal": signal})
 
-
 class SummarizationAgent(Agent):
     name = "summarization"
     version = "v1"
@@ -209,10 +206,39 @@ class SummarizationAgent(Agent):
     def run(self, payload: AgentMessage, ctx: AgentContext) -> AgentResult:
         started = time.time()
         doc: Document = payload["document"]
+        full_text = "\n".join(page.text for page in doc.pages)
+
+        # Pre-process: join broken lines into proper sentences
+        # Replace single newlines (not paragraph breaks) with spaces
+        cleaned_text = re.sub(r'(?<!\n)\n(?!\n)', ' ', full_text)
+        # Collapse multiple spaces
+        cleaned_text = re.sub(r'[ \t]+', ' ', cleaned_text)
+        # Remove bullet markers
+        cleaned_text = re.sub(r'[○●■□▪▸►▶•]', '', cleaned_text)
+
+        # Extract meaningful sentences
         sentences = []
-        for page in doc.pages:
-            sentences.extend([s.strip() for s in page.text.split(".") if s.strip()])
-        summary = ". ".join(sentences[:3]).strip()
+        for s in re.split(r'(?<=[.!?])\s+', cleaned_text):
+            s = s.strip()
+            if len(s) > 20 and len(s.split()) >= 4:
+                sentences.append(s)
+
+        if not sentences:
+            # Fallback: split by periods
+            sentences = [s.strip() for s in full_text.split(".") if len(s.strip()) > 15]
+
+        # Use extractive summarization: pick the most informative sentences
+        # using a simple TF-IDF-like scoring approach
+        summary_sentences = self._extract_key_sentences(sentences, max_sentences=5)
+        summary = " ".join(summary_sentences).strip()
+
+        # Truncate if too long but preserve complete sentences
+        if len(summary) > 800:
+            truncated = summary[:800]
+            last_period = truncated.rfind(".")
+            if last_period > 400:
+                summary = truncated[:last_period + 1]
+
         artifact = ctx.artifact_store.save_text(
             f"{doc.doc_id}_summary.txt",
             summary,
@@ -222,9 +248,9 @@ class SummarizationAgent(Agent):
         )
         signal = StageSignal(
             stage=self.name,
-            confidence=0.6 if summary else 0.3,
-            uncertainty=0.4 if summary else 0.7,
-            metadata={"summary_length": len(summary)},
+            confidence=0.7 if summary else 0.3,
+            uncertainty=0.3 if summary else 0.7,
+            metadata={"summary_length": len(summary), "sentence_count": len(summary_sentences)},
         )
         self._record(
             ctx,
@@ -237,6 +263,48 @@ class SummarizationAgent(Agent):
         )
         return AgentResult(artifacts={"summary": summary, "summary_artifact": artifact, "signal": signal})
 
+    def _extract_key_sentences(self, sentences: list, max_sentences: int = 5) -> list:
+        """Pick the most informative sentences using word frequency scoring."""
+        if len(sentences) <= max_sentences:
+            return sentences
+
+        # Build word frequency map (excluding stop words)
+        stop_words = {
+            "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+            "have", "has", "had", "do", "does", "did", "will", "would", "could",
+            "should", "may", "might", "shall", "can", "need", "dare", "ought",
+            "used", "to", "of", "in", "for", "on", "with", "at", "by", "from",
+            "as", "into", "through", "during", "before", "after", "above",
+            "below", "between", "but", "and", "or", "nor", "not", "so", "yet",
+            "both", "either", "neither", "each", "every", "all", "any", "few",
+            "more", "most", "other", "some", "such", "no", "only", "own", "same",
+            "than", "too", "very", "just", "because", "if", "when", "where",
+            "how", "what", "which", "who", "whom", "this", "that", "these",
+            "those", "it", "its", "he", "she", "they", "we", "you", "i", "me",
+            "my", "your", "his", "her", "our", "their",
+        }
+        word_freq: dict = {}
+        for sentence in sentences:
+            words = re.findall(r'\b[a-z]{3,}\b', sentence.lower())
+            for word in words:
+                if word not in stop_words:
+                    word_freq[word] = word_freq.get(word, 0) + 1
+
+        # Score each sentence
+        scored = []
+        for i, sentence in enumerate(sentences):
+            words = re.findall(r'\b[a-z]{3,}\b', sentence.lower())
+            if not words:
+                scored.append((0.0, i, sentence))
+                continue
+            score = sum(word_freq.get(w, 0) for w in words if w not in stop_words) / len(words)
+            # Boost early sentences (they often contain key information)
+            position_boost = 1.0 + max(0, (5 - i) * 0.1)
+            scored.append((score * position_boost, i, sentence))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        selected = sorted(scored[:max_sentences], key=lambda x: x[1])  # preserve order
+        return [s[2] for s in selected]
 
 class StructuringRouter(Agent):
     name = "structuring_router"

@@ -11,7 +11,6 @@ from ahmn_core.schemas import (
 )
 from ahmn_core.services.embedding import EmbeddingService
 
-
 # ── Schemas ───────────────────────────────────────────────────────
 
 class TestSchemas:
@@ -45,7 +44,6 @@ class TestSchemas:
 
         fr = FeedbackRequest(advice_id=uuid4(), human_corrected=True)
         assert fr.human_corrected is True
-
 
 # ── Embeddings ────────────────────────────────────────────────────
 

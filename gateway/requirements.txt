@@ -6,6 +6,7 @@ requests>=2.32.0,<3.0.0
 # Data validation
 pydantic>=2.10.0,<3.0.0
 pydantic-settings>=2.6.0,<3.0.0
+email-validator>=2.0.0,<3.0.0
 
 # Database (auth tables only)
 psycopg[binary,pool]>=3.2.0,<4.0.0
@@ -16,6 +17,12 @@ bcrypt>=4.2.0,<5.0.0
 
 # HTTP client (proxy to microservices)
 httpx>=0.27.0,<1.0.0
+
+# Redis (token blacklist)
+redis[hiredis]>=5.0.0,<6.0.0
+
+# Rate limiting
+slowapi>=0.1.9,<1.0.0
 
 # Utilities
 python-dotenv>=1.0.0,<2.0.0

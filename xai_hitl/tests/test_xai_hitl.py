@@ -22,7 +22,6 @@ from xai_hitl.hitl.models import (
     FeedbackPriority,
 )
 
-
 # ═══════════════════════════════════════════════════════════════
 # XAI Data Classes
 # ═══════════════════════════════════════════════════════════════
@@ -43,7 +42,6 @@ def test_text_span_to_dict():
     assert d["highlight_type"] == "high_importance"
     assert d["combined_score"] == 0.85
 
-
 def test_derivation_step_to_dict():
     step = DerivationStep(
         step_number=1,
@@ -55,7 +53,6 @@ def test_derivation_step_to_dict():
     d = step.to_dict()
     assert d["step_number"] == 1
     assert d["confidence"] == 0.99
-
 
 def test_derivation_tree_to_dict():
     tree = DerivationTree(
@@ -71,7 +68,6 @@ def test_derivation_tree_to_dict():
     assert len(d["steps"]) == 2
     assert d["overall_confidence"] == 0.90
 
-
 def test_shap_explanation_to_dict():
     shap = SHAPExplanation(
         base_value=0.5,
@@ -82,7 +78,6 @@ def test_shap_explanation_to_dict():
     assert d["base_value"] == 0.5
     assert len(d["shap_values"]) == 2
 
-
 def test_lime_explanation_to_dict():
     lime = LIMEExplanation(
         word_weights=[("finance", 0.8), ("market", 0.6)],
@@ -90,7 +85,6 @@ def test_lime_explanation_to_dict():
     )
     d = lime.to_dict()
     assert d["prediction_proba"] == 0.85
-
 
 # ═══════════════════════════════════════════════════════════════
 # HITL Models
@@ -101,11 +95,9 @@ def test_feedback_types():
     assert FeedbackType.INCORRECT.value == "incorrect"
     assert FeedbackType.XAI_UNCLEAR.value == "xai_unclear"
 
-
 def test_feedback_priorities():
     assert FeedbackPriority.LOW.value == "low"
     assert FeedbackPriority.CRITICAL.value == "critical"
-
 
 def test_hitl_feedback_to_dict():
     fb = HITLFeedback(
@@ -124,7 +116,6 @@ def test_hitl_feedback_to_dict():
     assert d["feedback_type"] == "correct"
     assert d["ratings"]["explanation_quality"] == 4
     assert d["ratings"]["highlight_accuracy"] == 5
-
 
 def test_hitl_feedback_from_dict():
     data = {
@@ -148,7 +139,6 @@ def test_hitl_feedback_from_dict():
     assert fb.priority == FeedbackPriority.HIGH
     assert fb.corrected_answer == "B"
     assert fb.tags == ["important"]
-
 
 def test_hitl_feedback_roundtrip():
     fb = HITLFeedback(

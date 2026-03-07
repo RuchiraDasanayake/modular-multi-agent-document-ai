@@ -1,18 +1,18 @@
+"""Result export to CSV and XLSX formats."""
+
 from __future__ import annotations
 
 import csv
 import json
-import json
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple, TYPE_CHECKING
+from typing import Any, Iterable, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from idpo.core.types import Document
     from idpo.pipeline.orchestrator import PipelineResult
 
-
-def export_structured_results(results: List[PipelineResult], output_path: str) -> Dict[str, Any]:
+def export_structured_results(results: list[PipelineResult], output_path: str) -> dict[str, Any]:
     path = Path(output_path)
     try:
         import openpyxl
@@ -20,8 +20,7 @@ def export_structured_results(results: List[PipelineResult], output_path: str) -
         return _export_csv(results, path)
     return _export_xlsx(results, path, openpyxl)
 
-
-def _export_xlsx(results: List[PipelineResult], path: Path, openpyxl) -> Dict[str, Any]:
+def _export_xlsx(results: list[PipelineResult], path: Path, openpyxl) -> dict[str, Any]:
     path.parent.mkdir(parents=True, exist_ok=True)
     wb = openpyxl.Workbook()
     explicit_sheet = wb.active
@@ -142,8 +141,7 @@ def _export_xlsx(results: List[PipelineResult], path: Path, openpyxl) -> Dict[st
     wb.save(path)
     return {"format": "xlsx", "path": str(path), "sheets": ["explicit_entities", "default_entities", "metadata"]}
 
-
-def _export_csv(results: List[PipelineResult], path: Path) -> Dict[str, Any]:
+def _export_csv(results: list[PipelineResult], path: Path) -> dict[str, Any]:
     path.parent.mkdir(parents=True, exist_ok=True)
     base = path.with_suffix("")
     explicit_path = base.with_name(f"{base.name}_explicit.csv")
@@ -267,35 +265,31 @@ def _export_csv(results: List[PipelineResult], path: Path) -> Dict[str, Any]:
             )
     return {"format": "csv", "paths": [str(explicit_path), str(default_path), str(meta_path)]}
 
-
-def _collect_explicit_keys(results: Iterable[PipelineResult]) -> List[str]:
+def _collect_explicit_keys(results: Iterable[PipelineResult]) -> list[str]:
     keys = set()
     for result in results:
         for entity in result.explicit_entities:
             keys.add(entity.key)
     return sorted(keys)
 
-
-def _entities_by_key(entities) -> Dict[str, str]:
-    values: Dict[str, Tuple[float, str]] = {}
+def _entities_by_key(entities) -> dict[str, str]:
+    values: dict[str, tuple[float, str]] = {}
     for entity in entities:
         current = values.get(entity.key)
         if not current or entity.confidence > current[0]:
             values[entity.key] = (entity.confidence, entity.value)
     return {key: value for key, (_, value) in values.items()}
 
-
 def _json_cell(value: Any) -> str:
     if value is None:
         return ""
     return json.dumps(value, sort_keys=True)
 
-
 def export_simple_workspace(
-    docs: List["Document"],
-    results: List["PipelineResult"],
+    docs: list["Document"],
+    results: list["PipelineResult"],
     output_dir: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     root = Path(output_dir)
     raw_root = root / "raw_categorized"
     text_root = root / "text_extracted"

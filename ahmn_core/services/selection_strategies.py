@@ -6,11 +6,11 @@ Implements multiple baseline algorithms for comparison with Thompson Sampling:
 - Upper Confidence Bound (UCB1)
 - Epsilon-Greedy with decay
 """
-import random
 import math
-from typing import List, Tuple
+import random
 from dataclasses import dataclass
 
+import numpy as np
 
 @dataclass
 class BanditArm:
@@ -32,26 +32,24 @@ class BanditArm:
         """Total accumulated reward."""
         return self.alpha - 1.0  # Subtract initial prior
 
-
 class SelectionStrategy:
     """Base class for selection strategies."""
     
     def __init__(self, name: str):
         self.name = name
     
-    def select(self, arms: List[BanditArm], total_rounds: int) -> Tuple[BanditArm, float]:
+    def select(self, arms: list[BanditArm], total_rounds: int) -> tuple[BanditArm, float]:
         """
         Select an arm and return it with the selection score.
-        
+
         Args:
             arms: List of available bandit arms
             total_rounds: Total number of rounds played so far
-            
+
         Returns:
             Tuple of (selected_arm, selection_score)
         """
         raise NotImplementedError
-
 
 class ThompsonSamplingStrategy(SelectionStrategy):
     """
@@ -67,23 +65,21 @@ class ThompsonSamplingStrategy(SelectionStrategy):
     def __init__(self):
         super().__init__("Thompson Sampling")
     
-    def select(self, arms: List[BanditArm], total_rounds: int) -> Tuple[BanditArm, float]:
+    def select(self, arms: list[BanditArm], total_rounds: int) -> tuple[BanditArm, float]:
         if not arms:
             raise ValueError("Cannot select from empty arms list")
-        
+
         best_sample = -1.0
-        best_arm = arms[0]  # Initialize with first arm
-        
+        best_arm = arms[0]
+
         for arm in arms:
-            # Sample from Beta distribution
-            sample = random.betavariate(arm.alpha, arm.beta)
-            
+            # Sample from Beta distribution (use numpy for consistency with RABI)
+            sample = np.random.beta(arm.alpha, arm.beta)
             if sample > best_sample:
                 best_sample = sample
                 best_arm = arm
-        
-        return best_arm, best_sample
 
+        return best_arm, best_sample
 
 class UCB1Strategy(SelectionStrategy):
     """
@@ -108,30 +104,28 @@ class UCB1Strategy(SelectionStrategy):
         super().__init__("UCB1")
         self.c = c
     
-    def select(self, arms: List[BanditArm], total_rounds: int) -> Tuple[BanditArm, float]:
+    def select(self, arms: list[BanditArm], total_rounds: int) -> tuple[BanditArm, float]:
         if not arms:
             raise ValueError("Cannot select from empty arms list")
-        
+
         # Ensure all arms have been pulled at least once
         for arm in arms:
             if arm.pulls == 0:
-                return arm, float('inf')
-        
+                return arm, float("inf")
+
         best_ucb = -1.0
-        best_arm = arms[0]  # Initialize with first arm
-        
+        best_arm = arms[0]
+
         for arm in arms:
             # UCB formula: mean + sqrt(c * ln(t) / n)
             exploitation = arm.mean_reward
             exploration = math.sqrt(self.c * math.log(max(1, total_rounds)) / max(1, arm.pulls))
             ucb = exploitation + exploration
-            
             if ucb > best_ucb:
                 best_ucb = ucb
                 best_arm = arm
-        
-        return best_arm, best_ucb
 
+        return best_arm, best_ucb
 
 class EpsilonGreedyStrategy(SelectionStrategy):
     """
@@ -157,19 +151,17 @@ class EpsilonGreedyStrategy(SelectionStrategy):
         self.decay_rate = decay_rate
         self.epsilon_min = epsilon_min
     
-    def select(self, arms: List[BanditArm], total_rounds: int) -> Tuple[BanditArm, float]:
+    def select(self, arms: list[BanditArm], total_rounds: int) -> tuple[BanditArm, float]:
         # Compute current epsilon with decay
         epsilon = max(self.epsilon_min, self.epsilon_0 * math.exp(-self.decay_rate * total_rounds))
-        
+
         if random.random() < epsilon:
             # Explore: random selection
-            selected_arm = random.choice(arms)
-            return selected_arm, epsilon  # Return epsilon as the "score"
+            return random.choice(arms), epsilon
         else:
             # Exploit: select arm with highest mean reward
             best_arm = max(arms, key=lambda a: a.mean_reward)
             return best_arm, best_arm.mean_reward
-
 
 class RandomStrategy(SelectionStrategy):
     """
@@ -182,10 +174,8 @@ class RandomStrategy(SelectionStrategy):
     def __init__(self):
         super().__init__("Random")
     
-    def select(self, arms: List[BanditArm], total_rounds: int) -> Tuple[BanditArm, float]:
-        selected_arm = random.choice(arms)
-        return selected_arm, 0.0  # No meaningful score for random
-
+    def select(self, arms: list[BanditArm], total_rounds: int) -> tuple[BanditArm, float]:
+        return random.choice(arms), 0.0
 
 def get_strategy(strategy_name: str) -> SelectionStrategy:
     """

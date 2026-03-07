@@ -28,14 +28,12 @@ from guardrails.core.validation import (
     check_faithfulness,
 )
 
-
 # ═══════════════════════════════════════════════════════════════
 # Helpers
 # ═══════════════════════════════════════════════════════════════
 
 def _ctx(doc_type: str = "Invoice", vendor: str | None = None) -> GuardrailDocumentContext:
     return GuardrailDocumentContext(doc_type=DocumentType(doc_type), vendor=vendor, quality_bin=None)  # type: ignore[call-arg]
-
 
 def _rag(doc_type: str, answer: dict, sources: list[str] | None = None, vendor: str | None = None) -> RAGInput:
     return RAGInput(
@@ -45,7 +43,6 @@ def _rag(doc_type: str, answer: dict, sources: list[str] | None = None, vendor: 
         source_contexts=sources or ["source text"],
         document_id="test-001",
     )
-
 
 # ═══════════════════════════════════════════════════════════════
 # 1. Schema Adherence
@@ -60,7 +57,6 @@ async def test_schema_adherence_valid_invoice():
     assert result.is_pass
     assert result.score == 1.0
 
-
 @pytest.mark.asyncio
 async def test_schema_adherence_missing_field():
     result = await check_schema_adherence(
@@ -70,13 +66,11 @@ async def test_schema_adherence_missing_field():
     assert not result.is_pass
     assert result.score == 0.0
 
-
 @pytest.mark.asyncio
 async def test_schema_adherence_unknown_type():
     result = await check_schema_adherence('{"key": "val"}', "UnknownType")
     assert not result.is_pass
     assert "Unknown doc_type" in result.details
-
 
 # ═══════════════════════════════════════════════════════════════
 # 2. Internal Consistency
@@ -88,7 +82,6 @@ def test_consistency_invoice_math_correct():
     result = check_internal_consistency(data, _ctx("Invoice"))
     assert result.is_pass
 
-
 def test_consistency_invoice_math_wrong():
     from guardrails.models import Invoice
     data = Invoice(customer_name="A", subtotal=100, tax=10, total=120)
@@ -96,13 +89,11 @@ def test_consistency_invoice_math_wrong():
     assert not result.is_pass
     assert "does not match" in result.details
 
-
 def test_consistency_invoice_negative_total():
     from guardrails.models import Invoice
     data = Invoice(customer_name="A", subtotal=100, tax=10, total=-5)
     result = check_internal_consistency(data, _ctx("Invoice"))
     assert not result.is_pass
-
 
 def test_consistency_medication_zero_dosage():
     from guardrails.models import MedicationDosage
@@ -111,14 +102,12 @@ def test_consistency_medication_zero_dosage():
     assert not result.is_pass
     assert "dosage_mg" in result.details
 
-
 def test_consistency_receipt_empty_merchant():
     from guardrails.models import Receipt
     data = Receipt(merchant="   ", total=50, date="2025-01-01", items=["ItemA"])
     result = check_internal_consistency(data, _ctx("Receipt"))
     assert not result.is_pass
     assert "merchant" in result.details
-
 
 # ═══════════════════════════════════════════════════════════════
 # 3. Domain Rules
@@ -131,7 +120,6 @@ def test_domain_rules_implausible_tax():
     assert not result.is_pass
     assert "tax rate" in result.details.lower()
 
-
 def test_domain_rules_suspicious_keyword():
     from guardrails.models import Invoice
     data = Invoice(customer_name="Test Customer", subtotal=100, tax=10, total=110)
@@ -139,20 +127,17 @@ def test_domain_rules_suspicious_keyword():
     assert not result.is_pass
     assert "Suspicious keyword" in result.details
 
-
 def test_domain_rules_clean_invoice():
     from guardrails.models import Invoice
     data = Invoice(customer_name="Real Corp", subtotal=100, tax=15, total=115)
     result = check_domain_rules(data, _ctx("Invoice"))
     assert result.is_pass
 
-
 def test_domain_rules_vendor_in_customer():
     from guardrails.models import Invoice
     data = Invoice(customer_name="ABC Supplies Ltd", subtotal=100, tax=10, total=110)
     result = check_domain_rules(data, _ctx("Invoice", vendor="ABC Supplies"))
     assert not result.is_pass
-
 
 # ═══════════════════════════════════════════════════════════════
 # 4. PII Leakage
@@ -162,11 +147,9 @@ def test_pii_no_leakage():
     result = check_pii_leakage('{"total": 100, "tax": 10}', "Invoice")
     assert result.is_pass
 
-
 def test_pii_medical_allowed():
     result = check_pii_leakage('{"patient_name": "John Doe", "condition": "Stable"}', "ClinicalSummary")
     assert result.is_pass
-
 
 # ═══════════════════════════════════════════════════════════════
 # 5. Ensemble Integration
@@ -183,7 +166,6 @@ async def test_ensemble_good_clinical():
     assert len(results) >= 3
     schema = next(r for r in results if r.name == "schema_adherence")
     assert schema.is_pass
-
 
 @pytest.mark.asyncio
 async def test_ensemble_bad_invoice_math():

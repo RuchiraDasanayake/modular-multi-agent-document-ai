@@ -2,7 +2,7 @@
 
 export default function ArchitecturePage() {
     return (
-        <div className="max-w-5xl mx-auto space-y-8">
+        <div className="max-w-5xl 3xl:max-w-6xl mx-auto space-y-8">
             <div>
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-white">System Architecture</h1>
                 <p className="text-slate-500 dark:text-gray-500 mt-1">Document processing lifecycle and component breakdown</p>

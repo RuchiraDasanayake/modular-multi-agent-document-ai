@@ -1,7 +1,0 @@
-{
-  "input_dir": "data/demo_inputs",
-  "run_dir": "runs/demo_downloads",
-  "excel_out": "runs/demo_downloads/entities.xlsx",
-  "config_path": "configs/sample_config.json",
-  "policy_store_path": "configs/policy_store.json"
-}

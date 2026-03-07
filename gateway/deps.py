@@ -11,10 +11,8 @@ from .auth_service import verify_token
 
 security = HTTPBearer()
 
-
 async def get_db(conn=Depends(get_db_connection)) -> AsyncConnection:
     return conn
-
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -27,10 +25,16 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
         )
 
+    user_id = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload"
+        )
+
     async with db.cursor() as cur:
         await cur.execute(
             "SELECT id, email, username, role, is_active FROM users WHERE id = %s",
-            (payload["sub"],),
+            (user_id,),
         )
         row = await cur.fetchone()
 
@@ -40,8 +44,7 @@ async def get_current_user(
             detail="User not found or inactive",
         )
 
-    return {"id": str(row[0]), "email": row[1], "username": row[2], "role": row[3]}
-
+    return {"id": str(row[0]), "email": row[1], "username": row[2], "role": row[3], "is_active": row[4]}
 
 async def require_admin(user: dict = Depends(get_current_user)) -> dict:
     if user["role"] != "admin":

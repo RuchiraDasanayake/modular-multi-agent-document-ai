@@ -1,10 +1,13 @@
+"""Pipeline configuration dataclasses and JSON loader."""
+
 from __future__ import annotations
 
 import json
+import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional
-
+from typing import Any
 
 @dataclass
 class PreprocessingConfig:
@@ -20,14 +23,13 @@ class PreprocessingConfig:
     denoise: bool = True
     table_mode: str = "heuristic"
     max_retries: int = 2
-
+    recovery_confidence: float = 0.6
 
 @dataclass
 class ChunkingConfig:
     chunk_size: int = 350
     chunk_overlap: int = 60
     max_chunks: int = 128
-
 
 @dataclass
 class RetrievalConfig:
@@ -37,13 +39,11 @@ class RetrievalConfig:
     mmr_lambda: float = 0.7
     metadata_boost: float = 0.15
 
-
 @dataclass
 class ContextConfig:
     max_tokens: int = 1600
     reserved_tokens: int = 200
     diversity_penalty: float = 0.15
-
 
 @dataclass
 class ValidationConfig:
@@ -51,13 +51,11 @@ class ValidationConfig:
     max_field_errors: int = 3
     rules: list["ValidationRule"] = field(default_factory=list)
 
-
 @dataclass(frozen=True)
 class ExtractionRule:
     key: str
     label: str
     pattern: str
-
 
 @dataclass(frozen=True)
 class ValidationRule:
@@ -66,39 +64,23 @@ class ValidationRule:
     severity: str = "medium"
     normalize: str = "strip"
 
-
 @dataclass
 class StructuringConfig:
     extraction_rules: list[ExtractionRule] = field(default_factory=list)
     allow_generic_kv: bool = True
     heading_max_words: int = 6
 
-
 @dataclass
 class EscalationConfig:
     enabled: bool = True
     max_cost_units: int = 3
     max_escalations_per_run: int = 5
-    max_cost_per_doc: float = 3.0
-    max_cost_per_minute: float = 12.0
-    max_escalations_per_minute: int = 10
-    flagship_model: Optional[str] = None
-    fallback_mode: str = "simulate"
-    estimated_latency_ms_per_field: float = 800.0
-    estimated_cost_per_field: float = 0.5
-
 
 @dataclass
 class RoutingConfig:
     quality_threshold: float = 0.6
     complexity_threshold: float = 0.5
     retry_threshold: float = 0.55
-    light_route_threshold: float = 0.35
-    heavy_route_threshold: float = 0.7
-    table_specialization_threshold: float = 0.2
-    form_specialization_threshold: float = 0.2
-    image_specialization_threshold: float = 0.5
-
 
 @dataclass
 class PlanConfig:
@@ -106,15 +88,12 @@ class PlanConfig:
     default_step_budget_units: float = 1.0
     max_total_budget_units: float = 6.0
 
-
 @dataclass
 class ShadowModeConfig:
     enabled: bool = False
     sample_rate: float = 0.0
     candidate_policy_ids: list[str] = field(default_factory=list)
     max_policies_per_doc: int = 1
-    comparison_file: str = "comparisons.json"
-
 
 @dataclass
 class RollbackConfig:
@@ -123,9 +102,6 @@ class RollbackConfig:
     latency_p95_ms: float = 2500.0
     validation_failure_rate: float = 0.2
     quality_drop_threshold: float = 0.05
-    max_latency_regression_pct: float = 0.2
-    min_validation_pass_delta: float = 0.05
-
 
 @dataclass
 class QueueConfig:
@@ -133,22 +109,16 @@ class QueueConfig:
     max_workers: int = 4
     per_partition_concurrency: int = 1
     partition_keys: list[str] = field(default_factory=lambda: ["doc_type", "vendor_cluster"])
-    fairness_enabled: bool = True
-
 
 @dataclass
 class AHMNConfig:
     enabled: bool = False
-    mode: str = "http"
+    mode: str = "mock"
     objective: str = "min_cost"
     timeout_ms: int = 500
-    endpoint: Optional[str] = None
-    advice_endpoint: str = "/advice"
-    log_endpoint: str = "/log"
-    direct_import: Optional[str] = None
-    policy_override_id: Optional[str] = None
-    action_overrides: Dict[str, Any] = field(default_factory=dict)
-
+    endpoint: str | None = None
+    policy_override_id: str | None = None
+    action_overrides: dict[str, Any] = field(default_factory=dict)
 
 @dataclass
 class CalibrationConfig:
@@ -156,32 +126,16 @@ class CalibrationConfig:
     method: str = "heuristic"
     version: str = "v1"
     temperature: float = 1.0
-    parameters: Dict[str, float] = field(default_factory=dict)
-    model_path: Optional[str] = None
-    mode: str = "heuristic_only"
-
-
-@dataclass
-class BudgetConfig:
-    max_cost_per_doc: float = 6.0
-    max_cost_per_minute: float = 50.0
-    max_latency_per_doc_ms: float = 10000.0
-    max_retries_per_field: int = 2
-    max_total_retries_per_doc: int = 8
-    escalation_quota_per_doc: int = 2
-    escalation_quota_per_minute: int = 10
-
+    parameters: dict[str, float] = field(default_factory=dict)
 
 @dataclass
 class AnsweringConfig:
     min_confidence: float = 0.55
 
-
 @dataclass
 class KnowledgeConfig:
-    policy_store_path: Optional[str] = None
+    policy_store_path: str | None = None
     default_policy_id: str = "default"
-
 
 @dataclass
 class LLMConfig:
@@ -189,7 +143,7 @@ class LLMConfig:
     cloud_model: str = "flagship-llm"
     default_mode: str = "local"
     history_signal_key: str = "llm_mode"
-    history_mode: Optional[str] = None
+    history_mode: str | None = None
     provider: str = "ollama"
     base_url: str = "http://localhost:11434"
     timeout_s: int = 60
@@ -201,8 +155,7 @@ class LLMConfig:
     cloud_max_tokens: int = 2000
     allow_cloud_fallback: bool = True
     openai_api_url: str = "https://api.openai.com/v1"
-    openai_api_key: str = "sk-PLACEHOLDER"
-
+    openai_api_key: str = ""
 
 @dataclass
 class PipelineConfig:
@@ -220,14 +173,12 @@ class PipelineConfig:
     queue: QueueConfig = field(default_factory=QueueConfig)
     ahmn: AHMNConfig = field(default_factory=AHMNConfig)
     calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
-    budget: BudgetConfig = field(default_factory=BudgetConfig)
     answering: AnsweringConfig = field(default_factory=AnsweringConfig)
     knowledge: KnowledgeConfig = field(default_factory=KnowledgeConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
     seed: int = 13
 
-
-def config_from_dict(data: Dict[str, Any]) -> PipelineConfig:
+def config_from_dict(data: dict[str, Any]) -> PipelineConfig:
     def _read(cls, key: str) -> Any:
         payload = data.get(key, {})
         if not payload:
@@ -257,18 +208,6 @@ def config_from_dict(data: Dict[str, Any]) -> PipelineConfig:
                 version=payload.get("version", "v1"),
                 temperature=payload.get("temperature", 1.0),
                 parameters=payload.get("parameters", {}),
-                model_path=payload.get("model_path"),
-                mode=payload.get("mode", "heuristic_only"),
-            )
-        if cls is BudgetConfig:
-            return BudgetConfig(
-                max_cost_per_doc=float(payload.get("max_cost_per_doc", 6.0)),
-                max_cost_per_minute=float(payload.get("max_cost_per_minute", 50.0)),
-                max_latency_per_doc_ms=float(payload.get("max_latency_per_doc_ms", 10000.0)),
-                max_retries_per_field=int(payload.get("max_retries_per_field", 2)),
-                max_total_retries_per_doc=int(payload.get("max_total_retries_per_doc", 8)),
-                escalation_quota_per_doc=int(payload.get("escalation_quota_per_doc", 2)),
-                escalation_quota_per_minute=int(payload.get("escalation_quota_per_minute", 10)),
             )
         return cls(**payload)
 
@@ -287,18 +226,30 @@ def config_from_dict(data: Dict[str, Any]) -> PipelineConfig:
         queue=_read(QueueConfig, "queue"),
         ahmn=_read(AHMNConfig, "ahmn"),
         calibration=_read(CalibrationConfig, "calibration"),
-        budget=_read(BudgetConfig, "budget"),
         answering=_read(AnsweringConfig, "answering"),
         knowledge=_read(KnowledgeConfig, "knowledge"),
         llm=_read(LLMConfig, "llm"),
         seed=data.get("seed", 13),
     )
 
+def _resolve_env_vars(data: Any) -> Any:
+    """Recursively resolve ${ENV_VAR} references in config values."""
+    if isinstance(data, str):
+        def _replace(match: re.Match) -> str:
+            var_name = match.group(1)
+            return os.environ.get(var_name, "")
+        return re.sub(r"\$\{([^}]+)\}", _replace, data)
+    if isinstance(data, dict):
+        return {key: _resolve_env_vars(value) for key, value in data.items()}
+    if isinstance(data, list):
+        return [_resolve_env_vars(item) for item in data]
+    return data
 
-def load_config(path: Optional[str] = None) -> PipelineConfig:
+def load_config(path: str | None = None) -> PipelineConfig:
     if not path:
         return PipelineConfig()
 
     cfg_path = Path(path)
     data = json.loads(cfg_path.read_text(encoding="utf-8"))
+    data = _resolve_env_vars(data)
     return config_from_dict(data)

@@ -29,9 +29,8 @@ Author: AHMN Research Team
 
 import math
 import numpy as np
-from typing import List, Tuple, Optional, Dict
-from dataclasses import dataclass
 
+from dataclasses import dataclass
 
 @dataclass
 class RABIPrior:
@@ -59,7 +58,6 @@ class RABIPrior:
         """Effective sample size from prior."""
         return self.alpha + self.beta - 2
 
-
 @dataclass  
 class NeighborInfo:
     """Information about a neighbor used in RABI."""
@@ -74,7 +72,6 @@ class NeighborInfo:
     def mean_reward(self) -> float:
         """Neighbor's estimated mean reward."""
         return self.alpha / (self.alpha + self.beta)
-
 
 class RABIInitializer:
     """
@@ -109,7 +106,7 @@ class RABIInitializer:
         self.min_samples_for_transfer = min_samples_for_transfer
         self.max_transfer_strength = max_transfer_strength
     
-    def compute_weights(self, similarities: List[float]) -> List[float]:
+    def compute_weights(self, similarities: list[float]) -> list[float]:
         """
         Compute normalized softmax weights.
         
@@ -126,7 +123,7 @@ class RABIInitializer:
         
         return [e / total for e in exp_scaled] if total > 0 else [1/len(similarities)] * len(similarities)
     
-    def initialize_prior(self, neighbors: List[NeighborInfo]) -> RABIPrior:
+    def initialize_prior(self, neighbors: list[NeighborInfo]) -> RABIPrior:
         """
         Initialize prior from k-nearest neighbors.
         
@@ -197,7 +194,6 @@ class RABIInitializer:
         """Uncertainty in prediction."""
         return prior.variance
 
-
 class RABIThompsonSampling:
     """
     Thompson Sampling with RABI initialization.
@@ -210,16 +206,16 @@ class RABIThompsonSampling:
     
     def __init__(
         self,
-        rabi: Optional[RABIInitializer] = None,
+        rabi: RABIInitializer | None = None,
         decay_transfer: bool = True,
         decay_rate: float = 0.05
     ):
         self.rabi = rabi or RABIInitializer()
         self.decay_transfer = decay_transfer
         self.decay_rate = decay_rate
-        self.arms: Dict[str, Dict] = {}
+        self.arms: dict[str, dict] = {}
     
-    def initialize_arm(self, arm_id: str, neighbors: List[NeighborInfo]) -> RABIPrior:
+    def initialize_arm(self, arm_id: str, neighbors: list[NeighborInfo]) -> RABIPrior:
         """Initialize new arm using RABI."""
         prior = self.rabi.initialize_prior(neighbors)
         
@@ -233,7 +229,7 @@ class RABIThompsonSampling:
         }
         return prior
     
-    def select(self, arm_ids: List[str]) -> Tuple[str, float]:
+    def select(self, arm_ids: list[str]) -> tuple[str, float]:
         """Thompson Sampling selection."""
         best_sample = -1.0
         best_arm = arm_ids[0]
@@ -273,10 +269,13 @@ class RABIThompsonSampling:
         # Decay transferred knowledge
         if self.decay_transfer and arm["transferred_alpha"] > 0:
             decay = (1 - self.decay_rate) ** arm["pulls"]
+            prev_decay = (1 - self.decay_rate) ** max(0, arm["pulls"] - 1) if arm["pulls"] > 0 else 1.0
             
-            # Recompute with decayed transfer
-            own_successes = arm["alpha"] - 1.0 - arm["transferred_alpha"]
-            own_failures = arm["beta"] - 1.0 - arm["transferred_beta"]
+            # Use the *previously decayed* transfer to compute own observations
+            prev_decayed_alpha = arm["transferred_alpha"] * prev_decay
+            prev_decayed_beta = arm["transferred_beta"] * prev_decay
+            own_successes = arm["alpha"] - 1.0 - prev_decayed_alpha
+            own_failures = arm["beta"] - 1.0 - prev_decayed_beta
             
             decayed_transfer_alpha = arm["transferred_alpha"] * decay
             decayed_transfer_beta = arm["transferred_beta"] * decay
@@ -289,7 +288,7 @@ class RABIThompsonSampling:
         arm["beta"] += (1 - reward)
         arm["pulls"] += 1
     
-    def get_arm_stats(self, arm_id: str) -> Optional[Dict]:
+    def get_arm_stats(self, arm_id: str) -> dict | None:
         """Get arm statistics."""
         if arm_id not in self.arms:
             return None
@@ -304,7 +303,6 @@ class RABIThompsonSampling:
             "transferred": arm["transferred_alpha"] + arm["transferred_beta"],
             "rabi_confidence": arm["rabi_prior"].confidence if arm["rabi_prior"] else 0.0
         }
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PRODUCTION FACTORY

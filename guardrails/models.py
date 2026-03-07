@@ -9,12 +9,11 @@ Author: Wijetunga W.L.A.T.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
-
 
 # ═══════════════════════════════════════════════════════════════
 # Document Types
@@ -29,7 +28,7 @@ class DocumentType(str, Enum):
     BANK_STATEMENT = "BankStatement"
     PURCHASE_ORDER = "PurchaseOrder"
     RECEIPT = "Receipt"
-
+    GENERIC = "Generic"
 
 # ═══════════════════════════════════════════════════════════════
 # Document-Type Pydantic Schemas (for Schema Adherence check)
@@ -41,51 +40,55 @@ class ClinicalSummary(BaseModel):
     summary: str
     next_steps: str
 
-
 class MedicationDosage(BaseModel):
     medication: str
     dosage_mg: int
     frequency: str
     reason: str
 
-
 class Invoice(BaseModel):
-    customer_name: str
-    subtotal: float
-    tax: float
-    total: float
-
+    """Flexible invoice schema — extracted fields may use varying names and string values."""
+    model_config = {"extra": "allow"}
+    invoice_number: str | None = None
+    customer_name: str | None = None
+    date: str | None = None
+    subtotal: Any | None = None
+    tax: Any | None = None
+    total: Any | None = None
+    total_due: Any | None = None
+    total_amount: Any | None = None
 
 class BankStatement(BaseModel):
-    account_holder: str
-    bank_name: str
-    account_number: str
-    balance: float
-    transactions: List[Dict[str, Any]]
-
+    model_config = {"extra": "allow"}
+    account_holder: str | None = None
+    bank_name: str | None = None
+    account_number: str | None = None
+    balance: Any | None = None
 
 class PurchaseOrder(BaseModel):
-    po_number: str
-    supplier: str
-    total_amount: float
-    items: List[Dict[str, Any]]
-
+    model_config = {"extra": "allow"}
+    po_number: str | None = None
+    supplier: str | None = None
+    total_amount: Any | None = None
 
 class Receipt(BaseModel):
-    merchant: str
-    total: float
-    date: str
-    items: List[str]
-
+    model_config = {"extra": "allow"}
+    merchant: str | None = None
+    total: Any | None = None
+    date: str | None = None
 
 class InsuranceClaim(BaseModel):
-    policy_number: str
-    claimant_name: str
-    claim_amount: float
-    status: str
+    model_config = {"extra": "allow"}
+    policy_number: str | None = None
+    claimant_name: str | None = None
+    claim_amount: Any | None = None
+    status: str | None = None
 
+class Generic(BaseModel):
+    """Generic catch-all document type — allows any fields."""
+    model_config = {"extra": "allow"}
 
-SCHEMA_MAP: Dict[str, type[BaseModel]] = {
+SCHEMA_MAP: dict[str, type[BaseModel]] = {
     "ClinicalSummary": ClinicalSummary,
     "MedicationDosage": MedicationDosage,
     "Invoice": Invoice,
@@ -93,8 +96,8 @@ SCHEMA_MAP: Dict[str, type[BaseModel]] = {
     "PurchaseOrder": PurchaseOrder,
     "Receipt": Receipt,
     "InsuranceClaim": InsuranceClaim,
+    "Generic": Generic,
 }
-
 
 # ═══════════════════════════════════════════════════════════════
 # Input / Output Contracts
@@ -103,18 +106,16 @@ SCHEMA_MAP: Dict[str, type[BaseModel]] = {
 class GuardrailDocumentContext(BaseModel):
     """Metadata from IDPO about the document being validated."""
     doc_type: DocumentType = Field(..., description="The type of document.")
-    vendor: Optional[str] = Field(None, description="Vendor or source name for domain-rule matching.")
-    quality_bin: Optional[str] = Field(None, description="OCR quality hint (high/medium/low).")
-
+    vendor: str | None = Field(None, description="Vendor or source name for domain-rule matching.")
+    quality_bin: str | None = Field(None, description="OCR quality hint (high/medium/low).")
 
 class RAGInput(BaseModel):
     """Input contract from IDPO — the payload we validate."""
     document_context: GuardrailDocumentContext
     query: str = Field(..., description="The original user query or prompt.")
     answer_json: str = Field(..., description="Extracted data as JSON string (this is what we validate).")
-    source_contexts: List[str] = Field(..., description="Retrieved source text chunks (for faithfulness check).")
-    document_id: Optional[str] = Field(None, description="Unique document identifier for traceability.")
-
+    source_contexts: list[str] = Field(..., description="Retrieved source text chunks (for faithfulness check).")
+    document_id: str | None = Field(None, description="Unique document identifier for traceability.")
 
 class ValidationMetric(BaseModel):
     """Result of a single guardrail check."""
@@ -122,16 +123,15 @@ class ValidationMetric(BaseModel):
     score: float = Field(..., description="Numeric score (0.0 = fail, 1.0 = pass, 0.5 = suspicious).")
     is_pass: bool = Field(..., description="Whether the check passed.")
     details: str = Field(..., description="Human-readable explanation.")
-    timestamp: datetime = Field(default_factory=datetime.now)
-
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class GuardrailOutput(BaseModel):
     """Final response — sent back to IDPO / dashboard."""
     rag_input: RAGInput
-    validation_results: List[ValidationMetric]
+    validation_results: list[ValidationMetric]
     overall_passes: bool = Field(..., description="True only if ALL checks passed.")
     audit_log_id: str
     processing_time_ms: float
-    timestamp: datetime = Field(default_factory=datetime.now)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     advice_id: str
-    metrics: Dict[str, Any] = Field(default_factory=dict)
+    metrics: dict[str, Any] = Field(default_factory=dict)

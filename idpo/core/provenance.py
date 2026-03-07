@@ -1,3 +1,5 @@
+"""Provenance tracking and audit trail for pipeline events."""
+
 from __future__ import annotations
 
 import json
@@ -6,8 +8,7 @@ import uuid
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-
+from typing import Any
 
 @dataclass(frozen=True)
 class ProvenanceEvent:
@@ -16,29 +17,27 @@ class ProvenanceEvent:
     event_type: str
     agent: str
     version: str
-    inputs: Dict[str, Any]
-    outputs: Dict[str, Any]
-    parameters: Dict[str, Any]
+    inputs: dict[str, Any]
+    outputs: dict[str, Any]
+    parameters: dict[str, Any]
     latency_ms: float
     cost_units: float
-    artifacts: List[str] = field(default_factory=list)
-
+    artifacts: list[str] = field(default_factory=list)
 
 @dataclass
 class ProvenanceGraph:
-    nodes: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    edges: List[Dict[str, Any]] = field(default_factory=list)
+    nodes: dict[str, dict[str, Any]] = field(default_factory=dict)
+    edges: list[dict[str, Any]] = field(default_factory=list)
 
-    def add_node(self, node_id: str, node_type: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+    def add_node(self, node_id: str, node_type: str, metadata: dict[str, Any] | None = None) -> None:
         if node_id not in self.nodes:
             self.nodes[node_id] = {"id": node_id, "type": node_type, "metadata": metadata or {}}
 
     def add_edge(self, source: str, target: str, edge_type: str) -> None:
         self.edges.append({"source": source, "target": target, "type": edge_type})
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"nodes": list(self.nodes.values()), "edges": self.edges}
-
 
 class ProvenanceRecorder:
     def __init__(self, path: str) -> None:
@@ -52,10 +51,10 @@ class ProvenanceRecorder:
         self,
         agent: str,
         version: str,
-        inputs: Dict[str, Any],
-        outputs: Dict[str, Any],
-        parameters: Dict[str, Any],
-        artifacts: Optional[List[str]] = None,
+        inputs: dict[str, Any],
+        outputs: dict[str, Any],
+        parameters: dict[str, Any],
+        artifacts: list[str] | None = None,
         latency_ms: float = 0.0,
         cost_units: float = 0.0,
         event_type: str = "OperatorExecution",
@@ -80,7 +79,7 @@ class ProvenanceRecorder:
             self._persist_graph()
         return event
 
-    def register_chunks(self, doc_id: str, chunks: List[Dict[str, Any]]) -> None:
+    def register_chunks(self, doc_id: str, chunks: list[dict[str, Any]]) -> None:
         with self._lock:
             for chunk in chunks:
                 node_id = f"chunk:{chunk['chunk_id']}"
@@ -163,7 +162,6 @@ class ProvenanceRecorder:
 
     def _persist_graph(self) -> None:
         self.graph_path.write_text(json.dumps(self.graph.to_dict(), indent=2), encoding="utf-8")
-
 
 def export_provenance(path: str, out_path: str) -> None:
     events = []

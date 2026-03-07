@@ -3,12 +3,13 @@ services:
   db:
     image: pgvector/pgvector:pg16
     container_name: docai_postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
       POSTGRES_DB: ${POSTGRES_DB:-ahmn_db}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
       - postgres_data:/var/lib/postgresql/data
@@ -17,18 +18,46 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
 
   # ── Cache ──
   redis:
     image: redis:alpine
     container_name: docai_redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-docai_redis_secret} --appendonly yes
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-docai_redis_secret}", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
 
   # ── AHMN Service (port 8001) ──
   ahmn:
@@ -36,18 +65,40 @@ services:
       context: .
       dockerfile: ahmn_core/Dockerfile
     container_name: docai_ahmn
+    restart: unless-stopped
     env_file:
       - path: .env
         required: false
     environment:
       POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-ahmn_db}
       REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-docai_redis_secret}
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # Internal only — not exposed to host
+    volumes:
+      - ./ahmn_core/output:/app/ahmn_core/output
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health')\""]
+      interval: 10s
+      timeout: 10s
+      retries: 8
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
+      - external  # Needs internet for HuggingFace model downloads
 
   # ── Guardrails Service (port 8002) ──
   guardrails:
@@ -55,10 +106,34 @@ services:
       context: .
       dockerfile: guardrails/Dockerfile
     container_name: docai_guardrails
+    restart: unless-stopped
     env_file:
       - path: .env
         required: false
-    # Stateless — no DB dependency
+    environment:
+      POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-ahmn_db}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8002/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
+      - external  # Needs internet for HuggingFace model downloads
 
   # ── XAI-HITL Service (port 8003) ──
   xai-hitl:
@@ -66,10 +141,34 @@ services:
       context: .
       dockerfile: xai_hitl/Dockerfile
     container_name: docai_xai_hitl
+    restart: unless-stopped
     env_file:
       - path: .env
         required: false
-    # Stateless — no DB dependency
+    environment:
+      POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-ahmn_db}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8003/health')\""]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 180s
+    deploy:
+      resources:
+        limits:
+          memory: 2048m  # Increased for RoBERTa-base-squad2 (larger model)
+          cpus: "1.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
+      - external  # Needs internet for HuggingFace model downloads
 
   # ── IDPO Service (port 8004) ──
   idpo:
@@ -77,14 +176,43 @@ services:
       context: .
       dockerfile: idpo/Dockerfile
     container_name: docai_idpo
+    restart: unless-stopped
     env_file:
       - path: .env
         required: false
+    environment:
+      AHMN_SERVICE_URL: http://ahmn:8001
+      GUARDRAILS_SERVICE_URL: http://guardrails:8002
+      XAI_HITL_SERVICE_URL: http://xai-hitl:8003
     volumes:
-      - ./configs:/app/configs
+      - ./configs:/app/configs:ro
       - ./inputs:/app/inputs
       - ./runs:/app/runs
-    # Stateless — no DB dependency
+    depends_on:
+      ahmn:
+        condition: service_healthy
+      guardrails:
+        condition: service_healthy
+      xai-hitl:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8004/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
 
   # ── API Gateway (port 8000) ──
   gateway:
@@ -92,28 +220,51 @@ services:
       context: .
       dockerfile: gateway/Dockerfile
     container_name: docai_gateway
+    restart: unless-stopped
     env_file:
       - path: .env
         required: false
     environment:
       POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-ahmn_db}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-docai_redis_secret}@redis:6379/1
       AHMN_SERVICE_URL: http://ahmn:8001
       GUARDRAILS_SERVICE_URL: http://guardrails:8002
       XAI_HITL_SERVICE_URL: http://xai-hitl:8003
       IDPO_SERVICE_URL: http://idpo:8004
     ports:
-      - "${GATEWAY_PORT:-8000}:8000"
+      - "127.0.0.1:${GATEWAY_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       ahmn:
-        condition: service_started
+        condition: service_healthy
       guardrails:
-        condition: service_started
+        condition: service_healthy
       xai-hitl:
-        condition: service_started
+        condition: service_healthy
       idpo:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
+      - external
 
   # ── Frontend (port 3000) ──
   frontend:
@@ -122,14 +273,42 @@ services:
       args:
         - NEXT_PUBLIC_API_URL=http://localhost:8000
     container_name: docai_frontend
+    restart: unless-stopped
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
       - INTERNAL_API_URL=http://gateway:8000
       - HOSTNAME=0.0.0.0
     ports:
-      - "3000:3000"
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
     depends_on:
-      - gateway
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000',(r)=>{process.exit(r.statusCode<400?0:1)}).on('error',()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - external
+
+networks:
+  internal:
+    driver: bridge
+    internal: true          # No internet access — services talk only to each other
+  external:
+    driver: bridge          # Frontend + Gateway face the host
 
 volumes:
   postgres_data:
+  redis_data:

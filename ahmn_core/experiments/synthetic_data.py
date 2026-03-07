@@ -15,15 +15,12 @@ Design Decisions:
 
 import numpy as np
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
-
 
 @dataclass
 class PolicyConfig:
     """True (hidden) reward parameters for one policy on one vendor."""
     true_mean: float       # True expected reward (F1 score)
     noise_std: float       # Noise around true mean (within-trial variance)
-
 
 @dataclass
 class VendorProfile:
@@ -34,7 +31,7 @@ class VendorProfile:
     """
     vendor_id: str
     doc_type: str
-    policies: Dict[str, PolicyConfig]  # policy_id -> true reward config
+    policies: dict[str, PolicyConfig]  # policy_id -> true reward config
     embedding: np.ndarray              # synthetic embedding for similarity
     appears_at_round: int = 0          # When this vendor first appears (cold-start)
     weight: float = 1.0                # Sampling weight (higher = more frequent)
@@ -55,14 +52,12 @@ class VendorProfile:
         reward = rng.normal(cfg.true_mean, cfg.noise_std)
         return float(np.clip(reward, 0.0, 1.0))
 
-
 @dataclass
 class DriftEvent:
     """Specifies a change in a vendor's true reward landscape."""
     vendor_id: str
     at_round: int
-    new_policies: Dict[str, PolicyConfig]  # Replacement reward configs
-
+    new_policies: dict[str, PolicyConfig]  # Replacement reward configs
 
 @dataclass
 class Scenario:
@@ -73,15 +68,14 @@ class Scenario:
     """
     name: str
     description: str
-    vendors: List[VendorProfile]
-    policy_ids: List[str]
+    vendors: list[VendorProfile]
+    policy_ids: list[str]
     n_rounds: int
-    drift_events: List[DriftEvent] = field(default_factory=list)
+    drift_events: list[DriftEvent] = field(default_factory=list)
     
-    def get_active_vendors(self, round_num: int) -> List[VendorProfile]:
+    def get_active_vendors(self, round_num: int) -> list[VendorProfile]:
         """Vendors available at this round (for cold-start simulation)."""
         return [v for v in self.vendors if v.appears_at_round <= round_num]
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # EMBEDDING UTILITIES
@@ -89,12 +83,10 @@ class Scenario:
 
 DIM = 32  # Synthetic embedding dimension
 
-
 def _unit_vec(v: np.ndarray) -> np.ndarray:
     """Normalize to unit vector."""
     n = np.linalg.norm(v)
     return v / max(n, 1e-10)
-
 
 def _make_cluster_embedding(cluster_id: int, within_id: int,
                             spread: float = 0.15) -> np.ndarray:
@@ -114,16 +106,13 @@ def _make_cluster_embedding(cluster_id: int, within_id: int,
     
     return _unit_vec(base + noise)
 
-
 def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     """Cosine similarity between two vectors."""
     dot = np.dot(a, b)
     norm = np.linalg.norm(a) * np.linalg.norm(b)
     return float(dot / max(norm, 1e-10))
 
-
 POLICY_IDS = ["ocr_tesseract", "ocr_easyocr", "ocr_azure_cv"]
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SCENARIO 1: STATIONARY (baseline)
@@ -182,7 +171,6 @@ def create_stationary_scenario(n_rounds: int = 1000) -> Scenario:
         policy_ids=POLICY_IDS,
         n_rounds=n_rounds,
     )
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SCENARIO 2: COLD-START (highlights RABI)
@@ -307,7 +295,6 @@ def create_cold_start_scenario(n_rounds: int = 1500) -> Scenario:
         n_rounds=n_rounds,
     )
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # SCENARIO 3: CONCEPT DRIFT (highlights DAAF)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -377,7 +364,6 @@ def create_drift_scenario(n_rounds: int = 1500) -> Scenario:
         n_rounds=n_rounds,
         drift_events=drift_events,
     )
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SCENARIO 4: COMBINED (full AHMN system test)
@@ -471,8 +457,7 @@ def create_combined_scenario(n_rounds: int = 2000) -> Scenario:
         drift_events=drift_events,
     )
 
-
-def get_all_scenarios() -> List[Scenario]:
+def get_all_scenarios() -> list[Scenario]:
     """Return all predefined experimental scenarios."""
     return [
         create_stationary_scenario(),

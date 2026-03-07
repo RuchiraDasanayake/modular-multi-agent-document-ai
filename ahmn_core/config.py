@@ -1,13 +1,9 @@
-"""
-AHMN Research Configuration — All hyperparameters with scientific justifications.
-This is the pure algorithm config. Server config lives in backend/app/config.py.
-"""
+"""AHMN configuration with research-grounded hyperparameters."""
 
-from typing import Dict, Any
+import logging
+from typing import Any
 
-
-# ==================== AHMN Research Configuration ====================
-# All hyperparameters documented with scientific justifications
+logger = logging.getLogger(__name__)
 
 class AHMNConfig:
     """Adaptive Hierarchical Memory Network Configuration."""
@@ -178,7 +174,7 @@ class AHMNConfig:
     """
     
     @classmethod
-    def to_dict(cls) -> Dict[str, Any]:
+    def to_dict(cls) -> dict[str, Any]:
         """Export configuration as dictionary."""
         return {
             key: value for key, value in cls.__dict__.items()
@@ -187,11 +183,11 @@ class AHMNConfig:
     
     @classmethod
     def print_summary(cls):
-        """Print configuration summary."""
-        print("=" * 60)
-        print("AHMN Configuration Summary")
-        print("=" * 60)
+        """Log configuration summary."""
+        logger.info("=" * 60)
+        logger.info("AHMN Configuration Summary")
+        logger.info("=" * 60)
         config = cls.to_dict()
         for key, value in config.items():
-            print(f"{key:30s} = {value}")
-        print("=" * 60)
+            logger.info(f"{key:30s} = {value}")
+        logger.info("=" * 60)

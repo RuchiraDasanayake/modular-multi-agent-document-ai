@@ -4,6 +4,19 @@ export interface User {
   username: string;
   role: "admin" | "viewer";
   is_active: boolean;
+  created_at?: string;
+}
+
+export interface IDPORun {
+  run_id: string;
+  status: string;
+  started_at?: string;
+  config_path?: string;
+  doc_count?: number;
+  failed_count?: number;
+  duration_ms?: number;
+  has_docs_export?: boolean;
+  has_entities_export?: boolean;
 }
 
 export interface Stats {
@@ -208,4 +221,184 @@ export interface GuardrailStats {
   pass_rate: number;
   avg_processing_time_ms: number;
   checks_breakdown: Record<string, { passed: number; failed: number }>;
+}
+
+// ── IDPO Types ──
+
+export interface IDPOExtractionField {
+  name: string;
+  description: string;
+}
+
+export interface IDPOEntityDetail {
+  key: string;
+  label: string;
+  value: string;
+  confidence: number;
+  page?: number | null;
+  source: string;
+  is_explicit: boolean;
+}
+
+export interface IDPOValidationIssue {
+  field: string;
+  issue: string;
+  severity: string;
+}
+
+export interface IDPOSection {
+  name: string;
+  text: string;
+  confidence: number;
+}
+
+export interface IDPODocRecord {
+  doc_id: string;
+  filename?: string;
+  source?: string;
+  category?: string;
+  doc_type?: string;
+  vendor_cluster?: string;
+  quality_bin?: string;
+  complexity_bin?: string;
+  content_profile?: string;
+  quality_score?: number;
+  complexity_score?: number;
+  summary?: string;
+  status?: string;
+  extracted_text?: string;
+  entities?: Record<string, unknown>;
+  entity_details?: IDPOEntityDetail[];
+  sections?: IDPOSection[];
+  validation_issues?: IDPOValidationIssue[];
+  field_confidence?: Record<string, number>;
+  recovered_fields?: Record<string, string>;
+  entity_count?: number;
+  explicit_entity_count?: number;
+  default_entity_count?: number;
+  validation_issue_count?: number;
+  recovered_fields_count?: number;
+  chunk_count?: number;
+  escalated?: boolean;
+  model_used?: string;
+  model_mode?: string;
+  policy_id?: string;
+  policy_name?: string;
+  plan_id?: string;
+  plan_source?: string;
+  preprocess_route?: string;
+}
+
+export interface IDPORunMetrics {
+  doc_count?: number;
+  duration_ms?: number;
+  avg_confidence?: number;
+  success_rate?: number;
+  [key: string]: unknown;
+}
+
+// ── Pipeline Integration Types ──
+
+export interface AHMNAdvice {
+  advice_id: string;
+  policy_id: string;
+  policy_data: Record<string, unknown>;
+  confidence: number;
+  rabi_used: boolean;
+  retrieval_source: string;
+  n_neighbors: number | null;
+  error: string | null;
+}
+
+export interface GuardrailValidationResult {
+  name: string;
+  score: number;
+  is_pass: boolean;
+  details: string;
+  timestamp?: string;
+}
+
+export interface GuardrailDocResult {
+  document_id: string;
+  overall_passes: boolean;
+  validation_results: GuardrailValidationResult[];
+  metrics: Record<string, unknown>;
+  processing_time_ms: number;
+  error: string | null;
+}
+
+export interface ComponentExplanationDetail {
+  step: number;
+  action: string;
+  description: string;
+  outcome: string;
+  score?: number;
+  passed?: boolean;
+}
+
+export interface ComponentExplanation {
+  component: "ahmn" | "idpo" | "guardrails";
+  title: string;
+  summary: string;
+  details: ComponentExplanationDetail[];
+  status: "success" | "warning" | "error" | "info";
+  metrics: Record<string, unknown>;
+}
+
+export interface XAIDocExplanation {
+  document_id: string;
+  answer: string;
+  confidence: number;
+  explanation: Record<string, unknown>;
+  error: string | null;
+  component_explanations?: ComponentExplanation[];
+}
+
+export interface AHMNFeedback {
+  status: string;
+  advice_id: string;
+  policy_id_used: string;
+  metrics_sent: {
+    f1_score?: number;
+    cost?: number;
+    processing_time_ms?: number;
+    success?: boolean;
+    precision?: number;
+    recall?: number;
+  };
+  error: string | null;
+}
+
+export interface PipelineIntegration {
+  ahmn_advice: AHMNAdvice;
+  guardrails: GuardrailDocResult[];
+  xai_explanations: XAIDocExplanation[];
+  ahmn_feedback: AHMNFeedback;
+  cycle_time_ms: number;
+  skipped_guardrails?: boolean;
+  skipped_xai?: boolean;
+}
+
+export interface IDPOPartialFailure {
+  file: string;
+  error: string;
+}
+
+export interface IDPORunResult {
+  run_id: string;
+  run_dir: string;
+  metrics: IDPORunMetrics;
+  docs: IDPODocRecord[];
+  entities: Record<string, unknown>[];
+  warnings: string[];
+  partial_failures?: IDPOPartialFailure[];
+  pipeline_integration?: PipelineIntegration;
+}
+
+export type IDPOPipelineStep = {
+  id: number;
+  label: string;
+  description: string;
+  icon: string;
+  status: "pending" | "active" | "done" | "error";
 }

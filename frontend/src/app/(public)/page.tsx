@@ -9,52 +9,52 @@ import {
     Sparkles,
     ArrowRight,
     Shield,
-    Brain,
+    Eye,
     Zap,
     BarChart3,
     Globe,
-    Lock,
+    Workflow,
     CheckCircle2,
     ChevronRight,
 } from "lucide-react";
 
 const stats = [
-    { value: "99.2%", label: "Extraction Accuracy" },
-    { value: "<500ms", label: "Avg. Latency" },
-    { value: "50+", label: "Document Types" },
-    { value: "10M+", label: "Documents Processed" },
+    { value: "13", label: "Extraction Agents" },
+    { value: "5", label: "Validation Layers" },
+    { value: "8", label: "Microservices" },
+    { value: "3", label: "Research Algorithms" },
 ];
 
 const features = [
     {
-        icon: <Brain className="w-7 h-7 text-brand-500" />,
+        icon: <Eye className="w-7 h-7 text-brand-500" />,
         title: "Transparent Results",
-        desc: "Every extraction comes with confidence scores and clear explanations so you always know why the AI made its decisions.",
+        desc: "Every extraction comes with SHAP/LIME explanations and confidence scores — full explainability for every decision.",
     },
     {
         icon: <Shield className="w-7 h-7 text-violet-500" />,
-        title: "Built-in Quality Checks",
-        desc: "Automatic validation ensures extracted data is accurate and complete before it reaches your workflow.",
+        title: "5-Layer Validation",
+        desc: "Guardrails ensemble validates coherence, hallucination, PII, format, and semantics across all extracted entities.",
     },
     {
         icon: <Zap className="w-7 h-7 text-amber-500" />,
-        title: "Expert Review When Needed",
-        desc: "Uncertain results are automatically flagged for human review, so nothing slips through the cracks.",
+        title: "Human-in-the-Loop",
+        desc: "Uncertain results are flagged for expert review with ranked priority queues and annotation tools.",
     },
     {
         icon: <BarChart3 className="w-7 h-7 text-emerald-500" />,
-        title: "Self-Improving AI",
-        desc: "Our system learns and improves with every document you process, getting smarter over time.",
+        title: "Adaptive Learning",
+        desc: "Thompson Sampling bandits with RABI cold-start and DAAF drift detection continuously improve policy selection.",
     },
     {
         icon: <Globe className="w-7 h-7 text-blue-500" />,
         title: "Multi-Format Support",
-        desc: "Process PDFs, scanned images, invoices, contracts, medical records, and more — all in one place.",
+        desc: "Process PDFs, scanned images, invoices, contracts, and more — all through a unified extraction pipeline.",
     },
     {
-        icon: <Lock className="w-7 h-7 text-rose-500" />,
-        title: "Enterprise Security",
-        desc: "Bank-grade security with role-based access, audit trails, and end-to-end encryption.",
+        icon: <Workflow className="w-7 h-7 text-rose-500" />,
+        title: "Modular Architecture",
+        desc: "8 Docker microservices with independent scaling, health monitoring, and graceful fault isolation.",
     },
 ];
 
@@ -62,22 +62,22 @@ const steps = [
     {
         step: "01",
         title: "Upload Documents",
-        desc: "Drag-and-drop your files. We support PDFs, images, Word docs, and 50+ other formats.",
+        desc: "Drag-and-drop your files. Supports PDFs, images, text files, and structured data formats.",
     },
     {
         step: "02",
         title: "AI Extraction",
-        desc: "Our AI reads and understands your documents, pulling out key data like names, dates, amounts, and more.",
+        desc: "13 specialized agents analyze your document, extracting entities with confidence scoring.",
     },
     {
         step: "03",
-        title: "Validation & Review",
-        desc: "Results are automatically checked for accuracy. Uncertain items are flagged for expert review.",
+        title: "Validation & Explain",
+        desc: "5-layer guardrails validate results. XAI provides SHAP/LIME explanations for every extraction.",
     },
     {
         step: "04",
-        title: "Export & Integrate",
-        desc: "Download your clean, structured data or connect directly to your existing tools and workflows.",
+        title: "Learn & Export",
+        desc: "AHMN learns from outcomes via bandit feedback. Export clean, structured data in Excel format.",
     },
 ];
 
@@ -113,29 +113,20 @@ export default function HomePage() {
                 <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-brand-500/20 dark:bg-brand-500/10 rounded-full blur-[150px] pointer-events-none" />
                 <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-violet-500/20 dark:bg-violet-500/10 rounded-full blur-[150px] pointer-events-none" />
 
-                <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-8 py-20 flex flex-col lg:flex-row items-center justify-between gap-16 w-full">
+                <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20 flex flex-col lg:flex-row items-center justify-between gap-10 lg:gap-16 w-full">
                     {/* Left Content */}
                     <div className="flex-1 space-y-8 text-center lg:text-left">
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.5 }}
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 text-sm font-medium"
-                        >
-                            <Sparkles className="w-4 h-4" />
-                            Next-Gen Document Extraction
-                        </motion.div>
-
                         <motion.h1
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.5, delay: 0.1 }}
-                            className="text-5xl lg:text-7xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-[1.1]"
+                            className="text-4xl sm:text-5xl lg:text-7xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-[1.1]"
                         >
-                            Understand your <br />
+                            Understand your{" "}
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-violet-500">
-                                documents with AI
+                                documents
                             </span>
+                            <br />with adaptive AI
                         </motion.h1>
 
                         <motion.p
@@ -144,25 +135,25 @@ export default function HomePage() {
                             transition={{ duration: 0.5, delay: 0.2 }}
                             className="text-lg text-slate-600 dark:text-gray-400 max-w-2xl mx-auto lg:mx-0 leading-relaxed"
                         >
-                            Intelligent document processing powered by AI you can trust.
-                            Extract, analyze, and validate complex documents with unmatched accuracy.
+                            Extract, validate, and learn from any document with our multi-agent AI pipeline.
+                            Powered by explainable AI, smart validation, and continuous adaptive learning.
                         </motion.p>
 
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.5, delay: 0.3 }}
-                            className="flex items-center justify-center lg:justify-start gap-4 pt-4"
+                            className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 sm:gap-4 pt-4"
                         >
                             <Link
                                 href="/signup"
-                                className="px-8 py-4 glass-button rounded-xl text-lg flex items-center gap-2"
+                                className="w-full sm:w-auto px-8 py-4 glass-button rounded-xl text-lg flex items-center justify-center gap-2"
                             >
                                 Start Extracting <ArrowRight className="w-5 h-5" />
                             </Link>
                             <Link
                                 href="/features"
-                                className="px-8 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-xl text-lg font-medium transition-all shadow-sm"
+                                className="w-full sm:w-auto px-8 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-xl text-lg font-medium transition-all shadow-sm text-center"
                             >
                                 Learn More
                             </Link>
@@ -174,7 +165,7 @@ export default function HomePage() {
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ duration: 0.6, delay: 0.2 }}
-                        className="flex-1 flex justify-center perspective-1000"
+                        className="hidden sm:flex flex-1 justify-center perspective-1000"
                     >
                         <motion.div
                             style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
@@ -220,7 +211,7 @@ export default function HomePage() {
 
             {/* ── Stats Bar ── */}
             <section className="relative z-10 border-y border-slate-200/60 dark:border-white/10 bg-white/60 dark:bg-gray-900/30 backdrop-blur-md">
-                <div className="max-w-7xl mx-auto px-6 lg:px-8 py-12">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
                         {stats.map((stat, i) => (
                             <motion.div
@@ -246,7 +237,7 @@ export default function HomePage() {
             {/* ── Features Grid ── */}
             <section className="relative z-10 py-24 lg:py-32">
                 <div className="absolute top-1/2 left-0 w-[500px] h-[500px] bg-brand-500/10 dark:bg-brand-500/5 rounded-full blur-[150px] pointer-events-none -translate-y-1/2" />
-                <div className="max-w-7xl mx-auto px-6 lg:px-8 relative">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
                     <div className="text-center mb-16">
                         <motion.h2
                             initial={{ opacity: 0, y: 20 }}
@@ -293,7 +284,7 @@ export default function HomePage() {
 
             {/* ── How It Works ── */}
             <section className="relative z-10 py-24 lg:py-32 border-t border-slate-200/60 dark:border-white/10 bg-white/40 dark:bg-gray-900/20 backdrop-blur-sm">
-                <div className="max-w-7xl mx-auto px-6 lg:px-8">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center mb-16">
                         <motion.h2
                             initial={{ opacity: 0, y: 20 }}
@@ -341,7 +332,7 @@ export default function HomePage() {
             {/* ── CTA Section ── */}
             <section className="relative z-10 py-24 lg:py-32">
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent via-brand-500/5 to-transparent dark:via-brand-500/5 pointer-events-none" />
-                <div className="max-w-4xl mx-auto px-6 lg:px-8 text-center relative">
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
@@ -349,30 +340,30 @@ export default function HomePage() {
                         className="glass-panel rounded-3xl p-12 lg:p-16"
                     >
                         <h2 className="text-3xl lg:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight mb-6">
-                            Ready to transform your{" "}
+                            Experience intelligent{" "}
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-violet-500">
-                                document workflow?
+                                document extraction
                             </span>
                         </h2>
                         <p className="text-lg text-slate-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto">
-                            Join thousands of teams using Modular Doc AI to extract, validate, and understand their documents
-                            with unprecedented accuracy.
+                            Join thousands of teams already using Modular Doc AI to transform
+                            their document workflows with intelligent, explainable extraction.
                         </p>
-                        <div className="flex items-center justify-center gap-4 flex-wrap">
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 flex-wrap">
                             <Link
                                 href="/signup"
-                                className="px-8 py-4 glass-button rounded-xl text-lg flex items-center gap-2"
+                                className="w-full sm:w-auto px-8 py-4 glass-button rounded-xl text-lg flex items-center justify-center gap-2"
                             >
                                 Get Started Free <ArrowRight className="w-5 h-5" />
                             </Link>
                             <Link
                                 href="/contact"
-                                className="px-8 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-xl text-lg font-medium transition-all shadow-sm"
+                                className="w-full sm:w-auto px-8 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-xl text-lg font-medium transition-all shadow-sm text-center"
                             >
                                 Talk to Sales
                             </Link>
                         </div>
-                        <div className="mt-8 flex items-center justify-center gap-6 text-sm text-slate-500 dark:text-gray-500">
+                        <div className="mt-8 flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-sm text-slate-500 dark:text-gray-500">
                             <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Free tier available</span>
                             <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> No credit card required</span>
                             <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Setup in 5 minutes</span>

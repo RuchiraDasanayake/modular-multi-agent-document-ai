@@ -3,9 +3,11 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/toast";
 import type { XAIExplanation, FeedbackType, HITLFeedback } from "@/types";
 
 export default function HITLPage() {
+    const { addToast } = useToast();
     const [explanation, setExplanation] = useState<XAIExplanation | null>(null);
     const [question, setQuestion] = useState("");
     const [paragraph, setParagraph] = useState("");
@@ -25,18 +27,22 @@ export default function HITLPage() {
     const [knowledgeSuggestion, setKnowledgeSuggestion] = useState("");
 
     useEffect(() => {
-        // Load from sessionStorage
-        const storedExplanation = sessionStorage.getItem("xai_explanation");
-        const storedQuestion = sessionStorage.getItem("xai_question");
-        const storedParagraph = sessionStorage.getItem("xai_paragraph");
+        // Load from sessionStorage first, fall back to localStorage for cross-tab/reload support
+        const storedExplanation = sessionStorage.getItem("xai_explanation") || localStorage.getItem("xai_explanation");
+        const storedQuestion = sessionStorage.getItem("xai_question") || localStorage.getItem("xai_question");
+        const storedParagraph = sessionStorage.getItem("xai_paragraph") || localStorage.getItem("xai_paragraph");
 
-        if (storedExplanation) setExplanation(JSON.parse(storedExplanation));
+        if (storedExplanation) {
+            try { setExplanation(JSON.parse(storedExplanation)); } catch { /* invalid data */ }
+        }
         if (storedQuestion) setQuestion(storedQuestion);
         if (storedParagraph) setParagraph(storedParagraph);
 
         // Load history from localStorage
         const storedHistory = localStorage.getItem("hitl_history");
-        if (storedHistory) setHistory(JSON.parse(storedHistory));
+        if (storedHistory) {
+            try { setHistory(JSON.parse(storedHistory)); } catch { /* invalid data */ }
+        }
     }, []);
 
     /** Build a local HITLFeedback record for the history list. */
@@ -87,12 +93,14 @@ export default function HITLPage() {
             setFeedbackId(response.feedback_id);
             setSubmitted(true);
             persistFeedback(buildFeedback(response.feedback_id));
+            addToast({ type: "success", title: "Feedback submitted", message: "Thank you for helping improve the system" });
         } catch {
             // Demo mode — simulate success when the API is unavailable
             const demoId = `fb_${Date.now()}`;
             setFeedbackId(demoId);
             setSubmitted(true);
             persistFeedback(buildFeedback(demoId));
+            addToast({ type: "info", title: "Demo mode", message: "Feedback saved locally" });
         } finally {
             setIsSubmitting(false);
         }
@@ -100,10 +108,12 @@ export default function HITLPage() {
 
     if (!explanation) {
         return (
-            <div className="max-w-4xl mx-auto">
-                <div className="bg-white/80 dark:bg-gray-800/50 border border-slate-200 dark:border-gray-700 rounded-xl p-8 text-center">
-                    <span className="text-5xl mb-4 block">👤</span>
-                    <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">No Q&A to Review</h2>
+            <div className="max-w-4xl 3xl:max-w-5xl mx-auto">
+                <div className="bg-white/80 dark:bg-gray-800/50 border border-slate-200 dark:border-gray-700 rounded-2xl p-8 text-center">
+                    <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 flex items-center justify-center mb-4">
+                        <span className="text-3xl">👤</span>
+                    </div>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">No Q&A to Review</h2>
                     <p className="text-slate-500 dark:text-gray-400 mb-6">
                         Please ask a question first to provide feedback.
                     </p>
@@ -120,25 +130,27 @@ export default function HITLPage() {
 
     if (submitted) {
         return (
-            <div className="max-w-4xl mx-auto">
-                <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-8 text-center">
-                    <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
-                        <span className="text-4xl">✓</span>
+            <div className="max-w-4xl 3xl:max-w-5xl mx-auto">
+                <div className="glass-panel rounded-2xl p-8 text-center border-green-500/20">
+                    <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center shadow-lg shadow-green-500/20">
+                        <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
                     </div>
-                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Feedback Submitted!</h2>
+                    <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white mb-2">Feedback Submitted!</h2>
                     <p className="text-slate-500 dark:text-gray-400 mb-2">Thank you for helping improve the system.</p>
-                    <p className="text-slate-500 dark:text-gray-500 text-sm mb-6">Feedback ID: {feedbackId}</p>
+                    <p className="text-slate-400 dark:text-gray-500 text-sm mb-6 font-mono">ID: {feedbackId}</p>
 
                     <div className="flex gap-4 justify-center">
                         <Link
                             href="/dashboard/xai"
-                            className="px-6 py-3 bg-brand-500 text-slate-900 dark:text-white font-medium rounded-lg hover:bg-brand-400 transition-colors"
+                            className="px-6 py-3 bg-gradient-to-r from-brand-500 to-cyan-500 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-brand-500/25 transition-all duration-200"
                         >
                             ← Back to Q&A
                         </Link>
                         <button
                             onClick={() => setShowHistory(true)}
-                            className="px-6 py-3 bg-slate-200 dark:bg-gray-700 text-slate-600 dark:text-gray-300 font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-gray-600 transition-colors"
+                            className="px-6 py-3 bg-white/80 dark:bg-gray-800/50 border border-slate-200 dark:border-gray-700 text-slate-600 dark:text-gray-300 font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-gray-700/50 transition-all duration-200"
                         >
                             View History
                         </button>
@@ -151,22 +163,27 @@ export default function HITLPage() {
     }
 
     return (
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="max-w-4xl 3xl:max-w-5xl mx-auto space-y-6">
             {/* Header */}
-            <div className="bg-white/80 dark:bg-gray-800/50 border border-slate-200 dark:border-gray-700 rounded-xl p-6">
-                <div className="flex items-center justify-between">
+            <div className="relative overflow-hidden glass-panel rounded-2xl p-6">
+                <div className="absolute inset-0 bg-gradient-to-r from-amber-500/5 to-orange-500/5 dark:from-amber-500/[0.03] dark:to-orange-500/[0.03]" />
+                <div className="relative flex items-center justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-                            <span className="text-3xl">👤</span>
+                        <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                            </div>
                             Human Expert Review
                         </h1>
-                        <p className="text-slate-500 dark:text-gray-400 mt-1">
+                        <p className="text-slate-500 dark:text-gray-400 mt-1.5 text-sm">
                             Provide feedback to improve the Q&A system
                         </p>
                     </div>
                     <Link
                         href="/dashboard/xai"
-                        className="px-4 py-2 bg-slate-200 dark:bg-gray-700 text-slate-600 dark:text-gray-300 rounded-lg hover:bg-slate-200 dark:hover:bg-gray-600 transition-colors text-sm font-medium"
+                        className="px-4 py-2.5 bg-violet-50 dark:bg-violet-500/10 border border-violet-200/60 dark:border-violet-500/20 text-violet-700 dark:text-violet-300 rounded-xl hover:bg-violet-100 dark:hover:bg-violet-500/20 transition-all duration-200 text-sm font-semibold shadow-sm"
                     >
                         ← Back to Q&A
                     </Link>

@@ -13,3 +13,6 @@ sentence-transformers>=3.3.0,<4.0.0
 torch>=2.0.0
 presidio-analyzer>=2.2.0,<3.0.0
 python-dateutil>=2.9.0,<3.0.0
+
+# Database (audit log persistence)
+psycopg[binary,pool]>=3.2.0,<4.0.0

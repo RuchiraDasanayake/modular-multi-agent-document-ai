@@ -11,27 +11,40 @@ const publicPaths = [
   "/contact",
   "/login",
   "/signup",
+  "/forgot-password",
+  "/reset-password",
 ];
 
 export function middleware(request: NextRequest) {
   const token = request.cookies.get("ahmn_token")?.value;
   const { pathname } = request.nextUrl;
 
-  // Allow public paths and API routes
-  if (publicPaths.includes(pathname) || pathname.startsWith("/api")) {
-    return NextResponse.next();
-  }
-
-  // Development mode: allow access without authentication
-  // Remove this block in production
-  const isDev = process.env.NODE_ENV === "development";
-  if (isDev) {
+  // Allow public paths, API routes, and static assets
+  if (publicPaths.includes(pathname) || pathname.startsWith("/api") || pathname.startsWith("/_next")) {
     return NextResponse.next();
   }
 
   // Redirect to login if not authenticated
   if (!token) {
     return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  // Basic JWT structure & expiry validation
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) throw new Error("malformed");
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+    if (payload.exp && payload.exp * 1000 < Date.now()) {
+      // Token expired — clear and redirect
+      const res = NextResponse.redirect(new URL("/login", request.url));
+      res.cookies.delete("ahmn_token");
+      return res;
+    }
+  } catch {
+    // Malformed token — clear and redirect
+    const res = NextResponse.redirect(new URL("/login", request.url));
+    res.cookies.delete("ahmn_token");
+    return res;
   }
 
   return NextResponse.next();

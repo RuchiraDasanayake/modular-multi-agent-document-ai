@@ -9,15 +9,26 @@ WORKDIR /app
 COPY ahmn_core/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-download embedding model at build time
+# Pre-download embedding model at build time into shared cache
+ENV HF_HOME=/app/.cache/huggingface
+ENV SENTENCE_TRANSFORMERS_HOME=/app/.cache/huggingface/sentence_transformers
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2'); print('all-MiniLM-L6-v2 cached')"
+ENV TRANSFORMERS_OFFLINE=1
 
 # Copy the AHMN core package
 COPY ahmn_core/ ./ahmn_core/
 
+# Copy seed/reset scripts (needed for fresh_deploy.py)
+COPY scripts/ ./scripts/
+
+# Run as non-root user
+RUN useradd --create-home --shell /bin/bash appuser \
+    && chown -R appuser:appuser /app/.cache
+USER appuser
+
 EXPOSE 8001
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8001/health', timeout=5)"
+HEALTHCHECK --interval=10s --timeout=10s --start-period=90s --retries=8 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"
 
 CMD ["uvicorn", "ahmn_core.main:app", "--host", "0.0.0.0", "--port", "8001"]

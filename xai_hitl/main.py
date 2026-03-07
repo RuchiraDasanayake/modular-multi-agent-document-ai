@@ -17,10 +17,13 @@ GET  /health             — liveness probe
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import os
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
@@ -44,7 +47,6 @@ class QARequest(BaseModel):
     paragraph: str
     question: str
 
-
 class HighlightSpan(BaseModel):
     start: int
     end: int
@@ -53,16 +55,13 @@ class HighlightSpan(BaseModel):
     shap_score: float
     lime_score: float
 
-
 class SHAPExplanation(BaseModel):
     shap_values: list[tuple[str, float]]
     base_value: float
 
-
 class LIMEExplanation(BaseModel):
     word_weights: list[tuple[str, float]]
     prediction_proba: float
-
 
 class DerivationStep(BaseModel):
     step_number: int
@@ -70,7 +69,6 @@ class DerivationStep(BaseModel):
     description: str
     details: str | None = None
     confidence: float
-
 
 class XAIExplanation(BaseModel):
     answer: str
@@ -81,12 +79,10 @@ class XAIExplanation(BaseModel):
     derivation_steps: list[DerivationStep]
     evidence_sentences: list[str]
 
-
 class QAResponse(BaseModel):
     answer: str
     confidence: float
     explanation: XAIExplanation
-
 
 # ─── HITL Schemas ─────────────────────────────────────────────────────────
 
@@ -94,7 +90,6 @@ FeedbackType = Literal[
     "correct", "incorrect", "partially_correct", "needs_more_context"
 ]
 FeedbackPriority = Literal["low", "medium", "high", "critical"]
-
 
 class FeedbackSubmitRequest(BaseModel):
     question: str
@@ -107,17 +102,14 @@ class FeedbackSubmitRequest(BaseModel):
     additional_context: str | None = None
     knowledge_update: str | None = None
 
-
 class FeedbackResponse(BaseModel):
     feedback_id: str
     status: str
-
 
 class FeedbackRatings(BaseModel):
     explanation_quality: int
     highlight_accuracy: int
     xai_helpfulness: int
-
 
 class HITLFeedback(BaseModel):
     feedback_id: str
@@ -134,12 +126,10 @@ class HITLFeedback(BaseModel):
     reviewer_notes: str | None = None
     tags: list[str] = []
 
-
 class FeedbackHistory(BaseModel):
     items: list[HITLFeedback]
     total: int
     accuracy_rate: float
-
 
 class HITLStats(BaseModel):
     total_feedback: int
@@ -147,7 +137,6 @@ class HITLStats(BaseModel):
     accuracy_rate: float
     avg_explanation_quality: float
     pending_reviews: int
-
 
 # ---------------------------------------------------------------------------
 # XAI Engine — lazy singleton
@@ -163,7 +152,6 @@ try:
     logger.info("XAI engine module located — will lazy-init on first request")
 except ImportError:
     logger.warning("XAI engine import failed — demo stubs will be used")
-
 
 def _demo_explanation(
     question: str, answer: str, confidence: float
@@ -242,8 +230,7 @@ def _demo_explanation(
         ],
     )
 
-
-def _engine_explanation_to_schema(exp) -> XAIExplanation:  # noqa: ANN001
+def _engine_explanation_to_schema(exp: Any) -> XAIExplanation:
     """Convert the engine's dataclass-based explanation to API schema."""
     _HIGHLIGHT_MAP = {
         "answer_span": "answer",
@@ -288,13 +275,153 @@ def _engine_explanation_to_schema(exp) -> XAIExplanation:  # noqa: ANN001
         evidence_sentences=exp.evidence_sentences,
     )
 
+# ---------------------------------------------------------------------------
+# In-memory stores (bounded — backed by Postgres for durability)
+# ---------------------------------------------------------------------------
+
+from collections import deque, OrderedDict
+import json as _json
+
+_feedback_store: deque[HITLFeedback] = deque(maxlen=10_000)
+
+class _BoundedCache(OrderedDict):
+    """LRU cache with a maximum size."""
+
+    def __init__(self, maxsize: int = 5_000):
+        super().__init__()
+        self._maxsize = maxsize
+
+    def __setitem__(self, key, value):  # type: ignore[override]
+        if key in self:
+            self.move_to_end(key)
+        super().__setitem__(key, value)
+        if len(self) > self._maxsize:
+            self.popitem(last=False)
+
+_explanation_cache: _BoundedCache = _BoundedCache(maxsize=5_000)
 
 # ---------------------------------------------------------------------------
-# In-memory stores (no DB dependency for this service)
+# Database pool (Postgres feedback persistence)
 # ---------------------------------------------------------------------------
 
-_feedback_store: list[HITLFeedback] = []
-_explanation_cache: dict[str, QAResponse] = {}
+_POSTGRES_URI = os.environ.get(
+    "POSTGRES_URI", "postgresql://user:password@localhost:5432/ahmn_db"
+)
+
+_db_pool = None
+
+async def _get_db_pool():
+    """Lazily initialise the async connection pool."""
+    global _db_pool
+    if _db_pool is None:
+        from psycopg_pool import AsyncConnectionPool
+        _db_pool = AsyncConnectionPool(conninfo=_POSTGRES_URI, min_size=1, max_size=5)
+        await _db_pool.open()
+    return _db_pool
+
+async def _close_db_pool():
+    global _db_pool
+    if _db_pool is not None:
+        await _db_pool.close()
+        _db_pool = None
+
+async def _persist_feedback(entry: HITLFeedback) -> None:
+    """Write a feedback entry to Postgres (fire-and-forget safe)."""
+    try:
+        pool = await _get_db_pool()
+        async with pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """INSERT INTO xai_hitl_feedback
+                       (feedback_id, question, original_answer, feedback_type,
+                        is_answer_correct, corrected_answer,
+                        explanation_quality, highlight_accuracy, xai_helpfulness,
+                        additional_context, knowledge_update, priority,
+                        reviewer_notes, tags)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                       ON CONFLICT (feedback_id) DO NOTHING""",
+                    (
+                        entry.feedback_id,
+                        entry.question,
+                        entry.original_answer,
+                        entry.feedback_type,
+                        entry.is_answer_correct,
+                        entry.corrected_answer,
+                        entry.ratings.explanation_quality,
+                        entry.ratings.highlight_accuracy,
+                        entry.ratings.xai_helpfulness,
+                        entry.additional_context,
+                        entry.knowledge_update,
+                        entry.priority,
+                        entry.reviewer_notes,
+                        _json.dumps(entry.tags),
+                    ),
+                )
+            await conn.commit()
+    except Exception as exc:
+        logger.warning("Failed to persist feedback %s: %s", entry.feedback_id, exc)
+
+async def _load_feedback_from_db() -> None:
+    """Hydrate the in-memory store from Postgres on startup."""
+    try:
+        pool = await _get_db_pool()
+        async with pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """SELECT feedback_id, question, original_answer, feedback_type,
+                              is_answer_correct, corrected_answer,
+                              explanation_quality, highlight_accuracy, xai_helpfulness,
+                              additional_context, knowledge_update, priority,
+                              reviewer_notes, tags, created_at
+                       FROM xai_hitl_feedback
+                       ORDER BY created_at DESC
+                       LIMIT 10000"""
+                )
+                rows = await cur.fetchall()
+        for r in reversed(rows):  # oldest first into deque
+            _feedback_store.append(
+                HITLFeedback(
+                    feedback_id=r[0],
+                    timestamp=r[14].isoformat() if r[14] else "",
+                    question=r[1],
+                    original_answer=r[2],
+                    feedback_type=r[3],
+                    is_answer_correct=r[4],
+                    corrected_answer=r[5],
+                    ratings=FeedbackRatings(
+                        explanation_quality=r[6],
+                        highlight_accuracy=r[7],
+                        xai_helpfulness=r[8],
+                    ),
+                    additional_context=r[9],
+                    knowledge_update=r[10],
+                    priority=r[11] or "medium",
+                    reviewer_notes=r[12],
+                    tags=r[13] if isinstance(r[13], list) else [],
+                )
+            )
+        logger.info("Loaded %d feedback entries from Postgres", len(rows))
+    except Exception as exc:
+        logger.warning("Could not load feedback from DB (table may not exist yet): %s", exc)
+
+# ---------------------------------------------------------------------------
+# Lifespan
+# ---------------------------------------------------------------------------
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Pre-load XAI engine and hydrate feedback from Postgres at startup."""
+    if _engine_available:
+        try:
+            logger.info("Pre-loading XAI engine at startup...")
+            _get_engine()
+            logger.info("XAI engine pre-loaded successfully")
+        except Exception as exc:
+            logger.warning("Engine pre-load failed (will retry on first request): %s", exc)
+    # Hydrate in-memory feedback from Postgres
+    await _load_feedback_from_db()
+    yield
+    await _close_db_pool()
 
 # ---------------------------------------------------------------------------
 # FastAPI app
@@ -304,14 +431,8 @@ app = FastAPI(
     title="XAI-HITL Service",
     version="1.0.0",
     description="Explainable AI engine with Human-in-the-Loop feedback collection.",
+    lifespan=lifespan,
 )
-
-
-# ─── Utility: extract requesting user from gateway headers ────────────────
-
-def _user_id(headers: dict) -> str:
-    return headers.get("x-user-id", "anonymous")
-
 
 # ─── Health ───────────────────────────────────────────────────────────────
 
@@ -323,7 +444,6 @@ async def health():
         "engine_available": _engine_available,
     }
 
-
 # ─── XAI Routes ──────────────────────────────────────────────────────────
 
 @app.post("/xai/ask", response_model=QAResponse)
@@ -334,7 +454,11 @@ async def ask_question(body: QARequest):
     if _engine_available:
         try:
             engine = _get_engine()
-            exp = engine.generate_explanation(body.paragraph, body.question)
+            # 90 second timeout for RoBERTa-SQuAD2 (larger model)
+            exp = await asyncio.wait_for(
+                asyncio.to_thread(engine.generate_explanation, body.paragraph, body.question),
+                timeout=90.0
+            )
             schema_exp = _engine_explanation_to_schema(exp)
             response = QAResponse(
                 answer=exp.answer,
@@ -343,47 +467,22 @@ async def ask_question(body: QARequest):
             )
             _explanation_cache[qa_id] = response
             return response
+        except asyncio.TimeoutError:
+            logger.warning("Engine timed out after 90s, falling back to demo")
         except Exception as exc:
             logger.error("Engine failed, falling back to demo: %s", exc)
 
-    # Demo fallback — deterministic answers for common question patterns
-    q = body.question.lower()
-    if "time value" in q or "dollar" in q:
-        answer = (
-            "The time value of money asserts that a dollar held today is "
-            "worth more than a dollar received tomorrow due to its "
-            "potential earning capacity."
-        )
-        confidence = 0.92
-    elif "function" in q or "core" in q:
-        answer = (
-            "At its core, finance functions as the circulatory system of "
-            "the global economy, moving capital from savers and investors "
-            "to borrowers and entrepreneurs."
-        )
-        confidence = 0.88
-    elif "instrument" in q or "stock" in q or "bond" in q:
-        answer = (
-            "Financial exchange is mediated by various instruments such "
-            "as stocks, bonds, and derivatives."
-        )
-        confidence = 0.90
-    else:
-        answer = (
-            "Finance is the study of resource allocation over time, "
-            "balancing returns against risk, and functions as the "
-            "circulatory system of the global economy."
-        )
-        confidence = 0.75
+    # Fallback when engine is unavailable - give helpful error message
+    answer = "I'm having trouble processing your question right now. Please try again in a moment."
+    confidence = -1.0  # Hide confidence for error responses
 
     response = QAResponse(
         answer=answer,
         confidence=confidence,
-        explanation=_demo_explanation(body.question, answer, confidence),
+        explanation=_demo_explanation(body.question, answer, 0.0),
     )
     _explanation_cache[qa_id] = response
     return response
-
 
 @app.get("/xai/explanation/{question_id}", response_model=QAResponse)
 async def get_explanation(question_id: str):
@@ -391,15 +490,7 @@ async def get_explanation(question_id: str):
     if question_id in _explanation_cache:
         return _explanation_cache[question_id]
 
-    # Placeholder if not found in cache
-    return QAResponse(
-        answer="(stored explanation placeholder)",
-        confidence=0.5,
-        explanation=_demo_explanation(
-            "", "(stored explanation placeholder)", 0.5
-        ),
-    )
-
+    raise HTTPException(status_code=404, detail=f"Explanation not found for ID: {question_id}")
 
 # ─── HITL Routes ──────────────────────────────────────────────────────────
 
@@ -424,19 +515,20 @@ async def submit_feedback(body: FeedbackSubmitRequest):
         knowledge_update=body.knowledge_update,
     )
     _feedback_store.append(entry)
+    # Persist to Postgres asynchronously
+    await _persist_feedback(entry)
     logger.info("Feedback %s recorded (type=%s)", feedback_id, body.feedback_type)
     return FeedbackResponse(feedback_id=feedback_id, status="accepted")
-
 
 @app.get("/hitl/history", response_model=FeedbackHistory)
 async def get_feedback_history(limit: int = 20):
     """Return the most recent feedback entries."""
-    items = _feedback_store[-limit:]
-    total = len(_feedback_store)
-    correct = sum(1 for f in _feedback_store if f.is_answer_correct)
+    store_list = list(_feedback_store)
+    items = store_list[-limit:]
+    total = len(store_list)
+    correct = sum(1 for f in store_list if f.is_answer_correct)
     accuracy = (correct / total * 100) if total > 0 else 0.0
     return FeedbackHistory(items=items, total=total, accuracy_rate=accuracy)
-
 
 @app.get("/hitl/feedback/{feedback_id}", response_model=HITLFeedback)
 async def get_feedback_by_id(feedback_id: str):
@@ -445,7 +537,6 @@ async def get_feedback_by_id(feedback_id: str):
         if entry.feedback_id == feedback_id:
             return entry
     raise HTTPException(status_code=404, detail="Feedback not found")
-
 
 @app.get("/hitl/stats", response_model=HITLStats)
 async def get_hitl_stats():

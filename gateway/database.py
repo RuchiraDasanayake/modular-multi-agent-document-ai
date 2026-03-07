@@ -11,7 +11,6 @@ from .config import settings
 
 logger = logging.getLogger(__name__)
 
-
 class DatabasePool:
     _pool: AsyncConnectionPool | None = None
 
@@ -23,6 +22,9 @@ class DatabasePool:
                 open=False,
                 min_size=2,
                 max_size=10,
+                timeout=30.0,         # max wait for a connection from pool
+                max_idle=300.0,       # close idle connections after 5 min
+                max_lifetime=3600.0,  # recycle connections after 1 hour
             )
             await cls._pool.open()
             logger.info("Gateway database pool opened")
@@ -34,7 +36,6 @@ class DatabasePool:
             await cls._pool.close()
             cls._pool = None
             logger.info("Gateway database pool closed")
-
 
 async def get_db_connection() -> AsyncGenerator:
     pool = await DatabasePool.get_pool()

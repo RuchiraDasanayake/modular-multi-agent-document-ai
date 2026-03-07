@@ -1,15 +1,16 @@
+"""Vector store for dense retrieval with hashing-based embeddings."""
+
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Iterable
 
 import hashlib
 import numpy as np
 
 from idpo.core.types import Chunk
-
 
 class HashingEmbedder:
     def __init__(self, dim: int = 256, seed: int = 13) -> None:
@@ -31,18 +32,16 @@ class HashingEmbedder:
         digest = hashlib.md5(payload).digest()
         return int.from_bytes(digest[:4], "little")
 
-
 @dataclass
 class VectorRecord:
     chunk_id: str
     vector: np.ndarray
-    metadata: Dict[str, str]
-
+    metadata: dict[str, str]
 
 class VectorStore:
     def __init__(self, embedder: HashingEmbedder) -> None:
         self.embedder = embedder
-        self.records: List[VectorRecord] = []
+        self.records: list[VectorRecord] = []
 
     def add(self, chunks: Iterable[Chunk]) -> None:
         for chunk in chunks:
@@ -60,7 +59,7 @@ class VectorStore:
                 )
             )
 
-    def search(self, query: str, top_k: int = 10) -> List[Tuple[str, float]]:
+    def search(self, query: str, top_k: int = 10) -> list[tuple[str, float]]:
         if not self.records:
             return []
         qvec = self.embedder.embed(query)

@@ -31,18 +31,16 @@ Author: AHMN Research Team
 
 import math
 import numpy as np
-from typing import List, Dict, Optional, Tuple
+
 from dataclasses import dataclass
 from collections import deque
 from enum import Enum
-
 
 class DriftType(Enum):
     """Classification of detected drift."""
     NONE = "none"
     GRADUAL = "gradual"
     ABRUPT = "abrupt"
-
 
 @dataclass
 class DriftMetrics:
@@ -61,7 +59,6 @@ class DriftMetrics:
     confidence: float          # Confidence in estimate (0-1)
     trend_direction: float     # +1 improving, -1 degrading, 0 stable
     effective_horizon: int     # Estimated samples until drift invalidates
-
 
 class DriftEstimator:
     """
@@ -212,7 +209,6 @@ class DriftEstimator:
         self._recent_sq_sum = 0.0
         self._older_sum = 0.0
 
-
 class AdaptiveForgettingBandit:
     """
     Thompson Sampling with Drift-Aware Adaptive Forgetting.
@@ -234,15 +230,15 @@ class AdaptiveForgettingBandit:
         self.max_gamma = max_gamma
         self.drift_threshold = drift_threshold
         
-        self.arms: Dict[str, Dict] = {}
-        self.drift_estimators: Dict[str, DriftEstimator] = {}
+        self.arms: dict[str, dict] = {}
+        self.drift_estimators: dict[str, DriftEstimator] = {}
         self.global_drift = DriftEstimator(window_size=window_size)
         
         self.total_updates = 0
-        self.gamma_history: List[float] = []
-        self.drift_history: List[float] = []
+        self.gamma_history: list[float] = []
+        self.drift_history: list[float] = []
     
-    def get_or_create_arm(self, arm_id: str, alpha: float = 1.0, beta: float = 1.0) -> Dict:
+    def get_or_create_arm(self, arm_id: str, alpha: float = 1.0, beta: float = 1.0) -> dict:
         """Get or initialize arm."""
         if arm_id not in self.arms:
             self.arms[arm_id] = {
@@ -259,7 +255,7 @@ class AdaptiveForgettingBandit:
             )
         return self.arms[arm_id]
     
-    def select(self, arm_ids: List[str]) -> Tuple[str, float]:
+    def select(self, arm_ids: list[str]) -> tuple[str, float]:
         """Thompson Sampling selection."""
         best_sample = -1.0
         best_arm = arm_ids[0]
@@ -310,7 +306,7 @@ class AdaptiveForgettingBandit:
         
         return drift_metrics
     
-    def get_arm_stats(self, arm_id: str) -> Dict:
+    def get_arm_stats(self, arm_id: str) -> dict:
         """Get arm statistics."""
         arm = self.get_or_create_arm(arm_id)
         total = arm["alpha"] + arm["beta"]
@@ -325,7 +321,7 @@ class AdaptiveForgettingBandit:
             "effective_samples": total - 2
         }
     
-    def get_summary(self) -> Dict:
+    def get_summary(self) -> dict:
         """Get system summary."""
         if not self.gamma_history:
             return {"total_updates": 0}
@@ -340,7 +336,6 @@ class AdaptiveForgettingBandit:
             "max_drift": float(np.max(self.drift_history)),
             "drift_events": sum(1 for d in self.drift_history if d > self.drift_threshold)
         }
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PRODUCTION FACTORY
@@ -357,7 +352,6 @@ def create_adaptive_forgetting_bandit(
         max_gamma=0.3,
         drift_threshold=0.05
     )
-
 
 def create_drift_estimator(window_size: int = 50) -> DriftEstimator:
     """Create standalone drift estimator."""

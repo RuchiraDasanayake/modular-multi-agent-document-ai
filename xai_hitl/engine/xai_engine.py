@@ -1,8 +1,13 @@
 """
-XAI Engine for Finance Q&A using Transformer Models + SHAP & LIME
+XAI Engine for Finance Q&A using Transformer Models + Attention Importance & LIME
 
 Uses a proper transformer-based Q&A model for intelligent reasoning,
-with SHAP and LIME for explainability.
+with attention-based token importance and LIME for explainability.
+
+Note: The "SHAP" data structures are retained for API compatibility,
+but the values represent attention-derived importance scores, not true
+Shapley values. LIME explanations use proper perturbation-based local
+interpretability.
 
 Model: DistilBERT fine-tuned on SQuAD for extractive Q&A
 
@@ -16,7 +21,7 @@ os.environ['USE_TORCH'] = '1'
 
 import numpy as np
 from dataclasses import dataclass, field
-from typing import List, Dict, Tuple, Optional, Any, cast
+from typing import Any, cast
 from enum import Enum
 import re
 import logging
@@ -34,13 +39,13 @@ from transformers import (
 import torch
 
 # XAI Libraries
-import shap
+# NOTE: shap removed — attention weights are used instead of true Shapley values.
+# Data structures retain "shap" in names for API backward compatibility.
 from lime.lime_text import LimeTextExplainer
 
 # Scikit-learn for additional analysis
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-
 
 # ═══════════════════════════════════════════════════════════════
 # Data Classes
@@ -55,7 +60,6 @@ class HighlightType(Enum):
     NEGATIVE_CONTRIBUTION = "negative"
     ANSWER_SPAN = "answer_span"
 
-
 @dataclass
 class TextSpan:
     """Represents a highlighted text span with XAI scores"""
@@ -68,7 +72,7 @@ class TextSpan:
     combined_score: float
     explanation: str
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "text": self.text,
             "start": self.start,
@@ -80,17 +84,16 @@ class TextSpan:
             "explanation": self.explanation,
         }
 
-
 @dataclass
 class DerivationStep:
     """Represents a single step in the derivation logic"""
     step_number: int
     action: str
     description: str
-    details: Optional[str] = None
+    details: str | None = None
     confidence: float = 1.0
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "step_number": self.step_number,
             "action": self.action,
@@ -99,16 +102,15 @@ class DerivationStep:
             "confidence": self.confidence,
         }
 
-
 @dataclass
 class DerivationTree:
     """Complete derivation logic tree"""
     question: str
-    steps: List[DerivationStep]
+    steps: list[DerivationStep]
     final_answer: str
     overall_confidence: float
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "question": self.question,
             "steps": [step.to_dict() for step in self.steps],
@@ -116,34 +118,31 @@ class DerivationTree:
             "overall_confidence": self.overall_confidence,
         }
 
-
 @dataclass
 class SHAPExplanation:
     """SHAP-specific explanation data"""
     base_value: float
-    shap_values: List[Tuple[str, float]]
-    feature_names: List[str]
+    shap_values: list[tuple[str, float]]
+    feature_names: list[str]
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "base_value": self.base_value,
             "shap_values": self.shap_values,
             "feature_names": self.feature_names,
         }
 
-
 @dataclass
 class LIMEExplanation:
     """LIME-specific explanation data"""
-    word_weights: List[Tuple[str, float]]
+    word_weights: list[tuple[str, float]]
     prediction_proba: float
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "word_weights": self.word_weights,
             "prediction_proba": self.prediction_proba,
         }
-
 
 @dataclass
 class ModelPrediction:
@@ -152,8 +151,8 @@ class ModelPrediction:
     confidence: float
     start_index: int
     end_index: int
-    top_k_answers: List[Dict[str, Any]]
-
+    top_k_answers: list[dict[str, Any]]
+    is_unanswerable: bool = False  # True if model detects question cannot be answered
 
 @dataclass
 class XAIExplanation:
@@ -161,15 +160,15 @@ class XAIExplanation:
     paragraph: str
     question: str
     answer: str
-    highlighted_spans: List[TextSpan]
+    highlighted_spans: list[TextSpan]
     shap_explanation: SHAPExplanation
     lime_explanation: LIMEExplanation
     derivation_tree: DerivationTree
     confidence_score: float
-    evidence_sentences: List[str]
-    model_prediction: Optional[ModelPrediction] = None
+    evidence_sentences: list[str]
+    model_prediction: ModelPrediction | None = None
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         result = {
             "paragraph": self.paragraph,
             "question": self.question,
@@ -190,7 +189,6 @@ class XAIExplanation:
             }
         return result
 
-
 # ═══════════════════════════════════════════════════════════════
 # Transformer Q&A Model
 # ═══════════════════════════════════════════════════════════════
@@ -198,65 +196,84 @@ class XAIExplanation:
 class TransformerQAModel:
     """
     Transformer-based Question Answering Model.
-    Uses DistilBERT fine-tuned on SQuAD for extractive Q&A.
+    Uses RoBERTa fine-tuned on SQuAD 2.0 for extractive Q&A with unanswerable detection.
     """
 
-    def __init__(self, model_name: str = "distilbert-base-cased-distilled-squad"):
+    def __init__(self, model_name: str = "deepset/roberta-base-squad2"):
         logger.info("Loading transformer model: %s", model_name)
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForQuestionAnswering.from_pretrained(model_name)
+        # Use eager attention implementation for faster inference with output_attentions=True
+        self.model = AutoModelForQuestionAnswering.from_pretrained(
+            model_name,
+            attn_implementation="eager"  # Avoid slow fallback for attention extraction
+        )
+        # SQuAD 2.0 pipeline with handle_impossible_answer for unanswerable detection
         self.qa_pipeline = pipeline(
             "question-answering",
             model=self.model,
             tokenizer=self.tokenizer,
+            handle_impossible_answer=True,  # Enable "no answer" detection
         )
-        logger.info("Model loaded successfully")
+        self.no_answer_threshold = 0.5  # Threshold for "no answer" vs real answer
+        logger.info("Model loaded successfully (SQuAD 2.0 with unanswerable detection)")
 
     def predict(self, context: str, question: str, top_k: int = 3) -> ModelPrediction:
-        """Get answer prediction from the transformer model."""
+        """Get answer prediction from the transformer model.
+
+        RoBERTa-SQuAD2 returns both answer score and no-answer score.
+        If no_answer_score > answer_score, the question is likely unanswerable.
+        """
         raw_results = self.qa_pipeline(question=question, context=context, top_k=top_k)
 
         if isinstance(raw_results, dict):
-            results = cast(List[Dict[str, Any]], [raw_results])
+            results = cast(list[dict[str, Any]], [raw_results])
         else:
-            results = cast(List[Dict[str, Any]], list(raw_results))
+            results = cast(list[dict[str, Any]], list(raw_results))
 
-        top_answer: Dict[str, Any] = results[0]
+        top_answer: dict[str, Any] = results[0]
+
+        # Check if model thinks question is unanswerable
+        # Empty answer with very low score indicates unanswerable
+        answer_text = str(top_answer.get("answer", "")).strip()
+        answer_score = float(top_answer.get("score", 0.0))
+
+        # If answer is empty or score is very low, mark as unanswerable
+        is_unanswerable = not answer_text or answer_score < 0.01
 
         return ModelPrediction(
-            answer=str(top_answer["answer"]),
-            confidence=float(top_answer["score"]),
-            start_index=int(top_answer["start"]),
-            end_index=int(top_answer["end"]),
+            answer=answer_text if answer_text else "[NO ANSWER]",
+            confidence=answer_score,
+            start_index=int(top_answer.get("start", 0)),
+            end_index=int(top_answer.get("end", 0)),
             top_k_answers=results,
+            is_unanswerable=is_unanswerable,
         )
 
-    def get_token_importance(self, context: str, question: str) -> Dict[str, float]:
-        """Get token importance scores using attention weights."""
+    def get_token_importance(self, context: str, question: str) -> dict[str, float]:
+        """Get token importance scores using attention weights (optimized)."""
+        # Truncate context to reduce computation time
+        max_context_words = 200
+        context_words = context.split()
+        if len(context_words) > max_context_words:
+            context = " ".join(context_words[:max_context_words])
+
         inputs = self.tokenizer(
             question, context,
             return_tensors="pt",
-            max_length=512,
+            max_length=384,  # Reduced from 512
             truncation=True,
         )
-
-        device = next(self.model.parameters()).device
-        self.model.to("cpu")
 
         with torch.no_grad():
             outputs = self.model(**inputs, output_attentions=True)
 
-        self.model.to(device)
-
-        attention = outputs.attentions[-1]
-        attention = attention.mean(dim=1)
-        attention = attention[0]
-
+        # Use last layer attention, averaged across heads
+        attention = outputs.attentions[-1].mean(dim=1)[0]
         tokens = self.tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
         token_importance = attention.mean(dim=0).numpy()
 
-        importance_dict: Dict[str, float] = {}
+        importance_dict: dict[str, float] = {}
         for token, score in zip(tokens, token_importance):
             clean_token = token.replace("##", "").lower()
             if clean_token not in ["[cls]", "[sep]", "[pad]"] and len(clean_token) > 1:
@@ -267,20 +284,19 @@ class TransformerQAModel:
 
         return importance_dict
 
-
 # ═══════════════════════════════════════════════════════════════
 # XAI Engine
 # ═══════════════════════════════════════════════════════════════
 
 class XAIEngine:
     """
-    Explainable AI Engine using Transformer Model + SHAP & LIME.
+    Explainable AI Engine using Transformer Model + Attention Importance & LIME.
 
     Pipeline:
-    1. Uses DistilBERT-SQuAD for intelligent Q&A
-    2. Applies SHAP for global feature importance
+    1. Uses RoBERTa-SQuAD2 for intelligent Q&A with unanswerable detection
+    2. Uses attention weights for token-level importance scoring
     3. Applies LIME for local interpretable explanations
-    4. Uses attention weights for additional insights
+    4. Builds derivation trees for step-by-step reasoning
     """
 
     def __init__(self):
@@ -296,7 +312,7 @@ class XAIEngine:
 
     # ─── helpers ─────────────────────────────────────────────
 
-    def _split_sentences(self, text: str) -> List[Tuple[str, int, int]]:
+    def _split_sentences(self, text: str) -> list[tuple[str, int, int]]:
         sentences = []
         for match in re.finditer(r"[^.!?]*[.!?]+", text):
             sentence = match.group().strip()
@@ -304,42 +320,60 @@ class XAIEngine:
                 sentences.append((sentence, match.start(), match.end()))
         return sentences
 
-    def _tokenize(self, text: str) -> List[str]:
+    def _tokenize(self, text: str) -> list[str]:
         return re.findall(r"\b\w+\b", text.lower())
 
     def _get_sentence_relevance_scores(
         self, paragraph: str, question: str
-    ) -> List[Tuple[str, float]]:
+    ) -> list[tuple[str, float]]:
         sentences = [s[0] for s in self._split_sentences(paragraph)]
         if not sentences:
             return []
-        scored = []
-        for sentence in sentences:
-            try:
-                result = cast(Dict[str, Any], self.qa_model.qa_pipeline(question=question, context=sentence))
-                score = float(result["score"]) if str(result["answer"]).strip() else 0.0
-            except Exception:
-                score = 0.0
-            scored.append((sentence, score))
+        # Use TF-IDF cosine similarity for fast sentence relevance instead of
+        # running the full QA pipeline per sentence (which was O(n) model calls).
+        try:
+            corpus = [question] + sentences
+            tfidf_matrix = self.tfidf.fit_transform(corpus)
+            query_vec = tfidf_matrix[0:1]
+            sentence_vecs = tfidf_matrix[1:]
+            scores = cosine_similarity(query_vec, sentence_vecs)[0]
+            scored = list(zip(sentences, [float(s) for s in scores]))
+        except Exception:
+            scored = [(s, 0.0) for s in sentences]
         return sorted(scored, key=lambda x: x[1], reverse=True)
 
     def _create_relevance_predictor(self, paragraph: str, question: str):
+        # Cache predictions to avoid re-computing identical perturbations
+        _cache: dict[str, list[float]] = {}
+
         def predict_fn(texts):
             probas = []
             for text in texts:
+                cache_key = text[:200]  # truncate key for memory
+                if cache_key in _cache:
+                    probas.append(_cache[cache_key])
+                    continue
                 try:
-                    result = cast(Dict[str, Any], self.qa_model.qa_pipeline(
+                    ctx = text if len(text) > 10 else paragraph
+                    result = cast(dict[str, Any], self.qa_model.qa_pipeline(
                         question=question,
-                        context=text if len(text) > 10 else paragraph,
+                        context=ctx,
                     ))
                     score = float(result["score"])
-                    probas.append([1 - score, score])
+                    row = [1 - score, score]
                 except Exception:
-                    probas.append([0.5, 0.5])
+                    row = [0.5, 0.5]
+                _cache[cache_key] = row
+                probas.append(row)
             return np.array(probas)
         return predict_fn
 
-    # ─── SHAP ────────────────────────────────────────────────
+    # ─── Attention-Based Token Importance ─────────────────────
+    # NOTE: This uses transformer attention weights as a proxy for
+    # feature importance. These are NOT true Shapley values (which
+    # require coalitional value computation). We retain the SHAP
+    # data structure name for API compatibility, but the values
+    # represent attention-derived importance scores.
 
     def _get_shap_explanation(
         self, paragraph: str, question: str, prediction: ModelPrediction
@@ -360,14 +394,18 @@ class XAIEngine:
     # ─── LIME ────────────────────────────────────────────────
 
     def _get_lime_explanation(
-        self, paragraph: str, question: str, num_features: int = 15
+        self, paragraph: str, question: str, num_features: int = 10
     ) -> LIMEExplanation:
         try:
             predict_fn = self._create_relevance_predictor(paragraph, question)
+            # Reduced to 15-20 samples for fast response while maintaining
+            # meaningful local explanations. LIME's linear surrogate converges
+            # quickly for focused Q&A tasks.
+            num_samples = min(20, max(15, len(paragraph.split()) // 5))
             exp = self.lime_explainer.explain_instance(
                 paragraph, predict_fn,
                 num_features=num_features,
-                num_samples=50,
+                num_samples=num_samples,
             )
             word_weights = exp.as_list()
             proba = predict_fn([paragraph])[0][1]
@@ -378,7 +416,7 @@ class XAIEngine:
 
     # ─── spans ───────────────────────────────────────────────
 
-    def _find_word_spans(self, paragraph: str, word: str) -> List[Tuple[int, int]]:
+    def _find_word_spans(self, paragraph: str, word: str) -> list[tuple[int, int]]:
         spans = []
         pattern = r"\b" + re.escape(word) + r"\b"
         for match in re.finditer(pattern, paragraph, re.IGNORECASE):
@@ -387,8 +425,8 @@ class XAIEngine:
 
     def _calculate_combined_scores(
         self, shap_exp: SHAPExplanation, lime_exp: LIMEExplanation
-    ) -> Dict[str, Dict]:
-        word_scores: Dict[str, Dict] = {}
+    ) -> dict[str, dict[str, float]]:
+        word_scores: dict[str, dict[str, float]] = {}
         for word, score in shap_exp.shap_values:
             word_scores[word.lower()] = {"shap": score, "lime": 0}
         for word, score in lime_exp.word_weights:
@@ -402,10 +440,10 @@ class XAIEngine:
     def _create_highlighted_spans(
         self,
         paragraph: str,
-        word_scores: Dict,
+        word_scores: dict,
         prediction: ModelPrediction,
-    ) -> List[TextSpan]:
-        spans: List[TextSpan] = []
+    ) -> list[TextSpan]:
+        spans: list[TextSpan] = []
 
         # Answer span from model
         if prediction.answer and prediction.start_index >= 0:
@@ -461,7 +499,7 @@ class XAIEngine:
         spans.sort(key=lambda x: x.start)
         return spans
 
-    def _remove_overlapping_spans(self, spans: List[TextSpan]) -> List[TextSpan]:
+    def _remove_overlapping_spans(self, spans: list[TextSpan]) -> list[TextSpan]:
         if not spans:
             return spans
         spans.sort(key=lambda x: (
@@ -469,7 +507,7 @@ class XAIEngine:
             -x.combined_score,
             x.start,
         ))
-        result: List[TextSpan] = []
+        result: list[TextSpan] = []
         occupied: set[int] = set()
         for span in spans:
             positions = set(range(span.start, span.end))
@@ -480,25 +518,171 @@ class XAIEngine:
 
     # ─── answer construction ─────────────────────────────────
 
+    def _validate_answer(self, question: str, answer: str, context: str) -> tuple[bool, str]:
+        """Validate if the answer is relevant to the question.
+
+        Returns (is_valid, reason) tuple.
+        Detects cases where the model returns irrelevant answers.
+        """
+        import re
+        q_lower = question.lower()
+        a_lower = answer.lower().strip()
+
+        # Skip validation for very short or generic answers
+        if len(a_lower) < 2:
+            return False, "Answer too short"
+
+        # Question type detection and expected answer patterns
+        question_patterns = {
+            "amount": (["amount", "how much", "price", "cost", "value", "worth"], r'[\$£€]?\s*[\d,]+\.?\d*'),
+            "discount": (["discount", "reduction", "off", "savings"], r'[\$£€%]?\s*[\d,]+\.?\d*\s*%?'),
+            "tax": (["tax", "vat", "gst"], r'[\$£€%]?\s*[\d,]+\.?\d*\s*%?'),
+            "total": (["total", "grand total", "sum", "amount due"], r'[\$£€]?\s*[\d,]+\.?\d*'),
+            "subtotal": (["subtotal", "sub-total", "sub total"], r'[\$£€]?\s*[\d,]+\.?\d*'),
+            "date": (["date", "when", "due date", "invoice date"], r'\d{1,2}[/\-\.]\d{1,2}[/\-\.]\d{2,4}|\w+\s+\d{1,2},?\s+\d{4}'),
+            "number": (["number", "invoice #", "po #", "order #", "#"], r'[\d\-]+'),
+            "name": (["name", "who", "company", "customer", "vendor", "merchant"], r'[A-Za-z\s]+'),
+        }
+
+        # Find which question type this is
+        detected_type = None
+        for qtype, (keywords, _) in question_patterns.items():
+            if any(kw in q_lower for kw in keywords):
+                detected_type = qtype
+                break
+
+        # Check if question keyword exists in context (is the info even there?)
+        if detected_type:
+            keywords, expected_pattern = question_patterns[detected_type]
+            keyword_in_context = any(kw in context.lower() for kw in keywords)
+
+            if not keyword_in_context:
+                # The document doesn't even mention this concept
+                return False, f"No {detected_type} information found in document"
+
+            # Check if answer matches expected pattern
+            if detected_type in ["amount", "discount", "tax", "total", "subtotal"]:
+                # For financial questions, answer should contain numbers
+                has_numbers = bool(re.search(r'\d', answer))
+                if not has_numbers:
+                    return False, f"Answer '{answer}' doesn't look like a {detected_type}"
+
+        # Check if answer is just a generic word from the document
+        generic_words = ["item", "name", "description", "total", "amount", "date", "price", "quantity",
+                        "bill", "invoice", "notes", "terms", "conditions", "thank", "you"]
+        if a_lower in generic_words:
+            return False, f"Answer '{answer}' is a generic field label, not a value"
+
+        return True, "Valid"
+
+    def _check_unanswerable(self, question: str, answer: str, context: str, confidence: float) -> bool:
+        """Determine if the question is unanswerable from the context."""
+        import re
+        q_lower = question.lower()
+
+        # Keywords that indicate specific fields
+        field_keywords = {
+            "discount": ["discount", "reduction", "off", "savings", "deduction"],
+            "shipping": ["shipping", "delivery", "freight"],
+            "deposit": ["deposit", "down payment", "advance"],
+            "balance": ["balance", "remaining", "outstanding"],
+        }
+
+        for field, keywords in field_keywords.items():
+            if any(kw in q_lower for kw in keywords):
+                # Check if this field actually exists in the context
+                field_in_context = any(kw in context.lower() for kw in keywords)
+                if not field_in_context:
+                    return True  # Unanswerable
+
+        # If confidence is very low and answer doesn't contain relevant content
+        if confidence < 0.15:
+            # Check if answer contains any numbers for financial questions
+            financial_words = ["total", "amount", "price", "cost", "tax", "discount", "subtotal"]
+            if any(fw in q_lower for fw in financial_words):
+                if not re.search(r'\d', answer):
+                    return True
+
+        return False
+
+    def _boost_confidence(self, prediction: ModelPrediction, context: str, question: str) -> tuple[float, bool]:
+        """Boost confidence and detect unanswerable questions.
+
+        Returns (boosted_confidence, is_unanswerable) tuple.
+        Uses RoBERTa-SQuAD2's native unanswerable detection + additional validation.
+        """
+        import re
+        answer = prediction.answer.strip()
+        base_conf = prediction.confidence
+
+        # Check model's native unanswerable detection (SQuAD 2.0)
+        if prediction.is_unanswerable or answer == "[NO ANSWER]":
+            logger.debug("Model detected unanswerable question")
+            return base_conf, True
+
+        # First validate the answer
+        is_valid, reason = self._validate_answer(question, answer, context)
+        if not is_valid:
+            logger.debug("Answer validation failed: %s", reason)
+            return base_conf, True  # Mark as unanswerable
+
+        # Check if question is unanswerable using keyword detection
+        if self._check_unanswerable(question, answer, context, base_conf):
+            return base_conf, True
+
+        # Check if answer appears in context (exact or partial match)
+        answer_in_context = answer.lower() in context.lower()
+
+        # Check if it's a financial value (numbers, currency)
+        is_financial = bool(re.search(r'[\$£€]\s*[\d,]+\.?\d*|[\d,]+\.?\d*\s*(?:LKR|USD|EUR|GBP)?', answer))
+
+        # Boost confidence if answer is found and looks valid
+        if answer_in_context:
+            if is_financial:
+                boosted = max(base_conf, 0.75)
+            else:
+                boosted = max(base_conf, 0.55)
+        else:
+            answer_nums = re.findall(r'[\d,]+\.?\d*', answer)
+            if answer_nums and any(num in context for num in answer_nums):
+                boosted = max(base_conf, 0.50)
+            else:
+                boosted = base_conf
+
+        return boosted, False
+
     def _construct_answer(
         self,
         prediction: ModelPrediction,
-        relevant_sentences: List[Tuple[str, float]],
+        relevant_sentences: list[tuple[str, float]],
+        boosted_confidence: float | None = None,
+        is_unanswerable: bool = False,
+        question: str = "",
     ) -> str:
-        parts = [
-            f"**📌 Direct Answer:** {prediction.answer}",
-            f"\n*(Model confidence: {prediction.confidence:.1%})*\n",
-        ]
-        if relevant_sentences:
-            parts.append("\n**📖 Supporting Context:**")
-            for sentence, score in relevant_sentences[:2]:
-                if score > 0.01:
-                    parts.append(f"\n• {sentence}")
-        if prediction.confidence < 0.5 and len(prediction.top_k_answers) > 1:
-            parts.append("\n\n**🔄 Alternative interpretations:**")
-            for alt in prediction.top_k_answers[1:3]:
-                parts.append(f'\n• "{alt["answer"]}" ({alt["score"]:.1%})')
-        return "\n".join(parts)
+        """Build a simple, human-friendly answer."""
+        # Handle unanswerable questions
+        if is_unanswerable:
+            # Extract the field being asked about
+            import re
+            q_lower = question.lower()
+            field_matches = re.findall(r'(?:what(?:\'s| is) (?:the )?|how much is (?:the )?)([\w\s]+?)(?:\?|$)', q_lower)
+            if field_matches:
+                field = field_matches[0].strip()
+                return f"I couldn't find any {field} information in this document."
+            return "I couldn't find that information in this document."
+
+        answer = prediction.answer.strip()
+        confidence = boosted_confidence if boosted_confidence is not None else prediction.confidence
+
+        # Add natural conversational framing based on confidence
+        if confidence >= 0.7:
+            return f"The answer is {answer}."
+        elif confidence >= 0.5:
+            return f"Based on the document, it's {answer}."
+        elif confidence >= 0.3:
+            return f"I found {answer} in the document."
+        else:
+            return f"The document shows {answer}."
 
     # ─── derivation tree ─────────────────────────────────────
 
@@ -512,10 +696,10 @@ class XAIEngine:
     ) -> DerivationTree:
         steps = [
             DerivationStep(1, "📝 Input Tokenization",
-                "Tokenized question and context using DistilBERT tokenizer",
-                "Model: distilbert-base-cased-distilled-squad", 0.99),
+                "Tokenized question and context using RoBERTa tokenizer",
+                "Model: deepset/roberta-base-squad2 (SQuAD 2.0)", 0.99),
             DerivationStep(2, "🧠 Contextual Encoding",
-                "Encoded text through 6 transformer layers with self-attention",
+                "Encoded text through 12 RoBERTa transformer layers with self-attention",
                 "Created contextualized representations for each token", 0.95),
             DerivationStep(3, "🎯 Answer Span Prediction",
                 f'Identified answer span: "{prediction.answer}"',
@@ -553,17 +737,97 @@ class XAIEngine:
             overall_confidence=round(overall, 4),
         )
 
+    # ─── conversational handling ──────────────────────────────
+
+    def _handle_conversation(self, question: str) -> str | None:
+        """Handle greetings and common conversational phrases."""
+        q = question.lower().strip()
+
+        # Greetings
+        greetings = ['hello', 'hi', 'hey', 'good morning', 'good afternoon',
+                     'good evening', 'howdy', 'greetings', 'hola']
+        if any(q.startswith(g) or q == g for g in greetings):
+            return "Hello! I'm your document assistant. Ask me anything about this document - like prices, dates, totals, or any other details you need."
+
+        # How are you
+        if any(phrase in q for phrase in ['how are you', 'how r u', "how's it going", 'whats up', "what's up"]):
+            return "I'm doing great, thanks for asking! Ready to help you with any questions about your document."
+
+        # Thanks
+        if any(phrase in q for phrase in ['thank', 'thanks', 'thx', 'ty']):
+            return "You're welcome! Let me know if you have any other questions about the document."
+
+        # Help
+        if q in ['help', 'help me'] or any(p in q for p in ['what can you do', 'what do you do', 'how can you help']):
+            return "I can help you find information in your document. Try asking questions like 'What is the total?', 'What's the date?', or 'Who is the vendor?'"
+
+        # Goodbye
+        if any(phrase in q for phrase in ['bye', 'goodbye', 'see you', 'later', 'exit', 'quit']):
+            return "Goodbye! Feel free to come back if you have more questions."
+
+        # Who are you
+        if any(phrase in q for phrase in ['who are you', 'what are you', 'your name']):
+            return "I'm an AI document assistant. I can analyze documents and answer your questions about their content."
+
+        return None  # Not a conversational message
+
     # ─── main entry point ────────────────────────────────────
 
     def generate_explanation(self, paragraph: str, question: str) -> XAIExplanation:
         """Generate complete XAI explanation using Transformer + SHAP + LIME."""
         logger.info("Processing question: %s", question)
 
+        # Check for conversational messages first
+        conv_response = self._handle_conversation(question)
+        if conv_response:
+            logger.info("Handled as conversation: %s", question[:30])
+            # Return a minimal explanation for conversational responses
+            # Use confidence_score=-1 to signal frontend to hide confidence badge
+            return XAIExplanation(
+                paragraph=paragraph,
+                question=question,
+                answer=conv_response,
+                highlighted_spans=[],
+                shap_explanation=SHAPExplanation(base_value=0.5, shap_values=[], feature_names=[]),
+                lime_explanation=LIMEExplanation(word_weights=[], prediction_proba=1.0),
+                derivation_tree=DerivationTree(
+                    question=question, steps=[], final_answer=conv_response, overall_confidence=1.0
+                ),
+                confidence_score=-1.0,  # Negative = don't show confidence
+                evidence_sentences=[],
+                model_prediction=None,
+            )
+
         prediction = self.qa_model.predict(paragraph, question)
-        logger.debug("Answer: '%s' (%.1f%%)", prediction.answer, prediction.confidence * 100)
+        logger.debug("Answer: '%s' (raw %.1f%%)", prediction.answer, prediction.confidence * 100)
+
+        # Boost confidence and check if question is unanswerable
+        boosted_conf, is_unanswerable = self._boost_confidence(prediction, paragraph, question)
+        logger.debug("Boosted confidence: %.1f%%, Unanswerable: %s", boosted_conf * 100, is_unanswerable)
 
         relevant_sentences = self._get_sentence_relevance_scores(paragraph, question)
         evidence = [s for s, score in relevant_sentences if score > 0.01][:3]
+
+        # Construct answer (handles unanswerable case)
+        answer = self._construct_answer(prediction, relevant_sentences, boosted_conf, is_unanswerable, question)
+
+        # For unanswerable questions, return minimal explanation with hidden confidence
+        if is_unanswerable:
+            logger.info("Question unanswerable: %s", question[:50])
+            return XAIExplanation(
+                paragraph=paragraph,
+                question=question,
+                answer=answer,
+                highlighted_spans=[],
+                shap_explanation=SHAPExplanation(base_value=0.5, shap_values=[], feature_names=[]),
+                lime_explanation=LIMEExplanation(word_weights=[], prediction_proba=0.0),
+                derivation_tree=DerivationTree(
+                    question=question, steps=[], final_answer=answer, overall_confidence=0.0
+                ),
+                confidence_score=-1.0,  # Hide confidence for "not found" answers
+                evidence_sentences=[],
+                model_prediction=prediction,
+            )
 
         shap_exp = self._get_shap_explanation(paragraph, question, prediction)
         logger.debug("SHAP features: %d", len(shap_exp.shap_values))
@@ -575,7 +839,6 @@ class XAIEngine:
         spans = self._create_highlighted_spans(paragraph, word_scores, prediction)
         logger.debug("Highlighted spans: %d", len(spans))
 
-        answer = self._construct_answer(prediction, relevant_sentences)
         derivation = self._build_derivation_tree(question, answer, prediction, shap_exp, lime_exp)
 
         logger.info("Explanation complete for: %s", question[:50])
@@ -588,18 +851,16 @@ class XAIEngine:
             shap_explanation=shap_exp,
             lime_explanation=lime_exp,
             derivation_tree=derivation,
-            confidence_score=prediction.confidence,
+            confidence_score=boosted_conf,
             evidence_sentences=evidence,
             model_prediction=prediction,
         )
-
 
 # ═══════════════════════════════════════════════════════════════
 # Singleton
 # ═══════════════════════════════════════════════════════════════
 
-_engine_instance: Optional[XAIEngine] = None
-
+_engine_instance: XAIEngine | None = None
 
 def get_engine() -> XAIEngine:
     """Lazy-load singleton XAI engine."""

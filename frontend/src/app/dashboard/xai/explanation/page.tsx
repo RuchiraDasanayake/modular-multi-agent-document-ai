@@ -16,14 +16,16 @@ export default function ExplanationPage() {
         const storedQuestion = sessionStorage.getItem("xai_question");
         const storedParagraph = sessionStorage.getItem("xai_paragraph");
 
-        if (storedExplanation) setExplanation(JSON.parse(storedExplanation));
+        if (storedExplanation) {
+            try { setExplanation(JSON.parse(storedExplanation)); } catch { /* invalid data */ }
+        }
         if (storedQuestion) setQuestion(storedQuestion);
         if (storedParagraph) setParagraph(storedParagraph);
     }, []);
 
     if (!explanation) {
         return (
-            <div className="max-w-4xl mx-auto">
+            <div className="max-w-4xl 3xl:max-w-5xl mx-auto">
                 <div className="bg-white/80 dark:bg-gray-800/50 border border-slate-200 dark:border-gray-700 rounded-xl p-8 text-center">
                     <span className="text-5xl mb-4 block">🔍</span>
                     <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">No Explanation Available</h2>
@@ -40,7 +42,7 @@ export default function ExplanationPage() {
     }
 
     return (
-        <div className="max-w-5xl mx-auto space-y-6">
+        <div className="max-w-5xl 3xl:max-w-6xl mx-auto space-y-6">
             {/* Header */}
             <div className="bg-white/80 dark:bg-gray-800/50 border border-slate-200 dark:border-gray-700 rounded-xl p-6">
                 <div className="flex items-center justify-between">
@@ -189,19 +191,22 @@ function HighlightedParagraph({
         return <span>{text}</span>;
     }
 
-    // For demo, just show the text with some key phrases highlighted
+    // Highlight keywords using React elements (safe, no XSS risk)
     const keywords = ["finance", "capital", "economy", "money", "risk", "returns", "time value"];
-    let result = text;
+    const pattern = new RegExp(`(${keywords.join("|")})`, "gi");
+    const parts = text.split(pattern);
 
-    keywords.forEach((keyword) => {
-        const regex = new RegExp(`(${keyword})`, "gi");
-        result = result.replace(
-            regex,
-            `<mark class="bg-yellow-500/30 text-yellow-200 px-1 rounded">$1</mark>`
-        );
-    });
-
-    return <span dangerouslySetInnerHTML={{ __html: result }} />;
+    return (
+        <span>
+            {parts.map((part, i) =>
+                keywords.some((kw) => kw.toLowerCase() === part.toLowerCase()) ? (
+                    <mark key={i} className="bg-yellow-500/30 text-yellow-200 px-1 rounded">{part}</mark>
+                ) : (
+                    <span key={i}>{part}</span>
+                )
+            )}
+        </span>
+    );
 }
 
 function SHAPAnalysis({ values }: { values: Array<[string, number]> }) {

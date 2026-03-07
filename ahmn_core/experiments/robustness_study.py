@@ -24,7 +24,6 @@ import os
 import json
 import time
 import numpy as np
-from typing import Dict, List, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -37,15 +36,13 @@ from ahmn_core.experiments.run_experiments import (
     run_single, RunResult,
 )
 
-
 N_SEEDS = 20  # Enough for statistical comparison; keeps total runtime < 2 min
 
-
 def _measure_improvement(
-    baseline_results: List[RunResult],
-    variant_results: List[RunResult],
+    baseline_results: list[RunResult],
+    variant_results: list[RunResult],
     metric: str = "regret",
-) -> Dict:
+) -> dict:
     """
     Compute relative improvement of variant over baseline.
     
@@ -84,12 +81,11 @@ def _measure_improvement(
         "improvement_pct": round(improvement_pct, 2),
     }
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # SWEEP 1: Neighbor Similarity → RABI Effectiveness
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def sweep_neighbor_similarity(verbose: bool = True) -> Dict:
+def sweep_neighbor_similarity(verbose: bool = True) -> dict:
     """
     Question: How similar must a new vendor be to existing ones for RABI to help?
     
@@ -175,12 +171,11 @@ def sweep_neighbor_similarity(verbose: bool = True) -> Dict:
 
     return results
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # SWEEP 2: Drift Magnitude → DAAF Effectiveness
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def sweep_drift_magnitude(verbose: bool = True) -> Dict:
+def sweep_drift_magnitude(verbose: bool = True) -> dict:
     """
     Question: How big must a reward shift be for DAAF to outperform plain TS?
     
@@ -270,12 +265,11 @@ def sweep_drift_magnitude(verbose: bool = True) -> Dict:
 
     return results
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # SWEEP 3: Cold-Start Fraction → RABI Relevance
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def sweep_cold_start_fraction(verbose: bool = True) -> Dict:
+def sweep_cold_start_fraction(verbose: bool = True) -> dict:
     """
     Question: What fraction of vendors need to be "new" for RABI to matter?
     
@@ -353,12 +347,11 @@ def sweep_cold_start_fraction(verbose: bool = True) -> Dict:
 
     return results
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # SWEEP 4: Vendor Count / Sample Density → DAAF Effectiveness
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def sweep_vendor_count(verbose: bool = True) -> Dict:
+def sweep_vendor_count(verbose: bool = True) -> dict:
     """
     Question: How concentrated must sample density be for DAAF to detect drift?
     
@@ -443,12 +436,11 @@ def sweep_vendor_count(verbose: bool = True) -> Dict:
 
     return results
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # SWEEP 5: Reward Structure Mismatch → RABI Failure Mode
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def sweep_reward_mismatch(verbose: bool = True) -> Dict:
+def sweep_reward_mismatch(verbose: bool = True) -> dict:
     """
     Question: What happens when RABI transfers from vendors with DIFFERENT
     optimal policies? (The worst case for RABI.)
@@ -535,12 +527,11 @@ def sweep_reward_mismatch(verbose: bool = True) -> Dict:
 
     return results
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # SUMMARY & CONCLUSIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def print_summary(all_results: Dict):
+def print_summary(all_results: dict):
     """Print honest conclusions from the robustness sweeps."""
     print(f"\n{'═'*70}")
     print("ROBUSTNESS STUDY SUMMARY — Honest Assessment")
@@ -640,7 +631,6 @@ def print_summary(all_results: Dict):
     print("    worse than plain Thompson Sampling.")
     print(f"{'─'*70}")
 
-
 def main():
     print("╔══════════════════════════════════════════════════════════════════╗")
     print("║         AHMN Robustness Study — Honest Evaluation               ║")
@@ -683,7 +673,6 @@ def main():
         }, f, indent=2, default=serialize)
 
     print(f"\nDone in {elapsed:.1f}s. Results saved to output/robustness_results.json")
-
 
 if __name__ == "__main__":
     main()

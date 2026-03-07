@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { setToken } from "@/lib/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -29,7 +30,7 @@ export default function SignupPage() {
         try {
             const { access_token } = await api.signup(email, username, password);
             setToken(access_token);
-            router.push("/dashboard/xai");
+            router.push("/dashboard");
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : "Registration failed");
         } finally {
@@ -41,10 +42,10 @@ export default function SignupPage() {
         <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-950 px-4 relative overflow-hidden transition-colors duration-300">
             {/* Top Bar */}
             <div className="absolute top-6 left-6 z-50">
-                <a href="/" className="flex items-center gap-2 text-sm text-slate-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white transition-colors font-medium">
+                <Link href="/" className="flex items-center gap-2 text-sm text-slate-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white transition-colors font-medium">
                     <ArrowLeft className="w-4 h-4" />
                     Back to Home
-                </a>
+                </Link>
             </div>
             <div className="absolute top-6 right-6 z-50">
                 <ThemeToggle />
@@ -58,7 +59,10 @@ export default function SignupPage() {
                 {/* Logo */}
                 <div className="text-center mb-8">
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white dark:bg-gray-900 border border-brand-500/20 dark:border-brand-500/30 mb-4 shadow-xl shadow-slate-200/50 dark:shadow-brand-500/10 backdrop-blur-md">
-                        <span className="text-3xl drop-shadow-sm">🧠</span>
+                        <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="url(#signup-grad)" strokeWidth={1.5}>
+                            <defs><linearGradient id="signup-grad" x1="0" y1="0" x2="24" y2="24"><stop offset="0%" stopColor="#6366f1" /><stop offset="100%" stopColor="#06b6d4" /></linearGradient></defs>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                        </svg>
                     </div>
                     <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Create Account</h1>
                     <p className="text-slate-500 dark:text-gray-400 mt-2 font-medium">Modular Document AI Platform</p>
@@ -134,9 +138,9 @@ export default function SignupPage() {
 
                     <p className="text-sm text-slate-500 dark:text-gray-400 text-center pt-2">
                         Already have an account?{" "}
-                        <a href="/login" className="text-brand-600 dark:text-brand-400 hover:text-brand-500 dark:hover:text-brand-300 font-medium transition-colors">
+                        <Link href="/login" className="text-brand-600 dark:text-brand-400 hover:text-brand-500 dark:hover:text-brand-300 font-medium transition-colors">
                             Sign in
-                        </a>
+                        </Link>
                     </p>
                 </form>
             </div>

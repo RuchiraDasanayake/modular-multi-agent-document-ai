@@ -1,21 +1,22 @@
+"""BM25 sparse retrieval index."""
+
 from __future__ import annotations
 
 import math
 from collections import Counter, defaultdict
-from typing import Dict, Iterable, List, Tuple
+from typing import Iterable
 
 from idpo.core.types import Chunk
-
 
 class BM25Index:
     def __init__(self, k1: float = 1.5, b: float = 0.75) -> None:
         self.k1 = k1
         self.b = b
-        self.doc_freq: Dict[str, int] = defaultdict(int)
-        self.term_freqs: Dict[str, Counter] = {}
-        self.doc_lens: Dict[str, int] = {}
+        self.doc_freq: dict[str, int] = defaultdict(int)
+        self.term_freqs: dict[str, Counter] = {}
+        self.doc_lens: dict[str, int] = {}
         self.avg_len: float = 0.0
-        self.doc_ids: List[str] = []
+        self.doc_ids: list[str] = []
 
     def add(self, chunks: Iterable[Chunk]) -> None:
         for chunk in chunks:
@@ -29,9 +30,9 @@ class BM25Index:
         total_len = sum(self.doc_lens.values())
         self.avg_len = total_len / len(self.doc_lens) if self.doc_lens else 0.0
 
-    def search(self, query: str, top_k: int = 10) -> List[Tuple[str, float]]:
+    def search(self, query: str, top_k: int = 10) -> list[tuple[str, float]]:
         tokens = self._tokenize(query)
-        scores: Dict[str, float] = defaultdict(float)
+        scores: dict[str, float] = defaultdict(float)
         num_docs = max(len(self.doc_ids), 1)
         for term in tokens:
             df = self.doc_freq.get(term, 0)
@@ -47,5 +48,5 @@ class BM25Index:
         ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         return ranked[:top_k]
 
-    def _tokenize(self, text: str) -> List[str]:
+    def _tokenize(self, text: str) -> list[str]:
         return [token.lower().strip(".,:;()[]{}") for token in text.split() if token]

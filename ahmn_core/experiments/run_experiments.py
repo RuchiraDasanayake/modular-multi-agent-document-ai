@@ -30,7 +30,7 @@ import os
 import json
 import time
 import numpy as np
-from typing import Dict, List, Tuple, Optional
+
 from dataclasses import dataclass, field, asdict
 
 # Add parent to path for imports
@@ -52,7 +52,6 @@ from ahmn_core.experiments.synthetic_data import (
     create_drift_scenario, create_combined_scenario,
 )
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # RESULT DATA STRUCTURES
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -63,11 +62,11 @@ class RunResult:
     method: str
     scenario: str
     seed: int
-    rewards: List[float]             # Per-round rewards
-    cumulative_regret: List[float]   # Cumulative regret over time
-    oracle_rewards: List[float]      # Oracle (best possible) per round
-    selected_policies: List[str]     # Which policy was chosen each round
-    optimal_policies: List[str]      # Oracle-best policy each round
+    rewards: list[float]             # Per-round rewards
+    cumulative_regret: list[float]   # Cumulative regret over time
+    oracle_rewards: list[float]      # Oracle (best possible) per round
+    selected_policies: list[str]     # Which policy was chosen each round
+    optimal_policies: list[str]      # Oracle-best policy each round
     
     @property
     def n_rounds(self) -> int:
@@ -92,7 +91,7 @@ class RunResult:
         return correct / len(self.selected_policies)
     
     @property
-    def convergence_round(self) -> Optional[int]:
+    def convergence_round(self) -> int | None:
         """First round where rolling-50 average exceeds 95% of oracle average."""
         if len(self.rewards) < 50:
             return None
@@ -104,7 +103,7 @@ class RunResult:
                 return i
         return None
     
-    def to_summary(self) -> Dict:
+    def to_summary(self) -> dict:
         """Compact summary for JSON output."""
         return {
             "method": self.method,
@@ -117,7 +116,6 @@ class RunResult:
             "n_rounds": self.n_rounds,
         }
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # METHOD IMPLEMENTATIONS (wrappers for the actual algorithm classes)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -125,13 +123,13 @@ class RunResult:
 class MethodRunner:
     """Base class for running a bandit method through a scenario."""
     
-    def __init__(self, name: str, policy_ids: List[str]):
+    def __init__(self, name: str, policy_ids: list[str]):
         self.name = name
         self.policy_ids = policy_ids
         # Per-vendor, per-policy arm tracking
-        self.arms: Dict[str, Dict[str, BanditArm]] = {}
+        self.arms: dict[str, dict[str, BanditArm]] = {}
     
-    def _get_arms(self, vendor_id: str) -> Dict[str, BanditArm]:
+    def _get_arms(self, vendor_id: str) -> dict[str, BanditArm]:
         """Get or create arms for a vendor."""
         if vendor_id not in self.arms:
             self.arms[vendor_id] = {
@@ -148,7 +146,7 @@ class MethodRunner:
         return self.arms[vendor_id]
     
     def select_policy(self, vendor: VendorProfile, round_num: int,
-                      all_vendors: List[VendorProfile]) -> str:
+                      all_vendors: list[VendorProfile]) -> str:
         """Select a policy for this vendor. Override in subclasses."""
         raise NotImplementedError
     
@@ -165,9 +163,8 @@ class MethodRunner:
         """Reset state for a new run."""
         self.arms = {}
 
-
 class RandomRunner(MethodRunner):
-    def __init__(self, policy_ids: List[str]):
+    def __init__(self, policy_ids: list[str]):
         super().__init__("Random", policy_ids)
         self.strategy = RandomStrategy()
     
@@ -176,9 +173,8 @@ class RandomRunner(MethodRunner):
         selected, _ = self.strategy.select(arms, round_num)
         return selected.policy_id
 
-
 class EpsilonGreedyRunner(MethodRunner):
-    def __init__(self, policy_ids: List[str]):
+    def __init__(self, policy_ids: list[str]):
         super().__init__("ε-Greedy", policy_ids)
         self.strategy = EpsilonGreedyStrategy(
             epsilon_0=1.0, decay_rate=0.003, epsilon_min=0.01
@@ -189,9 +185,8 @@ class EpsilonGreedyRunner(MethodRunner):
         selected, _ = self.strategy.select(arms, round_num)
         return selected.policy_id
 
-
 class UCB1Runner(MethodRunner):
-    def __init__(self, policy_ids: List[str]):
+    def __init__(self, policy_ids: list[str]):
         super().__init__("UCB1", policy_ids)
         self.strategy = UCB1Strategy(c=2.0)
     
@@ -200,10 +195,9 @@ class UCB1Runner(MethodRunner):
         selected, _ = self.strategy.select(arms, round_num)
         return selected.policy_id
 
-
 class ThompsonSamplingRunner(MethodRunner):
     """Plain Thompson Sampling — no RABI, no DAAF."""
-    def __init__(self, policy_ids: List[str]):
+    def __init__(self, policy_ids: list[str]):
         super().__init__("TS (base)", policy_ids)
         self.strategy = ThompsonSamplingStrategy()
     
@@ -212,10 +206,9 @@ class ThompsonSamplingRunner(MethodRunner):
         selected, _ = self.strategy.select(arms, round_num)
         return selected.policy_id
 
-
 class AHMNRABIRunner(MethodRunner):
     """Thompson Sampling + RABI (cold-start transfer, no DAAF)."""
-    def __init__(self, policy_ids: List[str], temperature: float = 0.5,
+    def __init__(self, policy_ids: list[str], temperature: float = 0.5,
                  similarity_threshold: float = 0.4):
         super().__init__("AHMN-RABI", policy_ids)
         self.rabi = RABIInitializer(
@@ -228,7 +221,7 @@ class AHMNRABIRunner(MethodRunner):
         self.strategy = ThompsonSamplingStrategy()
         self._initialized_vendors = set()
     
-    def _try_rabi_init(self, vendor: VendorProfile, all_vendors: List[VendorProfile]):
+    def _try_rabi_init(self, vendor: VendorProfile, all_vendors: list[VendorProfile]):
         """Use RABI to initialize arms for a new vendor from neighbors."""
         if vendor.vendor_id in self._initialized_vendors:
             return
@@ -272,13 +265,12 @@ class AHMNRABIRunner(MethodRunner):
         super().reset()
         self._initialized_vendors = set()
 
-
 class AHMNDAAFRunner(MethodRunner):
     """Thompson Sampling + DAAF (drift-aware forgetting, no RABI)."""
-    def __init__(self, policy_ids: List[str], window_size: int = 50):
+    def __init__(self, policy_ids: list[str], window_size: int = 50):
         super().__init__("AHMN-DAAF", policy_ids)
         self.strategy = ThompsonSamplingStrategy()
-        self.drift_estimators: Dict[str, Dict[str, DriftEstimator]] = {}
+        self.drift_estimators: dict[str, dict[str, DriftEstimator]] = {}
         self.window_size = window_size
     
     def _get_estimator(self, vendor_id: str, policy_id: str) -> DriftEstimator:
@@ -323,10 +315,9 @@ class AHMNDAAFRunner(MethodRunner):
         super().reset()
         self.drift_estimators = {}
 
-
 class AHMNFullRunner(MethodRunner):
     """Full AHMN: Thompson Sampling + RABI + DAAF."""
-    def __init__(self, policy_ids: List[str], temperature: float = 0.5,
+    def __init__(self, policy_ids: list[str], temperature: float = 0.5,
                  similarity_threshold: float = 0.4):
         super().__init__("AHMN-Full", policy_ids)
         self.rabi = RABIInitializer(
@@ -337,10 +328,10 @@ class AHMNFullRunner(MethodRunner):
             max_transfer_strength=10.0,
         )
         self.strategy = ThompsonSamplingStrategy()
-        self.drift_estimators: Dict[str, Dict[str, DriftEstimator]] = {}
+        self.drift_estimators: dict[str, dict[str, DriftEstimator]] = {}
         self._initialized_vendors = set()
     
-    def _try_rabi_init(self, vendor: VendorProfile, all_vendors: List[VendorProfile]):
+    def _try_rabi_init(self, vendor: VendorProfile, all_vendors: list[VendorProfile]):
         if vendor.vendor_id in self._initialized_vendors:
             return
         self._initialized_vendors.add(vendor.vendor_id)
@@ -412,7 +403,6 @@ class AHMNFullRunner(MethodRunner):
         self.drift_estimators = {}
         self._initialized_vendors = set()
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # EXPERIMENT ENGINE
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -447,11 +437,11 @@ def run_single(
     running_regret = 0.0
     
     # Pre-apply drift events by building a schedule
-    drift_schedule: Dict[int, DriftEvent] = {
+    drift_schedule: dict[int, DriftEvent] = {
         de.at_round: de for de in scenario.drift_events
     }
     # Mutable copy of vendor policies (so drift can modify them)
-    vendor_policies: Dict[str, Dict] = {
+    vendor_policies: dict[str, dict] = {
         v.vendor_id: {pid: cfg for pid, cfg in v.policies.items()}
         for v in scenario.vendors
     }
@@ -514,12 +504,11 @@ def run_single(
         optimal_policies=optimal_policies,
     )
 
-
 def run_experiment(
-    scenarios: Optional[List[Scenario]] = None,
+    scenarios: list[Scenario] | None = None,
     n_seeds: int = 30,
     verbose: bool = True,
-) -> List[RunResult]:
+) -> list[RunResult]:
     """
     Run full experiment: all methods × all scenarios × n_seeds.
     
@@ -534,7 +523,7 @@ def run_experiment(
     if scenarios is None:
         scenarios = get_all_scenarios()
     
-    all_results: List[RunResult] = []
+    all_results: list[RunResult] = []
     
     for scenario in scenarios:
         methods = [
@@ -579,12 +568,11 @@ def run_experiment(
     
     return all_results
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # ABLATION STUDIES
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def run_ablation_rabi_temperature(n_seeds: int = 30, verbose: bool = True) -> Dict:
+def run_ablation_rabi_temperature(n_seeds: int = 30, verbose: bool = True) -> dict:
     """Ablation: vary RABI temperature τ ∈ {0.1, 0.3, 0.5, 0.7, 1.0, 2.0}."""
     scenario = create_cold_start_scenario()
     # Widen embedding spread so neighbor similarities vary (0.5-0.95 range)
@@ -626,8 +614,7 @@ def run_ablation_rabi_temperature(n_seeds: int = 30, verbose: bool = True) -> Di
     
     return results
 
-
-def run_ablation_daaf_window(n_seeds: int = 30, verbose: bool = True) -> Dict:
+def run_ablation_daaf_window(n_seeds: int = 30, verbose: bool = True) -> dict:
     """Ablation: vary DAAF window size ∈ {10, 20, 30, 50, 75, 100}."""
     scenario = create_drift_scenario()
     window_sizes = [10, 20, 30, 50, 75, 100]
@@ -660,8 +647,7 @@ def run_ablation_daaf_window(n_seeds: int = 30, verbose: bool = True) -> Dict:
     
     return results
 
-
-def run_ablation_similarity_threshold(n_seeds: int = 30, verbose: bool = True) -> Dict:
+def run_ablation_similarity_threshold(n_seeds: int = 30, verbose: bool = True) -> dict:
     """Ablation: vary RABI similarity threshold ∈ {0.2, 0.3, 0.4, 0.5, 0.6, 0.8}."""
     scenario = create_cold_start_scenario()
     # Widen embeddings so some neighbors fall below higher thresholds
@@ -698,7 +684,6 @@ def run_ablation_similarity_threshold(n_seeds: int = 30, verbose: bool = True) -
     
     return results
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # MAIN
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -722,7 +707,7 @@ def main():
     elapsed = time.time() - t_start
     
     # ── Save results ──
-    output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ahmn_core", "output")
+    output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "output")
     os.makedirs(output_dir, exist_ok=True)
     
     output = {
@@ -749,7 +734,6 @@ def main():
     print(f"{'='*70}")
     
     return output
-
 
 if __name__ == "__main__":
     main()

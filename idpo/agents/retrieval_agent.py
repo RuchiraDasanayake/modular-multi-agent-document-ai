@@ -1,7 +1,8 @@
+"""Retrieval agent wrapping hybrid search and context selection."""
+
 from __future__ import annotations
 
 import time
-from typing import Dict, List, Optional
 
 from idpo.agents.base import Agent, AgentContext
 from idpo.core.contracts import AgentMessage
@@ -9,7 +10,6 @@ from idpo.core.types import AgentResult, Chunk, RetrievalResult, StageSignal, To
 from idpo.retrieval.context_selector import select_context
 from idpo.retrieval.hybrid import HybridRetriever
 from idpo.retrieval.index_bundle import IndexBundle
-
 
 class RetrievalAgent(Agent):
     name = "retrieval"
@@ -25,7 +25,7 @@ class RetrievalAgent(Agent):
         started = time.time()
         query: str = payload["query"]
         bundle: IndexBundle = payload["bundle"]
-        filters: Optional[Dict[str, str]] = payload.get("filters")
+        filters: dict[str, str] | None = payload.get("filters")
         retriever = HybridRetriever(bundle.vector_store, bundle.bm25)
         results = retriever.retrieve(
             query=query,
@@ -85,8 +85,7 @@ class RetrievalAgent(Agent):
             }
         )
 
-
-def _matches_filters(chunk: Chunk, filters: Dict[str, str]) -> bool:
+def _matches_filters(chunk: Chunk, filters: dict[str, str]) -> bool:
     for key, value in filters.items():
         if key == "doc_id" and chunk.doc_id != value:
             return False

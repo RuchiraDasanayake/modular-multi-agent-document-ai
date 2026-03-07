@@ -1,13 +1,13 @@
+"""Text quality and retrieval evaluation metrics."""
+
 from __future__ import annotations
 
 import math
 from collections import Counter
-from typing import Iterable, List, Sequence, Tuple
-
+from typing import Iterable, Sequence
 
 def token_count(text: str) -> int:
     return len(text.split())
-
 
 def _edit_distance(a: Sequence[str], b: Sequence[str]) -> int:
     if not a:
@@ -31,14 +31,12 @@ def _edit_distance(a: Sequence[str], b: Sequence[str]) -> int:
             )
     return dp[-1][-1]
 
-
 def cer(reference: str, hypothesis: str) -> float:
     ref = list(reference)
     hyp = list(hypothesis)
     if not ref:
         return 0.0 if not hyp else 1.0
     return _edit_distance(ref, hyp) / len(ref)
-
 
 def wer(reference: str, hypothesis: str) -> float:
     ref = reference.split()
@@ -47,15 +45,13 @@ def wer(reference: str, hypothesis: str) -> float:
         return 0.0 if not hyp else 1.0
     return _edit_distance(ref, hyp) / len(ref)
 
-
-def precision_recall_f1(tp: int, fp: int, fn: int) -> Tuple[float, float, float]:
+def precision_recall_f1(tp: int, fp: int, fn: int) -> tuple[float, float, float]:
     precision = tp / (tp + fp) if (tp + fp) else 0.0
     recall = tp / (tp + fn) if (tp + fn) else 0.0
     f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
     return precision, recall, f1
 
-
-def f1_for_sets(reference: Iterable[str], predicted: Iterable[str]) -> Tuple[float, float, float]:
+def f1_for_sets(reference: Iterable[str], predicted: Iterable[str]) -> tuple[float, float, float]:
     ref_set = set(reference)
     pred_set = set(predicted)
     tp = len(ref_set & pred_set)
@@ -63,13 +59,11 @@ def f1_for_sets(reference: Iterable[str], predicted: Iterable[str]) -> Tuple[flo
     fn = len(ref_set - pred_set)
     return precision_recall_f1(tp, fp, fn)
 
-
 def mrr(ranks: Iterable[int]) -> float:
     reciprocal = [1.0 / rank for rank in ranks if rank > 0]
     return sum(reciprocal) / len(reciprocal) if reciprocal else 0.0
 
-
-def ndcg(relevances: List[float]) -> float:
+def ndcg(relevances: list[float]) -> float:
     if not relevances:
         return 0.0
     dcg = sum(rel / math.log2(idx + 2) for idx, rel in enumerate(relevances))
@@ -77,13 +71,11 @@ def ndcg(relevances: List[float]) -> float:
     idcg = sum(rel / math.log2(idx + 2) for idx, rel in enumerate(ideal)) or 1.0
     return dcg / idcg
 
-
-def recall_at_k(relevant: List[str], retrieved: List[str], k: int) -> float:
+def recall_at_k(relevant: list[str], retrieved: list[str], k: int) -> float:
     if not relevant:
         return 0.0
     retrieved_k = set(retrieved[:k])
     return len(set(relevant) & retrieved_k) / len(set(relevant))
-
 
 def term_overlap_score(text: str) -> Counter:
     tokens = [token.lower().strip(".,:;()[]{}") for token in text.split()]

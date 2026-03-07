@@ -1,13 +1,13 @@
+"""Policy retrieval agent for selecting processing policies per document."""
+
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 from idpo.agents.base import Agent, AgentContext
 from idpo.core.contracts import AgentMessage
 from idpo.core.policy_store import PolicyStore
 from idpo.core.types import AgentResult, DAEOutput, Document, ModelDecision, PolicyDefinition, StageSignal
-
 
 class PolicyRetrievalAgent(Agent):
     name = "policy_retrieval"
@@ -16,14 +16,14 @@ class PolicyRetrievalAgent(Agent):
     output_contract = {"policy": "PolicyDefinition", "reason": "str", "signal": "StageSignal"}
 
     def __init__(self) -> None:
-        self._store: Optional[PolicyStore] = None
-        self._store_path: Optional[str] = None
-        self._default_policy_id: Optional[str] = None
+        self._store: PolicyStore | None = None
+        self._store_path: str | None = None
+        self._default_policy_id: str | None = None
 
     def run(self, payload: AgentMessage, ctx: AgentContext) -> AgentResult:
         started = time.time()
         doc: Document = payload["document"]
-        dae_output: Optional[DAEOutput] = payload.get("dae_output")
+        dae_output: DAEOutput | None = payload.get("dae_output")
         store = self._get_store(ctx)
         if dae_output is None:
             dae_output = DAEOutput(
@@ -74,7 +74,6 @@ class PolicyRetrievalAgent(Agent):
         self._default_policy_id = default_policy_id
         return self._store
 
-
 class ModelSelectionAgent(Agent):
     name = "model_selection"
     version = "v1"
@@ -84,7 +83,7 @@ class ModelSelectionAgent(Agent):
     def run(self, payload: AgentMessage, ctx: AgentContext) -> AgentResult:
         started = time.time()
         doc: Document = payload["document"]
-        policy: Optional[PolicyDefinition] = payload.get("policy")
+        policy: PolicyDefinition | None = payload.get("policy")
         history_mode = doc.metadata.get(ctx.config.llm.history_signal_key) or ctx.config.llm.history_mode
         mode = self._select_mode(history_mode, policy, ctx)
         model_name = ctx.config.llm.cloud_model if mode == "cloud" else ctx.config.llm.local_model
@@ -119,7 +118,7 @@ class ModelSelectionAgent(Agent):
         )
         return AgentResult(artifacts={"model_decision": decision, "model_artifact": artifact, "signal": signal})
 
-    def _select_mode(self, history_mode: Optional[str], policy: Optional[PolicyDefinition], ctx: AgentContext) -> str:
+    def _select_mode(self, history_mode: str | None, policy: PolicyDefinition | None, ctx: AgentContext) -> str:
         if history_mode in {"local", "cloud"}:
             return history_mode
         model_tier = None
@@ -129,7 +128,7 @@ class ModelSelectionAgent(Agent):
             return model_tier
         return ctx.config.llm.default_mode if ctx.config.llm.default_mode in {"local", "cloud"} else "local"
 
-    def _reason(self, history_mode: Optional[str], policy: Optional[PolicyDefinition]) -> str:
+    def _reason(self, history_mode: str | None, policy: PolicyDefinition | None) -> str:
         if history_mode in {"local", "cloud"}:
             return "history"
         model_tier = None
