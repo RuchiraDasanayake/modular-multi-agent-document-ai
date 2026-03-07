@@ -59,6 +59,38 @@ export default function IDPOPage() {
         try { localStorage.setItem("idpo_toggles", JSON.stringify({ guardrails: enableGuardrails, xai: enableXAI, ahmn: enableAHMN })); } catch { }
     }, [enableGuardrails, enableXAI, enableAHMN]);
 
+    // Restore extraction results from sessionStorage on mount
+    useEffect(() => {
+        try {
+            const savedResult = sessionStorage.getItem("idpo_result");
+            if (savedResult) {
+                const parsed = JSON.parse(savedResult);
+                setResult(parsed);
+                const savedTab = sessionStorage.getItem("idpo_activeTab");
+                if (savedTab) setActiveTab(savedTab as typeof activeTab);
+                const savedExpanded = sessionStorage.getItem("idpo_expandedDoc");
+                if (savedExpanded) setExpandedDoc(savedExpanded);
+            }
+        } catch { }
+    }, []);
+
+    // Persist extraction results to sessionStorage whenever they change
+    useEffect(() => {
+        try {
+            if (result) {
+                sessionStorage.setItem("idpo_result", JSON.stringify(result));
+            }
+        } catch { }
+    }, [result]);
+
+    useEffect(() => {
+        try { if (result) sessionStorage.setItem("idpo_activeTab", activeTab); } catch { }
+    }, [activeTab, result]);
+
+    useEffect(() => {
+        try { if (result && expandedDoc) sessionStorage.setItem("idpo_expandedDoc", expandedDoc); } catch { }
+    }, [expandedDoc, result]);
+
     /* ── Drag & drop handlers ── */
     const handleDrag = useCallback((e: React.DragEvent) => {
         e.preventDefault();
@@ -1036,20 +1068,20 @@ function IntegrationPanel({ integration, activeSubTab, onSubTabChange, durationM
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex gap-1.5 flex-wrap">
-                {tabs.map((tab) => (
-                    <button key={tab.key} onClick={() => onSubTabChange(tab.key)}
-                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all border ${activeSubTab === tab.key
-                            ? "bg-white dark:bg-gray-800 border-slate-300 dark:border-gray-600 text-slate-900 dark:text-white shadow-sm"
-                            : "bg-transparent border-transparent text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 hover:bg-slate-50 dark:hover:bg-gray-800/50"}`}>
-                        <span>{tab.icon}</span>{tab.label}
-                    </button>
-                ))}
-            </div>
-            <div className="flex items-center gap-3 text-[10px] text-slate-400 dark:text-gray-500">
-                {durationMs != null && <span>Total: <span className="font-medium text-slate-600 dark:text-gray-300">{(durationMs / 1000).toFixed(1)}s</span></span>}
-                <span>Cycle: <span className="font-medium text-slate-600 dark:text-gray-300">{(integration.cycle_time_ms / 1000).toFixed(1)}s</span></span>
-            </div>
+                <div className="flex gap-1.5 flex-wrap">
+                    {tabs.map((tab) => (
+                        <button key={tab.key} onClick={() => onSubTabChange(tab.key)}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all border ${activeSubTab === tab.key
+                                ? "bg-white dark:bg-gray-800 border-slate-300 dark:border-gray-600 text-slate-900 dark:text-white shadow-sm"
+                                : "bg-transparent border-transparent text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 hover:bg-slate-50 dark:hover:bg-gray-800/50"}`}>
+                            <span>{tab.icon}</span>{tab.label}
+                        </button>
+                    ))}
+                </div>
+                <div className="flex items-center gap-3 text-[10px] text-slate-400 dark:text-gray-500">
+                    {durationMs != null && <span>Total: <span className="font-medium text-slate-600 dark:text-gray-300">{(durationMs / 1000).toFixed(1)}s</span></span>}
+                    <span>Cycle: <span className="font-medium text-slate-600 dark:text-gray-300">{(integration.cycle_time_ms / 1000).toFixed(1)}s</span></span>
+                </div>
             </div>
             {activeSubTab === "advice" && <AdvicePanel advice={integration.ahmn_advice} />}
             {activeSubTab === "guardrails" && <GuardrailsPanel results={integration.guardrails} skipped={integration.skipped_guardrails} />}
@@ -1185,31 +1217,28 @@ function ComponentCard({ comp }: { comp: { component: string; title: string; sum
                     <span className="text-lg">{icon}</span>
                     <p className="text-sm font-semibold text-slate-900 dark:text-white">{comp.title}</p>
                 </div>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium uppercase ${
-                    comp.status === "success" ? "bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" :
-                    comp.status === "warning" ? "bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300" :
-                    comp.status === "error" ? "bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-300" :
-                    "bg-slate-100 dark:bg-slate-500/10 text-slate-600 dark:text-slate-300"
-                }`}>{comp.status}</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium uppercase ${comp.status === "success" ? "bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" :
+                        comp.status === "warning" ? "bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300" :
+                            comp.status === "error" ? "bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-300" :
+                                "bg-slate-100 dark:bg-slate-500/10 text-slate-600 dark:text-slate-300"
+                    }`}>{comp.status}</span>
             </div>
             <p className="text-xs text-slate-600 dark:text-gray-300 mb-3">{comp.summary}</p>
             {comp.details.length > 0 && (
                 <div className="space-y-1.5">
                     {comp.details.map((detail, i) => (
                         <div key={i} className="flex items-start gap-2 text-[11px]">
-                            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${
-                                detail.passed === true ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" :
-                                detail.passed === false ? "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300" :
-                                "bg-brand-100 dark:bg-brand-500/20 text-brand-700 dark:text-brand-300"
-                            }`}>{detail.step}</span>
+                            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${detail.passed === true ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" :
+                                    detail.passed === false ? "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300" :
+                                        "bg-brand-100 dark:bg-brand-500/20 text-brand-700 dark:text-brand-300"
+                                }`}>{detail.step}</span>
                             <div className="flex-1 min-w-0">
                                 <p className="font-medium text-slate-800 dark:text-gray-200">{detail.action}</p>
                                 <p className="text-slate-500 dark:text-gray-400">{detail.description}</p>
-                                <p className={`mt-0.5 ${
-                                    detail.passed === true ? "text-emerald-600 dark:text-emerald-400" :
-                                    detail.passed === false ? "text-red-600 dark:text-red-400" :
-                                    "text-slate-600 dark:text-gray-300"
-                                }`}>→ {detail.outcome}</p>
+                                <p className={`mt-0.5 ${detail.passed === true ? "text-emerald-600 dark:text-emerald-400" :
+                                        detail.passed === false ? "text-red-600 dark:text-red-400" :
+                                            "text-slate-600 dark:text-gray-300"
+                                    }`}>→ {detail.outcome}</p>
                             </div>
                         </div>
                     ))}
@@ -1739,12 +1768,11 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai }: {
                             <div className="mt-2 space-y-2">
                                 <p className="text-xs text-slate-700 dark:text-gray-300 p-2 bg-slate-50 dark:bg-gray-800/50 rounded-lg">{xai.answer}</p>
                                 {xai.component_explanations && xai.component_explanations.map((comp, i) => (
-                                    <div key={i} className={`p-2.5 rounded-lg border-l-2 ${
-                                        comp.status === "success" ? "border-l-emerald-500 bg-emerald-50/30 dark:bg-emerald-500/5" :
-                                        comp.status === "warning" ? "border-l-amber-500 bg-amber-50/30 dark:bg-amber-500/5" :
-                                        comp.status === "error" ? "border-l-red-500 bg-red-50/30 dark:bg-red-500/5" :
-                                        "border-l-slate-400 bg-slate-50/30 dark:bg-slate-500/5"
-                                    }`}>
+                                    <div key={i} className={`p-2.5 rounded-lg border-l-2 ${comp.status === "success" ? "border-l-emerald-500 bg-emerald-50/30 dark:bg-emerald-500/5" :
+                                            comp.status === "warning" ? "border-l-amber-500 bg-amber-50/30 dark:bg-amber-500/5" :
+                                                comp.status === "error" ? "border-l-red-500 bg-red-50/30 dark:bg-red-500/5" :
+                                                    "border-l-slate-400 bg-slate-50/30 dark:bg-slate-500/5"
+                                        }`}>
                                         <div className="flex items-center gap-1.5 mb-1">
                                             <span className="text-sm">{comp.component === "ahmn" ? "🎯" : comp.component === "idpo" ? "⚙️" : "🛡️"}</span>
                                             <span className="text-[10px] font-semibold text-slate-700 dark:text-gray-200">{comp.title}</span>
