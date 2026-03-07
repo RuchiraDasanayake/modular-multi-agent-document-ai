@@ -17,6 +17,7 @@ export interface IDPORun {
   duration_ms?: number;
   has_docs_export?: boolean;
   has_entities_export?: boolean;
+  has_text_export?: boolean;
 }
 
 export interface Stats {

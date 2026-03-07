@@ -29,12 +29,85 @@ STATIC_DIR = APP_DIR / "static"
 REPO_ROOT = APP_DIR.parents[1]  # /app/ in Docker container
 RUNS_ROOT = REPO_ROOT / "runs"
 
+FULL_TEXT_EXPORT_NAME = "full_text.txt"
+
 def _safe_run_dir(run_id: str) -> Path:
     """Resolve run directory, rejecting path traversal attempts."""
     run_dir = (RUNS_ROOT / run_id).resolve()
     if not run_dir.is_relative_to(RUNS_ROOT.resolve()):
         raise ValueError("Invalid run_id")
     return run_dir
+
+def _read_doc_title(doc_dir: Path) -> str:
+    manifest_path = doc_dir / "input" / "manifest.json"
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception:
+        payload = {}
+    source_path = str(payload.get("path") or "").strip()
+    if source_path:
+        return Path(source_path).name
+    return doc_dir.name
+
+def _read_doc_extracted_text(doc_dir: Path) -> str:
+    ocr_path = doc_dir / "preprocessing" / "ocr" / "text.json"
+    try:
+        payload = json.loads(ocr_path.read_text(encoding="utf-8"))
+    except Exception:
+        return ""
+    pages = payload.get("pages")
+    if not isinstance(pages, list):
+        return ""
+    chunks: list[str] = []
+    for page in pages:
+        if not isinstance(page, dict):
+            continue
+        text = str(page.get("text") or "").strip()
+        if not text:
+            continue
+        number = page.get("number")
+        if number is not None:
+            chunks.append(f"--- Page {number} ---\n{text}")
+        else:
+            chunks.append(text)
+    return "\n\n".join(chunks).strip()
+
+def _build_full_text_export(run_dir: Path) -> Path | None:
+    target_path = run_dir / FULL_TEXT_EXPORT_NAME
+    if target_path.exists() and target_path.stat().st_size > 0:
+        return target_path
+
+    docs_root = run_dir / "docs"
+    if not docs_root.exists() or not docs_root.is_dir():
+        return None
+
+    sections: list[str] = []
+    for index, doc_dir in enumerate(sorted(child for child in docs_root.iterdir() if child.is_dir()), start=1):
+        extracted_text = _read_doc_extracted_text(doc_dir)
+        if not extracted_text:
+            continue
+        title = _read_doc_title(doc_dir)
+        header = [
+            f"Document {index}: {title}",
+            f"Doc ID: {doc_dir.name}",
+            "",
+        ]
+        sections.append("\n".join(header) + extracted_text)
+
+    if not sections:
+        return None
+
+    separator = "\n\n" + ("=" * 80) + "\n\n"
+    target_path.write_text(separator.join(sections), encoding="utf-8")
+    return target_path
+
+def _run_has_full_text_export(run_dir: Path) -> bool:
+    if (run_dir / FULL_TEXT_EXPORT_NAME).exists():
+        return True
+    docs_root = run_dir / "docs"
+    if not docs_root.exists() or not docs_root.is_dir():
+        return False
+    return any((doc_dir / "preprocessing" / "ocr" / "text.json").exists() for doc_dir in docs_root.iterdir() if doc_dir.is_dir())
 
 app = FastAPI(title="IDPO Service", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -293,6 +366,7 @@ def list_runs():
         # Check available exports
         run_info["has_docs_export"] = (run_dir / "docs.xlsx").exists() or (run_dir / "docs.csv").exists()
         run_info["has_entities_export"] = (run_dir / "entities.xlsx").exists() or (run_dir / "entities.csv").exists()
+        run_info["has_text_export"] = _run_has_full_text_export(run_dir)
 
         runs.append(run_info)
     return {"runs": runs, "total": len(runs)}
@@ -347,6 +421,17 @@ def download_entities(run_id: str):
     if csv_path.exists():
         return FileResponse(csv_path, filename="entities.csv", media_type="text/csv")
     return JSONResponse({"error": "entities export not found"}, status_code=404)
+
+@app.get("/idpo/runs/{run_id}/full_text.txt")
+def download_full_text(run_id: str):
+    try:
+        run_dir = _safe_run_dir(run_id)
+    except ValueError:
+        return JSONResponse({"error": "invalid run_id"}, status_code=400)
+    text_path = _build_full_text_export(run_dir)
+    if text_path is None:
+        return JSONResponse({"error": "full text export not found"}, status_code=404)
+    return FileResponse(text_path, filename=FULL_TEXT_EXPORT_NAME, media_type="text/plain; charset=utf-8")
 
 def _parse_fields(fields_payload: str) -> list[dict[str, str]]:
     if not fields_payload:

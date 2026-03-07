@@ -192,6 +192,53 @@ export default function IDPOPage() {
         }
     };
 
+    const handleDownloadFullExtractedDocs = () => {
+        if (!result) return;
+        const docsWithText = result.docs.filter((doc) => Boolean(doc.extracted_text?.trim()));
+        if (docsWithText.length === 0) {
+            setError("No extracted text is available for download");
+            return;
+        }
+
+        const content = docsWithText.map((doc, index) => {
+            const header = [
+                `Document ${index + 1}: ${doc.filename || doc.doc_id}`,
+                `Doc ID: ${doc.doc_id}`,
+                `Policy: ${doc.policy_id || "n/a"}`,
+                "",
+            ].join("\n");
+            return `${header}${doc.extracted_text?.trim() || ""}`;
+        }).join("\n\n" + "=".repeat(80) + "\n\n");
+
+        const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${result.run_id.slice(0, 8)}_full_extracted_docs.txt`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    };
+
+    const handleDownloadSingleExtractedDoc = (doc: IDPODocRecord) => {
+        const text = doc.extracted_text?.trim();
+        if (!text) {
+            setError("This document does not have extracted text to download");
+            return;
+        }
+
+        const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${(doc.filename || doc.doc_id).replace(/\.[^.]+$/, "")}_extracted.txt`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    };
+
     /* ── Submit handler ── */
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -774,6 +821,10 @@ export default function IDPOPage() {
                                             <button onClick={() => handleDownload("entities.xlsx", "entities.xlsx")}
                                                 className="px-3 py-1.5 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 text-violet-700 dark:text-violet-300 rounded-lg hover:bg-violet-100 dark:hover:bg-violet-500/20 text-xs font-medium transition-all shadow-sm shadow-violet-500/5">↓ Entities</button>
                                         )}
+                                        {result.docs.some((doc) => Boolean(doc.extracted_text?.trim())) && (
+                                            <button onClick={handleDownloadFullExtractedDocs}
+                                                className="px-3 py-1.5 bg-cyan-50 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/20 text-cyan-700 dark:text-cyan-300 rounded-lg hover:bg-cyan-100 dark:hover:bg-cyan-500/20 text-xs font-medium transition-all shadow-sm shadow-cyan-500/5">↓ Full Text</button>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -974,14 +1025,22 @@ export default function IDPOPage() {
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <button
-                                                            onClick={() => {
-                                                                navigator.clipboard.writeText(doc.extracted_text || "");
-                                                            }}
-                                                            className="px-3 py-1.5 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-500/20 text-xs font-medium transition-all"
-                                                        >
-                                                            📋 Copy Text
-                                                        </button>
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                onClick={() => handleDownloadSingleExtractedDoc(doc)}
+                                                                className="px-3 py-1.5 bg-cyan-50 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/20 text-cyan-700 dark:text-cyan-300 rounded-lg hover:bg-cyan-100 dark:hover:bg-cyan-500/20 text-xs font-medium transition-all"
+                                                            >
+                                                                ↓ Download Text
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    navigator.clipboard.writeText(doc.extracted_text || "");
+                                                                }}
+                                                                className="px-3 py-1.5 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-500/20 text-xs font-medium transition-all"
+                                                            >
+                                                                📋 Copy Text
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                     <div className="p-5 max-h-[600px] overflow-y-auto">
                                                         <FormattedExtractedText text={doc.extracted_text || "No text extracted for this document."} />
@@ -1218,9 +1277,9 @@ function ComponentCard({ comp }: { comp: { component: string; title: string; sum
                     <p className="text-sm font-semibold text-slate-900 dark:text-white">{comp.title}</p>
                 </div>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium uppercase ${comp.status === "success" ? "bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" :
-                        comp.status === "warning" ? "bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300" :
-                            comp.status === "error" ? "bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-300" :
-                                "bg-slate-100 dark:bg-slate-500/10 text-slate-600 dark:text-slate-300"
+                    comp.status === "warning" ? "bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300" :
+                        comp.status === "error" ? "bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-300" :
+                            "bg-slate-100 dark:bg-slate-500/10 text-slate-600 dark:text-slate-300"
                     }`}>{comp.status}</span>
             </div>
             <p className="text-xs text-slate-600 dark:text-gray-300 mb-3">{comp.summary}</p>
@@ -1229,15 +1288,15 @@ function ComponentCard({ comp }: { comp: { component: string; title: string; sum
                     {comp.details.map((detail, i) => (
                         <div key={i} className="flex items-start gap-2 text-[11px]">
                             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${detail.passed === true ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" :
-                                    detail.passed === false ? "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300" :
-                                        "bg-brand-100 dark:bg-brand-500/20 text-brand-700 dark:text-brand-300"
+                                detail.passed === false ? "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300" :
+                                    "bg-brand-100 dark:bg-brand-500/20 text-brand-700 dark:text-brand-300"
                                 }`}>{detail.step}</span>
                             <div className="flex-1 min-w-0">
                                 <p className="font-medium text-slate-800 dark:text-gray-200">{detail.action}</p>
                                 <p className="text-slate-500 dark:text-gray-400">{detail.description}</p>
                                 <p className={`mt-0.5 ${detail.passed === true ? "text-emerald-600 dark:text-emerald-400" :
-                                        detail.passed === false ? "text-red-600 dark:text-red-400" :
-                                            "text-slate-600 dark:text-gray-300"
+                                    detail.passed === false ? "text-red-600 dark:text-red-400" :
+                                        "text-slate-600 dark:text-gray-300"
                                     }`}>→ {detail.outcome}</p>
                             </div>
                         </div>
@@ -1769,9 +1828,9 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai }: {
                                 <p className="text-xs text-slate-700 dark:text-gray-300 p-2 bg-slate-50 dark:bg-gray-800/50 rounded-lg">{xai.answer}</p>
                                 {xai.component_explanations && xai.component_explanations.map((comp, i) => (
                                     <div key={i} className={`p-2.5 rounded-lg border-l-2 ${comp.status === "success" ? "border-l-emerald-500 bg-emerald-50/30 dark:bg-emerald-500/5" :
-                                            comp.status === "warning" ? "border-l-amber-500 bg-amber-50/30 dark:bg-amber-500/5" :
-                                                comp.status === "error" ? "border-l-red-500 bg-red-50/30 dark:bg-red-500/5" :
-                                                    "border-l-slate-400 bg-slate-50/30 dark:bg-slate-500/5"
+                                        comp.status === "warning" ? "border-l-amber-500 bg-amber-50/30 dark:bg-amber-500/5" :
+                                            comp.status === "error" ? "border-l-red-500 bg-red-50/30 dark:bg-red-500/5" :
+                                                "border-l-slate-400 bg-slate-50/30 dark:bg-slate-500/5"
                                         }`}>
                                         <div className="flex items-center gap-1.5 mb-1">
                                             <span className="text-sm">{comp.component === "ahmn" ? "🎯" : comp.component === "idpo" ? "⚙️" : "🛡️"}</span>
