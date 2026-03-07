@@ -6,6 +6,7 @@ Uses FastAPI TestClient. External service calls (AHMN, XAI) are mocked.
 """
 
 import pytest
+import json
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
@@ -121,6 +122,40 @@ def test_run_no_files(client):
     """POST /idpo/run without files should return 422."""
     resp = client.post("/idpo/run")
     assert resp.status_code == 422
+
+def test_list_runs_includes_text_export_flag(client, tmp_path):
+    run_dir = tmp_path / "run-123"
+    ocr_dir = run_dir / "docs" / "doc-a" / "preprocessing" / "ocr"
+    ocr_dir.mkdir(parents=True)
+    (ocr_dir / "text.json").write_text(json.dumps({"pages": [{"number": 1, "text": "hello world"}]}), encoding="utf-8")
+
+    with patch("idpo.ui.app.RUNS_ROOT", tmp_path):
+        resp = client.get("/idpo/runs")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["runs"][0]["has_text_export"] is True
+
+def test_download_full_text_builds_export_from_doc_ocr(client, tmp_path):
+    run_dir = tmp_path / "run-456"
+    ocr_dir = run_dir / "docs" / "doc-a" / "preprocessing" / "ocr"
+    manifest_dir = run_dir / "docs" / "doc-a" / "input"
+    ocr_dir.mkdir(parents=True)
+    manifest_dir.mkdir(parents=True)
+    (manifest_dir / "manifest.json").write_text(json.dumps({"path": "/tmp/sample.pdf"}), encoding="utf-8")
+    (ocr_dir / "text.json").write_text(
+        json.dumps({"pages": [{"number": 1, "text": "First page"}, {"number": 2, "text": "Second page"}]}),
+        encoding="utf-8",
+    )
+
+    with patch("idpo.ui.app.RUNS_ROOT", tmp_path):
+        resp = client.get("/idpo/runs/run-456/full_text.txt")
+
+    assert resp.status_code == 200
+    assert "Document 1: sample.pdf" in resp.text
+    assert "--- Page 1 ---" in resp.text
+    assert "Second page" in resp.text
 
 # ═══════════════════════════════════════════════════════════════
 # Integration Data Classes

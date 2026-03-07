@@ -140,13 +140,13 @@ CREATE INDEX IF NOT EXISTS idx_events_type ON system_events (event_type, created
 
 -- ═══════════════════════════════════════════════════════════════
 -- SEED DEFAULT ADMIN
--- Default password: Adm!n_DocAI_2025 — CHANGE IMMEDIATELY in production
--- bcrypt hash of 'Adm!n_DocAI_2025'
+-- Default password: admin — CHANGE IMMEDIATELY in production
+-- bcrypt hash of 'admin'
 -- ═══════════════════════════════════════════════════════════════
 INSERT INTO users (email, username, hashed_password, role)
 VALUES (
     'admin@ahmn.dev',
     'admin',
-    '$2b$12$bNc0mZF7OZMmfaW.CwZmQeyQA3h5xWvq2jZYBiv1i3vMzrY/a/A1.',
+    '$2b$12$U.rbNQW6aV/XyTzuBwSUf.noZ/hsmXJsJPLi/v8iL9pG6I1xtElZK',
     'admin'
-) ON CONFLICT (username) DO NOTHING;
+) ON CONFLICT (username) DO UPDATE SET hashed_password = EXCLUDED.hashed_password;
