@@ -303,7 +303,11 @@ class GenerativeQAModel:
         logger.info("Loading generative model: %s", model_name)
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+        # Use eager attention to support output_attentions=True for XAI explanations
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(
+            model_name,
+            attn_implementation="eager"
+        )
 
         # Generation parameters for Q&A
         self.max_input_length = 1024
@@ -418,18 +422,23 @@ class GenerativeQAModel:
 
         # Extract cross-attention weights
         # Shape: (num_layers, batch, num_heads, decoder_seq_len, encoder_seq_len)
+        cross_attn = None
         if hasattr(outputs, 'cross_attentions') and outputs.cross_attentions:
-            # Use last layer cross-attention, average across heads
             cross_attn = outputs.cross_attentions[-1]  # Last layer
-            # Average across heads and decoder positions
+
+        if cross_attn is not None:
+            # Use last layer cross-attention, average across heads
             attn_weights = cross_attn.mean(dim=1).mean(dim=1)[0]  # [encoder_seq_len]
-        else:
+        elif hasattr(outputs, 'encoder_attentions') and outputs.encoder_attentions:
             # Fallback: use encoder self-attention
-            if hasattr(outputs, 'encoder_attentions') and outputs.encoder_attentions:
-                attn_weights = outputs.encoder_attentions[-1].mean(dim=1).mean(dim=1)[0]
+            enc_attn = outputs.encoder_attentions[-1]
+            if enc_attn is not None:
+                attn_weights = enc_attn.mean(dim=1).mean(dim=1)[0]
             else:
-                # No attention available, return empty
                 return {}
+        else:
+            # No attention available, return empty
+            return {}
 
         # Map attention weights to tokens
         encoder_tokens = self.tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
@@ -494,11 +503,12 @@ class GenerativeQAModel:
             )
 
         # Extract cross-attention weights
+        cross_attn = None
         if hasattr(outputs, 'cross_attentions') and outputs.cross_attentions:
             cross_attn = outputs.cross_attentions[-1]
-            attn_weights = cross_attn.mean(dim=1).mean(dim=1)[0].numpy()
-        else:
+        if cross_attn is None:
             return []
+        attn_weights = cross_attn.mean(dim=1).mean(dim=1)[0].numpy()
 
         # Get tokens with offsets
         encoder_tokens = self.tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
@@ -1593,16 +1603,20 @@ class XAIEngine:
         return None
 
     def _run_sub_question_with_xai(
-        self, paragraph: str, sub_question: str, entity: str
+        self, paragraph: str, sub_question: str, entity: str, include_xai: bool = False
     ) -> SubQuestionResult:
-        """Run a sub-question through the full XAI pipeline."""
+        """Run a sub-question through the XAI pipeline.
+
+        Args:
+            include_xai: If True, runs cross-attention + LIME. If False, skips for speed.
+        """
         prediction = self.qa_model.predict(paragraph, sub_question)
         boosted_conf, is_unanswerable = self._boost_confidence(
             prediction, paragraph, sub_question
         )
 
-        # Get XAI explanations (respecting fast mode)
-        if os.getenv("XAI_FAST_MODE", "true").lower() == "true":
+        # Get XAI explanations (conditionally based on include_xai)
+        if not include_xai:
             shap_exp = SHAPExplanation(base_value=0.5, shap_values=[], feature_names=[])
             lime_exp = LIMEExplanation(word_weights=[], prediction_proba=boosted_conf)
             derivation = DerivationTree(
@@ -1672,9 +1686,14 @@ class XAIEngine:
         return winner, logic
 
     def _handle_comparison_question(
-        self, paragraph: str, question: str, comparison_type: str, attribute: str
+        self, paragraph: str, question: str, comparison_type: str, attribute: str,
+        include_xai: bool = False
     ) -> XAIExplanation:
-        """Handle comparison questions using question decomposition."""
+        """Handle comparison questions using question decomposition.
+
+        Args:
+            include_xai: If True, runs cross-attention + LIME for sub-questions.
+        """
         logger.info("Decomposing comparison question: %s", question[:50])
 
         # Extract entities to compare
@@ -1683,7 +1702,7 @@ class XAIEngine:
         if not entities:
             # No entities found, fall back to regular Q&A
             logger.info("No entities found for comparison, falling back to regular Q&A")
-            return self._generate_regular_explanation(paragraph, question)
+            return self._generate_regular_explanation(paragraph, question, include_xai)
 
         logger.info("Found %d entities for comparison: %s", len(entities), entities)
 
@@ -1692,7 +1711,7 @@ class XAIEngine:
         for entity in entities:
             sub_q = self._generate_sub_question(question, entity, attribute)
             logger.debug("Sub-question for %s: %s", entity, sub_q)
-            result = self._run_sub_question_with_xai(paragraph, sub_q, entity)
+            result = self._run_sub_question_with_xai(paragraph, sub_q, entity, include_xai)
             sub_results.append(result)
             logger.debug("  -> Answer: %s (value=%s, conf=%.2f)", result.answer, result.value, result.confidence)
 
@@ -1772,8 +1791,14 @@ class XAIEngine:
             decomposed_explanation=decomposed,
         )
 
-    def _generate_regular_explanation(self, paragraph: str, question: str) -> XAIExplanation:
-        """Generate regular (non-comparison) explanation. Extracted for reuse."""
+    def _generate_regular_explanation(
+        self, paragraph: str, question: str, include_xai: bool = False
+    ) -> XAIExplanation:
+        """Generate regular (non-comparison) explanation. Extracted for reuse.
+
+        Args:
+            include_xai: If True, runs cross-attention + LIME. If False, skips for speed.
+        """
         prediction = self.qa_model.predict(paragraph, question)
         logger.debug("Answer: '%s' (raw %.1f%%)", prediction.answer, prediction.confidence * 100)
 
@@ -1808,7 +1833,7 @@ class XAIEngine:
                 model_prediction=prediction,
             )
 
-        if os.getenv("XAI_FAST_MODE", "true").lower() == "true":
+        if not include_xai:
             logger.info("Fast mode: skipping cross-attention/LIME explanations")
             shap_exp = SHAPExplanation(base_value=0.5, shap_values=[], feature_names=[])
             lime_exp = LIMEExplanation(word_weights=[], prediction_proba=boosted_conf)
@@ -1816,7 +1841,7 @@ class XAIEngine:
             derivation = DerivationTree(
                 question=question,
                 steps=[
-                    DerivationStep(1, "📝 Question Analysis", f"Analyzed: {question[:50]}...", "BART encoder-decoder", 0.95),
+                    DerivationStep(1, "📝 Question Analysis", f"Analyzed: {question[:50]}...", "Model-Generated", 0.95),
                     DerivationStep(2, "🎯 Answer Generation", f"Generated: {answer}", f"Confidence: {boosted_conf:.1%}", boosted_conf),
                 ],
                 final_answer=answer,
@@ -1852,34 +1877,54 @@ class XAIEngine:
 
     # ─── list-type question handling ─────────────────────────
 
-    def _handle_list_question(self, paragraph: str, question: str) -> XAIExplanation | None:
-        """Handle 'list all X' type questions that extractive Q&A can't answer.
+    def _handle_list_question(
+        self, paragraph: str, question: str, include_xai: bool = False
+    ) -> XAIExplanation | None:
+        """Handle questions asking for multiple items/entities.
 
-        Extractive models return single spans, but list questions need multiple items.
-        This detects list questions and extracts the relevant section.
+        Uses semantic detection instead of rigid patterns:
+        - Detects plural entity keywords (dealers, banks, companies, etc.)
+        - Detects quantity words (three, five, all, etc.)
+        - Detects list action words (list, name, show, etc.)
+
+        Args:
+            include_xai: If True, runs cross-attention + LIME. If False, skips for speed.
         """
         import re
         q_lower = question.lower().strip()
 
-        # Detect list-type questions
-        list_patterns = [
-            (r'list\s+(?:all\s+)?(?:the\s+)?([\w\s]+?)(?:\?|$)', 1),
-            (r'what\s+are\s+(?:all\s+)?(?:the\s+)?([\w\s]+?)(?:\?|$)', 1),
-            (r'who\s+are\s+(?:all\s+)?(?:the\s+)?([\w\s]+?)(?:\?|$)', 1),
-            (r'show\s+(?:me\s+)?(?:all\s+)?(?:the\s+)?([\w\s]+?)(?:\?|$)', 1),
-            (r'give\s+(?:me\s+)?(?:all\s+)?(?:the\s+)?([\w\s]+?)(?:\?|$)', 1),
-            (r'name\s+(?:all\s+)?(?:the\s+)?([\w\s]+?)(?:\?|$)', 1),
-        ]
+        # Keywords indicating multiple items are expected
+        list_action_words = {'list', 'name', 'show', 'give', 'tell', 'provide', 'mention', 'identify'}
+        quantity_words = {'all', 'three', 'five', 'ten', 'some', 'few', 'several', 'many', 'multiple'}
+        plural_entities = {
+            'dealers': 'dealer', 'banks': 'bank', 'companies': 'company',
+            'institutions': 'institution', 'organizations': 'organization',
+            'firms': 'firm', 'bonds': 'bond', 'series': 'series',
+            'investors': 'investor', 'vendors': 'vendor', 'items': 'item',
+        }
 
+        # Check if question is asking for multiple items
+        has_list_action = any(w in q_lower for w in list_action_words)
+        has_quantity = any(w in q_lower for w in quantity_words)
+
+        # Find plural entity in question
         target = None
-        for pattern, group in list_patterns:
-            match = re.search(pattern, q_lower)
-            if match:
-                target = match.group(group).strip()
+        for plural, singular in plural_entities.items():
+            if plural in q_lower:
+                target = singular
                 break
 
+        # If no plural found, check for "primary dealer" type phrases
         if not target:
-            return None  # Not a list question
+            entity_phrases = ['primary dealer', 'dealer', 'bank', 'company', 'bond', 'series']
+            for phrase in entity_phrases:
+                if phrase in q_lower:
+                    target = phrase
+                    break
+
+        # Require at least one indicator + entity target
+        if not target or not (has_list_action or has_quantity):
+            return None
 
         logger.info("Detected list question for: '%s'", target)
 
@@ -1971,19 +2016,30 @@ class XAIEngine:
         # Set confidence based on extraction method (NER is most reliable)
         confidence = 0.90 if "spaCy" in extraction_method else 0.85
 
+        # ═══ XAI: Conditionally run cross-attention and LIME ═══
+        if include_xai:
+            shap_exp, lime_exp = self.generate_xai_for_answer(paragraph, question, answer)
+            logger.info("XAI for list question: %d SHAP features, %d LIME features",
+                        len(shap_exp.shap_values), len(lime_exp.word_weights))
+        else:
+            # Fast mode: skip XAI computations
+            shap_exp = SHAPExplanation(base_value=0.5, shap_values=[], feature_names=[])
+            lime_exp = LIMEExplanation(word_weights=[], prediction_proba=confidence)
+
         return XAIExplanation(
             paragraph=paragraph,
             question=question,
             answer=answer,
             highlighted_spans=[],
-            shap_explanation=SHAPExplanation(base_value=0.5, shap_values=[], feature_names=[]),
-            lime_explanation=LIMEExplanation(word_weights=[], prediction_proba=confidence),
+            shap_explanation=shap_exp,
+            lime_explanation=lime_exp,
             derivation_tree=DerivationTree(
                 question=question,
                 steps=[
-                    DerivationStep(1, "📋 List Detection", f"Detected request to list '{target}'", "Question analysis", 0.95),
+                    DerivationStep(1, "📋 List Detection", f"Detected request to list '{target}'", "Rule-Extracted", 0.95),
                     DerivationStep(2, "🔍 Entity Extraction", f"Used {extraction_method} to find entities", f"Method: {extraction_method}", 0.92 if "spaCy" in extraction_method else 0.85),
-                    DerivationStep(3, "📊 Results", f"Extracted {len(unique_items)} items", ", ".join(unique_items[:5]) + ("..." if len(unique_items) > 5 else ""), confidence),
+                    DerivationStep(3, "🔬 XAI Analysis", "Cross-attention + LIME" if include_xai else "Skipped (fast mode)", f"{len(shap_exp.shap_values)} features" if include_xai else "N/A", 0.88 if include_xai else 1.0),
+                    DerivationStep(4, "📊 Results", f"Extracted {len(unique_items)} items", ", ".join(unique_items[:5]) + ("..." if len(unique_items) > 5 else ""), confidence),
                 ],
                 final_answer=answer,
                 overall_confidence=confidence,
@@ -2024,12 +2080,17 @@ class XAIEngine:
 
         return False, None
 
-    def _handle_yes_no_question(self, paragraph: str, question: str) -> XAIExplanation | None:
+    def _handle_yes_no_question(
+        self, paragraph: str, question: str, include_xai: bool = False
+    ) -> XAIExplanation | None:
         """Handle yes/no questions with conversational synthesis.
 
         Instead of returning just "yes" or "no", generates natural responses like:
         - "Yes, the total is $500."
         - "No, I couldn't find any discount in this document."
+
+        Args:
+            include_xai: If True, runs cross-attention + LIME. If False, skips for speed.
         """
         is_yes_no, target = self._detect_yes_no_question(question)
         if not is_yes_no:
@@ -2084,19 +2145,30 @@ class XAIEngine:
 
         logger.info("Yes/No answer: %s (found_value=%s)", "Yes" if is_yes else "No", found_value)
 
+        # ═══ XAI: Conditionally run cross-attention and LIME ═══
+        if include_xai:
+            shap_exp, lime_exp = self.generate_xai_for_answer(paragraph, question, answer)
+            logger.info("XAI for yes/no question: %d SHAP features, %d LIME features",
+                        len(shap_exp.shap_values), len(lime_exp.word_weights))
+        else:
+            # Fast mode: skip XAI computations
+            shap_exp = SHAPExplanation(base_value=0.5, shap_values=[], feature_names=[])
+            lime_exp = LIMEExplanation(word_weights=[], prediction_proba=confidence)
+
         return XAIExplanation(
             paragraph=paragraph,
             question=question,
             answer=answer,
             highlighted_spans=[],
-            shap_explanation=SHAPExplanation(base_value=0.5, shap_values=[], feature_names=[]),
-            lime_explanation=LIMEExplanation(word_weights=[], prediction_proba=confidence),
+            shap_explanation=shap_exp,
+            lime_explanation=lime_exp,
             derivation_tree=DerivationTree(
                 question=question,
                 steps=[
-                    DerivationStep(1, "❓ Question Analysis", f"Detected yes/no question about '{target}'", "Question parsing", 0.95),
+                    DerivationStep(1, "❓ Question Analysis", f"Detected yes/no question about '{target}'", "Rule-Extracted", 0.95),
                     DerivationStep(2, "🔍 Document Search", f"Searched for '{target}' in document", f"Found: {found_value}" if found_value else "Not found", 0.85 if found_value else 0.5),
-                    DerivationStep(3, "💬 Conversational Synthesis", f"Generated natural {'affirmative' if is_yes else 'negative'} response", answer[:50], confidence),
+                    DerivationStep(3, "🔬 XAI Analysis", "Cross-attention + LIME" if include_xai else "Skipped (fast mode)", f"{len(shap_exp.shap_values)} features" if include_xai else "N/A", 0.88 if include_xai else 1.0),
+                    DerivationStep(4, "💬 Conversational Synthesis", f"Generated natural {'affirmative' if is_yes else 'negative'} response", answer[:50], confidence),
                 ],
                 final_answer=answer,
                 overall_confidence=confidence,
@@ -2140,35 +2212,112 @@ class XAIEngine:
 
         return None  # Not a conversational message
 
-    # ─── main entry point ────────────────────────────────────
+    # ─── XAI generation helper (PUBLIC) ──────────────────────────
 
-    def generate_explanation(self, paragraph: str, question: str) -> XAIExplanation:
-        """Generate complete XAI explanation using Transformer + SHAP + LIME.
+    def generate_xai_for_answer(
+        self, paragraph: str, question: str, answer: str
+    ) -> tuple[SHAPExplanation, LIMEExplanation]:
+        """Generate XAI explanations (cross-attention + LIME) for a given answer.
 
-        Pipeline:
-        1. Handle conversational messages (greetings, thanks, etc.)
-        2. Handle yes/no questions with conversational synthesis
-        3. Handle list-type questions (list all X, what are the X, etc.)
-        4. Handle comparison questions (highest, lowest, etc.)
-        5. Handle regular questions with table reconstruction
+        This is a PUBLIC method that can be called independently after
+        get_answer_only() to lazily load XAI explanations when the user
+        requests them (e.g., clicks "Show Explanation").
 
-        For comparison questions, uses Question Decomposition
-        to break down into sub-questions with full XAI for each, then aggregates.
+        Args:
+            paragraph: The document context
+            question: The user's question
+            answer: The answer to explain (from get_answer_only)
+
+        Returns:
+            Tuple of (SHAPExplanation, LIMEExplanation)
         """
-        logger.info("Processing question: %s", question)
+        self._cached_answer = answer  # Cache for LIME sequence probability
+
+        # Cross-attention based token importance
+        token_importance = self.qa_model.get_token_importance(paragraph, question)
+        shap_values = sorted(
+            token_importance.items(), key=lambda x: abs(x[1]), reverse=True
+        )[:20]
+        if shap_values:
+            max_score = max(abs(s) for _, s in shap_values)
+            if max_score > 0:
+                shap_values = [(w, s / max_score) for w, s in shap_values]
+
+        shap_exp = SHAPExplanation(
+            base_value=0.5,
+            shap_values=shap_values,
+            feature_names=[w for w, _ in shap_values],
+        )
+
+        # LIME explanation
+        lime_exp = self._get_lime_explanation(paragraph, question)
+
+        logger.info("XAI generated: %d SHAP features, %d LIME features",
+                    len(shap_values), len(lime_exp.word_weights))
+
+        return shap_exp, lime_exp
+
+    # ─── main entry points ────────────────────────────────────
+
+    def get_answer_only(self, paragraph: str, question: str) -> XAIExplanation:
+        """Get answer FAST without XAI explanations (Lazy XAI).
+
+        Runs the Waterfall Logic to produce an answer and derivation_tree,
+        but SKIPS the expensive cross-attention and LIME computations.
+
+        Use this for fast initial responses, then call generate_xai_for_answer()
+        separately if the user requests explanation details.
+
+        Returns:
+            XAIExplanation with answer and derivation_tree populated,
+            but shap_explanation and lime_explanation will be empty.
+        """
+        return self.generate_explanation(paragraph, question, include_xai=False)
+
+    def generate_explanation(
+        self, paragraph: str, question: str, include_xai: bool = False
+    ) -> XAIExplanation:
+        """Generate XAI explanation using Waterfall Logic.
+
+        Waterfall Pipeline:
+        ═══════════════════════════════════════════════════════════
+        1. CONVERSATIONAL: Handle greetings, thanks, etc. (no XAI needed)
+
+        2. RULE-EXTRACTED: Try specialized handlers first
+           - Yes/No questions → Rule-based detection
+           - List questions → NER/Pattern extraction
+           - Comparison questions → Question decomposition
+           If handler finds answer → Generate XAI using that answer as target
+
+        3. MODEL-GENERATED: BART fallback for complex questions
+           - Full generative Q&A with cross-attention + LIME
+
+        The DerivationTree indicates whether answer was:
+        - "Rule-Extracted" (fast, deterministic)
+        - "Model-Generated" (BART inference)
+        ═══════════════════════════════════════════════════════════
+
+        Args:
+            paragraph: The document context
+            question: The user's question
+            include_xai: If False (default), skips cross-attention & LIME for speed.
+                         If True, generates full XAI explanations.
+
+        Returns:
+            XAIExplanation with answer, derivation_tree, and optionally XAI data.
+        """
+        logger.info("Processing question: %s (include_xai=%s)", question, include_xai)
 
         # ═══ Pre-process: Table Reconstruction for flattened financial text ═══
-        # This helps the model by re-aligning label-value pairs
         processed_paragraph = paragraph
         table_pairs = TableReconstructor.detect_label_value_pairs(paragraph)
-        if table_pairs:
-            logger.debug("Detected %d label-value pairs in flattened text", len(table_pairs))
-            # Optionally reconstruct for better context (only if many pairs detected)
-            if len(table_pairs) >= 3:
-                processed_paragraph = TableReconstructor.reconstruct_table_format(paragraph)
-                logger.info("Applied table reconstruction to flattened text")
+        if table_pairs and len(table_pairs) >= 3:
+            processed_paragraph = TableReconstructor.reconstruct_table_format(paragraph)
+            logger.info("Applied table reconstruction to flattened text")
 
-        # Check for conversational messages first
+        # ═══════════════════════════════════════════════════════════════
+        # STAGE 1: CONVERSATIONAL (no XAI needed)
+        # ═══════════════════════════════════════════════════════════════
         conv_response = self._handle_conversation(question)
         if conv_response:
             logger.info("Handled as conversation: %s", question[:30])
@@ -2180,36 +2329,47 @@ class XAIEngine:
                 shap_explanation=SHAPExplanation(base_value=0.5, shap_values=[], feature_names=[]),
                 lime_explanation=LIMEExplanation(word_weights=[], prediction_proba=1.0),
                 derivation_tree=DerivationTree(
-                    question=question, steps=[], final_answer=conv_response, overall_confidence=1.0
+                    question=question,
+                    steps=[DerivationStep(1, "💬 Conversational", "Handled as greeting/conversation", "No document lookup needed", 1.0)],
+                    final_answer=conv_response,
+                    overall_confidence=1.0
                 ),
-                confidence_score=-1.0,  # Negative = don't show confidence
+                confidence_score=-1.0,  # Hide confidence for conversations
                 evidence_sentences=[],
                 model_prediction=None,
             )
 
-        # ═══ NEW: Handle yes/no questions with conversational synthesis ═══
-        yes_no_response = self._handle_yes_no_question(processed_paragraph, question)
+        # ═══════════════════════════════════════════════════════════════
+        # STAGE 2: RULE-EXTRACTED (specialized handlers)
+        # ═══════════════════════════════════════════════════════════════
+
+        # Try Yes/No handler
+        yes_no_response = self._handle_yes_no_question(processed_paragraph, question, include_xai)
         if yes_no_response:
-            # Use original paragraph in response for display
+            logger.info("Answer source: Rule-Extracted (Yes/No)")
             yes_no_response.paragraph = paragraph
             return yes_no_response
 
-        # Check for list-type questions (list all X, what are the X, etc.)
-        list_response = self._handle_list_question(processed_paragraph, question)
+        # Try List handler
+        list_response = self._handle_list_question(processed_paragraph, question, include_xai)
         if list_response:
+            logger.info("Answer source: Rule-Extracted (List/NER)")
             list_response.paragraph = paragraph
             return list_response
 
-        # Check for comparison questions (highest, lowest, most, least, etc.)
+        # Try Comparison handler
         is_comparison, comparison_type, attribute = self._detect_comparison_question(question)
         if is_comparison and comparison_type and attribute:
-            logger.info("Detected comparison question: type=%s, attribute=%s", comparison_type, attribute)
-            result = self._handle_comparison_question(processed_paragraph, question, comparison_type, attribute)
+            logger.info("Answer source: Rule-Extracted (Comparison)")
+            result = self._handle_comparison_question(processed_paragraph, question, comparison_type, attribute, include_xai)
             result.paragraph = paragraph
             return result
 
-        # Regular question - use standard Q&A pipeline with processed paragraph
-        result = self._generate_regular_explanation(processed_paragraph, question)
+        # ═══════════════════════════════════════════════════════════════
+        # STAGE 3: MODEL-GENERATED (BART fallback for complex questions)
+        # ═══════════════════════════════════════════════════════════════
+        logger.info("Answer source: Model-Generated (BART)")
+        result = self._generate_regular_explanation(processed_paragraph, question, include_xai)
         result.paragraph = paragraph  # Keep original for display
         return result
 

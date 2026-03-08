@@ -6,13 +6,21 @@ Owner : Pathirana M.M.
 
 Endpoints
 ---------
-POST /xai/ask            — answer question with SHAP / LIME explanations
+POST /xai/ask              — answer question (fast by default, set include_xai=True for full XAI)
+POST /xai/explain          — generate XAI explanations for a known answer (lazy loading)
 GET  /xai/explanation/{id} — retrieve cached explanation
-POST /hitl/feedback      — submit reviewer feedback
-GET  /hitl/history       — recent feedback entries
-GET  /hitl/feedback/{id} — single entry
-GET  /hitl/stats         — aggregate statistics
-GET  /health             — liveness probe
+POST /hitl/feedback        — submit reviewer feedback
+GET  /hitl/history         — recent feedback entries
+GET  /hitl/feedback/{id}   — single entry
+GET  /hitl/stats           — aggregate statistics
+GET  /health               — liveness probe
+
+Lazy XAI Pattern
+----------------
+1. Call POST /xai/ask with include_xai=False (default) for fast answer
+2. Display answer immediately to user
+3. When user clicks "Show Explanation", call POST /xai/explain with the answer
+4. Display XAI data (Feature Importance, Word Analysis) on demand
 """
 
 from __future__ import annotations
@@ -46,6 +54,14 @@ logger = logging.getLogger("xai_hitl")
 class QARequest(BaseModel):
     paragraph: str
     question: str
+    include_xai: bool = False  # Default: fast mode (no XAI). Set True for full explanations.
+
+
+class XAIRequest(BaseModel):
+    """Request to generate XAI explanations for a known answer."""
+    paragraph: str
+    question: str
+    answer: str
 
 class HighlightSpan(BaseModel):
     start: int
@@ -448,16 +464,29 @@ async def health():
 
 @app.post("/xai/ask", response_model=QAResponse)
 async def ask_question(body: QARequest):
-    """Answer a question about a paragraph with SHAP / LIME explanations."""
+    """Answer a question about a paragraph with optional SHAP / LIME explanations.
+
+    By default, runs in fast mode (include_xai=False) for quick answers.
+    Set include_xai=True for full XAI explanations (slower but complete).
+
+    For lazy XAI loading: call with include_xai=False first, then use
+    POST /xai/explain with the answer to load XAI data on demand.
+    """
     qa_id = f"qa_{uuid.uuid4().hex[:12]}"
 
     if _engine_available:
         try:
             engine = _get_engine()
-            # 90 second timeout for RoBERTa-SQuAD2 (larger model)
+            # Timeout: 120s for fast mode (long docs), 180s for full XAI
+            timeout = 180.0 if body.include_xai else 120.0
             exp = await asyncio.wait_for(
-                asyncio.to_thread(engine.generate_explanation, body.paragraph, body.question),
-                timeout=90.0
+                asyncio.to_thread(
+                    engine.generate_explanation,
+                    body.paragraph,
+                    body.question,
+                    body.include_xai  # Pass the include_xai flag
+                ),
+                timeout=timeout
             )
             schema_exp = _engine_explanation_to_schema(exp)
             response = QAResponse(
@@ -468,7 +497,8 @@ async def ask_question(body: QARequest):
             _explanation_cache[qa_id] = response
             return response
         except asyncio.TimeoutError:
-            logger.warning("Engine timed out after 90s, falling back to demo")
+            timeout_str = "180s" if body.include_xai else "60s"
+            logger.warning("Engine timed out after %s, falling back to demo", timeout_str)
         except Exception as exc:
             logger.error("Engine failed, falling back to demo: %s", exc)
 
@@ -491,6 +521,66 @@ async def get_explanation(question_id: str):
         return _explanation_cache[question_id]
 
     raise HTTPException(status_code=404, detail=f"Explanation not found for ID: {question_id}")
+
+
+class XAIOnlyResponse(BaseModel):
+    """Response containing only XAI explanations (for lazy loading)."""
+    shap_explanation: SHAPExplanation
+    lime_explanation: LIMEExplanation
+
+
+@app.post("/xai/explain", response_model=XAIOnlyResponse)
+async def generate_xai_only(body: XAIRequest):
+    """Generate XAI explanations for a known answer (Lazy XAI Loading).
+
+    Use this endpoint AFTER getting a fast answer via /xai/ask (with include_xai=False).
+    This allows the UI to show the answer immediately, then load XAI data on demand
+    when the user clicks "Show Explanation".
+
+    Request:
+        paragraph: The document context
+        question: The user's question
+        answer: The answer to explain (from the fast /xai/ask response)
+
+    Returns:
+        shap_explanation: Cross-attention token importance scores
+        lime_explanation: LIME word weights and prediction probability
+    """
+    if not _engine_available:
+        # Return empty explanations if engine unavailable
+        return XAIOnlyResponse(
+            shap_explanation=SHAPExplanation(shap_values=[], base_value=0.5),
+            lime_explanation=LIMEExplanation(word_weights=[], prediction_proba=0.5),
+        )
+
+    try:
+        engine = _get_engine()
+        # 120 second timeout for XAI computation
+        shap_exp, lime_exp = await asyncio.wait_for(
+            asyncio.to_thread(
+                engine.generate_xai_for_answer,
+                body.paragraph,
+                body.question,
+                body.answer
+            ),
+            timeout=120.0
+        )
+        return XAIOnlyResponse(
+            shap_explanation=SHAPExplanation(
+                shap_values=shap_exp.shap_values,
+                base_value=shap_exp.base_value,
+            ),
+            lime_explanation=LIMEExplanation(
+                word_weights=lime_exp.word_weights,
+                prediction_proba=lime_exp.prediction_proba,
+            ),
+        )
+    except asyncio.TimeoutError:
+        logger.warning("XAI generation timed out after 120s")
+        raise HTTPException(status_code=504, detail="XAI generation timed out")
+    except Exception as exc:
+        logger.error("XAI generation failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"XAI generation failed: {str(exc)}")
 
 # ─── HITL Routes ──────────────────────────────────────────────────────────
 

@@ -110,14 +110,21 @@ export const api = {
 
   // ── XAI ──
 
-  askQuestion: (paragraph: string, question: string) =>
+  askQuestion: (paragraph: string, question: string, includeXAI: boolean = false) =>
     request<QAResponse>("/api/xai/ask", {
       method: "POST",
-      body: JSON.stringify({ paragraph, question }),
+      body: JSON.stringify({ paragraph, question, include_xai: includeXAI }),
     }),
 
   getExplanation: (questionId: string) =>
     request<QAResponse>(`/api/xai/explanation/${questionId}`),
+
+  // Lazy XAI: Fetch explanations for an already-answered question
+  fetchXAIExplanation: (paragraph: string, question: string, answer: string) =>
+    request<{ shap_explanation: { shap_values: [string, number][]; base_value: number }; lime_explanation: { word_weights: [string, number][]; prediction_proba: number } }>("/api/xai/explain", {
+      method: "POST",
+      body: JSON.stringify({ paragraph, question, answer }),
+    }),
 
   // ── HITL ──
 

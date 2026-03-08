@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { api } from "@/lib/api";
 import type { XAIExplanation } from "@/types";
 
 export default function ExplanationPage() {
@@ -9,6 +10,7 @@ export default function ExplanationPage() {
     const [question, setQuestion] = useState("");
     const [paragraph, setParagraph] = useState("");
     const [activeTab, setActiveTab] = useState<"shap" | "lime" | "derivation">("shap");
+    const [isLoadingXAI, setIsLoadingXAI] = useState(false);
 
     useEffect(() => {
         // Load from sessionStorage
@@ -16,11 +18,41 @@ export default function ExplanationPage() {
         const storedQuestion = sessionStorage.getItem("xai_question");
         const storedParagraph = sessionStorage.getItem("xai_paragraph");
 
+        let parsedExplanation: XAIExplanation | null = null;
         if (storedExplanation) {
-            try { setExplanation(JSON.parse(storedExplanation)); } catch { /* invalid data */ }
+            try { parsedExplanation = JSON.parse(storedExplanation); } catch { /* invalid data */ }
         }
         if (storedQuestion) setQuestion(storedQuestion);
         if (storedParagraph) setParagraph(storedParagraph);
+
+        // If explanation exists but XAI data is empty, fetch it lazily
+        if (parsedExplanation) {
+            const hasXAI = parsedExplanation.shap_explanation?.shap_values?.length > 0 ||
+                           parsedExplanation.lime_explanation?.word_weights?.length > 0;
+
+            if (!hasXAI && storedQuestion && storedParagraph && parsedExplanation.answer) {
+                // Lazy load XAI data
+                setIsLoadingXAI(true);
+                setExplanation(parsedExplanation); // Show answer immediately
+
+                api.fetchXAIExplanation(storedParagraph, storedQuestion, parsedExplanation.answer)
+                    .then((xaiData) => {
+                        const updated = {
+                            ...parsedExplanation!,
+                            shap_explanation: xaiData.shap_explanation,
+                            lime_explanation: xaiData.lime_explanation,
+                        };
+                        setExplanation(updated);
+                        sessionStorage.setItem("xai_explanation", JSON.stringify(updated));
+                    })
+                    .catch((err) => {
+                        console.error("Failed to load XAI:", err);
+                    })
+                    .finally(() => setIsLoadingXAI(false));
+            } else {
+                setExplanation(parsedExplanation);
+            }
+        }
     }, []);
 
     if (!explanation) {
@@ -153,13 +185,21 @@ export default function ExplanationPage() {
                 {/* Tab Content */}
                 <div className="p-5">
                     {activeTab === "shap" && (
-                        <SHAPAnalysis values={explanation.shap_explanation.shap_values} />
+                        isLoadingXAI ? (
+                            <LoadingXAI label="Loading Feature Importance..." />
+                        ) : (
+                            <SHAPAnalysis values={explanation.shap_explanation.shap_values} />
+                        )
                     )}
                     {activeTab === "lime" && (
-                        <LIMEAnalysis
-                            weights={explanation.lime_explanation.word_weights}
-                            proba={explanation.lime_explanation.prediction_proba}
-                        />
+                        isLoadingXAI ? (
+                            <LoadingXAI label="Loading Word Analysis..." />
+                        ) : (
+                            <LIMEAnalysis
+                                weights={explanation.lime_explanation.word_weights}
+                                proba={explanation.lime_explanation.prediction_proba}
+                            />
+                        )
                     )}
                     {activeTab === "derivation" && (
                         <DerivationLogic
@@ -320,9 +360,9 @@ function DerivationLogic({
                                 {(step.confidence * 100).toFixed(0)}%
                             </span>
                         </div>
-                        <p className="text-slate-500 dark:text-gray-400 text-sm">{step.description}</p>
+                        <p className="text-slate-600 dark:text-gray-300 text-sm">{step.description}</p>
                         {step.details && (
-                            <p className="text-slate-500 dark:text-gray-500 text-xs mt-2 bg-gray-900/50 p-2 rounded">
+                            <p className="text-slate-700 dark:text-gray-200 text-xs mt-2 bg-slate-200 dark:bg-gray-700 p-2 rounded">
                                 {step.details}
                             </p>
                         )}
@@ -339,13 +379,26 @@ function DerivationLogic({
                             key={idx}
                             className="bg-yellow-500/10 border-l-4 border-yellow-500 rounded-r-lg p-3"
                         >
-                            <span className="text-yellow-200 text-sm">
-                                <strong>Evidence {idx + 1}:</strong> {ev}
+                            <span className="text-slate-700 dark:text-slate-200 text-sm">
+                                <strong className="text-yellow-600 dark:text-yellow-400">Evidence {idx + 1}:</strong> {ev}
                             </span>
                         </div>
                     ))}
                 </div>
             </div>
+        </div>
+    );
+}
+
+function LoadingXAI({ label }: { label: string }) {
+    return (
+        <div className="flex flex-col items-center justify-center py-12">
+            <div className="relative w-16 h-16 mb-4">
+                <div className="absolute inset-0 rounded-full border-4 border-slate-200 dark:border-gray-700" />
+                <div className="absolute inset-0 rounded-full border-4 border-brand-500 border-t-transparent animate-spin" />
+            </div>
+            <p className="text-slate-600 dark:text-gray-300 font-medium">{label}</p>
+            <p className="text-slate-400 dark:text-gray-500 text-sm mt-1">Analyzing document with AI...</p>
         </div>
     );
 }
