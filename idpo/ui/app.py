@@ -15,7 +15,6 @@ from fastapi.staticfiles import StaticFiles
 
 from idpo.pipeline.inbox import process_inbox
 from idpo.integration import (
-    get_ahmn_advice,
     run_integration_cycle,
     forward_hitl_correction,
     IntegrationResult,
@@ -136,7 +135,6 @@ async def run_demo(
     config_path: str = Form("configs/config.json"),
     skip_guardrails: str = Form("false"),
     skip_xai: str = Form("false"),
-    skip_ahmn: str = Form("false"),
 ) -> JSONResponse:
     import asyncio
 
@@ -163,63 +161,10 @@ async def run_demo(
 
     extraction_fields = _parse_fields(fields)
 
-    # ── Step 1: AHMN Advice (pre-processing, non-blocking) ──
-    do_skip_ahmn = skip_ahmn.lower() in ("true", "1", "yes")
-    if do_skip_ahmn:
-        logger.info("Step 1/5: AHMN advice skipped by user")
-        from idpo.integration import AHMNAdvice
-        ahmn_advice = AHMNAdvice(error="Skipped by user")
-    else:
-        logger.info("Step 1/5: Requesting AHMN policy advice")
-        # Infer basic doc hints from filenames for better AHMN context
-        _exts = {Path(s).suffix.lower() for s in saved}
-        _names_lower = " ".join(Path(s).stem.lower() for s in saved)
-        inferred_doc_type = "unknown"
-        inferred_content_profile = None
-        if _exts & {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp"}:
-            inferred_doc_type = "scanned_document"
-            inferred_content_profile = "image-heavy"
-        elif any(kw in _names_lower for kw in ("invoice", "receipt", "bill", "purchase_order", "po_")):
-            inferred_doc_type = "invoice"
-            inferred_content_profile = "table-heavy"
-        elif any(kw in _names_lower for kw in ("form", "application", "questionnaire")):
-            inferred_doc_type = "form_document"
-            inferred_content_profile = "form"
-        elif any(kw in _names_lower for kw in ("contract", "agreement", "lease", "nda")):
-            inferred_doc_type = "mixed_document"
-            inferred_content_profile = "mixed"
-        elif any(kw in _names_lower for kw in ("clinical", "patient", "medical", "diagnosis", "prescription")):
-            inferred_doc_type = "clinical_summary"
-            inferred_content_profile = "form"
-        elif any(kw in _names_lower for kw in ("bank", "statement", "ledger", "financial")):
-            inferred_doc_type = "bank_statement"
-            inferred_content_profile = "table-heavy"
-        elif any(kw in _names_lower for kw in ("insurance", "claim", "policy")):
-            inferred_doc_type = "insurance_claim"
-            inferred_content_profile = "form"
-        elif _exts & {".pdf"}:
-            inferred_doc_type = "text_document"
-            inferred_content_profile = "text-heavy"
-
-        AHMN_ADVICE_TIMEOUT_S = 10  # Don't let a slow AHMN block the pipeline
-        try:
-            ahmn_advice = await asyncio.wait_for(
-                asyncio.to_thread(
-                    get_ahmn_advice,
-                    doc_type=inferred_doc_type,
-                    vendor=None,
-                    extra_context={"file_count": len(saved), "has_custom_fields": bool(extraction_fields)},
-                    content_profile=inferred_content_profile,
-                ),
-                timeout=AHMN_ADVICE_TIMEOUT_S,
-            )
-        except asyncio.TimeoutError:
-            logger.warning("AHMN advice timed out after %ds — using default policy", AHMN_ADVICE_TIMEOUT_S)
-            from idpo.integration import AHMNAdvice
-            ahmn_advice = AHMNAdvice(error="AHMN advice timed out — using default policy")
-
-    # ── Step 2: IDPO Processing (run in thread pool to avoid blocking event loop) ──
-    logger.info("Step 2/5: Running extraction pipeline")
+    # ── Step 1: IDPO Processing (run in thread pool to avoid blocking event loop) ──
+    # NOTE: AHMN advice is now requested AFTER processing, based on actual doc_type
+    # from DAE classification (per-document policies)
+    logger.info("Step 1/4: Running extraction pipeline")
     PIPELINE_TIMEOUT_S = 540  # 9 minutes — must be below gateway's 600s proxy timeout
     try:
         result = await asyncio.wait_for(
@@ -264,50 +209,37 @@ async def run_demo(
     processing_time_ms = metrics.get("duration_ms", 0.0)
     failed = result.get("failed", [])
 
-    # Extract the actual policy IDPO used from doc_records
-    actual_policy_id: str | None = None
-    actual_doc_type: str | None = None
-    actual_content_profile: str | None = None
-    for doc in doc_records:
-        pid = doc.get("policy_id")
-        if pid and pid != "default_policy":
-            actual_policy_id = pid
-        dt = doc.get("doc_type")
-        if dt and dt != "unknown":
-            actual_doc_type = dt
-        cp = doc.get("content_profile")
-        if cp:
-            actual_content_profile = cp
-        if actual_policy_id and actual_doc_type:
-            break
-
-    # ── Steps 3–5: Guardrails → XAI → AHMN Feedback (non-blocking) ──
+    # ── Steps 2–4: Per-Doc AHMN → Guardrails → XAI → AHMN Feedback ──
+    # AHMN advice is now requested per-document AFTER DAE classification,
+    # so each document gets a policy based on its actual type
     do_skip_guardrails = skip_guardrails.lower() in ("true", "1", "yes")
     do_skip_xai = skip_xai.lower() in ("true", "1", "yes")
-    skipped = [s for s in [("Guardrails" if do_skip_guardrails else ""), ("XAI" if do_skip_xai else "")] if s]
-    logger.info("Steps 3-5/5: Running integration cycle%s", f" (skipping {', '.join(skipped)})" if skipped else "")
-    INTEGRATION_TIMEOUT_S = 120  # XAI model takes 10-30s on CPU; allow time for all steps
+    skipped = [s for s in [
+        ("Guardrails" if do_skip_guardrails else ""),
+        ("XAI" if do_skip_xai else "")
+    ] if s]
+    logger.info("Steps 2-4/4: Running integration cycle with per-doc AHMN%s",
+                f" (skipping {', '.join(skipped)})" if skipped else "")
+    # Increased timeout to allow per-doc AHMN calls
+    INTEGRATION_TIMEOUT_S = 180  # 3 minutes for per-doc AHMN + guardrails + XAI
     try:
         integration = await asyncio.wait_for(
             asyncio.to_thread(
                 run_integration_cycle,
                 doc_records=doc_records,
                 processing_time_ms=processing_time_ms,
-                ahmn_advice=ahmn_advice,
+                ahmn_advices=None,  
                 skip_guardrails=do_skip_guardrails,
                 skip_xai=do_skip_xai,
-                actual_policy_id=actual_policy_id,
             ),
             timeout=INTEGRATION_TIMEOUT_S,
         )
     except asyncio.TimeoutError:
         logger.warning("Integration cycle timed out after %ds — returning results without integration", INTEGRATION_TIMEOUT_S)
         integration = IntegrationResult()
-        integration.ahmn_advice = ahmn_advice
     except Exception as exc:
         logger.warning("Integration cycle failed: %s — returning results without integration", exc)
         integration = IntegrationResult()
-        integration.ahmn_advice = ahmn_advice
 
     response_data: dict[str, Any] = {
         "run_id": result["run_id"],

@@ -228,23 +228,28 @@ class AHMNFeedback:
 
 @dataclass
 class IntegrationResult:
-    ahmn_advice: AHMNAdvice = field(default_factory=AHMNAdvice)
+    # Per-document AHMN advices (one per doc, indexed by doc_id)
+    ahmn_advices: list[AHMNAdvice] = field(default_factory=list)
     guardrails: list[GuardrailResult] = field(default_factory=list)
     xai_explanations: list[XAIExplanation] = field(default_factory=list)
-    ahmn_feedback: AHMNFeedback = field(default_factory=AHMNFeedback)
+    # Per-document feedback (one per doc)
+    ahmn_feedbacks: list[AHMNFeedback] = field(default_factory=list)
     cycle_time_ms: float = 0.0
     skipped_guardrails: bool = False
     skipped_xai: bool = False
 
     def to_dict(self) -> dict:
         return {
-            "ahmn_advice": self.ahmn_advice.to_dict(),
+            "ahmn_advices": [a.to_dict() for a in self.ahmn_advices],
             "guardrails": [g.to_dict() for g in self.guardrails],
             "xai_explanations": [x.to_dict() for x in self.xai_explanations],
-            "ahmn_feedback": self.ahmn_feedback.to_dict(),
+            "ahmn_feedbacks": [f.to_dict() for f in self.ahmn_feedbacks],
             "cycle_time_ms": round(self.cycle_time_ms, 1),
             "skipped_guardrails": self.skipped_guardrails,
             "skipped_xai": self.skipped_xai,
+            # Backward compatibility: provide first advice as ahmn_advice
+            "ahmn_advice": self.ahmn_advices[0].to_dict() if self.ahmn_advices else AHMNAdvice().to_dict(),
+            "ahmn_feedback": self.ahmn_feedbacks[0].to_dict() if self.ahmn_feedbacks else AHMNFeedback().to_dict(),
         }
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -256,8 +261,17 @@ def get_ahmn_advice(
     vendor: str | None = None,
     extra_context: dict[str, Any] | None = None,
     content_profile: str | None = None,
+    doc_id: str | None = None,
 ) -> AHMNAdvice:
-    """Ask AHMN for policy advice before document processing."""
+    """Ask AHMN for policy advice for a document.
+
+    Args:
+        doc_type: Document type (e.g., "invoice", "clinical_summary")
+        vendor: Vendor cluster name
+        extra_context: Additional context for policy selection
+        content_profile: Content profile (e.g., "table-heavy", "text-heavy")
+        doc_id: Document ID for tracking (optional)
+    """
     advice = AHMNAdvice()
     try:
         payload: dict[str, Any] = {
@@ -267,7 +281,8 @@ def get_ahmn_advice(
         }
         if content_profile:
             payload["content_profile"] = content_profile
-        logger.info("Requesting AHMN advice: doc_type=%s, vendor=%s, content_profile=%s", doc_type, vendor, content_profile)
+        logger.info("Requesting AHMN advice: doc_type=%s, vendor=%s, content_profile=%s, doc_id=%s",
+                    doc_type, vendor, content_profile, doc_id)
         resp = _request_with_retry("POST", f"{AHMN_URL}/advice", json_data=payload)
         data = resp.json()
 
@@ -279,8 +294,8 @@ def get_ahmn_advice(
         advice.retrieval_source = data.get("retrieval_source", "DEFAULT")
         advice.n_neighbors = data.get("n_neighbors")
         logger.info(
-            "AHMN advice received: policy=%s confidence=%.3f source=%s",
-            advice.policy_id, advice.confidence, advice.retrieval_source,
+            "AHMN advice received for %s: policy=%s confidence=%.3f source=%s",
+            doc_id or "batch", advice.policy_id, advice.confidence, advice.retrieval_source,
         )
     except httpx.ConnectError:
         advice.error = "AHMN service unreachable"
@@ -289,6 +304,46 @@ def get_ahmn_advice(
         advice.error = str(exc)
         logger.warning("AHMN advice failed: %s", exc)
     return advice
+
+
+def get_per_doc_ahmn_advices(
+    doc_records: list[dict[str, Any]],
+) -> list[AHMNAdvice]:
+    """Get AHMN policy advice for each document based on its actual doc_type.
+
+    This is called AFTER DAE (Document Analysis) has classified each document,
+    so we can request the appropriate policy for each document's actual type.
+
+    Returns:
+        List of AHMNAdvice objects, one per document (in same order as doc_records)
+    """
+    if not doc_records:
+        return []
+
+    advices: list[AHMNAdvice] = []
+
+    for doc in doc_records:
+        doc_id = doc.get("doc_id", "")
+        doc_type = doc.get("doc_type", "unknown")
+        vendor = doc.get("vendor_cluster") or doc.get("vendor")
+        content_profile = doc.get("content_profile")
+        quality_bin = doc.get("quality_bin", "medium")
+        complexity_bin = doc.get("complexity_bin", "medium")
+
+        advice = get_ahmn_advice(
+            doc_type=doc_type,
+            vendor=vendor,
+            content_profile=content_profile,
+            extra_context={
+                "quality_bin": quality_bin,
+                "complexity_bin": complexity_bin,
+                "entity_count": doc.get("entity_count", 0),
+            },
+            doc_id=doc_id,
+        )
+        advices.append(advice)
+
+    return advices
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Step 3: Guardrails Validation (post-processing)
@@ -670,29 +725,80 @@ def _explain_single_doc(
 def get_xai_explanations(
     doc_records: list[dict[str, Any]],
     guardrail_results: list[GuardrailResult],
-    ahmn_advice: AHMNAdvice | None = None,
+    ahmn_advices: list[AHMNAdvice] | None = None,
 ) -> list[XAIExplanation]:
     """Build component-level explanations for extraction results.
 
     Instead of calling an external XAI service, this generates real
     explanations from the actual processing data (AHMN, IDPO, Guardrails).
+
+    Args:
+        doc_records: List of document records from extraction
+        guardrail_results: List of guardrail results (one per doc)
+        ahmn_advices: List of per-doc AHMN advices (one per doc)
     """
     if not doc_records:
         return []
+
+    # Ensure ahmn_advices has the right length
+    advices = ahmn_advices or []
+    while len(advices) < len(doc_records):
+        advices.append(AHMNAdvice())
+
     if len(doc_records) == 1:
         gr = guardrail_results[0] if guardrail_results else None
-        return [_explain_single_doc(doc_records[0], gr, ahmn_advice)]
+        return [_explain_single_doc(doc_records[0], gr, advices[0])]
+
     # Parallelize explanation building
     with concurrent.futures.ThreadPoolExecutor(max_workers=min(4, len(doc_records))) as pool:
         futures = []
         for i, doc in enumerate(doc_records):
             gr = guardrail_results[i] if i < len(guardrail_results) else None
-            futures.append(pool.submit(_explain_single_doc, doc, gr, ahmn_advice))
+            advice = advices[i] if i < len(advices) else AHMNAdvice()
+            futures.append(pool.submit(_explain_single_doc, doc, gr, advice))
         return [f.result() for f in futures]
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Step 5: AHMN Feedback Loop (post-processing metrics)
 # ═══════════════════════════════════════════════════════════════════════════
+
+def log_per_doc_ahmn_feedbacks(
+    doc_records: list[dict[str, Any]],
+    ahmn_advices: list[AHMNAdvice],
+    guardrail_results: list[GuardrailResult],
+    processing_time_ms: float,
+) -> list[AHMNFeedback]:
+    """Log per-document feedback to AHMN.
+
+    Each document gets its own feedback with:
+    - Its own advice_id (from per-doc AHMN call)
+    - Its own policy_id (what was actually used)
+    - Its own F1 score and metrics
+
+    Returns:
+        List of AHMNFeedback objects, one per document
+    """
+    if not doc_records:
+        return []
+
+    feedbacks: list[AHMNFeedback] = []
+    per_doc_time_ms = processing_time_ms / max(len(doc_records), 1)
+
+    for i, doc in enumerate(doc_records):
+        advice = ahmn_advices[i] if i < len(ahmn_advices) else AHMNAdvice()
+        gr = guardrail_results[i] if i < len(guardrail_results) else GuardrailResult()
+
+        feedback = log_ahmn_feedback(
+            advice=advice,
+            doc_records=[doc],  # Single doc
+            guardrail_results=[gr] if gr.document_id else [],
+            processing_time_ms=per_doc_time_ms,
+            actual_policy_id=doc.get("policy_id"),
+        )
+        feedbacks.append(feedback)
+
+    return feedbacks
+
 
 def log_ahmn_feedback(
     advice: AHMNAdvice,
@@ -857,53 +963,66 @@ def log_ahmn_feedback(
 def run_integration_cycle(
     doc_records: list[dict[str, Any]],
     processing_time_ms: float,
-    ahmn_advice: AHMNAdvice | None = None,
+    ahmn_advices: list[AHMNAdvice] | None = None,
     skip_guardrails: bool = False,
     skip_xai: bool = False,
-    actual_policy_id: str | None = None,
 ) -> IntegrationResult:
     """
-    Execute the post-processing integration cycle:
-      1. Guardrails validation  (skippable)
-      2. XAI explanation        (skippable)
-      3. AHMN feedback loop
+    Execute the post-processing integration cycle with per-document AHMN:
+      1. Per-doc AHMN advice (based on actual doc_type from DAE)
+      2. Guardrails validation (skippable)
+      3. XAI explanation (skippable)
+      4. Per-doc AHMN feedback loop
 
-    The AHMN advice (step 1) should be obtained BEFORE processing and
-    passed in here so the feedback loop can reference it.
+    Args:
+        doc_records: Documents with their actual doc_types from DAE
+        processing_time_ms: Total processing time
+        ahmn_advices: Pre-fetched per-doc advices (if None, will be fetched here)
+        skip_guardrails: Skip guardrails validation
+        skip_xai: Skip XAI explanations
     """
     cycle_start = time.time()
     result = IntegrationResult()
-
-    # Use provided advice or create empty placeholder
-    result.ahmn_advice = ahmn_advice or AHMNAdvice()
     result.skipped_guardrails = skip_guardrails
     result.skipped_xai = skip_xai
 
-    # Step 3: Guardrails validation
+    # Step 1: Per-document AHMN advice (if not already provided)
+    if ahmn_advices:
+        result.ahmn_advices = ahmn_advices
+    else:
+        logger.info("Requesting per-document AHMN advices for %d docs", len(doc_records))
+        result.ahmn_advices = get_per_doc_ahmn_advices(doc_records)
+
+    # Step 2: Guardrails validation
     if skip_guardrails:
         logger.info("Guardrails validation skipped by user")
         result.guardrails = []
     else:
         result.guardrails = validate_with_guardrails(doc_records)
 
-    # Step 4: Component-level explanations (replaces external XAI service)
+    # Step 3: Component-level explanations with per-doc advice
     if skip_xai:
         logger.info("Component explanations skipped by user")
         result.xai_explanations = []
     else:
         result.xai_explanations = get_xai_explanations(
-            doc_records, result.guardrails, ahmn_advice
+            doc_records, result.guardrails, result.ahmn_advices
         )
 
-    # Step 5: AHMN feedback loop
-    if ahmn_advice and ahmn_advice.advice_id:
-        result.ahmn_feedback = log_ahmn_feedback(
-            ahmn_advice, doc_records, result.guardrails, processing_time_ms,
-            actual_policy_id=actual_policy_id,
-        )
+    # Step 4: Per-document AHMN feedback loop
+    if result.ahmn_advices:
+        has_valid_advices = any(a.advice_id for a in result.ahmn_advices)
+        if has_valid_advices:
+            result.ahmn_feedbacks = log_per_doc_ahmn_feedbacks(
+                doc_records, result.ahmn_advices, result.guardrails, processing_time_ms
+            )
+        else:
+            result.ahmn_feedbacks = []
+    else:
+        result.ahmn_feedbacks = []
 
     result.cycle_time_ms = (time.time() - cycle_start) * 1000
-    logger.info("Integration cycle completed in %.1f ms", result.cycle_time_ms)
+    logger.info("Integration cycle completed in %.1f ms for %d docs", result.cycle_time_ms, len(doc_records))
     return result
 
 # ═══════════════════════════════════════════════════════════════════════════
