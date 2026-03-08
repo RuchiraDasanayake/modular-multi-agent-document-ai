@@ -542,15 +542,54 @@ async def log_outcome(req: LogRequest, request: Request):
 
 @app.post("/advice/feedback")
 async def log_feedback(req: FeedbackRequest):
-    """Record human-corrected flag on an outcome."""
+    """Record human-corrected flag and adjust LTM policy β (failure count)."""
+    ltm_adjusted = False
     async with _db().connection() as conn:
         async with conn.cursor() as cur:
+            # 1. Mark MTM outcome and retrieve the policy + context used
             await cur.execute(
-                "UPDATE mtm_outcomes SET human_corrected = %s WHERE advice_id = %s",
+                "UPDATE mtm_outcomes SET human_corrected = %s WHERE advice_id = %s "
+                "RETURNING policy_id_used, document_context",
                 (req.human_corrected, req.advice_id),
             )
+            row = await cur.fetchone()
+
+            if row:
+                policy_id_used, document_context = row
+
+                # 2. Graduated β penalty based on feedback_type
+                ft = req.feedback_type or ("incorrect" if req.human_corrected else "correct")
+                if ft == "incorrect":
+                    beta_penalty = 2.0  # Strong signal: policy was wrong
+                elif ft == "partially_correct":
+                    beta_penalty = 0.5  # Mild signal: policy was partly right
+                else:  # "correct" / "needs_more_context" — no penalty
+                    beta_penalty = 0.0
+
+                # 3. Apply penalty to matching LTM entry
+                if beta_penalty > 0 and isinstance(document_context, dict):
+                    ctx_str = _embedding_service.create_context_string(
+                        document_context.get("doc_type", "unknown"),
+                        document_context.get("vendor"),
+                    )
+                    cp = document_context.get("content_profile")
+                    if cp:
+                        ctx_str += f". Content profile: {cp}"
+                    context_hash = hashlib.sha256(
+                        f"{ctx_str}:{policy_id_used}".encode()
+                    ).hexdigest()
+
+                    await cur.execute(
+                        """UPDATE ltm_validated_policies
+                           SET beta = beta + %s
+                           WHERE context_hash = %s AND policy_id = %s
+                           RETURNING id""",
+                        (beta_penalty, context_hash, policy_id_used),
+                    )
+                    ltm_adjusted = await cur.fetchone() is not None
+
             await conn.commit()
-    return {"status": "feedback_recorded"}
+    return {"status": "feedback_recorded", "ltm_adjusted": ltm_adjusted}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # DASHBOARD ROUTES

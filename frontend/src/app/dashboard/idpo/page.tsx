@@ -30,8 +30,6 @@ export default function IDPOPage() {
     const elapsedRef = useRef<NodeJS.Timeout | null>(null);
     const [integrationTab, setIntegrationTab] = useState<"advice" | "guardrails" | "xai" | "feedback">("advice");
     const [enableGuardrails, setEnableGuardrails] = useState(true);
-    const [enableXAI, setEnableXAI] = useState(false);
-    const [enableAHMN, setEnableAHMN] = useState(true);
     const [entitySearch, setEntitySearch] = useState("");
     const [entityConfidenceFilter, setEntityConfidenceFilter] = useState<"all" | "high" | "medium" | "low">("all");
     const [entityPage, setEntityPage] = useState(0);
@@ -49,15 +47,13 @@ export default function IDPOPage() {
             if (saved) {
                 const parsed = JSON.parse(saved);
                 if (typeof parsed.guardrails === "boolean") setEnableGuardrails(parsed.guardrails);
-                if (typeof parsed.xai === "boolean") setEnableXAI(parsed.xai);
-                if (typeof parsed.ahmn === "boolean") setEnableAHMN(parsed.ahmn);
             }
         } catch { }
     }, []);
 
     useEffect(() => {
-        try { localStorage.setItem("idpo_toggles", JSON.stringify({ guardrails: enableGuardrails, xai: enableXAI, ahmn: enableAHMN })); } catch { }
-    }, [enableGuardrails, enableXAI, enableAHMN]);
+        try { localStorage.setItem("idpo_toggles", JSON.stringify({ guardrails: enableGuardrails })); } catch { }
+    }, [enableGuardrails]);
 
     // Restore extraction results from sessionStorage on mount
     useEffect(() => {
@@ -150,7 +146,7 @@ export default function IDPOPage() {
         setDocProgress(files.map((f) => ({ name: f.name, status: "queued" as const })));
         let currentDoc = 0;
         // Cycle through docs with realistic timing
-        const baseMs = enableGuardrails ? 3500 : enableXAI ? 2000 : 1800;
+        const baseMs = enableGuardrails ? 3500 : 2200;
         const tickMs = 500;
         const interval = setInterval(() => {
             const elapsed = Date.now() - progressStartRef.current;
@@ -172,7 +168,7 @@ export default function IDPOPage() {
         }, tickMs);
         progressTimerRef.current = interval;
         return () => clearInterval(interval);
-    }, [loading, files.length, enableGuardrails, enableXAI]);
+    }, [loading, files.length, enableGuardrails]);
 
     /* ── Download helper ── */
     const handleDownload = async (file: "docs.xlsx" | "entities.xlsx" | "run.xlsx", filename: string) => {
@@ -265,7 +261,7 @@ export default function IDPOPage() {
 
 
         try {
-            const data = await api.runIDPO(files, fields, configPath, { enableGuardrails, enableXAI, enableAHMN });
+            const data = await api.runIDPO(files, fields, configPath, { enableGuardrails });
 
             // Mark all doc progress as done
             setDocProgress((prev) => prev.map((d) => ({ ...d, status: "done" as const })));
@@ -290,6 +286,12 @@ export default function IDPOPage() {
                     }));
                 if (extractedDocs.length > 0) {
                     sessionStorage.setItem("idpo_extracted_docs", JSON.stringify(extractedDocs));
+                }
+
+                const adviceId = data.pipeline_integration?.ahmn_advice?.advice_id;
+                if (adviceId) {
+                    sessionStorage.setItem("xai_advice_id", adviceId);
+                    localStorage.setItem("xai_advice_id", adviceId);
                 }
             } catch {
                 // sessionStorage may be full or unavailable
@@ -418,14 +420,14 @@ export default function IDPOPage() {
                                     { icon: "🔍", label: "OCR", delay: "0.5s" },
                                     { icon: "🧠", label: "Extract", delay: "1s" },
                                     { icon: "✅", label: "Validate", delay: "1.5s" },
-                                    ...(enableAHMN ? [{ icon: "🎯", label: "Learn", delay: "2s" }] : []),
+                                    { icon: "🎯", label: "Learn", delay: "2s" },
                                 ].map((step, i) => (
                                     <div key={i} className="flex items-center gap-1">
                                         <div className="flex flex-col items-center px-1.5 py-1 rounded-lg" style={{ animation: `pipelineStep 2s ease-in-out ${step.delay} infinite` }}>
                                             <span className="text-xs">{step.icon}</span>
                                             <span className="text-[8px] text-slate-500 dark:text-gray-400 font-medium">{step.label}</span>
                                         </div>
-                                        {i < (enableAHMN ? 4 : 3) && (
+                                        {i < 4 && (
                                             <svg className="w-3 h-3 text-slate-300 dark:text-gray-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                                         )}
                                     </div>
@@ -436,7 +438,7 @@ export default function IDPOPage() {
                                 <div className="h-full rounded-full bg-gradient-to-r from-brand-500 via-cyan-400 to-violet-500" style={{
                                     backgroundSize: "200% 100%",
                                     animation: "gradientMove 1.5s ease-in-out infinite",
-                                    width: `${Math.min(95, (elapsedSec / (enableGuardrails ? 30 : enableXAI ? 15 : 10)) * 100)}%`,
+                                    width: `${Math.min(95, (elapsedSec / (enableGuardrails ? 30 : 12)) * 100)}%`,
                                     transition: "width 1s ease-out"
                                 }} />
                             </div>
@@ -579,9 +581,7 @@ export default function IDPOPage() {
                             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Pipeline Options</p>
                             <div className="space-y-2">
                                 {([
-                                    { key: "ahmn" as const, icon: "🎯", label: "AHMN Advice", desc: "Bandit-guided policy selection (~1-3s)", checked: enableAHMN, setter: setEnableAHMN },
                                     { key: "guardrails" as const, icon: "🛡️", label: "Guardrails", desc: "6-layer quality validation (~8-20s)", checked: enableGuardrails, setter: setEnableGuardrails },
-                                    { key: "xai" as const, icon: "📊", label: "Explain", desc: "Component-level explanations (~1s)", checked: enableXAI, setter: setEnableXAI },
                                 ]).map((opt) => (
                                     <label key={opt.key} className={`flex items-center justify-between cursor-pointer px-3 py-2.5 rounded-lg border transition-all duration-150 ${opt.checked ? "bg-brand-50/50 dark:bg-brand-500/5 border-brand-200 dark:border-brand-500/20" : "bg-white/30 dark:bg-gray-800/20 border-slate-200/60 dark:border-gray-700/40 hover:border-slate-300 dark:hover:border-gray-600"}`}>
                                         <div className="flex items-center gap-2.5">
@@ -600,7 +600,7 @@ export default function IDPOPage() {
                                 ))}
                             </div>
                             <p className="text-[9px] text-slate-400 dark:text-gray-500 text-center pt-1">
-                                Estimated time: ~{enableGuardrails ? "15-30s" : enableXAI ? "5-10s" : "3-8s"} per document
+                                Estimated time: ~{enableGuardrails ? "15-30s" : "5-10s"} per document
                             </p>
                         </div>
 

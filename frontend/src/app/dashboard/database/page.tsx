@@ -233,11 +233,10 @@ export default function DatabaseExplorerPage() {
                     <button
                         key={t.key}
                         onClick={() => setTab(t.key)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                            tab === t.key
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${tab === t.key
                                 ? "bg-brand-500/10 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300 border border-brand-200/60 dark:border-brand-500/20 shadow-sm"
                                 : "text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800 border border-transparent"
-                        }`}
+                            }`}
                     >
                         <span>{t.icon}</span>
                         {t.label}
@@ -322,17 +321,20 @@ function MTMTable({ data }: { data: MTMEntry[] }) {
     return (
         <table className="min-w-full divide-y divide-slate-200/60 dark:divide-gray-800/60">
             <thead className="bg-slate-50/50 dark:bg-gray-900/30"><tr>
-                <Th>Policy Used</Th><Th>Doc Type</Th><Th>F1 Score</Th><Th>Cost</Th><Th>Time (ms)</Th><Th>Human Corrected</Th><Th>Created</Th>
+                <Th>Policy Used</Th><Th>Doc Type</Th><Th>Content Profile</Th><Th>F1 Score</Th><Th>Cost</Th><Th>Time (ms)</Th><Th>Human Corrected</Th><Th>Created</Th>
             </tr></thead>
             <tbody className="divide-y divide-slate-100 dark:divide-gray-800/40">
                 {data.map((row, i) => {
                     const ctx = row.document_context || {};
                     const metrics = row.outcome_metrics || {};
                     const f1 = (metrics as Record<string, number>).f1_score;
+                    const docType = (ctx as Record<string, string>).doc_type || "—";
+                    const contentProfile = (ctx as Record<string, string>).content_profile || "—";
                     return (
                         <tr key={row.id || i} className="hover:bg-slate-50/50 dark:hover:bg-gray-800/20 transition-colors">
                             <Td><Badge color={policyColor(row.policy_id_used)}>{row.policy_id_used}</Badge></Td>
-                            <Td className="text-xs">{(ctx as Record<string, string>).doc_type || "—"}</Td>
+                            <Td className="text-xs">{docType}</Td>
+                            <Td className="text-xs text-slate-500 dark:text-gray-500">{contentProfile}</Td>
                             <Td className="font-mono font-semibold">
                                 {f1 != null ? (
                                     <span className={f1 >= 0.7 ? "text-emerald-600 dark:text-emerald-400" : f1 >= 0.5 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}>

@@ -31,6 +31,10 @@ class LogRequest(BaseModel):
 class FeedbackRequest(BaseModel):
     advice_id: UUID
     human_corrected: bool
+    feedback_type: str | None = Field(
+        default=None,
+        description="Original reviewer verdict: correct, incorrect, partially_correct, needs_more_context",
+    )
 
 class PolicyResponse(BaseModel):
     advice_id: UUID

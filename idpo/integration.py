@@ -806,6 +806,8 @@ def log_ahmn_feedback(
     guardrail_results: list[GuardrailResult],
     processing_time_ms: float,
     actual_policy_id: str | None = None,
+    actual_doc_type: str | None = None,
+    actual_content_profile: str | None = None,
 ) -> AHMNFeedback:
     """Send outcome metrics to AHMN so the bandit learns.
     
@@ -926,6 +928,13 @@ def log_ahmn_feedback(
                 )
                 break
 
+        # Fallback to caller-provided runtime context if doc_records did not
+        # contain a non-unknown doc_type/content_profile.
+        if "doc_type" not in real_context and actual_doc_type:
+            real_context["doc_type"] = actual_doc_type
+        if "content_profile" not in real_context and actual_content_profile:
+            real_context["content_profile"] = actual_content_profile
+
         payload: dict[str, Any] = {
             "advice_id": advice.advice_id,
             "policy_id_used": used_policy,
@@ -966,6 +975,9 @@ def run_integration_cycle(
     ahmn_advices: list[AHMNAdvice] | None = None,
     skip_guardrails: bool = False,
     skip_xai: bool = False,
+    actual_policy_id: str | None = None,
+    actual_doc_type: str | None = None,
+    actual_content_profile: str | None = None,
 ) -> IntegrationResult:
     """
     Execute the post-processing integration cycle with per-document AHMN:
@@ -1045,6 +1057,7 @@ def forward_hitl_correction(
     payload = {
         "advice_id": advice_id,
         "human_corrected": human_corrected,
+        "feedback_type": feedback_type,
     }
 
     try:
