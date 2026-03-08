@@ -228,12 +228,9 @@ async def run_demo(
                 run_integration_cycle,
                 doc_records=doc_records,
                 processing_time_ms=processing_time_ms,
-                ahmn_advices=None,  
+                ahmn_advices=None,
                 skip_guardrails=do_skip_guardrails,
                 skip_xai=do_skip_xai,
-                actual_policy_id=actual_policy_id,
-                actual_doc_type=actual_doc_type,
-                actual_content_profile=actual_content_profile,
             ),
             timeout=INTEGRATION_TIMEOUT_S,
         )
