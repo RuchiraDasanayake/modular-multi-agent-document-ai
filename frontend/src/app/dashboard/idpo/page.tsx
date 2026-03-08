@@ -10,6 +10,8 @@ import type {
     PipelineIntegration,
     GuardrailDocResult,
     XAIDocExplanation,
+    AHMNAdvice,
+    AHMNFeedback,
 } from "@/types";
 
 export default function IDPOPage() {
