@@ -516,8 +516,26 @@ async def log_outcome(req: LogRequest, request: Request):
                         actual_policy_hash,
                         vector,
                         req.policy_id_used,
-                        json.dumps({"action": req.policy_id_used, "origin": "inline_promotion"}),
-                        json.dumps({"f1_score": reward, "source": "inline"}),
+                        json.dumps(
+                            {
+                                "action": req.policy_id_used,
+                                "origin": "inline_promotion",
+                                "doc_type": context_dict.get("doc_type", "unknown"),
+                                "vendor": context_dict.get("vendor"),
+                                "content_profile": context_dict.get("content_profile"),
+                            }
+                        ),
+                        json.dumps(
+                            {
+                                "f1_score": reward,
+                                "source": "inline",
+                                "document_context": {
+                                    "doc_type": context_dict.get("doc_type", "unknown"),
+                                    "vendor": context_dict.get("vendor"),
+                                    "content_profile": context_dict.get("content_profile"),
+                                },
+                            }
+                        ),
                         initial_alpha,
                         initial_beta,
                         reward,
@@ -672,7 +690,7 @@ async def get_ltm():
         async with conn.cursor() as cur:
             await cur.execute(
                 """SELECT id, context_hash, policy_id, policy_data, alpha, beta,
-                          confidence_score, last_promoted_at
+                          confidence_score, last_promoted_at, validation_metrics
                    FROM ltm_validated_policies ORDER BY last_promoted_at DESC"""
             )
             rows = await cur.fetchall()
@@ -686,6 +704,20 @@ async def get_ltm():
             "beta": r[5],
             "confidence_score": r[6],
             "last_promoted_at": r[7].isoformat() if r[7] else "",
+            "validation_metrics": r[8],
+            "doc_type": (
+                (r[3] or {}).get("doc_type")
+                or ((r[8] or {}).get("document_context") or {}).get("doc_type")
+                or "unknown"
+            ),
+            "vendor": (
+                (r[3] or {}).get("vendor")
+                or ((r[8] or {}).get("document_context") or {}).get("vendor")
+            ),
+            "content_profile": (
+                (r[3] or {}).get("content_profile")
+                or ((r[8] or {}).get("document_context") or {}).get("content_profile")
+            ),
         }
         for r in rows
     ]

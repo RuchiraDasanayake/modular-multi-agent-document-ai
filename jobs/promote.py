@@ -97,8 +97,22 @@ async def promote_strategies():
                             last_promoted_at = NOW();
                     """
 
-                    policy_data = {"origin": "promoted_from_mtm", "avg_f1": avg_f1}
-                    validation_metrics = {"f1_score": avg_f1, "sample_size": count}
+                    policy_data = {
+                        "origin": "promoted_from_mtm",
+                        "avg_f1": avg_f1,
+                        "doc_type": doc_type,
+                        "vendor": vendor,
+                        "content_profile": content_profile,
+                    }
+                    validation_metrics = {
+                        "f1_score": avg_f1,
+                        "sample_size": count,
+                        "document_context": {
+                            "doc_type": doc_type,
+                            "vendor": vendor,
+                            "content_profile": content_profile,
+                        },
+                    }
                     confidence = min(1.0, 0.5 + avg_f1 * 0.3 + min(count / 10.0, 0.2))
 
                     await cur.execute(upsert_query, (

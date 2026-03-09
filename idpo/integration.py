@@ -53,6 +53,26 @@ def _load_expected_fields() -> dict[str, list[str]]:
     return mapping
 
 _POLICY_EXPECTED_FIELDS: dict[str, list[str]] = _load_expected_fields()
+_POLICY_STORE_MTIME: float | None = None
+
+
+def _maybe_refresh_expected_fields() -> None:
+    """Reload policy expected fields if policy_store.json changed on disk."""
+    global _POLICY_EXPECTED_FIELDS, _POLICY_STORE_MTIME
+    store_path = Path(__file__).resolve().parents[1] / "configs" / "policy_store.json"
+    try:
+        mtime = store_path.stat().st_mtime
+    except OSError:
+        return
+
+    if _POLICY_STORE_MTIME is None:
+        _POLICY_STORE_MTIME = mtime
+        return
+
+    if mtime != _POLICY_STORE_MTIME:
+        _POLICY_EXPECTED_FIELDS = _load_expected_fields()
+        _POLICY_STORE_MTIME = mtime
+        logger.info("Reloaded policy expected fields from policy_store.json")
 
 # ---------------------------------------------------------------------------
 # Service URLs — resolved from environment or Docker defaults
@@ -238,6 +258,16 @@ class IntegrationResult:
     skipped_guardrails: bool = False
     skipped_xai: bool = False
 
+    @property
+    def ahmn_advice(self) -> AHMNAdvice:
+        """Backward-compatible alias for the first advice item."""
+        return self.ahmn_advices[0] if self.ahmn_advices else AHMNAdvice()
+
+    @property
+    def ahmn_feedback(self) -> AHMNFeedback:
+        """Backward-compatible alias for the first feedback item."""
+        return self.ahmn_feedbacks[0] if self.ahmn_feedbacks else AHMNFeedback()
+
     def to_dict(self) -> dict:
         return {
             "ahmn_advices": [a.to_dict() for a in self.ahmn_advices],
@@ -248,8 +278,8 @@ class IntegrationResult:
             "skipped_guardrails": self.skipped_guardrails,
             "skipped_xai": self.skipped_xai,
             # Backward compatibility: provide first advice as ahmn_advice
-            "ahmn_advice": self.ahmn_advices[0].to_dict() if self.ahmn_advices else AHMNAdvice().to_dict(),
-            "ahmn_feedback": self.ahmn_feedbacks[0].to_dict() if self.ahmn_feedbacks else AHMNFeedback().to_dict(),
+            "ahmn_advice": self.ahmn_advice.to_dict(),
+            "ahmn_feedback": self.ahmn_feedback.to_dict(),
         }
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -320,9 +350,7 @@ def get_per_doc_ahmn_advices(
     if not doc_records:
         return []
 
-    advices: list[AHMNAdvice] = []
-
-    for doc in doc_records:
+    def _advice_for_doc(doc: dict[str, Any]) -> AHMNAdvice:
         doc_id = doc.get("doc_id", "")
         doc_type = doc.get("doc_type", "unknown")
         vendor = doc.get("vendor_cluster") or doc.get("vendor")
@@ -330,7 +358,7 @@ def get_per_doc_ahmn_advices(
         quality_bin = doc.get("quality_bin", "medium")
         complexity_bin = doc.get("complexity_bin", "medium")
 
-        advice = get_ahmn_advice(
+        return get_ahmn_advice(
             doc_type=doc_type,
             vendor=vendor,
             content_profile=content_profile,
@@ -341,9 +369,14 @@ def get_per_doc_ahmn_advices(
             },
             doc_id=doc_id,
         )
-        advices.append(advice)
 
-    return advices
+    if len(doc_records) == 1:
+        return [_advice_for_doc(doc_records[0])]
+
+    # Parallelize network-bound advice calls across documents.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(doc_records))) as pool:
+        futures = [pool.submit(_advice_for_doc, doc) for doc in doc_records]
+        return [f.result() for f in futures]
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Step 3: Guardrails Validation (post-processing)
@@ -781,23 +814,26 @@ def log_per_doc_ahmn_feedbacks(
     if not doc_records:
         return []
 
-    feedbacks: list[AHMNFeedback] = []
     per_doc_time_ms = processing_time_ms / max(len(doc_records), 1)
 
-    for i, doc in enumerate(doc_records):
+    def _feedback_for_index(i: int, doc: dict[str, Any]) -> AHMNFeedback:
         advice = ahmn_advices[i] if i < len(ahmn_advices) else AHMNAdvice()
         gr = guardrail_results[i] if i < len(guardrail_results) else GuardrailResult()
-
-        feedback = log_ahmn_feedback(
+        return log_ahmn_feedback(
             advice=advice,
             doc_records=[doc],  # Single doc
             guardrail_results=[gr] if gr.document_id else [],
             processing_time_ms=per_doc_time_ms,
             actual_policy_id=doc.get("policy_id"),
         )
-        feedbacks.append(feedback)
 
-    return feedbacks
+    if len(doc_records) == 1:
+        return [_feedback_for_index(0, doc_records[0])]
+
+    # Parallelize network-bound feedback calls across documents.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(doc_records))) as pool:
+        futures = [pool.submit(_feedback_for_index, i, doc) for i, doc in enumerate(doc_records)]
+        return [f.result() for f in futures]
 
 
 def log_ahmn_feedback(
@@ -822,6 +858,8 @@ def log_ahmn_feedback(
         return feedback
 
     try:
+        _maybe_refresh_expected_fields()
+
         # Determine the actual policy IDPO used
         used_policy = actual_policy_id
         if not used_policy:

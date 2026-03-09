@@ -180,8 +180,26 @@ class AHMNScheduler:
                                last_promoted_at = NOW()""",
                         (
                             context_hash, vector, policy_id,
-                            json.dumps({"origin": "promoted_from_mtm", "avg_f1": avg_f1}),
-                            json.dumps({"f1_score": avg_f1, "sample_size": count}),
+                            json.dumps(
+                                {
+                                    "origin": "promoted_from_mtm",
+                                    "avg_f1": avg_f1,
+                                    "doc_type": doc_type,
+                                    "vendor": vendor,
+                                    "content_profile": content_profile,
+                                }
+                            ),
+                            json.dumps(
+                                {
+                                    "f1_score": avg_f1,
+                                    "sample_size": count,
+                                    "document_context": {
+                                        "doc_type": doc_type,
+                                        "vendor": vendor,
+                                        "content_profile": content_profile,
+                                    },
+                                }
+                            ),
                             alpha_init, beta_init, confidence,
                         ),
                     )
