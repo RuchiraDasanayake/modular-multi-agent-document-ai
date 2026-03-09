@@ -88,7 +88,7 @@ After the document is processed, IDPO tells AHMN how well it went (F1 score). AH
 │         + pgvector embeddings (384-dim)                 │
 │  What: Proven context→policy mappings with Beta(α,β)    │
 │  Why: The actual "knowledge" — only policies that have  │
-│       demonstrated F1 > 0.40+ get promoted here         │
+│       demonstrated F1 > 0.50+ get promoted here         │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -136,7 +136,7 @@ Three drift types:
 
 | Job | Interval | What it does |
 |-----|----------|-------------|
-| **Promotion** | Every 30 min | Promotes MTM outcomes to LTM if F1 > 0.40 and ≥ 2 observations. Updates α/β and confidence. |
+| **Promotion** | Every 30 min | Promotes MTM outcomes to LTM if F1 > 0.50 and ≥ 2 observations. Updates α/β and confidence. |
 | **Forgetting** | Every 6 hours | Decays inactive LTM entries (> 7 days). Archives + deletes entries below confidence 0.35. |
 
 ### API endpoints
