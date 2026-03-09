@@ -8,9 +8,12 @@ WORKDIR /app
 COPY xai_hitl/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-download RoBERTa-SQuAD2 model at build time (better accuracy + unanswerable detection)
+# Download spaCy NER model for entity extraction (list questions)
+RUN python -m spacy download en_core_web_sm
+
+# Pre-download BART model for generative Q&A (encoder-decoder, natural language answers)
 ENV HF_HOME=/app/.cache/huggingface
-RUN python -c "from transformers import pipeline; pipeline('question-answering', model='deepset/roberta-base-squad2', handle_impossible_answer=True); print('roberta-base-squad2 cached')"
+RUN python -c "from transformers import AutoModelForSeq2SeqLM, AutoTokenizer; AutoTokenizer.from_pretrained('vblagoje/bart_lfqa'); AutoModelForSeq2SeqLM.from_pretrained('vblagoje/bart_lfqa'); print('bart_lfqa cached')"
 ENV TRANSFORMERS_OFFLINE=1
 
 COPY xai_hitl/ ./xai_hitl/
@@ -22,7 +25,7 @@ USER appuser
 
 EXPOSE 8003
 
-HEALTHCHECK --interval=10s --timeout=10s --start-period=180s --retries=10 \
+HEALTHCHECK --interval=10s --timeout=15s --start-period=240s --retries=10 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"
 
 CMD ["uvicorn", "xai_hitl.main:app", "--host", "0.0.0.0", "--port", "8003"]

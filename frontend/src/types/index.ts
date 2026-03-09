@@ -17,6 +17,7 @@ export interface IDPORun {
   duration_ms?: number;
   has_docs_export?: boolean;
   has_entities_export?: boolean;
+  has_text_export?: boolean;
 }
 
 export interface Stats {
@@ -370,13 +371,18 @@ export interface AHMNFeedback {
 }
 
 export interface PipelineIntegration {
-  ahmn_advice: AHMNAdvice;
+  // Per-document AHMN advices (one per doc)
+  ahmn_advices: AHMNAdvice[];
   guardrails: GuardrailDocResult[];
   xai_explanations: XAIDocExplanation[];
-  ahmn_feedback: AHMNFeedback;
+  // Per-document AHMN feedbacks (one per doc)
+  ahmn_feedbacks: AHMNFeedback[];
   cycle_time_ms: number;
   skipped_guardrails?: boolean;
   skipped_xai?: boolean;
+  // Backward compatibility: first advice/feedback (deprecated, use ahmn_advices/ahmn_feedbacks)
+  ahmn_advice: AHMNAdvice;
+  ahmn_feedback: AHMNFeedback;
 }
 
 export interface IDPOPartialFailure {

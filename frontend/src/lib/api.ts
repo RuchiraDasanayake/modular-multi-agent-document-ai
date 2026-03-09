@@ -110,14 +110,21 @@ export const api = {
 
   // ── XAI ──
 
-  askQuestion: (paragraph: string, question: string) =>
+  askQuestion: (paragraph: string, question: string, includeXAI: boolean = false) =>
     request<QAResponse>("/api/xai/ask", {
       method: "POST",
-      body: JSON.stringify({ paragraph, question }),
+      body: JSON.stringify({ paragraph, question, include_xai: includeXAI }),
     }),
 
   getExplanation: (questionId: string) =>
     request<QAResponse>(`/api/xai/explanation/${questionId}`),
+
+  // Lazy XAI: Fetch explanations for an already-answered question
+  fetchXAIExplanation: (paragraph: string, question: string, answer: string) =>
+    request<{ shap_explanation: { shap_values: [string, number][]; base_value: number }; lime_explanation: { word_weights: [string, number][]; prediction_proba: number } }>("/api/xai/explain", {
+      method: "POST",
+      body: JSON.stringify({ paragraph, question, answer }),
+    }),
 
   // ── HITL ──
 
@@ -161,15 +168,21 @@ export const api = {
   getIDPORuns: () =>
     request<{ runs: IDPORun[]; total: number }>("/api/idpo/runs"),
 
-  runIDPO: async (files: File[], fields: { name: string; description: string }[], configPath: string, options?: { enableGuardrails?: boolean; enableXAI?: boolean; enableAHMN?: boolean }) => {
+  runIDPO: async (
+    files: File[],
+    fields: { name: string; description: string }[],
+    configPath: string,
+    options?: { enableGuardrails?: boolean },
+  ) => {
     const token = getToken();
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
     formData.append("fields", JSON.stringify(fields));
     formData.append("config_path", configPath);
     formData.append("skip_guardrails", String(!(options?.enableGuardrails ?? true)));
-    formData.append("skip_xai", String(!(options?.enableXAI ?? true)));
-    formData.append("skip_ahmn", String(!(options?.enableAHMN ?? true)));
+    // Keep XAI and AHMN enabled by default; guardrails is the only user-facing runtime toggle.
+    formData.append("skip_xai", "false");
+    formData.append("skip_ahmn", "false");
 
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -196,4 +209,10 @@ export const api = {
     if (!res.ok) throw new Error(`Download failed: ${res.status}`);
     return res.blob();
   },
+
+  forwardIDPOHITLCorrection: (adviceId: string, feedbackType: "correct" | "incorrect" | "partially_correct" | "needs_more_context") =>
+    request<{ status: string; human_corrected?: boolean; error?: string }>("/api/idpo/hitl-correction", {
+      method: "POST",
+      body: JSON.stringify({ advice_id: adviceId, feedback_type: feedbackType }),
+    }),
 };

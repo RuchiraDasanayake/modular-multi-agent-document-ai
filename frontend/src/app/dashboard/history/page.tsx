@@ -41,10 +41,10 @@ function formatDate(raw?: string | number): string {
         const d = typeof raw === "number"
             ? new Date(raw * 1000)
             : new Date(
-                  /^\d{10,}(\.\d+)?$/.test(String(raw))
-                      ? parseFloat(String(raw)) * 1000
-                      : raw
-              );
+                /^\d{10,}(\.\d+)?$/.test(String(raw))
+                    ? parseFloat(String(raw)) * 1000
+                    : raw
+            );
         if (isNaN(d.getTime())) return "—";
         return d.toLocaleString(undefined, {
             year: "numeric",
@@ -100,8 +100,8 @@ type SortDir = "asc" | "desc";
 function StatusBadge({ status }: { status: string }) {
     const cfg = {
         completed: { icon: CheckCircle2, bg: "bg-emerald-50 dark:bg-emerald-500/10", text: "text-emerald-700 dark:text-emerald-400", border: "border-emerald-200 dark:border-emerald-500/20" },
-        failed:    { icon: XCircle,       bg: "bg-red-50 dark:bg-red-500/10",         text: "text-red-700 dark:text-red-400",         border: "border-red-200 dark:border-red-500/20" },
-        running:   { icon: Loader2,       bg: "bg-blue-50 dark:bg-blue-500/10",       text: "text-blue-700 dark:text-blue-400",       border: "border-blue-200 dark:border-blue-500/20" },
+        failed: { icon: XCircle, bg: "bg-red-50 dark:bg-red-500/10", text: "text-red-700 dark:text-red-400", border: "border-red-200 dark:border-red-500/20" },
+        running: { icon: Loader2, bg: "bg-blue-50 dark:bg-blue-500/10", text: "text-blue-700 dark:text-blue-400", border: "border-blue-200 dark:border-blue-500/20" },
     }[status] ?? { icon: Clock, bg: "bg-slate-50 dark:bg-slate-500/10", text: "text-slate-600 dark:text-slate-400", border: "border-slate-200 dark:border-slate-500/20" };
     const Icon = cfg.icon;
     return (
@@ -200,12 +200,13 @@ export default function HistoryPage() {
     };
 
     /* ── Download handler (uses cookie auth, not localStorage) ── */
-    const handleDownload = async (runId: string, type: "docs" | "entities") => {
+    const handleDownload = async (runId: string, type: "docs" | "entities" | "full_text") => {
         const key = `${runId}_${type}`;
         setDownloading(key);
         try {
             const token = getToken();
-            const res = await fetch(`${API_BASE}/api/idpo/runs/${runId}/${type}.xlsx`, {
+            const filename = type === "full_text" ? "full_text.txt" : `${type}.xlsx`;
+            const res = await fetch(`${API_BASE}/api/idpo/runs/${runId}/${filename}`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             if (!res.ok) {
@@ -216,12 +217,14 @@ export default function HistoryPage() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `${runId.substring(0, 8)}_${type}.xlsx`;
+            a.download = type === "full_text"
+                ? `${runId.substring(0, 8)}_full_text.txt`
+                : `${runId.substring(0, 8)}_${type}.xlsx`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            addToast({ type: "success", title: `Downloaded ${type}.xlsx` });
+            addToast({ type: "success", title: `Downloaded ${type === "full_text" ? "full_text.txt" : `${type}.xlsx`}` });
         } catch (err) {
             addToast({ type: "error", title: `Download failed: ${err instanceof Error ? err.message : "Unknown error"}` });
         } finally {
@@ -235,11 +238,10 @@ export default function HistoryPage() {
         return (
             <button
                 onClick={() => toggleSort(field)}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
-                    active
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${active
                         ? "bg-brand-500 text-white shadow-sm shadow-brand-500/25"
                         : "text-slate-500 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800"
-                }`}
+                    }`}
             >
                 {label}
                 {active ? (
@@ -350,11 +352,10 @@ export default function HistoryPage() {
                             <button
                                 key={s}
                                 onClick={() => setStatusFilter(s)}
-                                className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold capitalize transition-all ${
-                                    statusFilter === s
+                                className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold capitalize transition-all ${statusFilter === s
                                         ? "bg-white dark:bg-gray-700 text-slate-900 dark:text-white shadow-sm"
                                         : "text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200"
-                                }`}
+                                    }`}
                             >
                                 {s === "all" ? `All (${totalRuns})` : s === "completed" ? `✓ ${completedRuns}` : `✗ ${failedRuns}`}
                             </button>
@@ -400,7 +401,7 @@ export default function HistoryPage() {
                 <div className="space-y-2">
                     {filtered.map((run, idx) => {
                         const isExpanded = expandedRun === run.run_id;
-                        const hasExports = run.has_docs_export || run.has_entities_export;
+                        const hasExports = run.has_docs_export || run.has_entities_export || run.has_text_export;
                         return (
                             <div
                                 key={run.run_id}
@@ -525,6 +526,20 @@ export default function HistoryPage() {
                                                         <Download className="w-3.5 h-3.5" />
                                                     )}
                                                     Entities (.xlsx)
+                                                </button>
+                                            )}
+                                            {run.has_text_export && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleDownload(run.run_id, "full_text"); }}
+                                                    disabled={downloading === `${run.run_id}_full_text`}
+                                                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 text-white text-xs font-semibold shadow-md shadow-cyan-500/20 hover:shadow-lg hover:shadow-cyan-500/30 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
+                                                >
+                                                    {downloading === `${run.run_id}_full_text` ? (
+                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                    ) : (
+                                                        <Download className="w-3.5 h-3.5" />
+                                                    )}
+                                                    Full Text (.txt)
                                                 </button>
                                             )}
                                             {!hasExports && (

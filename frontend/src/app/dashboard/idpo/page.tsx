@@ -10,6 +10,8 @@ import type {
     PipelineIntegration,
     GuardrailDocResult,
     XAIDocExplanation,
+    AHMNAdvice,
+    AHMNFeedback,
 } from "@/types";
 
 export default function IDPOPage() {
@@ -30,8 +32,6 @@ export default function IDPOPage() {
     const elapsedRef = useRef<NodeJS.Timeout | null>(null);
     const [integrationTab, setIntegrationTab] = useState<"advice" | "guardrails" | "xai" | "feedback">("advice");
     const [enableGuardrails, setEnableGuardrails] = useState(true);
-    const [enableXAI, setEnableXAI] = useState(false);
-    const [enableAHMN, setEnableAHMN] = useState(true);
     const [entitySearch, setEntitySearch] = useState("");
     const [entityConfidenceFilter, setEntityConfidenceFilter] = useState<"all" | "high" | "medium" | "low">("all");
     const [entityPage, setEntityPage] = useState(0);
@@ -49,15 +49,13 @@ export default function IDPOPage() {
             if (saved) {
                 const parsed = JSON.parse(saved);
                 if (typeof parsed.guardrails === "boolean") setEnableGuardrails(parsed.guardrails);
-                if (typeof parsed.xai === "boolean") setEnableXAI(parsed.xai);
-                if (typeof parsed.ahmn === "boolean") setEnableAHMN(parsed.ahmn);
             }
         } catch { }
     }, []);
 
     useEffect(() => {
-        try { localStorage.setItem("idpo_toggles", JSON.stringify({ guardrails: enableGuardrails, xai: enableXAI, ahmn: enableAHMN })); } catch { }
-    }, [enableGuardrails, enableXAI, enableAHMN]);
+        try { localStorage.setItem("idpo_toggles", JSON.stringify({ guardrails: enableGuardrails })); } catch { }
+    }, [enableGuardrails]);
 
     // Restore extraction results from sessionStorage on mount
     useEffect(() => {
@@ -150,7 +148,7 @@ export default function IDPOPage() {
         setDocProgress(files.map((f) => ({ name: f.name, status: "queued" as const })));
         let currentDoc = 0;
         // Cycle through docs with realistic timing
-        const baseMs = enableGuardrails ? 3500 : enableXAI ? 2000 : 1800;
+        const baseMs = enableGuardrails ? 3500 : 2200;
         const tickMs = 500;
         const interval = setInterval(() => {
             const elapsed = Date.now() - progressStartRef.current;
@@ -172,7 +170,7 @@ export default function IDPOPage() {
         }, tickMs);
         progressTimerRef.current = interval;
         return () => clearInterval(interval);
-    }, [loading, files.length, enableGuardrails, enableXAI]);
+    }, [loading, files.length, enableGuardrails]);
 
     /* ── Download helper ── */
     const handleDownload = async (file: "docs.xlsx" | "entities.xlsx" | "run.xlsx", filename: string) => {
@@ -190,6 +188,53 @@ export default function IDPOPage() {
         } catch (err) {
             setError(err instanceof Error ? err.message : "Download failed");
         }
+    };
+
+    const handleDownloadFullExtractedDocs = () => {
+        if (!result) return;
+        const docsWithText = result.docs.filter((doc) => Boolean(doc.extracted_text?.trim()));
+        if (docsWithText.length === 0) {
+            setError("No extracted text is available for download");
+            return;
+        }
+
+        const content = docsWithText.map((doc, index) => {
+            const header = [
+                `Document ${index + 1}: ${doc.filename || doc.doc_id}`,
+                `Doc ID: ${doc.doc_id}`,
+                `Policy: ${doc.policy_id || "n/a"}`,
+                "",
+            ].join("\n");
+            return `${header}${doc.extracted_text?.trim() || ""}`;
+        }).join("\n\n" + "=".repeat(80) + "\n\n");
+
+        const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${result.run_id.slice(0, 8)}_full_extracted_docs.txt`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    };
+
+    const handleDownloadSingleExtractedDoc = (doc: IDPODocRecord) => {
+        const text = doc.extracted_text?.trim();
+        if (!text) {
+            setError("This document does not have extracted text to download");
+            return;
+        }
+
+        const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${(doc.filename || doc.doc_id).replace(/\.[^.]+$/, "")}_extracted.txt`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
     };
 
     /* ── Submit handler ── */
@@ -218,7 +263,7 @@ export default function IDPOPage() {
 
 
         try {
-            const data = await api.runIDPO(files, fields, configPath, { enableGuardrails, enableXAI, enableAHMN });
+            const data = await api.runIDPO(files, fields, configPath, { enableGuardrails });
 
             // Mark all doc progress as done
             setDocProgress((prev) => prev.map((d) => ({ ...d, status: "done" as const })));
@@ -243,6 +288,12 @@ export default function IDPOPage() {
                     }));
                 if (extractedDocs.length > 0) {
                     sessionStorage.setItem("idpo_extracted_docs", JSON.stringify(extractedDocs));
+                }
+
+                const adviceId = data.pipeline_integration?.ahmn_advice?.advice_id;
+                if (adviceId) {
+                    sessionStorage.setItem("xai_advice_id", adviceId);
+                    localStorage.setItem("xai_advice_id", adviceId);
                 }
             } catch {
                 // sessionStorage may be full or unavailable
@@ -371,14 +422,14 @@ export default function IDPOPage() {
                                     { icon: "🔍", label: "OCR", delay: "0.5s" },
                                     { icon: "🧠", label: "Extract", delay: "1s" },
                                     { icon: "✅", label: "Validate", delay: "1.5s" },
-                                    ...(enableAHMN ? [{ icon: "🎯", label: "Learn", delay: "2s" }] : []),
+                                    { icon: "🎯", label: "Learn", delay: "2s" },
                                 ].map((step, i) => (
                                     <div key={i} className="flex items-center gap-1">
                                         <div className="flex flex-col items-center px-1.5 py-1 rounded-lg" style={{ animation: `pipelineStep 2s ease-in-out ${step.delay} infinite` }}>
                                             <span className="text-xs">{step.icon}</span>
                                             <span className="text-[8px] text-slate-500 dark:text-gray-400 font-medium">{step.label}</span>
                                         </div>
-                                        {i < (enableAHMN ? 4 : 3) && (
+                                        {i < 4 && (
                                             <svg className="w-3 h-3 text-slate-300 dark:text-gray-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                                         )}
                                     </div>
@@ -389,7 +440,7 @@ export default function IDPOPage() {
                                 <div className="h-full rounded-full bg-gradient-to-r from-brand-500 via-cyan-400 to-violet-500" style={{
                                     backgroundSize: "200% 100%",
                                     animation: "gradientMove 1.5s ease-in-out infinite",
-                                    width: `${Math.min(95, (elapsedSec / (enableGuardrails ? 30 : enableXAI ? 15 : 10)) * 100)}%`,
+                                    width: `${Math.min(95, (elapsedSec / (enableGuardrails ? 30 : 12)) * 100)}%`,
                                     transition: "width 1s ease-out"
                                 }} />
                             </div>
@@ -532,9 +583,7 @@ export default function IDPOPage() {
                             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Pipeline Options</p>
                             <div className="space-y-2">
                                 {([
-                                    { key: "ahmn" as const, icon: "🎯", label: "AHMN Advice", desc: "Bandit-guided policy selection (~1-3s)", checked: enableAHMN, setter: setEnableAHMN },
                                     { key: "guardrails" as const, icon: "🛡️", label: "Guardrails", desc: "6-layer quality validation (~8-20s)", checked: enableGuardrails, setter: setEnableGuardrails },
-                                    { key: "xai" as const, icon: "📊", label: "Explain", desc: "Component-level explanations (~1s)", checked: enableXAI, setter: setEnableXAI },
                                 ]).map((opt) => (
                                     <label key={opt.key} className={`flex items-center justify-between cursor-pointer px-3 py-2.5 rounded-lg border transition-all duration-150 ${opt.checked ? "bg-brand-50/50 dark:bg-brand-500/5 border-brand-200 dark:border-brand-500/20" : "bg-white/30 dark:bg-gray-800/20 border-slate-200/60 dark:border-gray-700/40 hover:border-slate-300 dark:hover:border-gray-600"}`}>
                                         <div className="flex items-center gap-2.5">
@@ -553,7 +602,7 @@ export default function IDPOPage() {
                                 ))}
                             </div>
                             <p className="text-[9px] text-slate-400 dark:text-gray-500 text-center pt-1">
-                                Estimated time: ~{enableGuardrails ? "15-30s" : enableXAI ? "5-10s" : "3-8s"} per document
+                                Estimated time: ~{enableGuardrails ? "15-30s" : "5-10s"} per document
                             </p>
                         </div>
 
@@ -682,33 +731,43 @@ export default function IDPOPage() {
                     )}
 
                     {/* ── Quick Integration Summary (sidebar) ── */}
-                    {integration && (
-                        <div className="glass-panel rounded-xl p-4 space-y-3">
-                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Integration Summary</p>
-                            <div className="space-y-2">
-                                <SummaryRow icon="🎯" label="AHMN Advice"
-                                    value={integration.ahmn_advice.error === "Skipped by user" ? "Skipped" : integration.ahmn_advice.error ? "Unavailable" : integration.ahmn_advice.policy_id}
-                                    status={integration.ahmn_advice.error === "Skipped by user" ? null : !integration.ahmn_advice.error}
-                                    detail={integration.ahmn_advice.error === "Skipped by user" ? "Disabled by user" : integration.ahmn_advice.error || `${(integration.ahmn_advice.confidence * 100).toFixed(0)}% confidence`} />
-                                <SummaryRow icon="🛡️" label="Guardrails"
-                                    value={integration.skipped_guardrails ? "Skipped" : `${integration.guardrails.filter(g => g.overall_passes).length}/${integration.guardrails.length} passed`}
-                                    status={integration.skipped_guardrails ? null : integration.guardrails.every(g => g.overall_passes || !!g.error)}
-                                    detail={integration.skipped_guardrails ? "Disabled by user" : integration.guardrails.some(g => g.error) ? "Some checks unavailable" : undefined} />
-                                <SummaryRow icon="📊" label="Explanations"
-                                    value={integration.skipped_xai ? "Skipped" : `${integration.xai_explanations.filter(x => !x.error).length} docs explained`}
-                                    status={integration.skipped_xai ? null : integration.xai_explanations.some(x => !x.error)}
-                                    detail={integration.skipped_xai ? "Disabled by user" : integration.xai_explanations.some(x => x.error) ? "Some unavailable" : undefined} />
-                                <SummaryRow icon="�" label="AHMN Learn"
-                                    value={integration.ahmn_feedback.status}
-                                    status={integration.ahmn_feedback.status === "logged"}
-                                    detail={integration.ahmn_feedback.error || (integration.ahmn_feedback.metrics_sent.f1_score
-                                        ? `F1: ${(integration.ahmn_feedback.metrics_sent.f1_score * 100).toFixed(1)}%` : undefined)} />
+                    {integration && (() => {
+                        // Compute per-doc advice summary
+                        const advices = integration.ahmn_advices || [];
+                        const feedbacks = integration.ahmn_feedbacks || [];
+                        const validAdvices = advices.filter(a => a && !a.error);
+                        const avgConfidence = validAdvices.length > 0 ? validAdvices.reduce((sum, a) => sum + (a.confidence || 0), 0) / validAdvices.length : 0;
+                        const uniquePolicies = [...new Set(validAdvices.map(a => a.policy_id).filter(Boolean))];
+                        const loggedFeedbacks = feedbacks.filter(f => f?.status === "logged");
+                        const avgF1 = loggedFeedbacks.length > 0 ? loggedFeedbacks.reduce((sum, f) => sum + (f.metrics_sent?.f1_score || 0), 0) / loggedFeedbacks.length : 0;
+
+                        return (
+                            <div className="glass-panel rounded-xl p-4 space-y-3">
+                                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Integration Summary</p>
+                                <div className="space-y-2">
+                                    <SummaryRow icon="🎯" label="AHMN Policies"
+                                        value={`${validAdvices.length} doc${validAdvices.length !== 1 ? "s" : ""}`}
+                                        status={validAdvices.length > 0}
+                                        detail={uniquePolicies.length > 1 ? `${uniquePolicies.length} policies, avg ${(avgConfidence * 100).toFixed(0)}%` : validAdvices.length > 0 ? `${uniquePolicies[0] || "default"} (${(avgConfidence * 100).toFixed(0)}%)` : "No advices"} />
+                                    <SummaryRow icon="🛡️" label="Guardrails"
+                                        value={integration.skipped_guardrails ? "Skipped" : `${integration.guardrails.filter(g => g.overall_passes).length}/${integration.guardrails.length} passed`}
+                                        status={integration.skipped_guardrails ? null : integration.guardrails.every(g => g.overall_passes || !!g.error)}
+                                        detail={integration.skipped_guardrails ? "Disabled by user" : integration.guardrails.some(g => g.error) ? "Some checks unavailable" : undefined} />
+                                    <SummaryRow icon="📊" label="Explanations"
+                                        value={integration.skipped_xai ? "Skipped" : `${integration.xai_explanations.filter(x => !x.error).length} docs explained`}
+                                        status={integration.skipped_xai ? null : integration.xai_explanations.some(x => !x.error)}
+                                        detail={integration.skipped_xai ? "Disabled by user" : integration.xai_explanations.some(x => x.error) ? "Some unavailable" : undefined} />
+                                    <SummaryRow icon="📈" label="AHMN Learn"
+                                        value={`${loggedFeedbacks.length}/${advices.length} logged`}
+                                        status={loggedFeedbacks.length > 0}
+                                        detail={loggedFeedbacks.length > 0 ? `Avg F1: ${(avgF1 * 100).toFixed(1)}%` : "No feedback logged"} />
+                                </div>
+                                <div className="pt-2 border-t border-slate-200 dark:border-gray-700">
+                                    <p className="text-[10px] text-slate-400 dark:text-gray-500">Cycle time: {(integration.cycle_time_ms / 1000).toFixed(1)}s</p>
+                                </div>
                             </div>
-                            <div className="pt-2 border-t border-slate-200 dark:border-gray-700">
-                                <p className="text-[10px] text-slate-400 dark:text-gray-500">Cycle time: {(integration.cycle_time_ms / 1000).toFixed(1)}s</p>
-                            </div>
-                        </div>
-                    )}
+                        );
+                    })()}
                 </div>
 
                 {/* ── Results Panel (3 cols) ── */}
@@ -774,6 +833,10 @@ export default function IDPOPage() {
                                             <button onClick={() => handleDownload("entities.xlsx", "entities.xlsx")}
                                                 className="px-3 py-1.5 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 text-violet-700 dark:text-violet-300 rounded-lg hover:bg-violet-100 dark:hover:bg-violet-500/20 text-xs font-medium transition-all shadow-sm shadow-violet-500/5">↓ Entities</button>
                                         )}
+                                        {result.docs.some((doc) => Boolean(doc.extracted_text?.trim())) && (
+                                            <button onClick={handleDownloadFullExtractedDocs}
+                                                className="px-3 py-1.5 bg-cyan-50 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/20 text-cyan-700 dark:text-cyan-300 rounded-lg hover:bg-cyan-100 dark:hover:bg-cyan-500/20 text-xs font-medium transition-all shadow-sm shadow-cyan-500/5">↓ Full Text</button>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -815,11 +878,13 @@ export default function IDPOPage() {
 
                             {/* Tab Content */}
                             <div className="space-y-3">
-                                {activeTab === "documents" && result.docs.map((doc) => (
+                                {activeTab === "documents" && result.docs.map((doc, docIndex) => (
                                     <DocCard key={doc.doc_id} doc={doc} expanded={expandedDoc === doc.doc_id}
                                         onToggle={() => setExpandedDoc(expandedDoc === doc.doc_id ? null : doc.doc_id)}
                                         guardrail={integration?.guardrails.find(g => g.document_id === doc.doc_id)}
-                                        xai={integration?.xai_explanations.find(x => x.document_id === doc.doc_id)} />
+                                        xai={integration?.xai_explanations.find(x => x.document_id === doc.doc_id)}
+                                        advice={integration?.ahmn_advices?.[docIndex]}
+                                        feedback={integration?.ahmn_feedbacks?.[docIndex]} />
                                 ))}
 
                                 {activeTab === "entities" && (
@@ -974,14 +1039,22 @@ export default function IDPOPage() {
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <button
-                                                            onClick={() => {
-                                                                navigator.clipboard.writeText(doc.extracted_text || "");
-                                                            }}
-                                                            className="px-3 py-1.5 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-500/20 text-xs font-medium transition-all"
-                                                        >
-                                                            📋 Copy Text
-                                                        </button>
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                onClick={() => handleDownloadSingleExtractedDoc(doc)}
+                                                                className="px-3 py-1.5 bg-cyan-50 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/20 text-cyan-700 dark:text-cyan-300 rounded-lg hover:bg-cyan-100 dark:hover:bg-cyan-500/20 text-xs font-medium transition-all"
+                                                            >
+                                                                ↓ Download Text
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    navigator.clipboard.writeText(doc.extracted_text || "");
+                                                                }}
+                                                                className="px-3 py-1.5 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-500/20 text-xs font-medium transition-all"
+                                                            >
+                                                                📋 Copy Text
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                     <div className="p-5 max-h-[600px] overflow-y-auto">
                                                         <FormattedExtractedText text={doc.extracted_text || "No text extracted for this document."} />
@@ -1083,63 +1156,65 @@ function IntegrationPanel({ integration, activeSubTab, onSubTabChange, durationM
                     <span>Cycle: <span className="font-medium text-slate-600 dark:text-gray-300">{(integration.cycle_time_ms / 1000).toFixed(1)}s</span></span>
                 </div>
             </div>
-            {activeSubTab === "advice" && <AdvicePanel advice={integration.ahmn_advice} />}
+            {activeSubTab === "advice" && <AdvicePanel advices={integration.ahmn_advices || []} />}
             {activeSubTab === "guardrails" && <GuardrailsPanel results={integration.guardrails} skipped={integration.skipped_guardrails} />}
             {activeSubTab === "xai" && <XAIPanel explanations={integration.xai_explanations} skipped={integration.skipped_xai} />}
-            {activeSubTab === "feedback" && <FeedbackPanel feedback={integration.ahmn_feedback} />}
+            {activeSubTab === "feedback" && <FeedbackPanel feedbacks={integration.ahmn_feedbacks || []} />}
         </div>
     );
 }
 
-function AdvicePanel({ advice }: { advice: PipelineIntegration["ahmn_advice"] }) {
-    if (advice.error) {
-        return (
-            <div className="glass-panel rounded-xl p-5 border-l-4 border-l-amber-500">
-                <div className="flex items-center gap-2 mb-2"><span className="text-lg">🎯</span><p className="text-sm font-medium text-amber-700 dark:text-amber-300">AHMN Advice Unavailable</p></div>
-                <p className="text-xs text-amber-600 dark:text-amber-400">{advice.error}</p>
-                <p className="text-xs text-slate-400 dark:text-gray-500 mt-2">Pipeline continued with default policy.</p>
-            </div>
-        );
-    }
+function AdvicePanel({ advices }: { advices: AHMNAdvice[] }) {
+    if (advices.length === 0) return <div className="glass-panel rounded-xl p-8 text-center text-slate-400 dark:text-gray-500 text-sm">No AHMN advices available</div>;
+
+    const validAdvices = advices.filter(a => a && !a.error);
+    const uniquePolicies = [...new Set(validAdvices.map(a => a.policy_id).filter(Boolean))];
+    const avgConfidence = validAdvices.length > 0 ? validAdvices.reduce((sum, a) => sum + (a.confidence || 0), 0) / validAdvices.length : 0;
+
     return (
-        <div className="glass-panel rounded-xl p-5 space-y-4">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2"><span className="text-lg">🎯</span><p className="text-sm font-semibold text-slate-900 dark:text-white">AHMN Policy Advice</p></div>
-                <span className={`px-2.5 py-1 rounded-full text-[10px] font-medium border ${advice.retrieval_source === "LTM"
-                    ? "bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300"
-                    : "bg-slate-100 dark:bg-gray-800 border-slate-200 dark:border-gray-700 text-slate-600 dark:text-gray-300"}`}>
-                    Source: {advice.retrieval_source}
-                </span>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Policy ID</p>
-                    <p className="text-sm font-medium text-slate-900 dark:text-white font-mono">{advice.policy_id}</p>
+        <div className="space-y-3">
+            {/* Summary Header */}
+            <div className="glass-panel rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2"><span className="text-lg">🎯</span><p className="text-sm font-semibold text-slate-900 dark:text-white">Per-Document AHMN Policies</p></div>
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-medium border bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300">
+                        {validAdvices.length} doc{validAdvices.length !== 1 ? "s" : ""} • {uniquePolicies.length} polic{uniquePolicies.length !== 1 ? "ies" : "y"}
+                    </span>
                 </div>
-                <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Confidence</p>
-                    <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-slate-900 dark:text-white">{(advice.confidence * 100).toFixed(1)}%</p>
-                        <div className="flex-1 h-1.5 bg-slate-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div className="h-full bg-brand-500 rounded-full transition-all" style={{ width: `${advice.confidence * 100}%` }} />
-                        </div>
+                <div className="grid grid-cols-3 gap-3">
+                    <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Avg Confidence</p>
+                        <p className="text-sm font-medium text-slate-900 dark:text-white">{(avgConfidence * 100).toFixed(1)}%</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">RABI Used</p>
+                        <p className="text-sm font-medium text-slate-900 dark:text-white">{validAdvices.filter(a => a.rabi_used).length}/{validAdvices.length}</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Unique Policies</p>
+                        <p className="text-xs font-medium text-slate-900 dark:text-white truncate">{uniquePolicies.join(", ") || "—"}</p>
                     </div>
                 </div>
-                <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">RABI Prior</p>
-                    <p className="text-sm font-medium text-slate-900 dark:text-white">{advice.rabi_used ? `Yes (${advice.n_neighbors} neighbors)` : "No"}</p>
-                </div>
-                <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Advice ID</p>
-                    <p className="text-xs font-mono text-slate-600 dark:text-gray-400 truncate">{advice.advice_id || "—"}</p>
-                </div>
             </div>
-            {Object.keys(advice.policy_data).length > 0 && (
-                <div className="p-3 bg-brand-50/30 dark:bg-brand-500/5 rounded-lg border border-brand-100 dark:border-brand-500/10">
-                    <p className="text-[10px] font-semibold text-brand-600 dark:text-brand-400 uppercase tracking-wider mb-2">Policy Configuration</p>
-                    <pre className="text-xs text-slate-700 dark:text-gray-300 overflow-x-auto">{JSON.stringify(advice.policy_data, null, 2)}</pre>
+
+            {/* Per-Document Advice Cards */}
+            {advices.map((advice, idx) => (
+                <div key={advice.advice_id || idx} className={`glass-panel rounded-xl p-4 border-l-4 ${advice.error ? "border-l-amber-500" : "border-l-brand-500"}`}>
+                    <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-medium text-slate-900 dark:text-white">Document {idx + 1}</p>
+                        {advice.error ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/20">{advice.error}</span>
+                        ) : (
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-mono text-slate-600 dark:text-gray-300">{advice.policy_id}</span>
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${advice.confidence >= 0.7 ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-300"}`}>{(advice.confidence * 100).toFixed(0)}%</span>
+                                {advice.rabi_used && <span className="px-1.5 py-0.5 bg-violet-100 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300 rounded text-[9px] font-medium">RABI</span>}
+                                <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-gray-700 text-slate-500 dark:text-gray-400 rounded text-[9px]">{advice.retrieval_source}</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
-            )}
+            ))}
         </div>
     );
 }
@@ -1218,9 +1293,9 @@ function ComponentCard({ comp }: { comp: { component: string; title: string; sum
                     <p className="text-sm font-semibold text-slate-900 dark:text-white">{comp.title}</p>
                 </div>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium uppercase ${comp.status === "success" ? "bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" :
-                        comp.status === "warning" ? "bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300" :
-                            comp.status === "error" ? "bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-300" :
-                                "bg-slate-100 dark:bg-slate-500/10 text-slate-600 dark:text-slate-300"
+                    comp.status === "warning" ? "bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300" :
+                        comp.status === "error" ? "bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-300" :
+                            "bg-slate-100 dark:bg-slate-500/10 text-slate-600 dark:text-slate-300"
                     }`}>{comp.status}</span>
             </div>
             <p className="text-xs text-slate-600 dark:text-gray-300 mb-3">{comp.summary}</p>
@@ -1229,15 +1304,15 @@ function ComponentCard({ comp }: { comp: { component: string; title: string; sum
                     {comp.details.map((detail, i) => (
                         <div key={i} className="flex items-start gap-2 text-[11px]">
                             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${detail.passed === true ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" :
-                                    detail.passed === false ? "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300" :
-                                        "bg-brand-100 dark:bg-brand-500/20 text-brand-700 dark:text-brand-300"
+                                detail.passed === false ? "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300" :
+                                    "bg-brand-100 dark:bg-brand-500/20 text-brand-700 dark:text-brand-300"
                                 }`}>{detail.step}</span>
                             <div className="flex-1 min-w-0">
                                 <p className="font-medium text-slate-800 dark:text-gray-200">{detail.action}</p>
                                 <p className="text-slate-500 dark:text-gray-400">{detail.description}</p>
                                 <p className={`mt-0.5 ${detail.passed === true ? "text-emerald-600 dark:text-emerald-400" :
-                                        detail.passed === false ? "text-red-600 dark:text-red-400" :
-                                            "text-slate-600 dark:text-gray-300"
+                                    detail.passed === false ? "text-red-600 dark:text-red-400" :
+                                        "text-slate-600 dark:text-gray-300"
                                     }`}>→ {detail.outcome}</p>
                             </div>
                         </div>
@@ -1307,71 +1382,71 @@ function XAIPanel({ explanations, skipped }: { explanations: XAIDocExplanation[]
     );
 }
 
-function FeedbackPanel({ feedback }: { feedback: PipelineIntegration["ahmn_feedback"] }) {
-    const statusColor = feedback.status === "logged"
-        ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300"
-        : feedback.status === "failed"
-            ? "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20 text-red-700 dark:text-red-300"
-            : "bg-slate-100 dark:bg-gray-800 border-slate-200 dark:border-gray-700 text-slate-600 dark:text-gray-300";
+function FeedbackPanel({ feedbacks }: { feedbacks: AHMNFeedback[] }) {
+    if (feedbacks.length === 0) return <div className="glass-panel rounded-xl p-8 text-center text-slate-400 dark:text-gray-500 text-sm">No AHMN feedback available</div>;
+
+    const loggedFeedbacks = feedbacks.filter(f => f?.status === "logged");
+    const avgF1 = loggedFeedbacks.length > 0 ? loggedFeedbacks.reduce((sum, f) => sum + (f.metrics_sent?.f1_score || 0), 0) / loggedFeedbacks.length : 0;
+    const avgPrecision = loggedFeedbacks.length > 0 ? loggedFeedbacks.reduce((sum, f) => sum + (f.metrics_sent?.precision || 0), 0) / loggedFeedbacks.length : 0;
+    const avgRecall = loggedFeedbacks.length > 0 ? loggedFeedbacks.reduce((sum, f) => sum + (f.metrics_sent?.recall || 0), 0) / loggedFeedbacks.length : 0;
+
     return (
-        <div className="glass-panel rounded-xl p-5 space-y-4">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2"><span className="text-lg">�</span><p className="text-sm font-semibold text-slate-900 dark:text-white">AHMN Learning Feedback</p></div>
-                <span className={`px-2.5 py-1 rounded-full text-[10px] font-medium border ${statusColor}`}>{feedback.status.toUpperCase()}</span>
-            </div>
-            {feedback.error && (
-                <div className="p-3 bg-amber-50/50 dark:bg-amber-500/5 rounded-lg border border-amber-200 dark:border-amber-500/10">
-                    <p className="text-xs text-amber-600 dark:text-amber-400">{feedback.error}</p>
+        <div className="space-y-3">
+            {/* Summary Header */}
+            <div className="glass-panel rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2"><span className="text-lg">📈</span><p className="text-sm font-semibold text-slate-900 dark:text-white">Per-Document AHMN Learning</p></div>
+                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-medium border ${loggedFeedbacks.length > 0 ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300" : "bg-slate-100 dark:bg-gray-800 border-slate-200 dark:border-gray-700 text-slate-600 dark:text-gray-300"}`}>
+                        {loggedFeedbacks.length}/{feedbacks.length} logged
+                    </span>
                 </div>
-            )}
-            {feedback.status === "logged" && (
-                <>
-                    <div className="grid grid-cols-3 gap-3">
-                        <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">F1 Score</p>
-                            <p className="text-lg font-bold text-slate-900 dark:text-white">{feedback.metrics_sent.f1_score ? `${(feedback.metrics_sent.f1_score * 100).toFixed(1)}%` : "—"}</p>
-                        </div>
-                        <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Precision</p>
-                            <p className="text-lg font-bold text-slate-900 dark:text-white">{feedback.metrics_sent.precision != null ? `${(feedback.metrics_sent.precision * 100).toFixed(1)}%` : "—"}</p>
-                        </div>
-                        <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Recall</p>
-                            <p className="text-lg font-bold text-slate-900 dark:text-white">{feedback.metrics_sent.recall != null ? `${(feedback.metrics_sent.recall * 100).toFixed(1)}%` : "—"}</p>
-                        </div>
-                        <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Processing Time</p>
-                            <p className="text-lg font-bold text-slate-900 dark:text-white">{feedback.metrics_sent.processing_time_ms ? `${(feedback.metrics_sent.processing_time_ms / 1000).toFixed(1)}s` : "—"}</p>
-                        </div>
-                        <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Success</p>
-                            <p className="text-lg font-bold text-slate-900 dark:text-white">{feedback.metrics_sent.success !== undefined ? (feedback.metrics_sent.success ? "Yes ✓" : "No ✕") : "—"}</p>
-                        </div>
-                        <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Policy Used</p>
-                            <p className="text-sm font-medium text-slate-900 dark:text-white font-mono truncate">{feedback.policy_id_used || "—"}</p>
-                        </div>
+                <div className="grid grid-cols-3 gap-3">
+                    <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Avg F1 Score</p>
+                        <p className="text-lg font-bold text-slate-900 dark:text-white">{loggedFeedbacks.length > 0 ? `${(avgF1 * 100).toFixed(1)}%` : "—"}</p>
                     </div>
-                    <div className="p-3 bg-emerald-50/30 dark:bg-emerald-500/5 rounded-lg border border-emerald-100 dark:border-emerald-500/10">
+                    <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Avg Precision</p>
+                        <p className="text-lg font-bold text-slate-900 dark:text-white">{loggedFeedbacks.length > 0 ? `${(avgPrecision * 100).toFixed(1)}%` : "—"}</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Avg Recall</p>
+                        <p className="text-lg font-bold text-slate-900 dark:text-white">{loggedFeedbacks.length > 0 ? `${(avgRecall * 100).toFixed(1)}%` : "—"}</p>
+                    </div>
+                </div>
+                {loggedFeedbacks.length > 0 && (
+                    <div className="mt-3 p-3 bg-emerald-50/30 dark:bg-emerald-500/5 rounded-lg border border-emerald-100 dark:border-emerald-500/10">
                         <div className="flex items-start gap-2">
                             <svg className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                             </svg>
                             <div>
-                                <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">Bandit Updated</p>
+                                <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">Bandit Updated ({loggedFeedbacks.length} doc{loggedFeedbacks.length !== 1 ? "s" : ""})</p>
                                 <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">
-                                    AHMN has updated its Thompson Sampling posteriors based on this outcome. Future advice for similar documents will reflect this learning.
+                                    AHMN has updated its Thompson Sampling posteriors for each document. Future advice will reflect this learning.
                                 </p>
                             </div>
                         </div>
                     </div>
-                </>
-            )}
-            {feedback.status === "skipped" && (
-                <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
-                    <p className="text-xs text-slate-500 dark:text-gray-400">No feedback was sent because AHMN advice was not available for this run.</p>
+                )}
+            </div>
+
+            {/* Per-Document Feedback Cards */}
+            {feedbacks.map((feedback, idx) => (
+                <div key={feedback.advice_id || idx} className={`glass-panel rounded-xl p-4 border-l-4 ${feedback.status === "logged" ? "border-l-emerald-500" : feedback.status === "failed" ? "border-l-red-500" : "border-l-slate-300"}`}>
+                    <div className="flex items-center justify-between">
+                        <p className="text-xs font-medium text-slate-900 dark:text-white">Document {idx + 1}</p>
+                        <div className="flex items-center gap-2">
+                            {feedback.status === "logged" && feedback.metrics_sent?.f1_score != null && (
+                                <span className="text-xs text-slate-600 dark:text-gray-300">F1: {(feedback.metrics_sent.f1_score * 100).toFixed(0)}%</span>
+                            )}
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${feedback.status === "logged" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : feedback.status === "failed" ? "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300" : "bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-300"}`}>{feedback.status}</span>
+                            {feedback.policy_id_used && <span className="text-[10px] font-mono text-slate-500 dark:text-gray-400">{feedback.policy_id_used}</span>}
+                        </div>
+                    </div>
+                    {feedback.error && <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">{feedback.error}</p>}
                 </div>
-            )}
+            ))}
         </div>
     );
 }
@@ -1380,9 +1455,10 @@ function FeedbackPanel({ feedback }: { feedback: PipelineIntegration["ahmn_feedb
 /*  Document Card (enhanced with inline integration data)                   */
 /* ══════════════════════════════════════════════════════════════════════════ */
 
-function DocCard({ doc, expanded, onToggle, guardrail, xai }: {
+function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: {
     doc: IDPODocRecord; expanded: boolean; onToggle: () => void;
     guardrail?: GuardrailDocResult; xai?: XAIDocExplanation;
+    advice?: AHMNAdvice; feedback?: AHMNFeedback;
 }) {
     const statusColor = doc.status === "success"
         ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/20"
@@ -1451,10 +1527,15 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai }: {
                         </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
+                        {advice && !advice.error && (
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-medium ${advice.confidence >= 0.7 ? "bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-500/20" : "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/20"}`} title={`AHMN Policy: ${advice.policy_id} (${(advice.confidence * 100).toFixed(0)}%)`}>
+                                {advice.policy_id?.replace(/_/g, " ").replace(/policy$/i, "").trim() || "default"}
+                            </span>
+                        )}
                         {guardrail && !guardrail.error && (
                             <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] ${guardrail.overall_passes ? "bg-emerald-100 dark:bg-emerald-500/10 ring-1 ring-emerald-200 dark:ring-emerald-500/20" : "bg-red-100 dark:bg-red-500/10 ring-1 ring-red-200 dark:ring-red-500/20"}`} title={guardrail.overall_passes ? "Guardrails passed" : "Guardrails failed"}>🛡️</span>
                         )}
-                        {xai && !xai.error && <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] bg-violet-100 dark:bg-violet-500/10 ring-1 ring-violet-200 dark:ring-violet-500/20" title="XAI explanation available">�</span>}
+                        {xai && !xai.error && <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] bg-violet-100 dark:bg-violet-500/10 ring-1 ring-violet-200 dark:ring-violet-500/20" title="XAI explanation available">🔍</span>}
                         {entityDetails.length > 0 && (
                             <span className="px-2 py-1 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded-full text-[10px] font-semibold">
                                 {entityDetails.length} field{entityDetails.length !== 1 ? "s" : ""}
@@ -1543,6 +1624,41 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai }: {
                                 <span className="px-2 py-1 rounded-lg text-[10px] font-medium border bg-cyan-50 dark:bg-cyan-500/5 border-cyan-200 dark:border-cyan-500/10 text-cyan-700 dark:text-cyan-300">
                                     🤖 {doc.model_used} ({doc.model_mode || "local"})
                                 </span>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Per-Document AHMN Policy */}
+                    {advice && (
+                        <div className={`p-4 rounded-xl border ${advice.error ? "bg-amber-50/50 dark:bg-amber-500/5 border-amber-200 dark:border-amber-500/20" : "bg-gradient-to-r from-brand-50/50 to-cyan-50/50 dark:from-brand-500/5 dark:to-cyan-500/5 border-brand-200 dark:border-brand-500/20"}`}>
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-base">🎯</span>
+                                    <p className="text-[10px] font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">AHMN Policy</p>
+                                </div>
+                                {!advice.error && (
+                                    <span className={`px-2 py-0.5 rounded text-[9px] font-medium ${advice.confidence >= 0.7 ? "bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : advice.confidence >= 0.5 ? "bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300" : "bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-300"}`}>
+                                        {(advice.confidence * 100).toFixed(0)}% confidence
+                                    </span>
+                                )}
+                            </div>
+                            {advice.error ? (
+                                <p className="text-xs text-amber-700 dark:text-amber-300">{advice.error}</p>
+                            ) : (
+                                <div className="space-y-1.5">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-sm font-semibold text-slate-900 dark:text-white">{advice.policy_id?.replace(/_/g, " ") || "default_policy"}</span>
+                                        {advice.rabi_used && <span className="px-1.5 py-0.5 bg-violet-100 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300 rounded text-[9px] font-medium">RABI</span>}
+                                        <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-300 rounded text-[9px] font-medium">{advice.retrieval_source}</span>
+                                    </div>
+                                    {feedback && feedback.status === "logged" && (
+                                        <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-gray-400">
+                                            <span>Feedback: F1 {((feedback.metrics_sent?.f1_score || 0) * 100).toFixed(1)}%</span>
+                                            {feedback.metrics_sent?.precision != null && <span>| P: {(feedback.metrics_sent.precision * 100).toFixed(0)}%</span>}
+                                            {feedback.metrics_sent?.recall != null && <span>| R: {(feedback.metrics_sent.recall * 100).toFixed(0)}%</span>}
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </div>
                     )}
@@ -1769,9 +1885,9 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai }: {
                                 <p className="text-xs text-slate-700 dark:text-gray-300 p-2 bg-slate-50 dark:bg-gray-800/50 rounded-lg">{xai.answer}</p>
                                 {xai.component_explanations && xai.component_explanations.map((comp, i) => (
                                     <div key={i} className={`p-2.5 rounded-lg border-l-2 ${comp.status === "success" ? "border-l-emerald-500 bg-emerald-50/30 dark:bg-emerald-500/5" :
-                                            comp.status === "warning" ? "border-l-amber-500 bg-amber-50/30 dark:bg-amber-500/5" :
-                                                comp.status === "error" ? "border-l-red-500 bg-red-50/30 dark:bg-red-500/5" :
-                                                    "border-l-slate-400 bg-slate-50/30 dark:bg-slate-500/5"
+                                        comp.status === "warning" ? "border-l-amber-500 bg-amber-50/30 dark:bg-amber-500/5" :
+                                            comp.status === "error" ? "border-l-red-500 bg-red-50/30 dark:bg-red-500/5" :
+                                                "border-l-slate-400 bg-slate-50/30 dark:bg-slate-500/5"
                                         }`}>
                                         <div className="flex items-center gap-1.5 mb-1">
                                             <span className="text-sm">{comp.component === "ahmn" ? "🎯" : comp.component === "idpo" ? "⚙️" : "🛡️"}</span>

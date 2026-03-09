@@ -16,6 +16,7 @@ export default function HITLPage() {
     const [feedbackId, setFeedbackId] = useState("");
     const [showHistory, setShowHistory] = useState(false);
     const [history, setHistory] = useState<HITLFeedback[]>([]);
+    const [adviceId, setAdviceId] = useState("");
 
     // Form state
     const [feedbackType, setFeedbackType] = useState<FeedbackType>("correct");
@@ -31,12 +32,14 @@ export default function HITLPage() {
         const storedExplanation = sessionStorage.getItem("xai_explanation") || localStorage.getItem("xai_explanation");
         const storedQuestion = sessionStorage.getItem("xai_question") || localStorage.getItem("xai_question");
         const storedParagraph = sessionStorage.getItem("xai_paragraph") || localStorage.getItem("xai_paragraph");
+        const storedAdviceId = sessionStorage.getItem("xai_advice_id") || localStorage.getItem("xai_advice_id") || "";
 
         if (storedExplanation) {
             try { setExplanation(JSON.parse(storedExplanation)); } catch { /* invalid data */ }
         }
         if (storedQuestion) setQuestion(storedQuestion);
         if (storedParagraph) setParagraph(storedParagraph);
+        if (storedAdviceId) setAdviceId(storedAdviceId);
 
         // Load history from localStorage
         const storedHistory = localStorage.getItem("hitl_history");
@@ -91,16 +94,29 @@ export default function HITLPage() {
             });
 
             setFeedbackId(response.feedback_id);
+
+            if (adviceId) {
+                try {
+                    const bridge = await api.forwardIDPOHITLCorrection(adviceId, feedbackType);
+                    if (bridge.status !== "forwarded") {
+                        addToast({ type: "warning", title: "HITL bridge warning", message: bridge.error || "Feedback saved, but AHMN correction was not forwarded" });
+                    }
+                } catch (bridgeErr) {
+                    addToast({
+                        type: "warning",
+                        title: "HITL bridge warning",
+                        message: bridgeErr instanceof Error ? bridgeErr.message : "Feedback saved, but AHMN correction forwarding failed",
+                    });
+                }
+            } else {
+                addToast({ type: "warning", title: "No advice link", message: "Feedback saved, but no advice_id was available to update AHMN correction state" });
+            }
+
             setSubmitted(true);
             persistFeedback(buildFeedback(response.feedback_id));
             addToast({ type: "success", title: "Feedback submitted", message: "Thank you for helping improve the system" });
-        } catch {
-            // Demo mode — simulate success when the API is unavailable
-            const demoId = `fb_${Date.now()}`;
-            setFeedbackId(demoId);
-            setSubmitted(true);
-            persistFeedback(buildFeedback(demoId));
-            addToast({ type: "info", title: "Demo mode", message: "Feedback saved locally" });
+        } catch (err) {
+            addToast({ type: "error", title: "Feedback failed", message: err instanceof Error ? err.message : "Could not submit feedback" });
         } finally {
             setIsSubmitting(false);
         }
