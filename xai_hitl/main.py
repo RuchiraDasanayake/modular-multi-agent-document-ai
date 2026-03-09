@@ -555,7 +555,7 @@ async def generate_xai_only(body: XAIRequest):
 
     try:
         engine = _get_engine()
-        # 120 second timeout for XAI computation
+        # 5 minute timeout for XAI computation (BART + LIME is CPU-bound)
         shap_exp, lime_exp = await asyncio.wait_for(
             asyncio.to_thread(
                 engine.generate_xai_for_answer,
@@ -563,7 +563,7 @@ async def generate_xai_only(body: XAIRequest):
                 body.question,
                 body.answer
             ),
-            timeout=120.0
+            timeout=300.0
         )
         return XAIOnlyResponse(
             shap_explanation=SHAPExplanation(
@@ -576,8 +576,8 @@ async def generate_xai_only(body: XAIRequest):
             ),
         )
     except asyncio.TimeoutError:
-        logger.warning("XAI generation timed out after 120s")
-        raise HTTPException(status_code=504, detail="XAI generation timed out")
+        logger.warning("XAI generation timed out after 300s")
+        raise HTTPException(status_code=504, detail="XAI generation timed out (5 min limit)")
     except Exception as exc:
         logger.error("XAI generation failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"XAI generation failed: {str(exc)}")
