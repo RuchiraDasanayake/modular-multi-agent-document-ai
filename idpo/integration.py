@@ -918,15 +918,31 @@ def log_ahmn_feedback(
                     f1 = 0.0
             else:
                 # No expected fields defined (default policy):
-                # Use mean confidence of extracted entities as quality signal
-                confs: list[float] = []
+                # Derive separate precision/recall proxies from the
+                # confidence distribution instead of mirroring one value.
+                all_confs: list[float] = []
                 for ed in details:
                     c = ed.get("confidence", 0) if isinstance(ed, dict) else getattr(ed, "confidence", 0)
                     if isinstance(c, (int, float)) and c > 0:
-                        confs.append(float(c))
-                f1 = sum(confs) / len(confs) if confs else 0.0
-                precision = f1  # no ground truth; mirror confidence
-                recall = f1
+                        all_confs.append(float(c))
+                if not all_confs:
+                    fc = doc.get("field_confidence", {})
+                    if fc and isinstance(fc, dict):
+                        all_confs = [float(v) for v in fc.values()
+                                     if isinstance(v, (int, float)) and v > 0]
+                if all_confs:
+                    # Precision proxy: mean confidence of entities above
+                    # acceptance threshold (quality of accepted extractions)
+                    accepted = [c for c in all_confs if c >= 0.5]
+                    precision = sum(accepted) / len(accepted) if accepted else 0.0
+                    # Recall proxy: fraction of entities that exceeded
+                    # the acceptance threshold (extraction coverage)
+                    recall = len(accepted) / len(all_confs)
+                    f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
+                else:
+                    f1 = 0.0
+                    precision = 0.0
+                    recall = 0.0
 
             doc_f1_scores.append(f1)
             doc_precisions.append(precision)
