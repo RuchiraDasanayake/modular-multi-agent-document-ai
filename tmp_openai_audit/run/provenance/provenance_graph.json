@@ -1,0 +1,417 @@
+{
+  "nodes": [
+    {
+      "id": "run:1eaf8943581b42fb9a36100cd6aebb05",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "intake",
+        "version": "v1",
+        "timestamp": 1772964823.922771,
+        "event_type": "OperatorExecution"
+      }
+    },
+    {
+      "id": "doc:invoice",
+      "type": "document",
+      "metadata": {
+        "doc_id": "invoice"
+      }
+    },
+    {
+      "id": "artifact:bb8e007b088f4a969367bd2fd12bc293",
+      "type": "artifact",
+      "metadata": {
+        "artifact_id": "bb8e007b088f4a969367bd2fd12bc293"
+      }
+    },
+    {
+      "id": "run:117f8ba5fc044d9bad70a08e49d46384",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "document_analysis",
+        "version": "v1",
+        "timestamp": 1772964823.923451,
+        "event_type": "DAEOutput"
+      }
+    },
+    {
+      "id": "run:f8ac94ecc78048b49c027a44d35befbc",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "router",
+        "version": "v1",
+        "timestamp": 1772964823.9250968,
+        "event_type": "PolicyAdvice"
+      }
+    },
+    {
+      "id": "run:0cbf4c381501403f99cb0f98cb437584",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "router",
+        "version": "v1",
+        "timestamp": 1772964823.925487,
+        "event_type": "RouteSelection"
+      }
+    },
+    {
+      "id": "artifact:116706fda1d74f86941c862dde034d39",
+      "type": "artifact",
+      "metadata": {
+        "artifact_id": "116706fda1d74f86941c862dde034d39"
+      }
+    },
+    {
+      "id": "run:f41d52ae30fd4e198c37d6e7921c3ead",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "table_form",
+        "version": "v1",
+        "timestamp": 1772964823.92681,
+        "event_type": "OperatorExecution"
+      }
+    },
+    {
+      "id": "artifact:7ecb25b533a54d9fb2d3aa2effc82f61",
+      "type": "artifact",
+      "metadata": {
+        "artifact_id": "7ecb25b533a54d9fb2d3aa2effc82f61"
+      }
+    },
+    {
+      "id": "run:fb25d0d3b7ef446a82bf7bc98c888cb6",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "llm_extraction",
+        "version": "v1",
+        "timestamp": 1772964827.6918695,
+        "event_type": "OperatorExecution"
+      }
+    },
+    {
+      "id": "artifact:e45a3687a3704a74a772f00e6b12cdaf",
+      "type": "artifact",
+      "metadata": {
+        "artifact_id": "e45a3687a3704a74a772f00e6b12cdaf"
+      }
+    },
+    {
+      "id": "run:2993423819824de4b07b16c626c8cf6d",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "sectioning",
+        "version": "v1",
+        "timestamp": 1772964827.6933367,
+        "event_type": "OperatorExecution"
+      }
+    },
+    {
+      "id": "artifact:11811ab2e9484db5b7d6c0c16c62ef86",
+      "type": "artifact",
+      "metadata": {
+        "artifact_id": "11811ab2e9484db5b7d6c0c16c62ef86"
+      }
+    },
+    {
+      "id": "run:3d1cf1fbadc743ac962f36085b6d3f29",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "summarization",
+        "version": "v1",
+        "timestamp": 1772964827.694831,
+        "event_type": "OperatorExecution"
+      }
+    },
+    {
+      "id": "artifact:0af72a47ad4f46018eb4c73fd784f61e",
+      "type": "artifact",
+      "metadata": {
+        "artifact_id": "0af72a47ad4f46018eb4c73fd784f61e"
+      }
+    },
+    {
+      "id": "run:772c6322a941448480ec1affeb16f834",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "validation",
+        "version": "v1",
+        "timestamp": 1772964827.6960773,
+        "event_type": "ValidationResult"
+      }
+    },
+    {
+      "id": "artifact:b5ab0a50091b4f1da94c3d08da5156c5",
+      "type": "artifact",
+      "metadata": {
+        "artifact_id": "b5ab0a50091b4f1da94c3d08da5156c5"
+      }
+    },
+    {
+      "id": "run:16026a4d6900487e9b3495e987420b80",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "recovery",
+        "version": "v1",
+        "timestamp": 1772964827.6965144,
+        "event_type": "RecoveryAction"
+      }
+    },
+    {
+      "id": "run:bb540de405d04e4d90d09cbbb90e7e58",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "escalation",
+        "version": "v1",
+        "timestamp": 1772964827.6969483,
+        "event_type": "EscalationAction"
+      }
+    },
+    {
+      "id": "chunk:invoice_chunk_0",
+      "type": "chunk",
+      "metadata": {
+        "doc_id": "invoice",
+        "page_range": [
+          1,
+          1
+        ],
+        "section": "section_1"
+      }
+    },
+    {
+      "id": "chunk:invoice_chunk_1",
+      "type": "chunk",
+      "metadata": {
+        "doc_id": "invoice",
+        "page_range": [
+          1,
+          1
+        ],
+        "section": "total_amount_1499_50"
+      }
+    },
+    {
+      "id": "run:2889ba60c5f34ff2bb6ec7fc1fec5ff0",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "chunking",
+        "version": "v1",
+        "timestamp": 1772964827.6986306,
+        "event_type": "OperatorExecution"
+      }
+    },
+    {
+      "id": "artifact:4475d075511347679ede4a6a066b1259",
+      "type": "artifact",
+      "metadata": {
+        "artifact_id": "4475d075511347679ede4a6a066b1259"
+      }
+    },
+    {
+      "id": "run:ad83c105dbe549468349a2a62648bd6a",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "finalize",
+        "version": "v1",
+        "timestamp": 1772964827.699094,
+        "event_type": "FinalArtifacts"
+      }
+    },
+    {
+      "id": "run:22ccf3f5096548399d7522a6d09e7d6c",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "embedding",
+        "version": "v1",
+        "timestamp": 1772964827.7016635,
+        "event_type": "OperatorExecution"
+      }
+    },
+    {
+      "id": "artifact:859c5262797a4fb1ab3dde308a66be81",
+      "type": "artifact",
+      "metadata": {
+        "artifact_id": "859c5262797a4fb1ab3dde308a66be81"
+      }
+    },
+    {
+      "id": "run:dce683a7ed8746b78e198512be0f771f",
+      "type": "agent_run",
+      "metadata": {
+        "agent": "export_structured",
+        "version": "v1",
+        "timestamp": 1772964827.9353578,
+        "event_type": "OperatorExecution"
+      }
+    },
+    {
+      "id": "artifact:afede395ffae4b4e82cf2cc71020b063",
+      "type": "artifact",
+      "metadata": {
+        "artifact_id": "afede395ffae4b4e82cf2cc71020b063"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "doc:invoice",
+      "target": "run:1eaf8943581b42fb9a36100cd6aebb05",
+      "type": "used_by"
+    },
+    {
+      "source": "run:1eaf8943581b42fb9a36100cd6aebb05",
+      "target": "artifact:bb8e007b088f4a969367bd2fd12bc293",
+      "type": "produced_by"
+    },
+    {
+      "source": "doc:invoice",
+      "target": "run:117f8ba5fc044d9bad70a08e49d46384",
+      "type": "used_by"
+    },
+    {
+      "source": "doc:invoice",
+      "target": "run:f8ac94ecc78048b49c027a44d35befbc",
+      "type": "used_by"
+    },
+    {
+      "source": "doc:invoice",
+      "target": "run:0cbf4c381501403f99cb0f98cb437584",
+      "type": "used_by"
+    },
+    {
+      "source": "run:0cbf4c381501403f99cb0f98cb437584",
+      "target": "artifact:116706fda1d74f86941c862dde034d39",
+      "type": "produced_by"
+    },
+    {
+      "source": "doc:invoice",
+      "target": "run:f41d52ae30fd4e198c37d6e7921c3ead",
+      "type": "used_by"
+    },
+    {
+      "source": "run:f41d52ae30fd4e198c37d6e7921c3ead",
+      "target": "artifact:7ecb25b533a54d9fb2d3aa2effc82f61",
+      "type": "produced_by"
+    },
+    {
+      "source": "doc:invoice",
+      "target": "run:fb25d0d3b7ef446a82bf7bc98c888cb6",
+      "type": "used_by"
+    },
+    {
+      "source": "artifact:7ecb25b533a54d9fb2d3aa2effc82f61",
+      "target": "run:fb25d0d3b7ef446a82bf7bc98c888cb6",
+      "type": "used_by"
+    },
+    {
+      "source": "run:fb25d0d3b7ef446a82bf7bc98c888cb6",
+      "target": "artifact:e45a3687a3704a74a772f00e6b12cdaf",
+      "type": "produced_by"
+    },
+    {
+      "source": "doc:invoice",
+      "target": "run:2993423819824de4b07b16c626c8cf6d",
+      "type": "used_by"
+    },
+    {
+      "source": "run:2993423819824de4b07b16c626c8cf6d",
+      "target": "artifact:11811ab2e9484db5b7d6c0c16c62ef86",
+      "type": "produced_by"
+    },
+    {
+      "source": "doc:invoice",
+      "target": "run:3d1cf1fbadc743ac962f36085b6d3f29",
+      "type": "used_by"
+    },
+    {
+      "source": "run:3d1cf1fbadc743ac962f36085b6d3f29",
+      "target": "artifact:0af72a47ad4f46018eb4c73fd784f61e",
+      "type": "produced_by"
+    },
+    {
+      "source": "doc:invoice",
+      "target": "run:772c6322a941448480ec1affeb16f834",
+      "type": "used_by"
+    },
+    {
+      "source": "run:772c6322a941448480ec1affeb16f834",
+      "target": "artifact:b5ab0a50091b4f1da94c3d08da5156c5",
+      "type": "produced_by"
+    },
+    {
+      "source": "doc:invoice",
+      "target": "run:16026a4d6900487e9b3495e987420b80",
+      "type": "used_by"
+    },
+    {
+      "source": "doc:invoice",
+      "target": "run:bb540de405d04e4d90d09cbbb90e7e58",
+      "type": "used_by"
+    },
+    {
+      "source": "doc:invoice",
+      "target": "run:2889ba60c5f34ff2bb6ec7fc1fec5ff0",
+      "type": "used_by"
+    },
+    {
+      "source": "artifact:7ecb25b533a54d9fb2d3aa2effc82f61",
+      "target": "run:2889ba60c5f34ff2bb6ec7fc1fec5ff0",
+      "type": "used_by"
+    },
+    {
+      "source": "run:2889ba60c5f34ff2bb6ec7fc1fec5ff0",
+      "target": "artifact:4475d075511347679ede4a6a066b1259",
+      "type": "produced_by"
+    },
+    {
+      "source": "run:2889ba60c5f34ff2bb6ec7fc1fec5ff0",
+      "target": "chunk:invoice_chunk_0",
+      "type": "produced_by"
+    },
+    {
+      "source": "run:2889ba60c5f34ff2bb6ec7fc1fec5ff0",
+      "target": "chunk:invoice_chunk_1",
+      "type": "produced_by"
+    },
+    {
+      "source": "doc:invoice",
+      "target": "run:ad83c105dbe549468349a2a62648bd6a",
+      "type": "used_by"
+    },
+    {
+      "source": "run:ad83c105dbe549468349a2a62648bd6a",
+      "target": "artifact:bb8e007b088f4a969367bd2fd12bc293",
+      "type": "produced_by"
+    },
+    {
+      "source": "run:ad83c105dbe549468349a2a62648bd6a",
+      "target": "artifact:116706fda1d74f86941c862dde034d39",
+      "type": "produced_by"
+    },
+    {
+      "source": "artifact:4475d075511347679ede4a6a066b1259",
+      "target": "run:22ccf3f5096548399d7522a6d09e7d6c",
+      "type": "used_by"
+    },
+    {
+      "source": "chunk:invoice_chunk_0",
+      "target": "run:22ccf3f5096548399d7522a6d09e7d6c",
+      "type": "used_by"
+    },
+    {
+      "source": "chunk:invoice_chunk_1",
+      "target": "run:22ccf3f5096548399d7522a6d09e7d6c",
+      "type": "used_by"
+    },
+    {
+      "source": "run:22ccf3f5096548399d7522a6d09e7d6c",
+      "target": "artifact:859c5262797a4fb1ab3dde308a66be81",
+      "type": "produced_by"
+    },
+    {
+      "source": "run:dce683a7ed8746b78e198512be0f771f",
+      "target": "artifact:afede395ffae4b4e82cf2cc71020b063",
+      "type": "produced_by"
+    }
+  ]
+}

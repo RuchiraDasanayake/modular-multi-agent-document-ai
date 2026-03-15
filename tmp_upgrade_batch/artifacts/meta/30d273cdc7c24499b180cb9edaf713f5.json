@@ -1,0 +1,16 @@
+{
+  "artifact_id": "30d273cdc7c24499b180cb9edaf713f5",
+  "kind": "tables",
+  "metadata": {
+    "agent": "table_form",
+    "doc_id": "demo_clean_text",
+    "parameters": {
+      "table_mode": "heuristic"
+    },
+    "source_artifacts": [
+      "3c201f94667b43e4b3c9abc4112d6d8f"
+    ],
+    "version": "v1"
+  },
+  "path": "tmp_upgrade_batch\\artifacts\\clean\\30d273cdc7c24499b180cb9edaf713f5_demo_clean_text_tables.json"
+}

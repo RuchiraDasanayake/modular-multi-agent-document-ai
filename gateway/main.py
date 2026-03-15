@@ -18,7 +18,9 @@ Route map
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
@@ -59,6 +61,10 @@ from .auth_service import (
     verify_password,
     verify_token,
 )
+
+# psycopg async connections on Windows require Selector event loop.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -596,6 +602,16 @@ async def proxy(
         "x-user-id": user["id"],
         "x-user-role": user["role"],
     }
+    proxy_read_timeout = settings.PROXY_TIMEOUT
+    if downstream_path.startswith("/idpo/run"):
+        # IDPO extraction can legitimately run longer for multi-document batches.
+        proxy_read_timeout = max(settings.PROXY_TIMEOUT, settings.IDPO_PROXY_TIMEOUT)
+    request_timeout = httpx.Timeout(
+        connect=15.0,
+        read=proxy_read_timeout,
+        write=120.0,
+        pool=15.0,
+    )
     # Preserve original content-type exactly (critical for multipart/form-data boundaries)
     ct = request.headers.get("content-type")
     if ct:
@@ -610,6 +626,7 @@ async def proxy(
             url=url,
             headers=headers,
             content=body if body else None,
+            timeout=request_timeout,
         )
     except httpx.ConnectError:
         raise HTTPException(
@@ -617,6 +634,14 @@ async def proxy(
             detail=f"Service unavailable: {downstream_path.split('/')[1]}",
         )
     except httpx.ReadTimeout:
+        if downstream_path.startswith("/idpo/run"):
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail=(
+                    f"IDPO processing exceeded gateway timeout ({int(proxy_read_timeout)}s) — "
+                    "for very large batches, split uploads or increase IDPO_PROXY_TIMEOUT"
+                ),
+            )
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
             detail="Upstream service timed out — try processing fewer documents at once",

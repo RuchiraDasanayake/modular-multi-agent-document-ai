@@ -40,6 +40,10 @@ class DAEOutput:
     content_profile: str
     quality_score: float
     complexity_score: float
+    layout_cluster_id: str = "unknown"
+    route_bin: str = "standard"
+    quality_features: dict[str, float] = field(default_factory=dict)
+    structural_features: dict[str, float] = field(default_factory=dict)
     signals: dict[str, float] = field(default_factory=dict)
 
 @dataclass(frozen=True)

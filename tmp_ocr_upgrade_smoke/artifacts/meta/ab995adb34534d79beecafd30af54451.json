@@ -1,0 +1,23 @@
+{
+  "artifact_id": "ab995adb34534d79beecafd30af54451",
+  "kind": "ocr_input",
+  "metadata": {
+    "agent": "ocr",
+    "doc_id": "demo_image_invoice",
+    "parameters": {
+      "alt_psm": [
+        4,
+        11
+      ],
+      "dpi": 300,
+      "engine": "tesseract",
+      "lang": "eng",
+      "oem": 3,
+      "passes": 2,
+      "psm": 6
+    },
+    "source_artifacts": [],
+    "version": "v1"
+  },
+  "path": "tmp_ocr_upgrade_smoke\\artifacts\\raw\\ab995adb34534d79beecafd30af54451_demo_image_invoice_ocr_input.txt"
+}

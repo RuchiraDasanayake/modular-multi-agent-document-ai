@@ -1,0 +1,4 @@
+﻿Invoice Number: INV-1003
+Date: 2026-03-04
+Vendor: Demo Vendor 3
+Total Amount: 109.00

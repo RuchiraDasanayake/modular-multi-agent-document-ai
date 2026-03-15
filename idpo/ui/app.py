@@ -165,7 +165,9 @@ async def run_demo(
     # NOTE: AHMN advice is now requested AFTER processing, based on actual doc_type
     # from DAE classification (per-document policies)
     logger.info("Step 1/4: Running extraction pipeline")
-    PIPELINE_TIMEOUT_S = 540  # 9 minutes — must be below gateway's 600s proxy timeout
+    doc_count = max(1, len(saved))
+    # Adaptive timeout: keep single-doc runs snappy, allow larger multi-doc batches to complete.
+    PIPELINE_TIMEOUT_S = min(1800, max(540, doc_count * 120))
     try:
         result = await asyncio.wait_for(
             asyncio.to_thread(
@@ -220,8 +222,8 @@ async def run_demo(
     ] if s]
     logger.info("Steps 2-4/4: Running integration cycle with per-doc AHMN%s",
                 f" (skipping {', '.join(skipped)})" if skipped else "")
-    # Increased timeout to allow per-doc AHMN calls
-    INTEGRATION_TIMEOUT_S = 180  # 3 minutes for per-doc AHMN + guardrails + XAI
+    # Adaptive timeout for post-processing integration across doc batches.
+    INTEGRATION_TIMEOUT_S = min(600, max(180, len(doc_records) * 45))
     try:
         integration = await asyncio.wait_for(
             asyncio.to_thread(

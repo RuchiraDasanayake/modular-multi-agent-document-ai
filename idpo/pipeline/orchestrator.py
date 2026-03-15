@@ -9,6 +9,7 @@ import random
 import threading
 import time
 import uuid
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -80,12 +81,29 @@ class PipelineResult:
     model_used: str
     model_mode: str
     model_reason: str
+    layout_cluster_id: str = "unknown"
+    route_bin: str = "standard"
+    analysis_confidence: float = 0.0
+    analysis_confidence_type: str = "heuristic"
+    quality_features: dict[str, float] = field(default_factory=dict)
+    structural_features: dict[str, float] = field(default_factory=dict)
+    extracted_fields: list[Entity] = field(default_factory=list)
+    field_details: dict[str, object] = field(default_factory=dict)
+    llm_diagnostics: dict[str, object] = field(default_factory=dict)
+    failed_recovery_fields: list[str] = field(default_factory=list)
+    recovery_log: list[dict[str, object]] = field(default_factory=list)
+    escalation_info: dict[str, object] = field(default_factory=dict)
+    advice_source: str = "config"
+    ranked_policies: list[dict[str, object]] = field(default_factory=list)
+    route_specialization: str | None = None
+    operator_stack: list[str] = field(default_factory=list)
     dae_signals: dict[str, object] = field(default_factory=dict)
     queue_partition: str = ""
     queue_wait_ms: float = 0.0
     artifacts: dict[str, str] = field(default_factory=dict)
     latency_ms: float = 0.0
     plan_payload: dict[str, object] = field(default_factory=dict)
+    shadow_comparisons: list[dict[str, object]] = field(default_factory=list)
 
 class PolicyRollbackMonitor:
     def __init__(self, run_dir: Path, config: PipelineConfig) -> None:
@@ -223,7 +241,7 @@ class Pipeline:
     def _init_provenance(self):
         from idpo.core.provenance import ProvenanceRecorder
 
-        return ProvenanceRecorder(str(self.run_dir / "provenance.jsonl"))
+        return ProvenanceRecorder(str(self.run_dir / "provenance" / "events.jsonl"))
 
     def _write_run_metadata(self) -> None:
         payload = {
@@ -272,10 +290,15 @@ class Pipeline:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = []
-            for partition_key, items in partitions.items():
-                for idx, item in enumerate(items):
-                    depth = len(items) - idx
+            if self.config.queue.fairness_enabled:
+                schedule = self._fair_partition_schedule(partitions)
+                for partition_key, item, depth in schedule:
                     futures.append(executor.submit(_run, item, partition_key, depth))
+            else:
+                for partition_key, items in partitions.items():
+                    for idx, item in enumerate(items):
+                        depth = len(items) - idx
+                        futures.append(executor.submit(_run, item, partition_key, depth))
             for future in concurrent.futures.as_completed(futures):
                 results.append(future.result())
 
@@ -357,6 +380,20 @@ class Pipeline:
             version="v1",
             inputs={"doc_id": doc.doc_id, "dae_output": dae_output.__dict__},
             outputs={
+                "source": plan_source,
+                "recommendations": [
+                    {"policy_id": policy.policy_id, "score": 1.0, "reason": plan.rationale}
+                ],
+            },
+            parameters={"rationale": plan.rationale},
+            artifacts=[],
+            event_type="PolicyAdvice",
+        )
+        self.ctx.provenance.record(
+            agent="router",
+            version="v1",
+            inputs={"doc_id": doc.doc_id, "dae_output": dae_output.__dict__},
+            outputs={
                 "policy_id": policy.policy_id,
                 "policy_name": policy.name,
                 "plan_id": plan.plan_id,
@@ -365,7 +402,7 @@ class Pipeline:
             },
             parameters={"rationale": plan.rationale},
             artifacts=[plan_artifact.artifact_id],
-            event_type="PolicyDecision",
+            event_type="RouteSelection",
         )
 
         shadow_executor = None
@@ -405,6 +442,7 @@ class Pipeline:
         primary_metrics = self._quality_metrics(state, latency_ms)
         self.rollback_monitor.update(policy.policy_id, primary_metrics, self.config.knowledge.default_policy_id)
 
+        shadow_comparisons: list[dict[str, object]] = []
         for future in shadow_futures:
             shadow_result = future.result()
             if shadow_result:
@@ -413,8 +451,21 @@ class Pipeline:
                     shadow_result["metrics"],
                     self.config.knowledge.default_policy_id,
                 )
+                comparison = self._shadow_comparison(doc.doc_id, primary_metrics, shadow_result)
+                shadow_comparisons.append(comparison)
+                self.ctx.provenance.record(
+                    agent="shadow",
+                    version="v1",
+                    inputs={"doc_id": doc.doc_id, "policy_id": shadow_result["policy_id"]},
+                    outputs=comparison,
+                    parameters={"run_id": self.run_id},
+                    artifacts=[],
+                    event_type="ShadowComparison",
+                )
         if shadow_executor:
             shadow_executor.shutdown(wait=True)
+        if shadow_comparisons:
+            self._append_shadow_comparisons(shadow_comparisons)
 
         return PipelineResult(
             doc_id=doc.doc_id,
@@ -430,7 +481,14 @@ class Pipeline:
             bin=bin_name,
             quality_score=dae_output.quality_score,
             complexity_score=dae_output.complexity_score,
+            layout_cluster_id=getattr(dae_output, "layout_cluster_id", "unknown"),
+            route_bin=getattr(dae_output, "route_bin", "standard"),
+            analysis_confidence=analysis_signal.confidence if analysis_signal else dae_output.quality_score,
+            analysis_confidence_type="heuristic",
+            quality_features=getattr(dae_output, "quality_features", {}),
+            structural_features=getattr(dae_output, "structural_features", {}),
             entities=state.entities,
+            extracted_fields=state.entities,
             explicit_entities=state.explicit_entities,
             default_entities=state.default_entities,
             explicit_source=state.explicit_source,
@@ -439,8 +497,13 @@ class Pipeline:
             summary=state.summary,
             normalized_entities=state.normalized_entities,
             validation_issues=state.validation_issues,
+            field_details=state.requested_field_status,
+            llm_diagnostics=state.llm_diagnostics,
             recovered_fields=state.recovered_fields,
+            failed_recovery_fields=[],
+            recovery_log=[],
             escalated=state.escalated,
+            escalation_info={"escalated": state.escalated},
             field_confidence=state.field_confidence,
             stage_signals=state.stage_signals,
             chunk_artifact_id=state.chunk_artifact_id,
@@ -449,6 +512,10 @@ class Pipeline:
             policy_id=policy.policy_id,
             policy_name=policy.name,
             policy_reason=plan.rationale,
+            advice_source=plan_source,
+            ranked_policies=[],
+            route_specialization=getattr(dae_output, "route_bin", None),
+            operator_stack=[step.operator for step in plan.steps],
             plan_id=plan.plan_id,
             plan_source=plan.source,
             plan_budgets=plan.budgets,
@@ -463,6 +530,7 @@ class Pipeline:
             queue_wait_ms=queue_wait_ms,
             artifacts=artifact_ids,
             latency_ms=latency_ms,
+            shadow_comparisons=shadow_comparisons,
         )
 
     def _categorize(self, dae_output: DAEOutput, doc: Document) -> tuple[str, str]:
@@ -487,6 +555,35 @@ class Pipeline:
                 value = doc.metadata.get(key, "unknown")
             parts.append(str(value))
         return "|".join(parts)
+
+    def _fair_partition_schedule(
+        self,
+        partitions: dict[str, list[tuple[Document, DAEOutput, StageSignal | None]]],
+    ) -> list[tuple[str, tuple[Document, DAEOutput, StageSignal | None], int]]:
+        if not partitions:
+            return []
+
+        # Round-robin partitions, starting from the smallest queue to avoid starvation.
+        queues: dict[str, deque[tuple[Document, DAEOutput, StageSignal | None]]] = {
+            key: deque(items) for key, items in partitions.items()
+        }
+        schedule: list[tuple[str, tuple[Document, DAEOutput, StageSignal | None], int]] = []
+        while queues:
+            ordered_keys = sorted(queues.keys(), key=lambda key: (len(queues[key]), key))
+            exhausted: list[str] = []
+            for key in ordered_keys:
+                queue = queues[key]
+                if not queue:
+                    exhausted.append(key)
+                    continue
+                depth = len(queue)
+                item = queue.popleft()
+                schedule.append((key, item, depth))
+                if not queue:
+                    exhausted.append(key)
+            for key in exhausted:
+                queues.pop(key, None)
+        return schedule
 
     def _plan_model_info(self, plan: ExecutionPlan) -> tuple[str, str, str]:
         for step in plan.steps:
@@ -567,7 +664,7 @@ class Pipeline:
             "quality_proxy": metrics["quality_proxy"],
         }
         (shadow_dir / "shadow_result.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        return {"policy_id": policy_id, "metrics": metrics}
+        return {"policy_id": policy_id, "plan_id": plan.plan_id, "metrics": metrics}
 
     def _quality_metrics(self, state: ExecutionState, latency_ms: float) -> dict[str, float]:
         if state.field_confidence:
@@ -581,6 +678,44 @@ class Pipeline:
             "validation_failure": 1.0 if state.validation_issues else 0.0,
             "quality_proxy": avg_conf,
         }
+
+    def _shadow_comparison(
+        self,
+        doc_id: str,
+        primary_metrics: dict[str, float],
+        shadow_result: dict[str, object],
+    ) -> dict[str, object]:
+        shadow_metrics = shadow_result.get("metrics", {})
+        if not isinstance(shadow_metrics, dict):
+            shadow_metrics = {}
+        return {
+            "doc_id": doc_id,
+            "policy_id": str(shadow_result.get("policy_id", "")),
+            "plan_id": str(shadow_result.get("plan_id", "")),
+            "canonical_latency_ms": float(primary_metrics.get("latency_ms", 0.0)),
+            "shadow_latency_ms": float(shadow_metrics.get("latency_ms", 0.0)),
+            "canonical_validation_failure": float(primary_metrics.get("validation_failure", 0.0)),
+            "shadow_validation_failure": float(shadow_metrics.get("validation_failure", 0.0)),
+            "canonical_quality_proxy": float(primary_metrics.get("quality_proxy", 0.0)),
+            "shadow_quality_proxy": float(shadow_metrics.get("quality_proxy", 0.0)),
+            "canonical_retrieval_proxy": None,
+            "shadow_retrieval_proxy": None,
+        }
+
+    def _append_shadow_comparisons(self, comparisons: list[dict[str, object]]) -> None:
+        metrics_dir = self.run_dir / "metrics"
+        metrics_dir.mkdir(parents=True, exist_ok=True)
+        path = metrics_dir / self.config.shadow.comparison_file
+        existing: list[dict[str, object]] = []
+        if path.exists():
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(payload, list):
+                    existing = payload
+            except Exception:
+                existing = []
+        existing.extend(comparisons)
+        path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
 
     def _clone_document(self, doc: Document) -> Document:
         pages = []

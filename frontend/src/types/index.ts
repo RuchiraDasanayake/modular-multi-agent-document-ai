@@ -283,11 +283,21 @@ export interface IDPODocRecord {
   escalated?: boolean;
   model_used?: string;
   model_mode?: string;
+  model_reason?: string;
   policy_id?: string;
   policy_name?: string;
   plan_id?: string;
   plan_source?: string;
   preprocess_route?: string;
+  ocr_engine_used?: string;
+  ocr_avg_confidence?: number;
+  ocr_rerun_attempted_pages?: number;
+  ocr_rerun_used_pages?: number;
+  fallback_path?: string;
+  unresolved_field_count?: number;
+  transparency?: Record<string, unknown>;
+  transparency_path?: string;
+  llm_diagnostics?: Record<string, unknown>;
 }
 
 export interface IDPORunMetrics {

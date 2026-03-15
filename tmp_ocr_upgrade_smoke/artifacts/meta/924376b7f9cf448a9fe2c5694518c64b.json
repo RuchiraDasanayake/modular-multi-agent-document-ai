@@ -1,0 +1,10 @@
+{
+  "artifact_id": "924376b7f9cf448a9fe2c5694518c64b",
+  "kind": "sections",
+  "metadata": {
+    "agent": "sectioning",
+    "doc_id": "demo_image_invoice",
+    "version": "v1"
+  },
+  "path": "tmp_ocr_upgrade_smoke\\artifacts\\clean\\924376b7f9cf448a9fe2c5694518c64b_demo_image_invoice_sections.json"
+}

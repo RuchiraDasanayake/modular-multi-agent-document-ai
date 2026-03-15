@@ -1,0 +1,10 @@
+{
+  "artifact_id": "90f1b41c0344427eb8f511e7c97e6040",
+  "kind": "plan",
+  "metadata": {
+    "agent": "router",
+    "doc_id": "demo_image_invoice",
+    "policy_id": "default"
+  },
+  "path": "tmp_upgrade_batch\\artifacts\\clean\\90f1b41c0344427eb8f511e7c97e6040_demo_image_invoice_plan.json"
+}

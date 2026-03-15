@@ -1,0 +1,14 @@
+{
+  "artifact_id": "2df8f91136c748daac94fc8a5e7eab50",
+  "kind": "tables_input",
+  "metadata": {
+    "agent": "table_form",
+    "doc_id": "demo_clean_text",
+    "parameters": {
+      "table_mode": "heuristic"
+    },
+    "source_artifacts": [],
+    "version": "v1"
+  },
+  "path": "tmp_ocr_upgrade_smoke\\artifacts\\raw\\2df8f91136c748daac94fc8a5e7eab50_demo_clean_text_tables_input.txt"
+}

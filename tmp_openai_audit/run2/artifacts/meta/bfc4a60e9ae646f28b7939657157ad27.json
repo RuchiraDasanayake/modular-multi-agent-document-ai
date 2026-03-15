@@ -1,0 +1,9 @@
+{
+  "artifact_id": "bfc4a60e9ae646f28b7939657157ad27",
+  "kind": "structured_export",
+  "metadata": {
+    "agent": "export_structured",
+    "format": "xlsx"
+  },
+  "path": "tmp_openai_audit\\run2\\entities.xlsx"
+}

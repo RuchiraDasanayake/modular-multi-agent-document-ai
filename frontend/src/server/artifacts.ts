@@ -48,6 +48,18 @@ interface ResultDocRecord {
   rollback_triggered?: boolean;
   retries_count?: number;
   recovered_fields?: Record<string, unknown>;
+  model_used?: string;
+  model_mode?: string;
+  model_reason?: string;
+  ocr_engine_used?: string;
+  ocr_avg_confidence?: number;
+  ocr_rerun_attempted_pages?: number;
+  ocr_rerun_used_pages?: number;
+  fallback_path?: string;
+  unresolved_field_count?: number;
+  transparency_path?: string;
+  transparency?: Record<string, unknown>;
+  llm_diagnostics?: Record<string, unknown>;
 }
 
 interface ProvenanceRaw {
@@ -87,6 +99,62 @@ function getResults(context: RunContext): ResultDocRecord[] {
   return records.filter((entry) => typeof entry === "object" && entry !== null) as ResultDocRecord[];
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function relativeToPrimary(primaryPath: string, filePath: string): string {
+  return path.relative(primaryPath, filePath).replace(/\\/g, "/");
+}
+
+function listDocsLayoutIds(primaryPath: string): string[] {
+  const docsDir = path.join(primaryPath, "docs");
+  if (!fs.existsSync(docsDir)) {
+    return [];
+  }
+  return fs
+    .readdirSync(docsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort((a, b) => (a > b ? 1 : -1));
+}
+
+function readLooseJson(filePath: string): unknown {
+  const asJson = readJsonFile<unknown>(filePath);
+  if (asJson !== null) {
+    return asJson;
+  }
+  const asJsonLines = readJsonLines<unknown>(filePath);
+  if (asJsonLines.length === 0) {
+    return null;
+  }
+  if (asJsonLines.length === 1) {
+    return asJsonLines[0];
+  }
+  return asJsonLines;
+}
+
+function getDocCount(context: RunContext): number {
+  const results = getResults(context);
+  if (results.length > 0) {
+    return results.length;
+  }
+
+  const docsLayoutCount = listDocsLayoutIds(context.primaryPath).length;
+  if (docsLayoutCount > 0) {
+    return docsLayoutCount;
+  }
+
+  const extractDir = path.join(context.primaryPath, "extract");
+  if (!fs.existsSync(extractDir)) {
+    return 0;
+  }
+  return fs.readdirSync(extractDir).filter((name) => name.endsWith(".json")).length;
+}
+
 function getRunStatDates(runRoot: string): { createdAt: string; updatedAt: string } {
   const stat = fs.statSync(runRoot);
   return {
@@ -99,7 +167,17 @@ function computeStatus(primaryPath: string): "ready" | "running" | "failed" | "u
   if (fs.existsSync(path.join(primaryPath, "results.json"))) {
     return "ready";
   }
+  if (fs.existsSync(path.join(primaryPath, "metrics.json"))) {
+    return "ready";
+  }
+  const docsLayoutIds = listDocsLayoutIds(primaryPath);
+  if (docsLayoutIds.length > 0) {
+    return "ready";
+  }
   if (fs.existsSync(path.join(primaryPath, "run.log"))) {
+    return "running";
+  }
+  if (fs.existsSync(path.join(primaryPath, "run.json"))) {
     return "running";
   }
   return "unknown";
@@ -120,6 +198,63 @@ function mapResultToDocumentSummary(entry: ResultDocRecord): DocumentSummary {
     policyId: typeof entry.policy_id === "string" ? entry.policy_id : null,
     validationIssueCount,
     escalated: Boolean(entry.escalated),
+    retriesCount: asNumber(entry.retries_count) ?? 0,
+    modelUsed: typeof entry.model_used === "string" ? entry.model_used : null,
+    modelMode: typeof entry.model_mode === "string" ? entry.model_mode : null,
+    modelReason: typeof entry.model_reason === "string" ? entry.model_reason : null,
+    ocrEngineUsed: typeof entry.ocr_engine_used === "string" ? entry.ocr_engine_used : null,
+    ocrAvgConfidence: asNumber(entry.ocr_avg_confidence),
+    ocrRerunAttemptedPages: asNumber(entry.ocr_rerun_attempted_pages),
+    ocrRerunUsedPages: asNumber(entry.ocr_rerun_used_pages),
+    fallbackPath: typeof entry.fallback_path === "string" ? entry.fallback_path : null,
+    unresolvedFieldCount: asNumber(entry.unresolved_field_count),
+    transparencyPath: typeof entry.transparency_path === "string" ? entry.transparency_path : null,
+  };
+}
+
+function mapDocsLayoutToDocumentSummary(primaryPath: string, docId: string): DocumentSummary {
+  const docDir = path.join(primaryPath, "docs", docId);
+  const manifest = readJsonFile<Record<string, unknown>>(path.join(docDir, "input", "manifest.json")) ?? {};
+  const dae = readJsonFile<Record<string, unknown>>(path.join(docDir, "dae", "output.json")) ?? {};
+  const plan = readJsonFile<Record<string, unknown>>(path.join(docDir, "plan", "primary.json")) ?? {};
+  const validate = readJsonFile<Record<string, unknown>>(path.join(docDir, "validation", "results.json")) ?? {};
+  const transparency = readJsonFile<Record<string, unknown>>(path.join(docDir, "provenance", "transparency.json")) ?? {};
+  const fieldResolution = asRecord(transparency.field_resolution) ?? {};
+  const modelRoute = asRecord(transparency.model_route) ?? {};
+  const ocrRoute = asRecord(transparency.ocr_route) ?? {};
+  const recoveryAttemptsRaw = readLooseJson(path.join(docDir, "recovery", "attempts.jsonl"));
+  const escalationRaw = readLooseJson(path.join(docDir, "recovery", "escalations.jsonl"));
+  const escalation = mapEscalation(escalationRaw);
+
+  const manifestPath = typeof manifest.path === "string" ? path.basename(manifest.path) : "";
+  const filename = manifestPath || docId;
+  const validationIssueCount = mapValidationIssues(validate.issues).length;
+  const retriesCount = mapRecovery(recoveryAttemptsRaw).length;
+  const transparencyPath = path.join(docDir, "provenance", "transparency.json");
+
+  return {
+    docId,
+    filename,
+    docType: typeof dae.doc_type === "string" ? dae.doc_type : null,
+    vendorCluster: typeof dae.vendor_cluster === "string" ? dae.vendor_cluster : null,
+    complexityBin: typeof dae.complexity_bin === "string" ? dae.complexity_bin : null,
+    routeBin: typeof dae.route_bin === "string" ? dae.route_bin : null,
+    status: "processed",
+    latencyMs: asNumber(transparency.latency_ms),
+    policyId: typeof plan.policy_id === "string" ? plan.policy_id : null,
+    validationIssueCount,
+    escalated: escalation?.escalated ?? false,
+    retriesCount,
+    modelUsed: typeof modelRoute.model_used === "string" ? modelRoute.model_used : null,
+    modelMode: typeof modelRoute.model_mode === "string" ? modelRoute.model_mode : null,
+    modelReason: typeof modelRoute.model_reason === "string" ? modelRoute.model_reason : null,
+    ocrEngineUsed: typeof ocrRoute.engine === "string" ? ocrRoute.engine : null,
+    ocrAvgConfidence: asNumber(ocrRoute.avg_confidence),
+    ocrRerunAttemptedPages: asNumber(ocrRoute.rerun_attempted_pages),
+    ocrRerunUsedPages: asNumber(ocrRoute.rerun_used_pages),
+    fallbackPath: typeof modelRoute.fallback_path === "string" ? modelRoute.fallback_path : null,
+    unresolvedFieldCount: asNumber(fieldResolution.unresolved_count),
+    transparencyPath: fs.existsSync(transparencyPath) ? relativeToPrimary(primaryPath, transparencyPath) : null,
   };
 }
 
@@ -205,11 +340,20 @@ function mapValidationIssues(raw: unknown): ValidationError[] {
 }
 
 function mapRecovery(raw: unknown): RecoveryAttempt[] {
-  if (!raw || typeof raw !== "object") {
-    return [];
+  const list: unknown[] = [];
+  if (Array.isArray(raw)) {
+    list.push(...raw);
+  } else if (raw && typeof raw === "object") {
+    const root = raw as Record<string, unknown>;
+    if (Array.isArray(root.retry_log)) {
+      list.push(...root.retry_log);
+    } else if (Array.isArray(root.attempts)) {
+      list.push(...root.attempts);
+    } else if ("field" in root || "strategy" in root || "success" in root) {
+      list.push(root);
+    }
   }
-  const list = (raw as Record<string, unknown>).retry_log;
-  if (!Array.isArray(list)) {
+  if (list.length === 0) {
     return [];
   }
 
@@ -232,25 +376,62 @@ function mapRecovery(raw: unknown): RecoveryAttempt[] {
 }
 
 function mapEscalation(raw: unknown): EscalationEvent | null {
-  if (!raw || typeof raw !== "object") {
+  const rootCandidate =
+    Array.isArray(raw) && raw.length > 0 ? raw.find((item) => item && typeof item === "object") : raw;
+  if (!rootCandidate || typeof rootCandidate !== "object") {
     return null;
   }
 
-  const root = raw as Record<string, unknown>;
+  const root = rootCandidate as Record<string, unknown>;
   const details = (root.details as Record<string, unknown> | undefined) ?? root;
   const fields = Array.isArray(details.fields)
     ? details.fields.filter((value): value is string => typeof value === "string")
     : [];
+  const reason =
+    typeof details.reason === "string"
+      ? details.reason
+      : typeof root.reason === "string"
+        ? root.reason
+        : "unknown";
+  const targetModel =
+    typeof details.target_model === "string"
+      ? details.target_model
+      : typeof details.targetModel === "string"
+        ? details.targetModel
+        : null;
+  const costEstimate = asNumber(details.cost_estimate ?? details.costEstimate);
+  const latencyEstimateMs = asNumber(details.latency_estimate_ms ?? details.latencyEstimateMs);
 
   return {
     escalated: Boolean(root.escalated ?? details.escalated),
     fields,
-    reason: typeof details.reason === "string" ? details.reason : "unknown",
-    targetModel: typeof details.target_model === "string" ? details.target_model : null,
-    costEstimate: asNumber(details.cost_estimate),
-    latencyEstimateMs: asNumber(details.latency_estimate_ms),
-    escalationUnavailable: details.reason === "escalation_unavailable",
+    reason,
+    targetModel,
+    costEstimate,
+    latencyEstimateMs,
+    escalationUnavailable: reason === "escalation_unavailable",
   };
+}
+
+function mapProvenanceEvents(rawEvents: ProvenanceRaw[]): ProvenanceEvent[] {
+  return rawEvents.map((event) => {
+    const payload = {
+      inputs: event.inputs ?? {},
+      outputs: event.outputs ?? {},
+      parameters: event.parameters ?? {},
+    };
+    return {
+      eventId: event.event_id ?? "unknown",
+      eventType: event.event_type ?? "Unknown",
+      agent: event.agent ?? "unknown",
+      timestamp: asNumber(event.timestamp) ?? 0,
+      docId: extractDocId(event),
+      latencyMs: asNumber(event.latency_ms),
+      costUnits: asNumber(event.cost_units),
+      stage: classifyStage(event),
+      payload,
+    } satisfies ProvenanceEvent;
+  });
 }
 
 function mapGuardrails(raw: unknown): GuardrailFinding[] {
@@ -340,7 +521,7 @@ export function listRuns(): RunSummary[] {
         createdAt: stats.createdAt,
         updatedAt: stats.updatedAt,
         status: computeStatus(primaryPath),
-        docCount: results.length,
+        docCount: results.length > 0 ? results.length : getDocCount({ runId, source, rootPath, primaryPath }),
         source,
         rootPath: resolvePathForDisplay(rootPath),
         primaryPath: resolvePathForDisplay(primaryPath),
@@ -355,7 +536,7 @@ export function listRuns(): RunSummary[] {
 export function getRunSummary(runId: string): RunSummary {
   const context = buildRunContext(runId);
   const stats = getRunStatDates(context.rootPath);
-  const results = getResults(context);
+  const docCount = getDocCount(context);
 
   return {
     runId: context.runId,
@@ -363,7 +544,7 @@ export function getRunSummary(runId: string): RunSummary {
     createdAt: stats.createdAt,
     updatedAt: stats.updatedAt,
     status: computeStatus(context.primaryPath),
-    docCount: results.length,
+    docCount,
     source: context.source,
     rootPath: resolvePathForDisplay(context.rootPath),
     primaryPath: resolvePathForDisplay(context.primaryPath),
@@ -446,6 +627,11 @@ export function getRunDocuments(runId: string): DocumentSummary[] {
     return results.map(mapResultToDocumentSummary);
   }
 
+  const docsLayoutIds = listDocsLayoutIds(context.primaryPath);
+  if (docsLayoutIds.length > 0) {
+    return docsLayoutIds.map((docId) => mapDocsLayoutToDocumentSummary(context.primaryPath, docId));
+  }
+
   const extractDir = path.join(context.primaryPath, "extract");
   if (!fs.existsSync(extractDir)) {
     return [];
@@ -474,6 +660,85 @@ export function getRunDocuments(runId: string): DocumentSummary[] {
 
 export function getRunDocument(runId: string, docId: string): Record<string, unknown> {
   const context = buildRunContext(runId);
+  const docsLayoutDir = path.join(context.primaryPath, "docs", docId);
+  if (fs.existsSync(docsLayoutDir) && fs.statSync(docsLayoutDir).isDirectory()) {
+    const dae = readJsonFile<Record<string, unknown>>(path.join(docsLayoutDir, "dae", "output.json")) ?? {};
+    const extract = readJsonFile<Record<string, unknown>>(path.join(docsLayoutDir, "structuring", "extracted.json")) ?? {};
+    const validate = readJsonFile<Record<string, unknown>>(path.join(docsLayoutDir, "validation", "results.json")) ?? {};
+    const recover = readLooseJson(path.join(docsLayoutDir, "recovery", "attempts.jsonl")) ?? {};
+    const escalate = readLooseJson(path.join(docsLayoutDir, "recovery", "escalations.jsonl")) ?? {};
+    const route = readJsonFile<Record<string, unknown>>(path.join(docsLayoutDir, "plan", "primary.json")) ?? {};
+    const guardrails = readJsonFile<Record<string, unknown>>(path.join(docsLayoutDir, "guardrails", "results.json")) ?? {};
+    const transparency = readJsonFile<Record<string, unknown>>(path.join(docsLayoutDir, "provenance", "transparency.json")) ?? {};
+    const llmDiagnostics = asRecord(extract.llm_diagnostics) ?? {};
+    const modelRoute = asRecord(transparency.model_route) ?? {};
+    const ocrRoute = asRecord(transparency.ocr_route) ?? {};
+    const fieldResolution = asRecord(transparency.field_resolution) ?? {};
+
+    const extractionSource = Array.isArray(extract.entities)
+      ? extract.entities
+      : Array.isArray(extract.fields)
+        ? extract.fields
+        : [];
+    const fields = extractionSource.map(mapField).filter((item): item is FieldExtraction => item !== null);
+    const validationIssues = mapValidationIssues(validate.issues);
+    const recoveryAttempts = mapRecovery(recover);
+    const escalation = mapEscalation(escalate);
+    const guardrailFindings = mapGuardrails(guardrails);
+
+    const docProvenancePath = path.join(docsLayoutDir, "provenance", "events.jsonl");
+    const provenanceEvents = fs.existsSync(docProvenancePath)
+      ? mapProvenanceEvents(readJsonLines<ProvenanceRaw>(docProvenancePath))
+      : getRunProvenance(runId).events.filter((event) => event.docId === docId);
+
+    return {
+      docId,
+      metadata: {
+        docType: (dae.doc_type as string | undefined) ?? null,
+        vendorCluster: (dae.vendor_cluster as string | undefined) ?? null,
+        layoutClusterId: (dae.layout_cluster_id as string | undefined) ?? null,
+        complexityBin: (dae.complexity_bin as string | undefined) ?? null,
+        routeBin: (dae.route_bin as string | undefined) ?? null,
+        profile: (dae.content_profile as string | undefined) ?? null,
+        policyId: (route.policy_id as string | undefined) ?? null,
+        latencyMs: asNumber(transparency.latency_ms),
+        modelUsed: typeof modelRoute.model_used === "string" ? modelRoute.model_used : null,
+        modelMode: typeof modelRoute.model_mode === "string" ? modelRoute.model_mode : null,
+        modelReason: typeof modelRoute.model_reason === "string" ? modelRoute.model_reason : null,
+        fallbackPath: typeof modelRoute.fallback_path === "string" ? modelRoute.fallback_path : null,
+        unresolvedFieldCount:
+          asNumber(fieldResolution.unresolved_count) ??
+          asNumber(llmDiagnostics.unresolved_count) ??
+          (Array.isArray(extract.unresolved_fields) ? extract.unresolved_fields.length : null),
+        ocrEngineUsed: typeof ocrRoute.engine === "string" ? ocrRoute.engine : null,
+        ocrAvgConfidence: asNumber(ocrRoute.avg_confidence),
+        ocrRerunAttemptedPages: asNumber(ocrRoute.rerun_attempted_pages),
+        ocrRerunUsedPages: asNumber(ocrRoute.rerun_used_pages),
+        transparencyPath: fs.existsSync(path.join(docsLayoutDir, "provenance", "transparency.json"))
+          ? relativeToPrimary(context.primaryPath, path.join(docsLayoutDir, "provenance", "transparency.json"))
+          : null,
+      },
+      fields,
+      validationIssues,
+      guardrailFindings,
+      recoveryAttempts,
+      escalation,
+      provenanceEvents,
+      transparency,
+      llmDiagnostics,
+      raw: {
+        dae,
+        extract,
+        validate,
+        recover,
+        escalate,
+        route,
+        guardrails,
+        transparency,
+      },
+    };
+  }
+
   const results = getResults(context);
   const result = results.find((entry) => entry.doc_id === docId) ?? null;
 
@@ -484,6 +749,8 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
   const escalate = readJsonDocFile<Record<string, unknown>>(context.primaryPath, "escalate", docId) ?? {};
   const route = readJsonDocFile<Record<string, unknown>>(context.primaryPath, "route", docId) ?? {};
   const guardrails = readJsonDocFile<Record<string, unknown>>(context.primaryPath, "guardrails", docId) ?? {};
+  const transparency = asRecord(result?.transparency) ?? {};
+  const llmDiagnostics = asRecord(result?.llm_diagnostics) ?? {};
 
   const extractionSource = Array.isArray(extract.fields)
     ? extract.fields
@@ -511,6 +778,16 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
       profile: (dae.content_profile as string | undefined) ?? (result?.content_profile ?? null),
       policyId: result?.policy_id ?? (route.policy_id as string | undefined) ?? null,
       latencyMs: result?.latency_ms ?? null,
+      modelUsed: typeof result?.model_used === "string" ? result.model_used : null,
+      modelMode: typeof result?.model_mode === "string" ? result.model_mode : null,
+      modelReason: typeof result?.model_reason === "string" ? result.model_reason : null,
+      fallbackPath: typeof result?.fallback_path === "string" ? result.fallback_path : null,
+      unresolvedFieldCount: asNumber(result?.unresolved_field_count),
+      ocrEngineUsed: typeof result?.ocr_engine_used === "string" ? result.ocr_engine_used : null,
+      ocrAvgConfidence: asNumber(result?.ocr_avg_confidence),
+      ocrRerunAttemptedPages: asNumber(result?.ocr_rerun_attempted_pages),
+      ocrRerunUsedPages: asNumber(result?.ocr_rerun_used_pages),
+      transparencyPath: typeof result?.transparency_path === "string" ? result.transparency_path : null,
     },
     fields,
     validationIssues,
@@ -518,6 +795,8 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
     recoveryAttempts,
     escalation,
     provenanceEvents,
+    transparency,
+    llmDiagnostics,
     raw: {
       dae,
       extract,
@@ -526,6 +805,7 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
       escalate,
       route,
       guardrails,
+      transparency,
       result,
     },
   };
@@ -538,29 +818,20 @@ export function getRunProvenance(runId: string): {
 } {
   const context = buildRunContext(runId);
   const provenanceDir = path.join(context.primaryPath, "provenance");
-  const eventsFile = path.join(provenanceDir, "events.jsonl");
-  const graphFile = path.join(provenanceDir, "graph.json");
-  const summaryFile = path.join(provenanceDir, "summary.md");
+  const eventsCandidates = [path.join(provenanceDir, "events.jsonl"), path.join(context.primaryPath, "events.jsonl")];
+  const graphCandidates = [
+    path.join(provenanceDir, "graph.json"),
+    path.join(provenanceDir, "provenance_graph.json"),
+    path.join(context.primaryPath, "provenance_graph.json"),
+  ];
+  const summaryCandidates = [path.join(provenanceDir, "summary.md"), path.join(context.primaryPath, "summary.md")];
+
+  const eventsFile = eventsCandidates.find((candidate) => fs.existsSync(candidate)) ?? eventsCandidates[0];
+  const graphFile = graphCandidates.find((candidate) => fs.existsSync(candidate)) ?? null;
+  const summaryFile = summaryCandidates.find((candidate) => fs.existsSync(candidate)) ?? null;
 
   const rawEvents = readJsonLines<ProvenanceRaw>(eventsFile);
-  const events = rawEvents.map((event) => {
-    const payload = {
-      inputs: event.inputs ?? {},
-      outputs: event.outputs ?? {},
-      parameters: event.parameters ?? {},
-    };
-    return {
-      eventId: event.event_id ?? "unknown",
-      eventType: event.event_type ?? "Unknown",
-      agent: event.agent ?? "unknown",
-      timestamp: asNumber(event.timestamp) ?? 0,
-      docId: extractDocId(event),
-      latencyMs: asNumber(event.latency_ms),
-      costUnits: asNumber(event.cost_units),
-      stage: classifyStage(event),
-      payload,
-    } satisfies ProvenanceEvent;
-  });
+  const events = mapProvenanceEvents(rawEvents);
 
   const stageCounts = events.reduce<Record<string, number>>((acc, event) => {
     acc[event.stage] = (acc[event.stage] ?? 0) + 1;
@@ -571,9 +842,9 @@ export function getRunProvenance(runId: string): {
     events,
     stageCounts,
     files: {
-      events: fs.existsSync(eventsFile) ? "provenance/events.jsonl" : null,
-      graph: fs.existsSync(graphFile) ? "provenance/graph.json" : null,
-      summary: fs.existsSync(summaryFile) ? "provenance/summary.md" : null,
+      events: fs.existsSync(eventsFile) ? relativeToPrimary(context.primaryPath, eventsFile) : null,
+      graph: graphFile ? relativeToPrimary(context.primaryPath, graphFile) : null,
+      summary: summaryFile ? relativeToPrimary(context.primaryPath, summaryFile) : null,
     },
   };
 }
@@ -662,16 +933,27 @@ export function getRunShadow(runId: string): {
 
 export function getRunMetrics(runId: string): Record<string, unknown> {
   const context = buildRunContext(runId);
-  const metrics = readJsonFile<Record<string, unknown>>(path.join(context.primaryPath, "metrics", "metrics.json")) ?? {};
-  const comparisons = readJsonFile<unknown>(path.join(context.primaryPath, "metrics", "comparisons.json")) ?? [];
-  const policySafety = readJsonFile<Record<string, unknown>>(path.join(context.primaryPath, "metrics", "policy_safety.json")) ?? {};
+  const metrics =
+    readJsonFile<Record<string, unknown>>(path.join(context.primaryPath, "metrics", "metrics.json")) ??
+    readJsonFile<Record<string, unknown>>(path.join(context.primaryPath, "metrics.json")) ??
+    {};
+  const comparisons =
+    readJsonFile<unknown>(path.join(context.primaryPath, "metrics", "comparisons.json")) ??
+    readJsonFile<unknown>(path.join(context.primaryPath, "comparisons.json")) ??
+    [];
+  const policySafety =
+    readJsonFile<Record<string, unknown>>(path.join(context.primaryPath, "metrics", "policy_safety.json")) ??
+    readJsonFile<Record<string, unknown>>(path.join(context.primaryPath, "policy_rollbacks.json")) ??
+    {};
   const queueMetrics = readJsonFile<Record<string, unknown>>(path.join(context.primaryPath, "metrics", "queue_metrics.json")) ?? {};
+  const runInfo = readJsonFile<Record<string, unknown>>(path.join(context.primaryPath, "run.json")) ?? {};
 
   return {
     metrics,
     comparisons,
     policySafety,
     queueMetrics,
+    runInfo,
   };
 }
 
@@ -679,19 +961,23 @@ export function getRunOverview(runId: string): RunOverview {
   const run = getRunSummary(runId);
   const context = buildRunContext(runId);
   const results = getResults(context);
-  const docs = results.map(mapResultToDocumentSummary);
+  const docs = getRunDocuments(runId);
   const metrics = getRunMetrics(runId);
   const provenance = getRunProvenance(runId);
 
   const latencies = docs.map((doc) => doc.latencyMs).filter((value): value is number => value !== null);
   const validationTotals = docs.map((doc) => doc.validationIssueCount);
   const validationPassRate = docs.length === 0 ? null : Math.max(0, 1 - validationTotals.filter((count) => count > 0).length / docs.length);
-  const retriesCount = results.reduce((sum, item) => {
+  const retriesFromResults = results.reduce((sum, item) => {
     const retries = Array.isArray((item as Record<string, unknown>).recovery_log)
       ? ((item as Record<string, unknown>).recovery_log as unknown[]).length
       : 0;
     return sum + retries;
   }, 0);
+  const retriesCount =
+    retriesFromResults > 0
+      ? retriesFromResults
+      : docs.reduce((sum, doc) => sum + (asNumber((doc as Record<string, unknown>).retriesCount) ?? 0), 0);
 
   const rollbackCount = provenance.events.filter((event) => event.eventType.toLowerCase().includes("rollback")).length;
   const escalationsCount = docs.filter((doc) => doc.escalated).length;

@@ -33,6 +33,8 @@ class ExecutionState:
     explicit_entities: list[Entity] = field(default_factory=list)
     default_entities: list[Entity] = field(default_factory=list)
     explicit_source: str = ""
+    requested_field_status: dict[str, dict[str, object]] = field(default_factory=dict)
+    llm_diagnostics: dict[str, object] = field(default_factory=dict)
     sections: list[Section] = field(default_factory=list)
     summary: str = ""
     validation_issues: list[ValidationIssue] = field(default_factory=list)
@@ -108,12 +110,30 @@ class PlanExecutor:
                     self._run_recovery(step, state, ctx)
                 else:
                     executed = False
+                    ctx.provenance.record(
+                        agent="recovery",
+                        version="v1",
+                        inputs={"doc_id": doc.doc_id, "issue_count": 0},
+                        outputs={"skipped": True, "reason": "no_validation_issues"},
+                        parameters={"strategy": step.params.get("strategy") if step.params else None},
+                        artifacts=[],
+                        event_type="RecoveryAction",
+                    )
             elif operator == "escalation":
                 if state.validation_issues:
                     remaining = budget.max_cost_units - budget.spent
                     self._run_escalation(step, state, ctx, budget_remaining=remaining, count=escalation_count)
                 else:
                     executed = False
+                    ctx.provenance.record(
+                        agent="escalation",
+                        version="v1",
+                        inputs={"doc_id": doc.doc_id, "issue_count": 0},
+                        outputs={"skipped": True, "reason": "no_validation_issues"},
+                        parameters={"tier": step.params.get("tier") if step.params else None},
+                        artifacts=[],
+                        event_type="EscalationAction",
+                    )
             elif operator == "chunking":
                 self._run_chunking(step, state, ctx)
             else:
@@ -125,7 +145,13 @@ class PlanExecutor:
         return state
 
     def _run_preprocess(self, step, state: ExecutionState, ctx: AgentContext) -> None:
-        payload = {"document": state.document, "input_artifact_id": state.last_artifact_id, **step.params}
+        payload = {
+            "document": state.document,
+            "input_artifact_id": state.last_artifact_id,
+            "quality_bin": getattr(state.document, "quality_bin", ""),
+            "content_profile": getattr(state.document, "content_profile", ""),
+            **step.params,
+        }
         if step.operator == "preprocess.ocr":
             result = self.ocr.run(payload, ctx)
             state.preprocess_route.append("ocr")
@@ -166,6 +192,8 @@ class PlanExecutor:
         state.explicit_entities = result.artifacts.get("explicit_entities", [])
         state.default_entities = result.artifacts.get("default_entities", [])
         state.explicit_source = result.artifacts.get("explicit_source", "")
+        state.requested_field_status = result.artifacts.get("requested_field_status", {})
+        state.llm_diagnostics = result.artifacts.get("llm_diagnostics", {})
         signal = result.artifacts.get("signal")
         if signal:
             state.stage_signals.append(signal)

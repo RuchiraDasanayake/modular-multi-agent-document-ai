@@ -1,0 +1,10 @@
+{
+  "artifact_id": "d1d44498453442a58b6212163ec9bb4b",
+  "kind": "summary",
+  "metadata": {
+    "agent": "summarization",
+    "doc_id": "invoice",
+    "version": "v1"
+  },
+  "path": "tmp_openai_audit\\run3\\artifacts\\clean\\d1d44498453442a58b6212163ec9bb4b_invoice_summary.txt"
+}

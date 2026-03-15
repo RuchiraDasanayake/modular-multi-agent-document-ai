@@ -1,0 +1,16 @@
+{
+  "artifact_id": "8b800f7b63ef4e26a087c977c353f5ec",
+  "kind": "tables",
+  "metadata": {
+    "agent": "table_form",
+    "doc_id": "invoice",
+    "parameters": {
+      "table_mode": "heuristic"
+    },
+    "source_artifacts": [
+      "c99ec7e98dd84bd29dee8fd85cd968ca"
+    ],
+    "version": "v1"
+  },
+  "path": "tmp_openai_audit\\run3\\artifacts\\clean\\8b800f7b63ef4e26a087c977c353f5ec_invoice_tables.json"
+}

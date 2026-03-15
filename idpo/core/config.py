@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields as dataclass_fields
 from pathlib import Path
 from typing import Any
+
+_ENV_FILE_LOADED = False
 
 @dataclass
 class PreprocessingConfig:
@@ -19,6 +21,11 @@ class PreprocessingConfig:
     ocr_dpi: int = 300
     ocr_alt_psm: list[int] = field(default_factory=lambda: [4, 11])
     ocr_passes: int = 2
+    ocr_min_confidence: float = 55.0
+    ocr_retry_dpi: int = 450
+    ocr_retry_alt_psm: list[int] = field(default_factory=lambda: [3, 4, 6, 11, 12])
+    ocr_max_reruns_per_page: int = 1
+    ocr_rerun_min_score_gain: float = 0.03
     deskew: bool = True
     denoise: bool = True
     table_mode: str = "heuristic"
@@ -75,12 +82,24 @@ class EscalationConfig:
     enabled: bool = True
     max_cost_units: int = 3
     max_escalations_per_run: int = 5
+    max_cost_per_doc: float = 3.0
+    max_cost_per_minute: float = 12.0
+    max_escalations_per_minute: int = 10
+    flagship_model: str = "flagship-sim"
+    fallback_mode: str = "simulate"
+    estimated_latency_ms_per_field: float = 900.0
+    estimated_cost_per_field: float = 0.5
 
 @dataclass
 class RoutingConfig:
     quality_threshold: float = 0.6
     complexity_threshold: float = 0.5
     retry_threshold: float = 0.55
+    light_route_threshold: float = 0.35
+    heavy_route_threshold: float = 0.7
+    table_specialization_threshold: float = 0.2
+    form_specialization_threshold: float = 0.2
+    image_specialization_threshold: float = 0.5
 
 @dataclass
 class PlanConfig:
@@ -89,11 +108,22 @@ class PlanConfig:
     max_total_budget_units: float = 6.0
 
 @dataclass
+class BudgetConfig:
+    max_cost_per_doc: float = 7.0
+    max_cost_per_minute: float = 60.0
+    max_latency_per_doc_ms: float = 12000.0
+    max_retries_per_field: int = 2
+    max_total_retries_per_doc: int = 8
+    escalation_quota_per_doc: int = 2
+    escalation_quota_per_minute: int = 10
+
+@dataclass
 class ShadowModeConfig:
     enabled: bool = False
     sample_rate: float = 0.0
     candidate_policy_ids: list[str] = field(default_factory=list)
     max_policies_per_doc: int = 1
+    comparison_file: str = "comparisons.json"
 
 @dataclass
 class RollbackConfig:
@@ -102,6 +132,8 @@ class RollbackConfig:
     latency_p95_ms: float = 2500.0
     validation_failure_rate: float = 0.2
     quality_drop_threshold: float = 0.05
+    max_latency_regression_pct: float = 0.25
+    min_validation_pass_delta: float = 0.1
 
 @dataclass
 class QueueConfig:
@@ -109,6 +141,7 @@ class QueueConfig:
     max_workers: int = 4
     per_partition_concurrency: int = 1
     partition_keys: list[str] = field(default_factory=lambda: ["doc_type", "vendor_cluster"])
+    fairness_enabled: bool = True
 
 @dataclass
 class AHMNConfig:
@@ -117,6 +150,9 @@ class AHMNConfig:
     objective: str = "min_cost"
     timeout_ms: int = 500
     endpoint: str | None = None
+    advice_endpoint: str = "/advice"
+    log_endpoint: str = "/log"
+    direct_import: str | None = None
     policy_override_id: str | None = None
     action_overrides: dict[str, Any] = field(default_factory=dict)
 
@@ -127,6 +163,8 @@ class CalibrationConfig:
     version: str = "v1"
     temperature: float = 1.0
     parameters: dict[str, float] = field(default_factory=dict)
+    model_path: str | None = None
+    mode: str = "heuristic_only"
 
 @dataclass
 class AnsweringConfig:
@@ -141,6 +179,7 @@ class KnowledgeConfig:
 class LLMConfig:
     local_model: str = "local-llm"
     cloud_model: str = "flagship-llm"
+    flagship_model: str = ""
     default_mode: str = "local"
     history_signal_key: str = "llm_mode"
     history_mode: str | None = None
@@ -151,9 +190,22 @@ class LLMConfig:
     use_summarization: bool = False
     cloud_provider: str = "openai"
     cloud_timeout_s: int = 60
-    cloud_temperature: float = 0.1
+    cloud_temperature: float = 0.0
     cloud_max_tokens: int = 2000
     allow_cloud_fallback: bool = True
+    enable_flagship_fallback: bool = True
+    flagship_min_missing_fields: int = 1
+    max_cloud_fields_per_call: int = 8
+    prompt_max_chars: int = 18000
+    context_window_lines: int = 1
+    prefer_targeted_context: bool = True
+    strict_json_output: bool = True
+    cloud_retry_without_json_mode: bool = True
+    refine_field_descriptions: bool = True
+    description_refinement_model: str = ""
+    description_refinement_max_tokens: int = 400
+    description_refinement_temperature: float = 0.0
+    description_refinement_max_fields: int = 24
     openai_api_url: str = "https://api.openai.com/v1"
     openai_api_key: str = ""
 
@@ -168,6 +220,7 @@ class PipelineConfig:
     escalation: EscalationConfig = field(default_factory=EscalationConfig)
     routing: RoutingConfig = field(default_factory=RoutingConfig)
     plan: PlanConfig = field(default_factory=PlanConfig)
+    budget: BudgetConfig = field(default_factory=BudgetConfig)
     shadow: ShadowModeConfig = field(default_factory=ShadowModeConfig)
     rollback: RollbackConfig = field(default_factory=RollbackConfig)
     queue: QueueConfig = field(default_factory=QueueConfig)
@@ -179,6 +232,10 @@ class PipelineConfig:
     seed: int = 13
 
 def config_from_dict(data: dict[str, Any]) -> PipelineConfig:
+    def _filter_known_keys(cls: Any, payload: dict[str, Any]) -> dict[str, Any]:
+        known = {item.name for item in dataclass_fields(cls)}
+        return {key: value for key, value in payload.items() if key in known}
+
     def _read(cls, key: str) -> Any:
         payload = data.get(key, {})
         if not payload:
@@ -208,8 +265,10 @@ def config_from_dict(data: dict[str, Any]) -> PipelineConfig:
                 version=payload.get("version", "v1"),
                 temperature=payload.get("temperature", 1.0),
                 parameters=payload.get("parameters", {}),
+                model_path=payload.get("model_path"),
+                mode=payload.get("mode", "heuristic_only"),
             )
-        return cls(**payload)
+        return cls(**_filter_known_keys(cls, payload))
 
     return PipelineConfig(
         preprocessing=_read(PreprocessingConfig, "preprocessing"),
@@ -221,6 +280,7 @@ def config_from_dict(data: dict[str, Any]) -> PipelineConfig:
         escalation=_read(EscalationConfig, "escalation"),
         routing=_read(RoutingConfig, "routing"),
         plan=_read(PlanConfig, "plan"),
+        budget=_read(BudgetConfig, "budget"),
         shadow=_read(ShadowModeConfig, "shadow"),
         rollback=_read(RollbackConfig, "rollback"),
         queue=_read(QueueConfig, "queue"),
@@ -245,7 +305,57 @@ def _resolve_env_vars(data: Any) -> Any:
         return [_resolve_env_vars(item) for item in data]
     return data
 
+def _load_dotenv_files(search_roots: list[Path]) -> None:
+    """Best-effort .env loader for local runs.
+
+    Loads variables from the first existing .env file found in ``search_roots``.
+    Existing process environment values are preserved.
+    """
+    global _ENV_FILE_LOADED
+    if _ENV_FILE_LOADED:
+        return
+
+    candidate_files: list[Path] = []
+    for root in search_roots:
+        candidate_files.append(root / ".env")
+
+    for env_path in candidate_files:
+        if not env_path.exists() or not env_path.is_file():
+            continue
+        try:
+            for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if line.startswith("export "):
+                    line = line[7:].strip()
+                if "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip()
+                if not key:
+                    continue
+                if (value.startswith('"') and value.endswith('"')) or (
+                    value.startswith("'") and value.endswith("'")
+                ):
+                    value = value[1:-1]
+                if key not in os.environ:
+                    os.environ[key] = value
+            _ENV_FILE_LOADED = True
+            return
+        except Exception:
+            # Never fail config loading because of .env parse issues.
+            continue
+
 def load_config(path: str | None = None) -> PipelineConfig:
+    cwd_root = Path.cwd()
+    if path:
+        cfg_path = Path(path)
+        _load_dotenv_files([cfg_path.parent.parent.resolve(), cfg_path.parent.resolve(), cwd_root])
+    else:
+        _load_dotenv_files([cwd_root])
+
     if not path:
         return PipelineConfig()
 

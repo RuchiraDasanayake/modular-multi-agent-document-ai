@@ -1,0 +1,16 @@
+{
+  "artifact_id": "d383f8059ed6412c85c0e8069b7e7a5d",
+  "kind": "tables",
+  "metadata": {
+    "agent": "table_form",
+    "doc_id": "demo_table_statement",
+    "parameters": {
+      "table_mode": "heuristic"
+    },
+    "source_artifacts": [
+      "edeb404b26dd42adb20d3eeb59a63992"
+    ],
+    "version": "v1"
+  },
+  "path": "tmp_upgrade_batch\\artifacts\\clean\\d383f8059ed6412c85c0e8069b7e7a5d_demo_table_statement_tables.json"
+}

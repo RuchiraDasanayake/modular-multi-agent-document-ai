@@ -12,6 +12,7 @@ interface StartPayloadJson {
 }
 
 type CustomField = { key: string; description?: string; pattern?: string };
+type ApiKeys = { openai?: string };
 
 function parseCustomFields(value: unknown): CustomField[] {
   if (!Array.isArray(value)) {
@@ -50,6 +51,18 @@ function parseNumber(value: FormDataEntryValue | null): number | undefined {
   }
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseApiKeys(value: unknown): ApiKeys | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const keys = value as Record<string, unknown>;
+  const openai = typeof keys.openai === "string" ? keys.openai.trim() : "";
+  if (!openai) {
+    return undefined;
+  }
+  return { openai };
 }
 
 export async function POST(request: Request) {
@@ -93,6 +106,11 @@ export async function POST(request: Request) {
               ? (json.settings.llmUseSummarization as boolean)
               : undefined,
           flagshipModel: typeof json.settings?.flagshipModel === "string" ? (json.settings.flagshipModel as string) : undefined,
+          autoInstallLocalModel:
+            typeof json.settings?.autoInstallLocalModel === "boolean"
+              ? (json.settings.autoInstallLocalModel as boolean)
+              : undefined,
+          apiKeys: parseApiKeys(json.settings?.apiKeys),
         },
         files: [],
         sourceRunId: typeof json.sourceRunId === "string" ? json.sourceRunId : undefined,
@@ -148,6 +166,9 @@ export async function POST(request: Request) {
         llmUseExtraction: typeof settings.llmUseExtraction === "boolean" ? settings.llmUseExtraction : undefined,
         llmUseSummarization: typeof settings.llmUseSummarization === "boolean" ? settings.llmUseSummarization : undefined,
         flagshipModel: typeof settings.flagshipModel === "string" ? settings.flagshipModel : undefined,
+        autoInstallLocalModel:
+          typeof settings.autoInstallLocalModel === "boolean" ? settings.autoInstallLocalModel : undefined,
+        apiKeys: parseApiKeys(settings.apiKeys),
       },
       files,
       sourceRunId: typeof form.get("sourceRunId") === "string" ? (form.get("sourceRunId") as string) : undefined,

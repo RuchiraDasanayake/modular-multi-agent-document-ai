@@ -1,0 +1,10 @@
+{
+  "artifact_id": "d42b4775f96e489ab7264fb96696f548",
+  "kind": "plan",
+  "metadata": {
+    "agent": "router",
+    "doc_id": "demo_clean_text",
+    "policy_id": "forms"
+  },
+  "path": "tmp_ocr_upgrade_smoke\\artifacts\\clean\\d42b4775f96e489ab7264fb96696f548_demo_clean_text_plan.json"
+}

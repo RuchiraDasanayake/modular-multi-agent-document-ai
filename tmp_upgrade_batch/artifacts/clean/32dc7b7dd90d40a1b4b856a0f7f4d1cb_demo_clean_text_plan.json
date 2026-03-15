@@ -1,0 +1,112 @@
+{
+  "budgets": {
+    "max_cost_units": 6.0
+  },
+  "created_at": 1773022901.2571785,
+  "doc_id": "demo_clean_text",
+  "plan_id": "dd251190a8404220ad465af98f2a66e7",
+  "policy_id": "forms",
+  "policy_name": "Form Extraction Policy",
+  "rationale": "match",
+  "retrieval": {
+    "dense_k": 12,
+    "final_k": 12,
+    "metadata_boost": 0.15,
+    "mmr_lambda": 0.7,
+    "sparse_k": 12
+  },
+  "source": "config",
+  "steps": [
+    {
+      "budget_units": 1.0,
+      "fallback": [],
+      "operator": "preprocess.table_extract",
+      "params": {
+        "type": "heuristic"
+      },
+      "step_id": "0_preprocess.table_extract",
+      "timeout_ms": 30000
+    },
+    {
+      "budget_units": 1.0,
+      "fallback": [],
+      "operator": "structuring.extract",
+      "params": {
+        "explicit_entities": [
+          "record_id",
+          "document_date",
+          "total_amount",
+          "customer_name"
+        ],
+        "field_descriptions": {},
+        "model_tier": "cloud",
+        "ruleset": "config"
+      },
+      "step_id": "1_structuring.extract",
+      "timeout_ms": 30000
+    },
+    {
+      "budget_units": 1.0,
+      "fallback": [],
+      "operator": "structuring.section",
+      "params": {},
+      "step_id": "2_structuring.section",
+      "timeout_ms": 30000
+    },
+    {
+      "budget_units": 1.0,
+      "fallback": [],
+      "operator": "structuring.summary",
+      "params": {},
+      "step_id": "3_structuring.summary",
+      "timeout_ms": 30000
+    },
+    {
+      "budget_units": 1.0,
+      "fallback": [],
+      "operator": "validation",
+      "params": {
+        "min_confidence": 0.6
+      },
+      "step_id": "4_validation",
+      "timeout_ms": 30000
+    },
+    {
+      "budget_units": 1.0,
+      "fallback": [],
+      "operator": "recovery",
+      "params": {
+        "strategy": "alternate_rules"
+      },
+      "step_id": "5_recovery",
+      "timeout_ms": 30000
+    },
+    {
+      "budget_units": 1.0,
+      "fallback": [],
+      "operator": "escalation",
+      "params": {
+        "tier": "tier2"
+      },
+      "step_id": "6_escalation",
+      "timeout_ms": 30000
+    },
+    {
+      "budget_units": 1.0,
+      "fallback": [],
+      "operator": "chunking",
+      "params": {
+        "chunk_overlap": 60,
+        "chunk_size": 350,
+        "max_chunks": 128
+      },
+      "step_id": "7_chunking",
+      "timeout_ms": 30000
+    }
+  ],
+  "token_budget": {
+    "max_tokens": 1600,
+    "reserved_tokens": 200,
+    "strategy": "simple"
+  }
+}

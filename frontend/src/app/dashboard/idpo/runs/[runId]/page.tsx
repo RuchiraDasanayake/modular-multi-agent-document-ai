@@ -19,6 +19,7 @@ import type {
 const tabs = [
   "Overview",
   "Documents",
+  "Transparency",
   "Extraction",
   "Validation & Guardrails",
   "Recovery & Escalation",
@@ -116,8 +117,19 @@ export default function RunDetailPage() {
   }, [selectedDoc]);
 
   const runMetrics = (metrics.metrics as Record<string, number>) ?? {};
+  const runInfo = (metrics.runInfo as Record<string, unknown> | undefined) ?? {};
+  const runTelemetry = (runInfo.telemetry as Record<string, unknown> | undefined) ?? {};
+  const selectedMetadata = (selectedDoc?.metadata as Record<string, unknown> | undefined) ?? {};
+  const selectedTransparency = (selectedDoc?.transparency as Record<string, unknown> | undefined) ?? {};
 
-  const retrievalFiles = files.filter((file) => file.path.startsWith("retrieve/") || file.path.startsWith("answer/") || file.path.startsWith("index/"));
+  const retrievalFiles = files.filter(
+    (file) =>
+      file.path.startsWith("retrieve/") ||
+      file.path.startsWith("answer/") ||
+      file.path.startsWith("index/") ||
+      file.path.includes("/retrieval/") ||
+      file.path.includes("/qa/"),
+  );
 
   const downloadPath = async (relativePath: string) => {
     const response = await idpoApi.runFile(runId, relativePath);
@@ -178,6 +190,11 @@ export default function RunDetailPage() {
       {error ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-700/40 dark:bg-rose-900/20 dark:text-rose-300">
           {error}
+        </div>
+      ) : null}
+      {typeof runTelemetry.warning === "string" && runTelemetry.warning.trim() ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-700/40 dark:bg-amber-900/20 dark:text-amber-300">
+          Telemetry warning: {runTelemetry.warning}
         </div>
       ) : null}
 
@@ -249,7 +266,7 @@ export default function RunDetailPage() {
       {activeTab === "Documents" ? (
         <IdpoCard>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-sm">
+            <table className="w-full min-w-[1160px] text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
                   <th className="px-2 py-2">Doc ID</th>
@@ -257,6 +274,10 @@ export default function RunDetailPage() {
                   <th className="px-2 py-2">Vendor</th>
                   <th className="px-2 py-2">Complexity</th>
                   <th className="px-2 py-2">Route</th>
+                  <th className="px-2 py-2">Model</th>
+                  <th className="px-2 py-2">Fallback</th>
+                  <th className="px-2 py-2">Unresolved</th>
+                  <th className="px-2 py-2">OCR</th>
                   <th className="px-2 py-2">Latency</th>
                   <th className="px-2 py-2">Validation</th>
                   <th className="px-2 py-2">Escalated</th>
@@ -271,6 +292,14 @@ export default function RunDetailPage() {
                     <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{doc.vendorCluster ?? "-"}</td>
                     <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{doc.complexityBin ?? "-"}</td>
                     <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{doc.routeBin ?? "-"}</td>
+                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">
+                      {[doc.modelMode ?? "-", doc.modelUsed ?? "-"].join(" / ")}
+                    </td>
+                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{doc.fallbackPath ?? "-"}</td>
+                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{doc.unresolvedFieldCount ?? "-"}</td>
+                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">
+                      {doc.ocrEngineUsed ?? "-"} ({formatNumber(doc.ocrAvgConfidence, 2)})
+                    </td>
                     <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{formatNumber(doc.latencyMs)} ms</td>
                     <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{doc.validationIssueCount}</td>
                     <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{doc.escalated ? "yes" : "no"}</td>
@@ -288,6 +317,62 @@ export default function RunDetailPage() {
             </table>
           </div>
         </IdpoCard>
+      ) : null}
+
+      {activeTab === "Transparency" ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <IdpoCard>
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <label className="text-sm text-slate-700 dark:text-slate-200">Select Document</label>
+              <select
+                value={selectedDocId}
+                onChange={(event) => setSelectedDocId(event.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+              >
+                {docs.map((doc) => (
+                  <option key={doc.docId} value={doc.docId}>
+                    {doc.docId}
+                  </option>
+                ))}
+              </select>
+              {typeof selectedMetadata.transparencyPath === "string" ? (
+                <button
+                  type="button"
+                  onClick={() => downloadPath(selectedMetadata.transparencyPath as string)}
+                  className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  Export transparency.json
+                </button>
+              ) : null}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Model Route</p>
+                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">
+                  {String(selectedMetadata.modelMode ?? "-")} / {String(selectedMetadata.modelUsed ?? "-")}
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Fallback Path</p>
+                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{String(selectedMetadata.fallbackPath ?? "-")}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">OCR Route</p>
+                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">
+                  {String(selectedMetadata.ocrEngineUsed ?? "-")} ({formatNumber(Number(selectedMetadata.ocrAvgConfidence ?? NaN), 2)})
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Unresolved Fields</p>
+                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{String(selectedMetadata.unresolvedFieldCount ?? "-")}</p>
+              </div>
+            </div>
+          </IdpoCard>
+
+          <IdpoCard>
+            <JsonViewer title="Transparency Artifact" value={selectedTransparency} />
+          </IdpoCard>
+        </div>
       ) : null}
 
       {activeTab === "Extraction" ? (

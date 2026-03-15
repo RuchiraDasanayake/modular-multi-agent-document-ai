@@ -1,0 +1,4 @@
+﻿Invoice Number: INV-1005
+Date: 2026-03-06
+Vendor: Demo Vendor 5
+Total Amount: 115.00

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import type {
     IDPOExtractionField,
@@ -15,7 +16,7 @@ import type {
 } from "@/types";
 
 export default function IDPOPage() {
-    /* ── State ── */
+    /* â”€â”€ State â”€â”€ */
     const [files, setFiles] = useState<File[]>([]);
     const [fields, setFields] = useState<IDPOExtractionField[]>([]);
     const [newFieldName, setNewFieldName] = useState("");
@@ -89,7 +90,7 @@ export default function IDPOPage() {
         try { if (result && expandedDoc) sessionStorage.setItem("idpo_expandedDoc", expandedDoc); } catch { }
     }, [expandedDoc, result]);
 
-    /* ── Drag & drop handlers ── */
+    /* â”€â”€ Drag & drop handlers â”€â”€ */
     const handleDrag = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -112,7 +113,7 @@ export default function IDPOPage() {
 
     const removeFile = (index: number) => setFiles(files.filter((_, i) => i !== index));
 
-    /* ── Field management ── */
+    /* â”€â”€ Field management â”€â”€ */
     const addField = () => {
         if (newFieldName.trim()) {
             setFields([...fields, { name: newFieldName.trim(), description: newFieldDesc.trim() }]);
@@ -127,7 +128,7 @@ export default function IDPOPage() {
         if (e.key === "Enter") { e.preventDefault(); addField(); }
     };
 
-    /* ── Elapsed timer ── */
+    /* â”€â”€ Elapsed timer â”€â”€ */
     useEffect(() => {
         if (!loading) {
             if (elapsedRef.current) clearInterval(elapsedRef.current);
@@ -138,7 +139,7 @@ export default function IDPOPage() {
         return () => { if (elapsedRef.current) clearInterval(elapsedRef.current); };
     }, [loading]);
 
-    /* ── Per-document progress simulator ── */
+    /* â”€â”€ Per-document progress simulator â”€â”€ */
     useEffect(() => {
         if (!loading || files.length === 0) {
             if (progressTimerRef.current) clearInterval(progressTimerRef.current);
@@ -172,7 +173,7 @@ export default function IDPOPage() {
         return () => clearInterval(interval);
     }, [loading, files.length, enableGuardrails]);
 
-    /* ── Download helper ── */
+    /* â”€â”€ Download helper â”€â”€ */
     const handleDownload = async (file: "docs.xlsx" | "entities.xlsx" | "run.xlsx", filename: string) => {
         if (!result) return;
         try {
@@ -237,7 +238,7 @@ export default function IDPOPage() {
         window.URL.revokeObjectURL(url);
     };
 
-    /* ── Submit handler ── */
+    /* â”€â”€ Submit handler â”€â”€ */
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (files.length === 0) { setError("Please select at least one file"); return; }
@@ -310,13 +311,13 @@ export default function IDPOPage() {
             let errorMessage = "Unknown error";
             if (err instanceof Error) {
                 if (err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
-                    errorMessage = "Network error — check that all backend services are running";
+                    errorMessage = "Network error â€” check that all backend services are running";
                 } else if (err.message.includes("502")) {
-                    errorMessage = "IDPO service is unavailable — make sure the extraction service is running";
+                    errorMessage = "IDPO service is unavailable â€” make sure the extraction service is running";
                 } else if (err.message.includes("504") || err.message.includes("timed out")) {
-                    errorMessage = "Processing timed out — try with fewer or smaller documents";
+                    errorMessage = "Processing timed out â€” try with fewer or smaller documents";
                 } else if (err.message.includes("413")) {
-                    errorMessage = "File too large — reduce file size and try again";
+                    errorMessage = "File too large â€” reduce file size and try again";
                 } else {
                     errorMessage = err.message;
                 }
@@ -328,20 +329,20 @@ export default function IDPOPage() {
         }
     };
 
-    /* ── Helpers ── */
+    /* â”€â”€ Helpers â”€â”€ */
     const fileIcon = (name: string) => {
         const ext = name.split(".").pop()?.toLowerCase();
-        if (ext === "pdf") return "📄";
-        if (["png", "jpg", "jpeg", "tiff", "bmp"].includes(ext || "")) return "🖼️";
-        if (ext === "json") return "📋";
-        return "📃";
+        if (ext === "pdf") return "ðŸ“„";
+        if (["png", "jpg", "jpeg", "tiff", "bmp"].includes(ext || "")) return "ðŸ–¼ï¸";
+        if (ext === "json") return "ðŸ“‹";
+        return "ðŸ“ƒ";
     };
 
     const integration = result?.pipeline_integration;
 
     return (
         <div className="max-w-7xl 3xl:max-w-[1800px] mx-auto space-y-5">
-            {/* ── Header ── */}
+            {/* â”€â”€ Header â”€â”€ */}
             <div className="relative overflow-hidden glass-panel rounded-2xl p-6">
                 <div className="absolute inset-0 bg-gradient-to-r from-brand-500/5 to-cyan-500/5 dark:from-brand-500/[0.03] dark:to-cyan-500/[0.03]" />
                 <div className="relative flex items-center justify-between flex-wrap gap-4">
@@ -355,21 +356,62 @@ export default function IDPOPage() {
                             Document Extraction
                         </h1>
                         <p className="text-slate-500 dark:text-gray-400 mt-1.5 text-sm">
-                            Full-cycle AI pipeline: AHMN advice → 13-agent extraction → guardrails → XAI → learning
+                            Full-cycle AI pipeline: AHMN advice â†’ 13-agent extraction â†’ guardrails â†’ XAI â†’ learning
                         </p>
                     </div>
                     <div className="flex items-center gap-3">
+                        <Link
+                            href="/dashboard/idpo/presentation"
+                            className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-full text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        >
+                            Run Explorer
+                        </Link>
                         {result && (
                             <span className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded-full text-xs font-medium">
                                 Run: {result.run_id.slice(0, 8)}...
                             </span>
+                        )}
+                        {result && (
+                            <Link
+                                href={`/dashboard/idpo/runs/${result.run_id}`}
+                                className="px-3 py-1.5 border border-brand-300 dark:border-brand-500/40 text-brand-700 dark:text-brand-300 rounded-full text-xs font-medium hover:bg-brand-50 dark:hover:bg-brand-500/10 transition-colors"
+                            >
+                                Open This Run
+                            </Link>
                         )}
                         {integration && <CycleStatusBadge integration={integration} />}
                     </div>
                 </div>
             </div>
 
-            {/* ── Processing Status Bar — Creative Document Animation ── */}
+            {/* Advanced Views quick access */}
+            <div className="glass-panel rounded-2xl p-4">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="text-slate-500 dark:text-gray-400 font-medium">Advanced Views:</span>
+                    <Link
+                        href="/dashboard/idpo/presentation"
+                        className="px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    >
+                        Run Explorer
+                    </Link>
+                    <Link
+                        href="/dashboard/history"
+                        className="px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    >
+                        Processing History
+                    </Link>
+                    {result && (
+                        <Link
+                            href={`/dashboard/idpo/runs/${result.run_id}`}
+                            className="px-2.5 py-1 rounded-full border border-brand-300 dark:border-brand-500/40 text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10 transition-colors"
+                        >
+                            Current Run Detail
+                        </Link>
+                    )}
+                </div>
+            </div>
+
+            {/* Processing Status Bar */}
             {loading && (
                 <div className="glass-panel rounded-2xl p-6 overflow-hidden relative" role="status" aria-label="Processing documents">
                     {/* Animated background */}
@@ -415,14 +457,19 @@ export default function IDPOPage() {
                             <p className="text-sm font-bold text-slate-800 dark:text-white mb-1">
                                 Analyzing {files.length} document{files.length !== 1 ? "s" : ""}
                             </p>
+                            {files.length > 1 && (
+                                <p className="mb-2 text-xs text-slate-500 dark:text-gray-400">
+                                    Multi-document batches can take several minutes depending on OCR + extraction complexity.
+                                </p>
+                            )}
                             {/* Pipeline steps visualization */}
                             <div className="flex items-center gap-1 mb-3">
                                 {[
-                                    { icon: "📥", label: "Ingest", delay: "0s" },
-                                    { icon: "🔍", label: "OCR", delay: "0.5s" },
-                                    { icon: "🧠", label: "Extract", delay: "1s" },
-                                    { icon: "✅", label: "Validate", delay: "1.5s" },
-                                    { icon: "🎯", label: "Learn", delay: "2s" },
+                                    { icon: "ðŸ“¥", label: "Ingest", delay: "0s" },
+                                    { icon: "ðŸ”", label: "OCR", delay: "0.5s" },
+                                    { icon: "ðŸ§ ", label: "Extract", delay: "1s" },
+                                    { icon: "âœ…", label: "Validate", delay: "1.5s" },
+                                    { icon: "ðŸŽ¯", label: "Learn", delay: "2s" },
                                 ].map((step, i) => (
                                     <div key={i} className="flex items-center gap-1">
                                         <div className="flex flex-col items-center px-1.5 py-1 rounded-lg" style={{ animation: `pipelineStep 2s ease-in-out ${step.delay} infinite` }}>
@@ -456,16 +503,16 @@ export default function IDPOPage() {
                 </div>
             )}
 
-            {/* ── Main content grid ── */}
+            {/* â”€â”€ Main content grid â”€â”€ */}
             <div className="grid gap-5 lg:grid-cols-5">
-                {/* ── Upload Panel (2 cols) ── */}
+                {/* â”€â”€ Upload Panel (2 cols) â”€â”€ */}
                 <div className="lg:col-span-2 space-y-4">
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {/* Drop Zone */}
                         <div
                             role="button"
                             tabIndex={0}
-                            aria-label="Upload documents — drag and drop or click to browse"
+                            aria-label="Upload documents â€” drag and drop or click to browse"
                             className={`relative overflow-hidden glass-panel rounded-2xl p-8 text-center cursor-pointer transition-all duration-300 ${dragActive
                                 ? "ring-2 ring-brand-500 bg-brand-50/50 dark:bg-brand-500/5 border-brand-300 dark:border-brand-500/30 scale-[1.02] shadow-2xl shadow-brand-500/20"
                                 : "hover:border-brand-300 dark:hover:border-brand-500/20 hover:shadow-xl"
@@ -494,7 +541,7 @@ export default function IDPOPage() {
                                     {dragActive ? "Drop files here" : "Drag & drop documents"}
                                 </p>
                                 <p className="text-xs text-slate-400 dark:text-gray-500 mt-1.5">
-                                    PDF, PNG, JPG, TIFF, TXT, JSON — or click to browse
+                                    PDF, PNG, JPG, TIFF, TXT, JSON â€” or click to browse
                                 </p>
                             </div>
                         </div>
@@ -516,7 +563,7 @@ export default function IDPOPage() {
                                                 </span>
                                             </div>
                                             <button type="button" onClick={() => removeFile(i)}
-                                                className="text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors text-sm ml-2">✕</button>
+                                                className="text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors text-sm ml-2">âœ•</button>
                                         </div>
                                     ))}
                                 </div>
@@ -535,9 +582,9 @@ export default function IDPOPage() {
                                         <div key={i} className="flex items-center gap-2 px-3 py-2 bg-brand-50/50 dark:bg-brand-500/5 rounded-lg border border-brand-100 dark:border-brand-500/10">
                                             <span className="w-1.5 h-1.5 rounded-full bg-brand-500 flex-shrink-0" />
                                             <span className="text-xs font-medium text-slate-800 dark:text-gray-200">{field.name}</span>
-                                            {field.description && <span className="text-[10px] text-slate-400 dark:text-gray-500 truncate">— {field.description}</span>}
+                                            {field.description && <span className="text-[10px] text-slate-400 dark:text-gray-500 truncate">â€” {field.description}</span>}
                                             <button type="button" onClick={() => removeField(i)}
-                                                className="ml-auto text-slate-400 hover:text-red-500 text-xs flex-shrink-0">✕</button>
+                                                className="ml-auto text-slate-400 hover:text-red-500 text-xs flex-shrink-0">âœ•</button>
                                         </div>
                                     ))}
                                 </div>
@@ -545,7 +592,7 @@ export default function IDPOPage() {
                             {fields.length === 0 && (
                                 <div className="space-y-2">
                                     <p className="text-[11px] text-slate-500 dark:text-gray-400">
-                                        No fields defined — the system will auto-extract all detected entities. Add fields below to target specific data.
+                                        No fields defined â€” the system will auto-extract all detected entities. Add fields below to target specific data.
                                     </p>
                                     <div className="flex flex-wrap gap-1.5">
                                         <span className="text-[10px] text-slate-400 dark:text-gray-500 italic mr-1">Examples:</span>
@@ -578,12 +625,12 @@ export default function IDPOPage() {
                             </div>
                         </div>
 
-                        {/* Pipeline Options — Upfront Toggles */}
+                        {/* Pipeline Options â€” Upfront Toggles */}
                         <div className="glass-panel rounded-xl p-4 space-y-3">
                             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Pipeline Options</p>
                             <div className="space-y-2">
                                 {([
-                                    { key: "guardrails" as const, icon: "🛡️", label: "Guardrails", desc: "6-layer quality validation (~8-20s)", checked: enableGuardrails, setter: setEnableGuardrails },
+                                    { key: "guardrails" as const, icon: "ðŸ›¡ï¸", label: "Guardrails", desc: "6-layer quality validation (~8-20s)", checked: enableGuardrails, setter: setEnableGuardrails },
                                 ]).map((opt) => (
                                     <label key={opt.key} className={`flex items-center justify-between cursor-pointer px-3 py-2.5 rounded-lg border transition-all duration-150 ${opt.checked ? "bg-brand-50/50 dark:bg-brand-500/5 border-brand-200 dark:border-brand-500/20" : "bg-white/30 dark:bg-gray-800/20 border-slate-200/60 dark:border-gray-700/40 hover:border-slate-300 dark:hover:border-gray-600"}`}>
                                         <div className="flex items-center gap-2.5">
@@ -611,7 +658,7 @@ export default function IDPOPage() {
                             className="w-full glass-panel rounded-xl px-4 py-3 text-left hover:bg-white/80 dark:hover:bg-gray-800/60 transition-all duration-150">
                             <div className="flex items-center justify-between">
                                 <span className="text-xs font-medium text-slate-600 dark:text-gray-300">Advanced Configuration</span>
-                                <span className="text-slate-400 text-xs transition-transform duration-150" style={{ transform: showConfig ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
+                                <span className="text-slate-400 text-xs transition-transform duration-150" style={{ transform: showConfig ? "rotate(180deg)" : "rotate(0deg)" }}>â–¼</span>
                             </div>
                         </button>
                         {showConfig && (
@@ -641,14 +688,14 @@ export default function IDPOPage() {
                     {error && (
                         <div role="alert" aria-live="assertive" className={`glass-panel rounded-xl p-4 border-l-4 ${result && result.docs.length > 0 ? "border-l-amber-500" : "border-l-red-500"}`}>
                             <div className="flex items-start gap-2">
-                                <span className="text-sm mt-0.5">{result && result.docs.length > 0 ? "⚠️" : "❌"}</span>
+                                <span className="text-sm mt-0.5">{result && result.docs.length > 0 ? "âš ï¸" : "âŒ"}</span>
                                 <div>
                                     <p className={`text-xs font-medium ${result && result.docs.length > 0 ? "text-amber-700 dark:text-amber-300" : "text-red-700 dark:text-red-300"}`}>{error}</p>
                                     {result?.partial_failures && result.partial_failures.length > 0 && (
                                         <div className="mt-2 space-y-1">
                                             {result.partial_failures.map((pf, i) => (
                                                 <div key={i} className="flex items-start gap-1.5 text-[10px] text-amber-600 dark:text-amber-400">
-                                                    <span className="mt-0.5 flex-shrink-0">•</span>
+                                                    <span className="mt-0.5 flex-shrink-0">â€¢</span>
                                                     <span><span className="font-medium">{pf.file}:</span> {pf.error}</span>
                                                 </div>
                                             ))}
@@ -659,7 +706,7 @@ export default function IDPOPage() {
                         </div>
                     )}
 
-                    {/* ── Multi-Document Progress Tracker ── */}
+                    {/* â”€â”€ Multi-Document Progress Tracker â”€â”€ */}
                     {loading && docProgress.length > 1 && (
                         <div className="glass-panel rounded-xl p-4 space-y-3" role="status" aria-label="Document processing progress">
                             <div className="flex items-center justify-between">
@@ -690,11 +737,11 @@ export default function IDPOPage() {
                                         }`}>
                                         {/* Status icon */}
                                         <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center">
-                                            {dp.status === "done" && <span className="text-emerald-500 text-sm">✓</span>}
+                                            {dp.status === "done" && <span className="text-emerald-500 text-sm">âœ“</span>}
                                             {dp.status === "processing" && (
                                                 <div className="w-4 h-4 border-2 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
                                             )}
-                                            {dp.status === "error" && <span className="text-red-500 text-sm">✕</span>}
+                                            {dp.status === "error" && <span className="text-red-500 text-sm">âœ•</span>}
                                             {dp.status === "queued" && (
                                                 <div className="w-2 h-2 rounded-full bg-slate-300 dark:bg-gray-600" />
                                             )}
@@ -730,7 +777,7 @@ export default function IDPOPage() {
                         </div>
                     )}
 
-                    {/* ── Quick Integration Summary (sidebar) ── */}
+                    {/* â”€â”€ Quick Integration Summary (sidebar) â”€â”€ */}
                     {integration && (() => {
                         // Compute per-doc advice summary
                         const advices = integration.ahmn_advices || [];
@@ -745,19 +792,19 @@ export default function IDPOPage() {
                             <div className="glass-panel rounded-xl p-4 space-y-3">
                                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Integration Summary</p>
                                 <div className="space-y-2">
-                                    <SummaryRow icon="🎯" label="AHMN Policies"
+                                    <SummaryRow icon="ðŸŽ¯" label="AHMN Policies"
                                         value={`${validAdvices.length} doc${validAdvices.length !== 1 ? "s" : ""}`}
                                         status={validAdvices.length > 0}
                                         detail={uniquePolicies.length > 1 ? `${uniquePolicies.length} policies, avg ${(avgConfidence * 100).toFixed(0)}%` : validAdvices.length > 0 ? `${uniquePolicies[0] || "default"} (${(avgConfidence * 100).toFixed(0)}%)` : "No advices"} />
-                                    <SummaryRow icon="🛡️" label="Guardrails"
+                                    <SummaryRow icon="ðŸ›¡ï¸" label="Guardrails"
                                         value={integration.skipped_guardrails ? "Skipped" : `${integration.guardrails.filter(g => g.overall_passes).length}/${integration.guardrails.length} passed`}
                                         status={integration.skipped_guardrails ? null : integration.guardrails.every(g => g.overall_passes || !!g.error)}
                                         detail={integration.skipped_guardrails ? "Disabled by user" : integration.guardrails.some(g => g.error) ? "Some checks unavailable" : undefined} />
-                                    <SummaryRow icon="📊" label="Explanations"
+                                    <SummaryRow icon="ðŸ“Š" label="Explanations"
                                         value={integration.skipped_xai ? "Skipped" : `${integration.xai_explanations.filter(x => !x.error).length} docs explained`}
                                         status={integration.skipped_xai ? null : integration.xai_explanations.some(x => !x.error)}
                                         detail={integration.skipped_xai ? "Disabled by user" : integration.xai_explanations.some(x => x.error) ? "Some unavailable" : undefined} />
-                                    <SummaryRow icon="📈" label="AHMN Learn"
+                                    <SummaryRow icon="ðŸ“ˆ" label="AHMN Learn"
                                         value={`${loggedFeedbacks.length}/${advices.length} logged`}
                                         status={loggedFeedbacks.length > 0}
                                         detail={loggedFeedbacks.length > 0 ? `Avg F1: ${(avgF1 * 100).toFixed(1)}%` : "No feedback logged"} />
@@ -770,7 +817,7 @@ export default function IDPOPage() {
                     })()}
                 </div>
 
-                {/* ── Results Panel (3 cols) ── */}
+                {/* â”€â”€ Results Panel (3 cols) â”€â”€ */}
                 <div className="lg:col-span-3 space-y-4">
                     {!result ? (
                         <div className="glass-panel rounded-2xl p-12 text-center">
@@ -784,10 +831,10 @@ export default function IDPOPage() {
                                 <p className="text-sm text-slate-400 dark:text-gray-500 mt-2">Upload documents to run the full AI processing pipeline</p>
                                 <div className="mt-6 grid grid-cols-4 gap-2 stagger-children">
                                     {[
-                                        { icon: "🎯", label: "Advise" },
-                                        { icon: "⚙️", label: "Extract" },
-                                        { icon: "🛡️", label: "Validate" },
-                                        { icon: "�", label: "Learn" },
+                                        { icon: "ðŸŽ¯", label: "Advise" },
+                                        { icon: "âš™ï¸", label: "Extract" },
+                                        { icon: "ðŸ›¡ï¸", label: "Validate" },
+                                        { icon: "ï¿½", label: "Learn" },
                                     ].map((step) => (
                                         <div key={step.label} className="px-2 py-2.5 bg-slate-50 dark:bg-gray-800/50 rounded-xl border border-slate-200/60 dark:border-gray-700">
                                             <span className="text-lg block mb-0.5">{step.icon}</span>
@@ -828,14 +875,14 @@ export default function IDPOPage() {
                                     )}
                                     <div className="ml-auto flex gap-2">
                                         <button onClick={() => handleDownload("docs.xlsx", "docs.xlsx")}
-                                            className="px-3 py-1.5 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-500/20 text-xs font-medium transition-all shadow-sm shadow-brand-500/5">↓ Results</button>
+                                            className="px-3 py-1.5 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-500/20 text-xs font-medium transition-all shadow-sm shadow-brand-500/5">â†“ Results</button>
                                         {result.entities?.length > 0 && (
                                             <button onClick={() => handleDownload("entities.xlsx", "entities.xlsx")}
-                                                className="px-3 py-1.5 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 text-violet-700 dark:text-violet-300 rounded-lg hover:bg-violet-100 dark:hover:bg-violet-500/20 text-xs font-medium transition-all shadow-sm shadow-violet-500/5">↓ Entities</button>
+                                                className="px-3 py-1.5 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 text-violet-700 dark:text-violet-300 rounded-lg hover:bg-violet-100 dark:hover:bg-violet-500/20 text-xs font-medium transition-all shadow-sm shadow-violet-500/5">â†“ Entities</button>
                                         )}
                                         {result.docs.some((doc) => Boolean(doc.extracted_text?.trim())) && (
                                             <button onClick={handleDownloadFullExtractedDocs}
-                                                className="px-3 py-1.5 bg-cyan-50 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/20 text-cyan-700 dark:text-cyan-300 rounded-lg hover:bg-cyan-100 dark:hover:bg-cyan-500/20 text-xs font-medium transition-all shadow-sm shadow-cyan-500/5">↓ Full Text</button>
+                                                className="px-3 py-1.5 bg-cyan-50 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/20 text-cyan-700 dark:text-cyan-300 rounded-lg hover:bg-cyan-100 dark:hover:bg-cyan-500/20 text-xs font-medium transition-all shadow-sm shadow-cyan-500/5">â†“ Full Text</button>
                                         )}
                                     </div>
                                 </div>
@@ -848,7 +895,7 @@ export default function IDPOPage() {
                                     <ul className="space-y-1">
                                         {result.warnings.map((w, i) => (
                                             <li key={i} className="text-xs text-amber-600 dark:text-amber-400 flex items-start gap-1.5">
-                                                <span className="mt-0.5">⚠</span> {w}
+                                                <span className="mt-0.5">âš </span> {w}
                                             </li>
                                         ))}
                                     </ul>
@@ -868,10 +915,10 @@ export default function IDPOPage() {
                                                 : "bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-500/20 shadow-sm shadow-brand-500/5"
                                             : "text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 hover:bg-slate-50 dark:hover:bg-gray-800 border border-transparent"
                                             }`}>
-                                        {tab === "documents" && `📄 Docs (${result.docs.length})`}
-                                        {tab === "entities" && `🏷️ Entities (${result.entities?.length || 0})`}
-                                        {tab === "fulltext" && "📝 Full Text"}
-                                        {tab === "integration" && "🔄 Pipeline"}
+                                        {tab === "documents" && `ðŸ“„ Docs (${result.docs.length})`}
+                                        {tab === "entities" && `ðŸ·ï¸ Entities (${result.entities?.length || 0})`}
+                                        {tab === "fulltext" && "ðŸ“ Full Text"}
+                                        {tab === "integration" && "ðŸ”„ Pipeline"}
                                     </button>
                                 ))}
                             </div>
@@ -909,7 +956,7 @@ export default function IDPOPage() {
                                                             {f === "all" ? `All (${(() => {
                                                                 const allEnts = result.docs.flatMap(d => d.entity_details || []);
                                                                 return allEnts.length || result.entities.length;
-                                                            })()})` : f === "high" ? "≥70%" : f === "medium" ? "50-70%" : "<50%"}
+                                                            })()})` : f === "high" ? "â‰¥70%" : f === "medium" ? "50-70%" : "<50%"}
                                                         </button>
                                                     ))}
                                                 </div>
@@ -925,12 +972,12 @@ export default function IDPOPage() {
                                                     allEntities = result.entities.map((e: any) => ({
                                                         key: e.field_key || e.key || Object.keys(e)[0] || "",
                                                         label: e.field_key || e.key || "",
-                                                        value: e.field_value || e.value || Object.values(e)[1] || "—",
+                                                        value: e.field_value || e.value || Object.values(e)[1] || "â€”",
                                                         confidence: typeof e.confidence === "number" ? e.confidence : parseFloat(e.field_confidence) || 0,
-                                                        source: e.source || e.field_source || "—",
+                                                        source: e.source || e.field_source || "â€”",
                                                         page: e.page,
                                                         is_explicit: false,
-                                                        docName: "—",
+                                                        docName: "â€”",
                                                     }));
                                                 }
                                                 // Apply search filter
@@ -985,7 +1032,7 @@ export default function IDPOPage() {
                                                                                     </span>
                                                                                 </div>
                                                                             </td>
-                                                                            <td className="px-4 py-2 text-slate-500 dark:text-gray-400 text-[10px]">{entity.source || "—"}</td>
+                                                                            <td className="px-4 py-2 text-slate-500 dark:text-gray-400 text-[10px]">{entity.source || "â€”"}</td>
                                                                             <td className="px-4 py-2 text-slate-500 dark:text-gray-400 text-[10px] truncate max-w-[100px]">{entity.docName}</td>
                                                                         </tr>
                                                                     ))}
@@ -1000,10 +1047,10 @@ export default function IDPOPage() {
                                                                 </p>
                                                                 <div className="flex gap-1">
                                                                     <button onClick={() => setEntityPage(Math.max(0, currentPage - 1))} disabled={currentPage === 0}
-                                                                        className="px-2 py-1 rounded text-[10px] font-medium border border-slate-200 dark:border-gray-700 text-slate-500 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800 disabled:opacity-30 transition-all">← Prev</button>
+                                                                        className="px-2 py-1 rounded text-[10px] font-medium border border-slate-200 dark:border-gray-700 text-slate-500 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800 disabled:opacity-30 transition-all">â† Prev</button>
                                                                     <span className="px-2 py-1 text-[10px] font-semibold text-slate-600 dark:text-gray-300">{currentPage + 1}/{totalPages}</span>
                                                                     <button onClick={() => setEntityPage(Math.min(totalPages - 1, currentPage + 1))} disabled={currentPage >= totalPages - 1}
-                                                                        className="px-2 py-1 rounded text-[10px] font-medium border border-slate-200 dark:border-gray-700 text-slate-500 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800 disabled:opacity-30 transition-all">Next →</button>
+                                                                        className="px-2 py-1 rounded text-[10px] font-medium border border-slate-200 dark:border-gray-700 text-slate-500 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800 disabled:opacity-30 transition-all">Next â†’</button>
                                                                 </div>
                                                             </div>
                                                         )}
@@ -1018,7 +1065,7 @@ export default function IDPOPage() {
                                         </div>
                                     ) : (
                                         <div className="glass-panel rounded-xl p-8 text-center text-slate-400 dark:text-gray-500 text-sm">
-                                            No entities extracted — try adding extraction fields before processing
+                                            No entities extracted â€” try adding extraction fields before processing
                                         </div>
                                     )
                                 )}
@@ -1030,12 +1077,12 @@ export default function IDPOPage() {
                                                 <div key={doc.doc_id} className="glass-panel rounded-xl overflow-hidden">
                                                     <div className="px-5 py-3 border-b border-slate-200 dark:border-gray-700 bg-slate-50/50 dark:bg-gray-800/30 flex items-center justify-between">
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-base">📄</span>
+                                                            <span className="text-base">ðŸ“„</span>
                                                             <p className="text-sm font-semibold text-slate-900 dark:text-white">{doc.filename || doc.doc_id}</p>
                                                             {doc.extracted_text && (
                                                                 <span className="text-[10px] text-slate-400 dark:text-gray-500">
                                                                     {(doc.extracted_text.match(/--- Page \d+ ---/g) || []).length || 1} page{((doc.extracted_text.match(/--- Page \d+ ---/g) || []).length || 1) !== 1 ? "s" : ""}
-                                                                    {" · "}{doc.extracted_text.length.toLocaleString()} chars
+                                                                    {" Â· "}{doc.extracted_text.length.toLocaleString()} chars
                                                                 </span>
                                                             )}
                                                         </div>
@@ -1044,7 +1091,7 @@ export default function IDPOPage() {
                                                                 onClick={() => handleDownloadSingleExtractedDoc(doc)}
                                                                 className="px-3 py-1.5 bg-cyan-50 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/20 text-cyan-700 dark:text-cyan-300 rounded-lg hover:bg-cyan-100 dark:hover:bg-cyan-500/20 text-xs font-medium transition-all"
                                                             >
-                                                                ↓ Download Text
+                                                                â†“ Download Text
                                                             </button>
                                                             <button
                                                                 onClick={() => {
@@ -1052,7 +1099,7 @@ export default function IDPOPage() {
                                                                 }}
                                                                 className="px-3 py-1.5 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-500/20 text-xs font-medium transition-all"
                                                             >
-                                                                📋 Copy Text
+                                                                ðŸ“‹ Copy Text
                                                             </button>
                                                         </div>
                                                     </div>
@@ -1064,7 +1111,7 @@ export default function IDPOPage() {
                                         </div>
                                     ) : (
                                         <div className="glass-panel rounded-xl p-8 text-center text-slate-400 dark:text-gray-500 text-sm">
-                                            No extracted text available — text will appear here after processing documents
+                                            No extracted text available â€” text will appear here after processing documents
                                         </div>
                                     )
                                 )}
@@ -1074,7 +1121,7 @@ export default function IDPOPage() {
                                 )}
                                 {activeTab === "integration" && !integration && (
                                     <div className="glass-panel rounded-xl p-8 text-center text-slate-400 dark:text-gray-500 text-sm">
-                                        No integration data — services may be unavailable
+                                        No integration data â€” services may be unavailable
                                     </div>
                                 )}
                             </div>
@@ -1086,9 +1133,9 @@ export default function IDPOPage() {
     );
 }
 
-/* ══════════════════════════════════════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 /*  Sub-Components                                                          */
-/* ══════════════════════════════════════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 function CycleStatusBadge({ integration }: { integration: PipelineIntegration }) {
     const stages = [
@@ -1133,10 +1180,10 @@ function IntegrationPanel({ integration, activeSubTab, onSubTabChange, durationM
     durationMs?: number;
 }) {
     const tabs = [
-        { key: "advice" as const, icon: "🎯", label: "AHMN Advice" },
-        { key: "guardrails" as const, icon: "🛡️", label: "Guardrails" },
-        { key: "xai" as const, icon: "📊", label: "Explanations" },
-        { key: "feedback" as const, icon: "�", label: "AHMN Learn" },
+        { key: "advice" as const, icon: "ðŸŽ¯", label: "AHMN Advice" },
+        { key: "guardrails" as const, icon: "ðŸ›¡ï¸", label: "Guardrails" },
+        { key: "xai" as const, icon: "ðŸ“Š", label: "Explanations" },
+        { key: "feedback" as const, icon: "ï¿½", label: "AHMN Learn" },
     ];
     return (
         <div className="space-y-3">
@@ -1176,9 +1223,9 @@ function AdvicePanel({ advices }: { advices: AHMNAdvice[] }) {
             {/* Summary Header */}
             <div className="glass-panel rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2"><span className="text-lg">🎯</span><p className="text-sm font-semibold text-slate-900 dark:text-white">Per-Document AHMN Policies</p></div>
+                    <div className="flex items-center gap-2"><span className="text-lg">ðŸŽ¯</span><p className="text-sm font-semibold text-slate-900 dark:text-white">Per-Document AHMN Policies</p></div>
                     <span className="px-2.5 py-1 rounded-full text-[10px] font-medium border bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300">
-                        {validAdvices.length} doc{validAdvices.length !== 1 ? "s" : ""} • {uniquePolicies.length} polic{uniquePolicies.length !== 1 ? "ies" : "y"}
+                        {validAdvices.length} doc{validAdvices.length !== 1 ? "s" : ""} â€¢ {uniquePolicies.length} polic{uniquePolicies.length !== 1 ? "ies" : "y"}
                     </span>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
@@ -1192,7 +1239,7 @@ function AdvicePanel({ advices }: { advices: AHMNAdvice[] }) {
                     </div>
                     <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Unique Policies</p>
-                        <p className="text-xs font-medium text-slate-900 dark:text-white truncate">{uniquePolicies.join(", ") || "—"}</p>
+                        <p className="text-xs font-medium text-slate-900 dark:text-white truncate">{uniquePolicies.join(", ") || "â€”"}</p>
                     </div>
                 </div>
             </div>
@@ -1222,7 +1269,7 @@ function AdvicePanel({ advices }: { advices: AHMNAdvice[] }) {
 function GuardrailsPanel({ results, skipped }: { results: GuardrailDocResult[]; skipped?: boolean }) {
     if (skipped) return (
         <div className="glass-panel rounded-xl p-8 text-center">
-            <span className="text-3xl block mb-3">🛡️</span>
+            <span className="text-3xl block mb-3">ðŸ›¡ï¸</span>
             <p className="text-sm font-medium text-slate-600 dark:text-gray-300 mb-1">Guardrails Validation Skipped</p>
             <p className="text-xs text-slate-400 dark:text-gray-500">Enable guardrails in Pipeline Options to run 6-layer quality validation</p>
         </div>
@@ -1234,7 +1281,7 @@ function GuardrailsPanel({ results, skipped }: { results: GuardrailDocResult[]; 
                 <div key={gr.document_id} className={`glass-panel rounded-xl p-4 border-l-4 ${gr.error ? "border-l-amber-500" : gr.overall_passes ? "border-l-emerald-500" : "border-l-red-500"}`}>
                     <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
-                            <span className="text-base">🛡️</span>
+                            <span className="text-base">ðŸ›¡ï¸</span>
                             <p className="text-xs font-medium text-slate-900 dark:text-white">Doc: {gr.document_id.slice(0, 12)}...</p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -1278,12 +1325,12 @@ function ComponentCard({ comp }: { comp: { component: string; title: string; sum
         info: "border-l-slate-400 bg-slate-50/30 dark:bg-slate-500/5",
     };
     const icons = {
-        ahmn: "🎯",
-        idpo: "⚙️",
-        guardrails: "🛡️",
+        ahmn: "ðŸŽ¯",
+        idpo: "âš™ï¸",
+        guardrails: "ðŸ›¡ï¸",
     };
     const bgClass = statusColors[comp.status as keyof typeof statusColors] || statusColors.info;
-    const icon = icons[comp.component as keyof typeof icons] || "📋";
+    const icon = icons[comp.component as keyof typeof icons] || "ðŸ“‹";
 
     return (
         <div className={`rounded-xl border-l-4 p-4 ${bgClass}`}>
@@ -1313,7 +1360,7 @@ function ComponentCard({ comp }: { comp: { component: string; title: string; sum
                                 <p className={`mt-0.5 ${detail.passed === true ? "text-emerald-600 dark:text-emerald-400" :
                                     detail.passed === false ? "text-red-600 dark:text-red-400" :
                                         "text-slate-600 dark:text-gray-300"
-                                    }`}>→ {detail.outcome}</p>
+                                    }`}>â†’ {detail.outcome}</p>
                             </div>
                         </div>
                     ))}
@@ -1326,7 +1373,7 @@ function ComponentCard({ comp }: { comp: { component: string; title: string; sum
 function XAIPanel({ explanations, skipped }: { explanations: XAIDocExplanation[]; skipped?: boolean }) {
     if (skipped) return (
         <div className="glass-panel rounded-xl p-8 text-center">
-            <span className="text-3xl block mb-3">📊</span>
+            <span className="text-3xl block mb-3">ðŸ“Š</span>
             <p className="text-sm font-medium text-slate-600 dark:text-gray-300 mb-1">Component Explanations Skipped</p>
             <p className="text-xs text-slate-400 dark:text-gray-500">Enable XAI in Pipeline Options to see how AHMN, IDPO, and Guardrails processed your documents</p>
         </div>
@@ -1339,7 +1386,7 @@ function XAIPanel({ explanations, skipped }: { explanations: XAIDocExplanation[]
                 <div key={xai.document_id} className="glass-panel rounded-xl p-4">
                     <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200 dark:border-gray-700">
                         <div className="flex items-center gap-2">
-                            <span className="text-base">📄</span>
+                            <span className="text-base">ðŸ“„</span>
                             <p className="text-sm font-medium text-slate-900 dark:text-white">Doc: {xai.document_id.slice(0, 12)}...</p>
                         </div>
                         {!xai.error && (
@@ -1395,7 +1442,7 @@ function FeedbackPanel({ feedbacks }: { feedbacks: AHMNFeedback[] }) {
             {/* Summary Header */}
             <div className="glass-panel rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2"><span className="text-lg">📈</span><p className="text-sm font-semibold text-slate-900 dark:text-white">Per-Document AHMN Learning</p></div>
+                    <div className="flex items-center gap-2"><span className="text-lg">ðŸ“ˆ</span><p className="text-sm font-semibold text-slate-900 dark:text-white">Per-Document AHMN Learning</p></div>
                     <span className={`px-2.5 py-1 rounded-full text-[10px] font-medium border ${loggedFeedbacks.length > 0 ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300" : "bg-slate-100 dark:bg-gray-800 border-slate-200 dark:border-gray-700 text-slate-600 dark:text-gray-300"}`}>
                         {loggedFeedbacks.length}/{feedbacks.length} logged
                     </span>
@@ -1403,15 +1450,15 @@ function FeedbackPanel({ feedbacks }: { feedbacks: AHMNFeedback[] }) {
                 <div className="grid grid-cols-3 gap-3">
                     <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Avg F1 Score</p>
-                        <p className="text-lg font-bold text-slate-900 dark:text-white">{loggedFeedbacks.length > 0 ? `${(avgF1 * 100).toFixed(1)}%` : "—"}</p>
+                        <p className="text-lg font-bold text-slate-900 dark:text-white">{loggedFeedbacks.length > 0 ? `${(avgF1 * 100).toFixed(1)}%` : "â€”"}</p>
                     </div>
                     <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Avg Precision</p>
-                        <p className="text-lg font-bold text-slate-900 dark:text-white">{loggedFeedbacks.length > 0 ? `${(avgPrecision * 100).toFixed(1)}%` : "—"}</p>
+                        <p className="text-lg font-bold text-slate-900 dark:text-white">{loggedFeedbacks.length > 0 ? `${(avgPrecision * 100).toFixed(1)}%` : "â€”"}</p>
                     </div>
                     <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Avg Recall</p>
-                        <p className="text-lg font-bold text-slate-900 dark:text-white">{loggedFeedbacks.length > 0 ? `${(avgRecall * 100).toFixed(1)}%` : "—"}</p>
+                        <p className="text-lg font-bold text-slate-900 dark:text-white">{loggedFeedbacks.length > 0 ? `${(avgRecall * 100).toFixed(1)}%` : "â€”"}</p>
                     </div>
                 </div>
                 {loggedFeedbacks.length > 0 && (
@@ -1451,9 +1498,9 @@ function FeedbackPanel({ feedbacks }: { feedbacks: AHMNFeedback[] }) {
     );
 }
 
-/* ══════════════════════════════════════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 /*  Document Card (enhanced with inline integration data)                   */
-/* ══════════════════════════════════════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: {
     doc: IDPODocRecord; expanded: boolean; onToggle: () => void;
@@ -1474,12 +1521,12 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
     const complexityScore = typeof doc.complexity_score === "number" ? doc.complexity_score : null;
 
     const sourceIcon = (src: string) => {
-        if (src === "llm_cloud" || src === "llm_local") return "🤖";
-        if (src === "rule" || src === "schema_regex") return "📐";
-        if (src === "generic_kv") return "🔑";
-        if (src === "schema_match") return "🔗";
-        if (src === "policy") return "📋";
-        return "⚡";
+        if (src === "llm_cloud" || src === "llm_local") return "ðŸ¤–";
+        if (src === "rule" || src === "schema_regex") return "ðŸ“";
+        if (src === "generic_kv") return "ðŸ”‘";
+        if (src === "schema_match") return "ðŸ”—";
+        if (src === "policy") return "ðŸ“‹";
+        return "âš¡";
     };
 
     const confidenceColor = (conf: number) => {
@@ -1498,12 +1545,12 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
 
     return (
         <div className="glass-panel rounded-xl overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-brand-500/5">
-            {/* ── Card Header (always visible) ── */}
+            {/* â”€â”€ Card Header (always visible) â”€â”€ */}
             <button onClick={onToggle} className="w-full px-5 py-4 text-left hover:bg-white/40 dark:hover:bg-gray-800/30 transition-colors">
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-100 to-cyan-100 dark:from-brand-500/10 dark:to-cyan-500/10 border border-brand-200/50 dark:border-brand-500/20 flex items-center justify-center flex-shrink-0">
-                            <span className="text-lg">📄</span>
+                            <span className="text-lg">ðŸ“„</span>
                         </div>
                         <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
@@ -1533,9 +1580,9 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                             </span>
                         )}
                         {guardrail && !guardrail.error && (
-                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] ${guardrail.overall_passes ? "bg-emerald-100 dark:bg-emerald-500/10 ring-1 ring-emerald-200 dark:ring-emerald-500/20" : "bg-red-100 dark:bg-red-500/10 ring-1 ring-red-200 dark:ring-red-500/20"}`} title={guardrail.overall_passes ? "Guardrails passed" : "Guardrails failed"}>🛡️</span>
+                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] ${guardrail.overall_passes ? "bg-emerald-100 dark:bg-emerald-500/10 ring-1 ring-emerald-200 dark:ring-emerald-500/20" : "bg-red-100 dark:bg-red-500/10 ring-1 ring-red-200 dark:ring-red-500/20"}`} title={guardrail.overall_passes ? "Guardrails passed" : "Guardrails failed"}>ðŸ›¡ï¸</span>
                         )}
-                        {xai && !xai.error && <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] bg-violet-100 dark:bg-violet-500/10 ring-1 ring-violet-200 dark:ring-violet-500/20" title="XAI explanation available">🔍</span>}
+                        {xai && !xai.error && <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] bg-violet-100 dark:bg-violet-500/10 ring-1 ring-violet-200 dark:ring-violet-500/20" title="XAI explanation available">ðŸ”</span>}
                         {entityDetails.length > 0 && (
                             <span className="px-2 py-1 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded-full text-[10px] font-semibold">
                                 {entityDetails.length} field{entityDetails.length !== 1 ? "s" : ""}
@@ -1550,7 +1597,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                 </div>
             </button>
 
-            {/* ── Expanded Content ── */}
+            {/* â”€â”€ Expanded Content â”€â”€ */}
             {expanded && (
                 <div className="px-5 pb-5 border-t border-slate-100 dark:border-gray-800 pt-4 space-y-4">
 
@@ -1592,7 +1639,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                             <div className="flex flex-wrap gap-1">
                                 {doc.preprocess_route ? doc.preprocess_route.split(",").filter(Boolean).map((step, i) => (
                                     <span key={i} className="px-1.5 py-0.5 bg-slate-200 dark:bg-gray-700 rounded text-[9px] font-medium text-slate-600 dark:text-gray-300">{step}</span>
-                                )) : <span className="text-[10px] text-slate-400 dark:text-gray-500">—</span>}
+                                )) : <span className="text-[10px] text-slate-400 dark:text-gray-500">â€”</span>}
                             </div>
                         </div>
                     </div>
@@ -1622,7 +1669,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                             )}
                             {doc.model_used && (
                                 <span className="px-2 py-1 rounded-lg text-[10px] font-medium border bg-cyan-50 dark:bg-cyan-500/5 border-cyan-200 dark:border-cyan-500/10 text-cyan-700 dark:text-cyan-300">
-                                    🤖 {doc.model_used} ({doc.model_mode || "local"})
+                                    ðŸ¤– {doc.model_used} ({doc.model_mode || "local"})
                                 </span>
                             )}
                         </div>
@@ -1633,7 +1680,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                         <div className={`p-4 rounded-xl border ${advice.error ? "bg-amber-50/50 dark:bg-amber-500/5 border-amber-200 dark:border-amber-500/20" : "bg-gradient-to-r from-brand-50/50 to-cyan-50/50 dark:from-brand-500/5 dark:to-cyan-500/5 border-brand-200 dark:border-brand-500/20"}`}>
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-base">🎯</span>
+                                    <span className="text-base">ðŸŽ¯</span>
                                     <p className="text-[10px] font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">AHMN Policy</p>
                                 </div>
                                 {!advice.error && (
@@ -1674,7 +1721,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                         </div>
                     )}
 
-                    {/* Extracted Entities — show top 3, collapse rest */}
+                    {/* Extracted Entities â€” show top 3, collapse rest */}
                     {entityDetails.length > 0 && (
                         <div className="p-4 bg-gradient-to-br from-brand-50/40 to-cyan-50/30 dark:from-brand-500/5 dark:to-cyan-500/5 rounded-xl border border-brand-100 dark:border-brand-500/10">
                             <div className="flex items-center justify-between mb-3">
@@ -1776,7 +1823,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                     {doc.validation_issues && doc.validation_issues.length > 0 && (
                         <div className="p-3 bg-amber-50/50 dark:bg-amber-500/5 rounded-xl border border-amber-200 dark:border-amber-500/10">
                             <div className="flex items-center gap-2 mb-2">
-                                <span className="text-sm">⚠️</span>
+                                <span className="text-sm">âš ï¸</span>
                                 <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
                                     {doc.validation_issues.length} Validation Issue{doc.validation_issues.length !== 1 ? "s" : ""}
                                 </p>
@@ -1797,7 +1844,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                     {doc.recovered_fields && Object.keys(doc.recovered_fields).length > 0 && (
                         <div className="p-3 bg-emerald-50/50 dark:bg-emerald-500/5 rounded-xl border border-emerald-200 dark:border-emerald-500/10">
                             <div className="flex items-center gap-2 mb-2">
-                                <span className="text-sm">🔧</span>
+                                <span className="text-sm">ðŸ”§</span>
                                 <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Recovered Fields</p>
                             </div>
                             <div className="grid grid-cols-2 gap-1.5">
@@ -1846,7 +1893,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                                         onClick={() => navigator.clipboard.writeText(doc.extracted_text || "")}
                                         className="px-2 py-1 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded text-[9px] font-medium hover:bg-brand-100 dark:hover:bg-brand-500/20 transition-colors"
                                     >
-                                        📋 Copy
+                                        ðŸ“‹ Copy
                                     </button>
                                 </div>
                                 <p className="text-[11px] text-slate-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">{doc.extracted_text}</p>
@@ -1859,7 +1906,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                         <div className={`p-3 rounded-xl border ${guardrail.overall_passes ? "bg-emerald-50/30 dark:bg-emerald-500/5 border-emerald-200 dark:border-emerald-500/10" : "bg-red-50/30 dark:bg-red-500/5 border-red-200 dark:border-red-500/10"}`}>
                             <div className="flex items-center justify-between mb-2">
                                 <p className={`text-[10px] font-semibold uppercase tracking-wider ${guardrail.overall_passes ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                                    🛡️ Guardrails: {guardrail.overall_passes ? "PASSED" : "FAILED"}
+                                    ðŸ›¡ï¸ Guardrails: {guardrail.overall_passes ? "PASSED" : "FAILED"}
                                 </p>
                                 <span className="text-[9px] text-slate-400">{(guardrail.processing_time_ms / 1000).toFixed(1)}s</span>
                             </div>
@@ -1878,7 +1925,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                         <details className="group">
                             <summary className="flex items-center gap-2 cursor-pointer hover:text-slate-600 dark:hover:text-gray-300 transition-colors">
                                 <svg className="w-3.5 h-3.5 text-violet-400 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                                <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-wider">📊 Component Explanations</span>
+                                <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-wider">ðŸ“Š Component Explanations</span>
                                 <span className="text-[9px] text-violet-500">{(xai.confidence * 100).toFixed(0)}% confident</span>
                             </summary>
                             <div className="mt-2 space-y-2">
@@ -1890,7 +1937,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                                                 "border-l-slate-400 bg-slate-50/30 dark:bg-slate-500/5"
                                         }`}>
                                         <div className="flex items-center gap-1.5 mb-1">
-                                            <span className="text-sm">{comp.component === "ahmn" ? "🎯" : comp.component === "idpo" ? "⚙️" : "🛡️"}</span>
+                                            <span className="text-sm">{comp.component === "ahmn" ? "ðŸŽ¯" : comp.component === "idpo" ? "âš™ï¸" : "ðŸ›¡ï¸"}</span>
                                             <span className="text-[10px] font-semibold text-slate-700 dark:text-gray-200">{comp.title}</span>
                                         </div>
                                         <p className="text-[10px] text-slate-600 dark:text-gray-400">{comp.summary}</p>
@@ -1907,9 +1954,9 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
     );
 }
 
-/* ══════════════════════════════════════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 /*  Formatted Extracted Text (styled page separators)                       */
-/* ══════════════════════════════════════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 function FormattedExtractedText({ text }: { text: string }) {
     const parts = text.split(/(--- Page \d+ ---)/g);

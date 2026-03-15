@@ -1,0 +1,32 @@
+{
+  "dim": 256,
+  "records": [
+    {
+      "chunk_id": "demo_clean_text_chunk_0",
+      "metadata": {
+        "doc_id": "demo_clean_text",
+        "section": "employee_record",
+        "page_start": "1",
+        "page_end": "1"
+      }
+    },
+    {
+      "chunk_id": "demo_table_statement_chunk_0",
+      "metadata": {
+        "doc_id": "demo_table_statement",
+        "section": "section_1",
+        "page_start": "1",
+        "page_end": "1"
+      }
+    },
+    {
+      "chunk_id": "demo_table_statement_chunk_1",
+      "metadata": {
+        "doc_id": "demo_table_statement",
+        "section": "date_02_15_2026",
+        "page_start": "1",
+        "page_end": "1"
+      }
+    }
+  ]
+}

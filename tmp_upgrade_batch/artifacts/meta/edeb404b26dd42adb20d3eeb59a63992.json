@@ -1,0 +1,14 @@
+{
+  "artifact_id": "edeb404b26dd42adb20d3eeb59a63992",
+  "kind": "tables_input",
+  "metadata": {
+    "agent": "table_form",
+    "doc_id": "demo_table_statement",
+    "parameters": {
+      "table_mode": "heuristic"
+    },
+    "source_artifacts": [],
+    "version": "v1"
+  },
+  "path": "tmp_upgrade_batch\\artifacts\\raw\\edeb404b26dd42adb20d3eeb59a63992_demo_table_statement_tables_input.txt"
+}

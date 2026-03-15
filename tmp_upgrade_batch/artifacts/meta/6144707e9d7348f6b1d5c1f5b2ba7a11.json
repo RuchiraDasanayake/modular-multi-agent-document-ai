@@ -1,0 +1,16 @@
+{
+  "artifact_id": "6144707e9d7348f6b1d5c1f5b2ba7a11",
+  "kind": "tables_input",
+  "metadata": {
+    "agent": "table_form",
+    "doc_id": "demo_image_invoice",
+    "parameters": {
+      "table_mode": "heuristic"
+    },
+    "source_artifacts": [
+      "c78dcde99f73494ba775dcbf2c36d2e3"
+    ],
+    "version": "v1"
+  },
+  "path": "tmp_upgrade_batch\\artifacts\\raw\\6144707e9d7348f6b1d5c1f5b2ba7a11_demo_image_invoice_tables_input.txt"
+}

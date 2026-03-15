@@ -1,0 +1,8 @@
+Invoice Number: INV-2026-0091
+Date: 2026-03-09
+Vendor: Orion Office Supplies
+Customer: Nova Labs
+Subtotal: 1240.00
+Tax Amount: 148.80
+Total Amount: 1388.80
+Due Date: 2026-03-25

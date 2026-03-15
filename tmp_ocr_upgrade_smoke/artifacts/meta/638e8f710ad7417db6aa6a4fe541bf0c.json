@@ -1,0 +1,10 @@
+{
+  "artifact_id": "638e8f710ad7417db6aa6a4fe541bf0c",
+  "kind": "sections",
+  "metadata": {
+    "agent": "sectioning",
+    "doc_id": "demo_clean_text",
+    "version": "v1"
+  },
+  "path": "tmp_ocr_upgrade_smoke\\artifacts\\clean\\638e8f710ad7417db6aa6a4fe541bf0c_demo_clean_text_sections.json"
+}

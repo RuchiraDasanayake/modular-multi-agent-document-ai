@@ -1,0 +1,15 @@
+{
+  "artifact_id": "e45a3687a3704a74a772f00e6b12cdaf",
+  "kind": "structured_entities",
+  "metadata": {
+    "agent": "llm_extraction",
+    "doc_id": "invoice",
+    "input_artifacts": [
+      "7ecb25b533a54d9fb2d3aa2effc82f61"
+    ],
+    "model": "gpt-4o-mini",
+    "policy_id": null,
+    "version": "v1"
+  },
+  "path": "tmp_openai_audit\\run\\artifacts\\clean\\e45a3687a3704a74a772f00e6b12cdaf_invoice_structured.json"
+}

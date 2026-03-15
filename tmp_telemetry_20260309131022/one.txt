@@ -1,0 +1,2 @@
+﻿Invoice Number: INV-1
+Total Amount: 10.00

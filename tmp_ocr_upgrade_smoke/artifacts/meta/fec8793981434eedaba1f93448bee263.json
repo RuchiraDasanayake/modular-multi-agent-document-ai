@@ -1,0 +1,18 @@
+{
+  "artifact_id": "fec8793981434eedaba1f93448bee263",
+  "kind": "chunk_input",
+  "metadata": {
+    "agent": "chunking",
+    "doc_id": "demo_table_statement",
+    "parameters": {
+      "chunk_size": 300,
+      "max_chunks": 200,
+      "overlap": 50
+    },
+    "source_artifacts": [
+      "f34f546c87a44bd4917248ba19a89232"
+    ],
+    "version": "v1"
+  },
+  "path": "tmp_ocr_upgrade_smoke\\artifacts\\raw\\fec8793981434eedaba1f93448bee263_demo_table_statement_chunk_input.txt"
+}

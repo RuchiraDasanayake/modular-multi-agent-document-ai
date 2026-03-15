@@ -1,0 +1,9 @@
+{
+  "artifact_id": "27f4aef4c45b420b8f6b2cfef60d3b13",
+  "kind": "structured_export",
+  "metadata": {
+    "agent": "export_structured",
+    "format": "xlsx"
+  },
+  "path": "tmp_upgrade_batch\\entities.xlsx"
+}

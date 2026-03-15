@@ -15,7 +15,6 @@ import {
     SendHorizonal,
     Blocks,
     FlaskConical,
-    Target,
     Snowflake,
     Waves,
     Lock,
@@ -42,6 +41,7 @@ interface NavItem {
 
 const USER_NAV: NavItem[] = [
     { href: "/dashboard/idpo", label: "Doc Extraction", Icon: FileText, badge: "Core", color: "brand" },
+    { href: "/dashboard/idpo/presentation", label: "Run Explorer", Icon: Blocks, color: "cyan" },
     { href: "/dashboard/history", label: "Processing History", Icon: History, color: "cyan" },
     { href: "/dashboard/xai", label: "AI Q&A", Icon: MessageSquare, color: "violet" },
     { href: "/dashboard/guardrails", label: "Quality Checks", Icon: ShieldCheck, color: "emerald" },

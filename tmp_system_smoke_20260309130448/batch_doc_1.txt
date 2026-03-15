@@ -1,0 +1,6 @@
+﻿Invoice Number: INV-2001
+Date: 2026-03-02
+Vendor: Batch Vendor 1
+Subtotal: 82.00
+Tax: 9.00
+Total Amount: 93.00

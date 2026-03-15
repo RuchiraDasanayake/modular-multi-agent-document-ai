@@ -1,0 +1,16 @@
+{
+  "artifact_id": "5da314378690469f93641dacfa639226",
+  "kind": "tables",
+  "metadata": {
+    "agent": "table_form",
+    "doc_id": "demo_clean_text",
+    "parameters": {
+      "table_mode": "heuristic"
+    },
+    "source_artifacts": [
+      "2df8f91136c748daac94fc8a5e7eab50"
+    ],
+    "version": "v1"
+  },
+  "path": "tmp_ocr_upgrade_smoke\\artifacts\\clean\\5da314378690469f93641dacfa639226_demo_clean_text_tables.json"
+}

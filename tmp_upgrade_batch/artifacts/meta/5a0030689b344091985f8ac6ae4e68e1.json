@@ -1,0 +1,11 @@
+{
+  "artifact_id": "5a0030689b344091985f8ac6ae4e68e1",
+  "kind": "validation",
+  "metadata": {
+    "agent": "validation",
+    "doc_id": "demo_table_statement",
+    "stage": "initial",
+    "version": "v1"
+  },
+  "path": "tmp_upgrade_batch\\artifacts\\clean\\5a0030689b344091985f8ac6ae4e68e1_demo_table_statement_validation_initial.json"
+}

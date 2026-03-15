@@ -1,0 +1,18 @@
+{
+  "artifact_id": "4edce3d14cb94e9e9436cad5372eee56",
+  "kind": "chunks",
+  "metadata": {
+    "agent": "chunking",
+    "doc_id": "invoice",
+    "parameters": {
+      "chunk_size": 350,
+      "max_chunks": 128,
+      "overlap": 60
+    },
+    "source_artifacts": [
+      "6171df9fc9d444ed8c6c69492e4753bf"
+    ],
+    "version": "v1"
+  },
+  "path": "tmp_openai_audit\\run2\\artifacts\\clean\\4edce3d14cb94e9e9436cad5372eee56_invoice_chunks.json"
+}

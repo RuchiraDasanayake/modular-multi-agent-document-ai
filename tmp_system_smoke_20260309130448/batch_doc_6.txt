@@ -1,0 +1,6 @@
+﻿Invoice Number: INV-2006
+Date: 2026-03-07
+Vendor: Batch Vendor 6
+Subtotal: 92.00
+Tax: 14.00
+Total Amount: 108.00

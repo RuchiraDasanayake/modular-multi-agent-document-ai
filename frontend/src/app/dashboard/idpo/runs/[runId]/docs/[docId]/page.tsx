@@ -17,6 +17,14 @@ function toPercent(value: unknown) {
   return `${(num * 100).toFixed(1)}%`;
 }
 
+function formatNumber(value: unknown, digits = 2) {
+  const num = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(num)) {
+    return "-";
+  }
+  return num.toFixed(digits);
+}
+
 export default function DocumentDetailPage() {
   const params = useParams<{ runId: string; docId: string }>();
   const runId = decodeURIComponent(params.runId);
@@ -72,6 +80,10 @@ export default function DocumentDetailPage() {
 
   const metadata = (doc.metadata ?? {}) as Record<string, unknown>;
   const escalation = (doc.escalation ?? {}) as Record<string, unknown>;
+  const transparency = (doc.transparency ?? {}) as Record<string, unknown>;
+  const modelRoute = (transparency.model_route ?? {}) as Record<string, unknown>;
+  const ocrRoute = (transparency.ocr_route ?? {}) as Record<string, unknown>;
+  const fieldResolution = (transparency.field_resolution ?? {}) as Record<string, unknown>;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -101,6 +113,35 @@ export default function DocumentDetailPage() {
         <IdpoCard>
           <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Route Bin</p>
           <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">{String(metadata.routeBin ?? "-")}</p>
+        </IdpoCard>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <IdpoCard>
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Model Route</p>
+          <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
+            {String(metadata.modelMode ?? modelRoute.model_mode ?? "-")} / {String(metadata.modelUsed ?? modelRoute.model_used ?? "-")}
+          </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Reason: {String(metadata.modelReason ?? modelRoute.model_reason ?? "-")}</p>
+        </IdpoCard>
+        <IdpoCard>
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Fallback Path</p>
+          <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">{String(metadata.fallbackPath ?? modelRoute.fallback_path ?? "-")}</p>
+        </IdpoCard>
+        <IdpoCard>
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">OCR Route</p>
+          <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
+            {String(metadata.ocrEngineUsed ?? ocrRoute.engine ?? "-")} ({formatNumber(metadata.ocrAvgConfidence ?? ocrRoute.avg_confidence)})
+          </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Reruns: {String(metadata.ocrRerunUsedPages ?? ocrRoute.rerun_used_pages ?? 0)}/{String(metadata.ocrRerunAttemptedPages ?? ocrRoute.rerun_attempted_pages ?? 0)}
+          </p>
+        </IdpoCard>
+        <IdpoCard>
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Unresolved Fields</p>
+          <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">
+            {String(metadata.unresolvedFieldCount ?? fieldResolution.unresolved_count ?? "-")}
+          </p>
         </IdpoCard>
       </div>
 
@@ -235,6 +276,10 @@ export default function DocumentDetailPage() {
 
       <IdpoCard>
         <JsonViewer title="Raw Document Bundle" value={doc.raw ?? {}} />
+      </IdpoCard>
+
+      <IdpoCard>
+        <JsonViewer title="Transparency Artifact" value={transparency} />
       </IdpoCard>
     </div>
   );

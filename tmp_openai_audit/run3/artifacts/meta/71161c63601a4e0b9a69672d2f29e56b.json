@@ -1,0 +1,10 @@
+{
+  "artifact_id": "71161c63601a4e0b9a69672d2f29e56b",
+  "kind": "plan",
+  "metadata": {
+    "agent": "router",
+    "doc_id": "invoice",
+    "policy_id": "forms"
+  },
+  "path": "tmp_openai_audit\\run3\\artifacts\\clean\\71161c63601a4e0b9a69672d2f29e56b_invoice_plan.json"
+}

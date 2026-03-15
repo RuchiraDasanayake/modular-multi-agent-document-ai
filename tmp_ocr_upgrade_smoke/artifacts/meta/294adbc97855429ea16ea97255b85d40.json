@@ -1,0 +1,10 @@
+{
+  "artifact_id": "294adbc97855429ea16ea97255b85d40",
+  "kind": "summary",
+  "metadata": {
+    "agent": "summarization",
+    "doc_id": "demo_clean_text",
+    "version": "v1"
+  },
+  "path": "tmp_ocr_upgrade_smoke\\artifacts\\clean\\294adbc97855429ea16ea97255b85d40_demo_clean_text_summary.txt"
+}

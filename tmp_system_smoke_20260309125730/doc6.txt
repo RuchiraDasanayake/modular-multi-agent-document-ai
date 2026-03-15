@@ -1,0 +1,4 @@
+﻿Invoice Number: INV-1006
+Date: 2026-03-07
+Vendor: Demo Vendor 6
+Total Amount: 118.00

@@ -1,0 +1,10 @@
+{
+  "artifact_id": "028be81b4ce74c299156eda1a86fa12d",
+  "kind": "sections",
+  "metadata": {
+    "agent": "sectioning",
+    "doc_id": "invoice",
+    "version": "v1"
+  },
+  "path": "tmp_openai_audit\\run3\\artifacts\\clean\\028be81b4ce74c299156eda1a86fa12d_invoice_sections.json"
+}

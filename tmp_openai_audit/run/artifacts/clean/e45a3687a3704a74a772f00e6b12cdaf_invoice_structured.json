@@ -1,0 +1,242 @@
+{
+  "combined_entities": [
+    {
+      "confidence": 0.9,
+      "key": "record_id",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o-mini",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "INV-2026-9001"
+    },
+    {
+      "confidence": 0.55,
+      "key": "vendor",
+      "metadata": {
+        "evidence": "Acme Logistics",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        33,
+        47
+      ],
+      "value": "Acme Logistics"
+    },
+    {
+      "confidence": 0.9,
+      "key": "total_amount",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o-mini",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "1499.50"
+    },
+    {
+      "confidence": 0.55,
+      "key": "notes",
+      "metadata": {
+        "evidence": "Date intentionally omitted to test unresolved-field fallback",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        77,
+        137
+      ],
+      "value": "Date intentionally omitted to test unresolved-field fallback"
+    }
+  ],
+  "default_entities": [
+    {
+      "confidence": 0.7,
+      "key": "record_id",
+      "metadata": {
+        "evidence": "INV-2026-9001",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        11,
+        24
+      ],
+      "value": "INV-2026-9001"
+    },
+    {
+      "confidence": 0.55,
+      "key": "vendor",
+      "metadata": {
+        "evidence": "Acme Logistics",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        33,
+        47
+      ],
+      "value": "Acme Logistics"
+    },
+    {
+      "confidence": 0.72,
+      "key": "total_amount",
+      "metadata": {
+        "evidence": "1499.50",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        62,
+        69
+      ],
+      "value": "1499.50"
+    },
+    {
+      "confidence": 0.55,
+      "key": "notes",
+      "metadata": {
+        "evidence": "Date intentionally omitted to test unresolved-field fallback",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        77,
+        137
+      ],
+      "value": "Date intentionally omitted to test unresolved-field fallback"
+    }
+  ],
+  "doc_id": "invoice",
+  "explicit_entities": [
+    {
+      "confidence": 0.9,
+      "key": "record_id",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o-mini",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "INV-2026-9001"
+    },
+    {
+      "confidence": 0.9,
+      "key": "total_amount",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o-mini",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "1499.50"
+    }
+  ],
+  "explicit_source": "plan",
+  "llm_diagnostics": {
+    "cloud_attempted": true,
+    "cloud_calls": [
+      {
+        "completion_tokens": 74,
+        "entity_count": 2,
+        "estimated_cost_usd": 8.34e-05,
+        "latency_ms": 3761.0085010528564,
+        "model": "gpt-4o-mini",
+        "prompt_chars": 896,
+        "prompt_tokens": 260,
+        "provider": "openai",
+        "requested_fields": 4,
+        "success": true,
+        "total_tokens": 334
+      }
+    ],
+    "cloud_failure_reason": null,
+    "cloud_succeeded": true,
+    "cloud_usage": {
+      "completion_tokens": 74,
+      "estimated_cost_usd": 8.34e-05,
+      "prompt_tokens": 260,
+      "total_tokens": 334
+    },
+    "enabled": true,
+    "fallback_keys": [],
+    "flagship_attempted": false,
+    "flagship_failure_reason": null,
+    "flagship_model": null,
+    "flagship_succeeded": false,
+    "local_attempted": false,
+    "local_call": {},
+    "local_failure_reason": null,
+    "local_succeeded": false,
+    "requested_mode": "cloud",
+    "strategy": "local_first_cloud_cascade"
+  },
+  "llm_entities": [
+    {
+      "confidence": 0.9,
+      "key": "record_id",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o-mini",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "INV-2026-9001"
+    },
+    {
+      "confidence": 0.9,
+      "key": "total_amount",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o-mini",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "1499.50"
+    }
+  ],
+  "model_mode": "cloud",
+  "model_name": "gpt-4o-mini",
+  "policy_id": null,
+  "policy_name": null,
+  "requested_field_status": {
+    "customer_name": {
+      "confidence": 0.0,
+      "source": "none",
+      "status": "missing",
+      "value": ""
+    },
+    "document_date": {
+      "confidence": 0.0,
+      "source": "none",
+      "status": "missing",
+      "value": ""
+    },
+    "record_id": {
+      "confidence": 0.9,
+      "source": "llm_cloud",
+      "status": "extracted",
+      "value": "INV-2026-9001"
+    },
+    "total_amount": {
+      "confidence": 0.9,
+      "source": "llm_cloud",
+      "status": "extracted",
+      "value": "1499.50"
+    }
+  },
+  "requested_fields": [
+    "record_id",
+    "document_date",
+    "total_amount",
+    "customer_name"
+  ]
+}

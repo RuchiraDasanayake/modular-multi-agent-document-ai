@@ -1,0 +1,4 @@
+﻿Invoice Number: INV-1001
+Date: 2026-03-02
+Vendor: Demo Vendor 1
+Total Amount: 103.00

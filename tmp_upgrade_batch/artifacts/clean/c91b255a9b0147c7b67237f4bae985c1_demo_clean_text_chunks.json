@@ -1,0 +1,18 @@
+{
+  "chunks": [
+    {
+      "chunk_id": "demo_clean_text_chunk_0",
+      "doc_id": "demo_clean_text",
+      "metadata": {
+        "index": 0
+      },
+      "page_range": [
+        1,
+        1
+      ],
+      "section": "employee_record",
+      "text": "Record ID: EMP-22",
+      "tokens": 3
+    }
+  ]
+}

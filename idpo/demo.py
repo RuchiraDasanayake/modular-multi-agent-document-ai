@@ -59,6 +59,7 @@ def main() -> None:
 
     if args.report:
         report_path = pipeline.run_dir / "reports" / "summary.md"
+        report_path.parent.mkdir(parents=True, exist_ok=True)
         lines = [
             "# Demo Summary",
             "",

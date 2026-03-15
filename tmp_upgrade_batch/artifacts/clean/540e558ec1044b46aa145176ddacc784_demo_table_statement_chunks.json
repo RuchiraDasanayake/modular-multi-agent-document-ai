@@ -1,0 +1,32 @@
+{
+  "chunks": [
+    {
+      "chunk_id": "demo_table_statement_chunk_0",
+      "doc_id": "demo_table_statement",
+      "metadata": {
+        "index": 0
+      },
+      "page_range": [
+        1,
+        1
+      ],
+      "section": "section_1",
+      "text": "Statement ID: ST-8891",
+      "tokens": 3
+    },
+    {
+      "chunk_id": "demo_table_statement_chunk_1",
+      "doc_id": "demo_table_statement",
+      "metadata": {
+        "index": 1
+      },
+      "page_range": [
+        1,
+        1
+      ],
+      "section": "date_02_15_2026",
+      "text": "Item | Qty | Unit Price | Total Widget A | 10 | 15.00 | 150.00 Widget B | 4 | 20.00 | 80.00",
+      "tokens": 24
+    }
+  ]
+}

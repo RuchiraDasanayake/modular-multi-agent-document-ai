@@ -1,0 +1,4 @@
+Record ID: INV-2026-9001
+Vendor: Acme Logistics
+Total Amount: 1499.50
+Notes: Date intentionally omitted to test unresolved-field fallback.

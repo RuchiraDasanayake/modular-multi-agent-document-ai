@@ -160,32 +160,42 @@ def build_plan(
 def _default_operator_specs(dae_output: DAEOutput, actions: dict[str, Any]) -> list[dict[str, Any]]:
     specs: list[dict[str, Any]] = []
     preprocess = actions.get("preprocess", {})
-    if dae_output.doc_type == "scanned_document" or dae_output.content_profile == "image-heavy":
-        if preprocess.get("ocr", {}).get("enabled", True):
-            specs.append({"operator": "preprocess.ocr"})
-    if preprocess.get("deskew", {}).get("enabled", True) and (
+    execution_mode = str(actions.get("execution_mode", "")).strip().lower()
+    extraction_only = execution_mode in {"extract", "extraction_only", "fields_only"}
+    is_image_pipeline = dae_output.doc_type == "scanned_document" or dae_output.content_profile == "image-heavy"
+
+    # For scanned/image-heavy docs, image cleanup must happen before OCR.
+    if is_image_pipeline and preprocess.get("deskew", {}).get("enabled", True) and (
         dae_output.quality_bin == "C" or abs(dae_output.signals.get("skew_angle", 0.0)) > 2.0
     ):
         specs.append({"operator": "preprocess.deskew"})
-    if preprocess.get("denoise", {}).get("enabled", True) and dae_output.quality_bin in {"B", "C"}:
+    if is_image_pipeline and preprocess.get("denoise", {}).get("enabled", True) and dae_output.quality_bin in {"B", "C"}:
         specs.append({"operator": "preprocess.denoise"})
+    if is_image_pipeline and preprocess.get("ocr", {}).get("enabled", True):
+        specs.append({"operator": "preprocess.ocr"})
     if preprocess.get("table_extract", {}).get("enabled", True) and (
         dae_output.content_profile in {"table-heavy", "form-centric"}
         or dae_output.signals.get("table_likelihood", 0.0) > 0.2
     ):
         specs.append({"operator": "preprocess.table_extract"})
 
+    specs.append({"operator": "structuring.extract"})
+    if not extraction_only:
+        specs.extend(
+            [
+                {"operator": "structuring.section"},
+                {"operator": "structuring.summary"},
+            ]
+        )
     specs.extend(
         [
-            {"operator": "structuring.extract"},
-            {"operator": "structuring.section"},
-            {"operator": "structuring.summary"},
             {"operator": "validation"},
             {"operator": "recovery"},
             {"operator": "escalation"},
-            {"operator": "chunking"},
         ]
     )
+    if not extraction_only:
+        specs.append({"operator": "chunking"})
     return specs
 
 def _normalize_operator_specs(operators: list[Any]) -> list[dict[str, Any]]:

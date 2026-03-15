@@ -1,0 +1,5 @@
+﻿Invoice Number: INV-5567
+Date: 2026-03-09
+Vendor: Local Check Vendor
+Total Amount: 145.32
+PO Number: PO-9981

@@ -1,0 +1,16 @@
+{
+  "artifact_id": "f2678c41b8bf478da928bab368a81df8",
+  "kind": "deskew_text",
+  "metadata": {
+    "agent": "deskew",
+    "doc_id": "demo_image_invoice",
+    "parameters": {
+      "deskew": true
+    },
+    "source_artifacts": [
+      "7fa16eb91fde4ac7a8e3b1733daaace9"
+    ],
+    "version": "v1"
+  },
+  "path": "tmp_ocr_upgrade_smoke\\artifacts\\clean\\f2678c41b8bf478da928bab368a81df8_demo_image_invoice_deskew.txt"
+}

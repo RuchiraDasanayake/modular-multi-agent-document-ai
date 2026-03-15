@@ -1,0 +1,48 @@
+{
+  "name": "idpo_regression_pack_v1",
+  "description": "Fixed benchmark cases for field extraction regression checks.",
+  "cases": [
+    {
+      "case_id": "invoice_basic",
+      "path": "idpo/benchmark/data/invoice_basic.txt",
+      "fields": {
+        "invoice_number": "Invoice identifier",
+        "total_amount": "Total due amount",
+        "due_date": "Payment due date"
+      },
+      "expected": {
+        "invoice_number": "INV-2026-1001",
+        "total_amount": "1388.80",
+        "due_date": "2026-03-25"
+      }
+    },
+    {
+      "case_id": "receipt_basic",
+      "path": "idpo/benchmark/data/receipt_basic.txt",
+      "fields": {
+        "receipt_number": "Receipt identifier",
+        "total_amount": "Final amount paid",
+        "purchase_date": "Date of purchase"
+      },
+      "expected": {
+        "receipt_number": "RCPT-8831",
+        "total_amount": "69.45",
+        "purchase_date": "2026-03-07"
+      }
+    },
+    {
+      "case_id": "po_basic",
+      "path": "idpo/benchmark/data/po_basic.txt",
+      "fields": {
+        "po_number": "Purchase order number",
+        "supplier_name": "Supplier name",
+        "total_amount": "Total order value"
+      },
+      "expected": {
+        "po_number": "PO-77892",
+        "supplier_name": "Apex Components Ltd",
+        "total_amount": "5240.00"
+      }
+    }
+  ]
+}

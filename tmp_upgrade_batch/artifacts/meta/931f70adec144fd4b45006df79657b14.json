@@ -1,0 +1,15 @@
+{
+  "artifact_id": "931f70adec144fd4b45006df79657b14",
+  "kind": "structured_entities",
+  "metadata": {
+    "agent": "llm_extraction",
+    "doc_id": "demo_table_statement",
+    "input_artifacts": [
+      "d383f8059ed6412c85c0e8069b7e7a5d"
+    ],
+    "model": "gpt-4o-mini",
+    "policy_id": null,
+    "version": "v1"
+  },
+  "path": "tmp_upgrade_batch\\artifacts\\clean\\931f70adec144fd4b45006df79657b14_demo_table_statement_structured.json"
+}

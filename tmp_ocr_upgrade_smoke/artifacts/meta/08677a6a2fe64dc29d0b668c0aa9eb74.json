@@ -1,0 +1,15 @@
+{
+  "artifact_id": "08677a6a2fe64dc29d0b668c0aa9eb74",
+  "kind": "structured_entities",
+  "metadata": {
+    "agent": "llm_extraction",
+    "doc_id": "demo_image_invoice",
+    "input_artifacts": [
+      "d5a5338aa1c04c4e8c35db055ea6a467"
+    ],
+    "model": "gpt-4o-mini",
+    "policy_id": null,
+    "version": "v1"
+  },
+  "path": "tmp_ocr_upgrade_smoke\\artifacts\\clean\\08677a6a2fe64dc29d0b668c0aa9eb74_demo_image_invoice_structured.json"
+}

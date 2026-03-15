@@ -1,0 +1,6 @@
+Receipt Number: RCPT-8831
+Store: Metro Mart
+Purchase Date: 2026-03-07
+Subtotal: 63.00
+Tax: 6.45
+Total Amount: 69.45

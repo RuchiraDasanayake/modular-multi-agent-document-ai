@@ -7,12 +7,14 @@ demo endpoints as a standalone FastAPI service.
 Component Owner: Dasanayake D.R.L.
 """
 
+import asyncio
 import os
 import json
 import uuid
 import random
 import hashlib
 import logging
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -39,6 +41,10 @@ from .services.rabi import (
 )
 from .services.drift_forgetting import DriftEstimator, DriftType
 from .services.scheduler import AHMNScheduler
+
+# psycopg async connections on Windows require Selector event loop.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(

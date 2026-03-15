@@ -1,0 +1,311 @@
+{
+  "combined_entities": [
+    {
+      "confidence": 0.7,
+      "key": "invoice_id",
+      "metadata": {
+        "evidence": "INV-1001",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        12,
+        20
+      ],
+      "value": "INV-1001"
+    },
+    {
+      "confidence": 0.55,
+      "key": "customer_name",
+      "metadata": {
+        "evidence": "Alice Doe",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        36,
+        45
+      ],
+      "value": "Alice Doe"
+    },
+    {
+      "confidence": 0.9,
+      "key": "total_amount",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o-mini",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "USD 1200.00"
+    },
+    {
+      "confidence": 0.72,
+      "key": "due_date",
+      "metadata": {
+        "evidence": "03/10/2026",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        82,
+        92
+      ],
+      "value": "03/10/2026"
+    },
+    {
+      "confidence": 0.9,
+      "key": "document_date",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o-mini",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "03/10/2026"
+    },
+    {
+      "confidence": 0.9,
+      "key": "record_id",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o-mini",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "INV-1001"
+    }
+  ],
+  "default_entities": [
+    {
+      "confidence": 0.7,
+      "key": "invoice_id",
+      "metadata": {
+        "evidence": "INV-1001",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        12,
+        20
+      ],
+      "value": "INV-1001"
+    },
+    {
+      "confidence": 0.55,
+      "key": "customer_name",
+      "metadata": {
+        "evidence": "Alice Doe",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        36,
+        45
+      ],
+      "value": "Alice Doe"
+    },
+    {
+      "confidence": 0.55,
+      "key": "total_amount",
+      "metadata": {
+        "evidence": "USD 1200.00",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        60,
+        71
+      ],
+      "value": "USD 1200.00"
+    },
+    {
+      "confidence": 0.72,
+      "key": "due_date",
+      "metadata": {
+        "evidence": "03/10/2026",
+        "generic_kv": true
+      },
+      "page": 1,
+      "span": [
+        82,
+        92
+      ],
+      "value": "03/10/2026"
+    }
+  ],
+  "doc_id": "demo_image_invoice",
+  "explicit_entities": [
+    {
+      "confidence": 0.9,
+      "key": "document_date",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o-mini",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "03/10/2026"
+    },
+    {
+      "confidence": 0.9,
+      "key": "total_amount",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o-mini",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "USD 1200.00"
+    },
+    {
+      "confidence": 0.9,
+      "key": "record_id",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o-mini",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "INV-1001"
+    }
+  ],
+  "explicit_source": "rules",
+  "llm_diagnostics": {
+    "cloud_attempted": true,
+    "cloud_calls": [
+      {
+        "completion_tokens": 63,
+        "context": {
+          "full_chars": 117,
+          "selected_chars": 117,
+          "strategy": "full",
+          "targeted_context_chars": 0,
+          "targeted_context_lines": 0,
+          "truncated": false
+        },
+        "entity_count": 3,
+        "estimated_cost_usd": 9.524999999999998e-05,
+        "latency_ms": 3168.645143508911,
+        "max_tokens_requested": 240,
+        "model": "gpt-4o-mini",
+        "prompt_chars": 1115,
+        "prompt_tokens": 383,
+        "prompt_version": "extraction_v2",
+        "provider": "openai",
+        "request": {
+          "endpoint": "chat.completions",
+          "max_tokens": 240,
+          "response_format": "json_schema",
+          "strict_json_output": true,
+          "temperature": 0.0
+        },
+        "requested_fields": 3,
+        "success": true,
+        "total_tokens": 446
+      }
+    ],
+    "cloud_failure_reason": null,
+    "cloud_succeeded": true,
+    "cloud_usage": {
+      "completion_tokens": 63,
+      "estimated_cost_usd": 9.524999999999998e-05,
+      "prompt_tokens": 383,
+      "total_tokens": 446
+    },
+    "description_refinement": {
+      "attempted": true,
+      "cache_hit": false,
+      "enabled": true,
+      "error": null,
+      "input_fields": 3,
+      "model": "gpt-4o-mini",
+      "succeeded": true
+    },
+    "enabled": true,
+    "fallback_keys": [],
+    "flagship_attempted": false,
+    "flagship_failure_reason": null,
+    "flagship_model": null,
+    "flagship_succeeded": false,
+    "local_attempted": false,
+    "local_call": {},
+    "local_failure_reason": null,
+    "local_succeeded": false,
+    "requested_mode": "cloud",
+    "strategy": "local_first_cloud_cascade"
+  },
+  "llm_entities": [
+    {
+      "confidence": 0.9,
+      "key": "record_id",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o-mini",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "INV-1001"
+    },
+    {
+      "confidence": 0.9,
+      "key": "document_date",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o-mini",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "03/10/2026"
+    },
+    {
+      "confidence": 0.9,
+      "key": "total_amount",
+      "metadata": {
+        "explicit": true,
+        "model": "gpt-4o-mini",
+        "source": "llm_cloud"
+      },
+      "page": null,
+      "span": null,
+      "value": "USD 1200.00"
+    }
+  ],
+  "model_mode": "cloud",
+  "model_name": "gpt-4o-mini",
+  "policy_id": null,
+  "policy_name": null,
+  "requested_field_status": {
+    "document_date": {
+      "confidence": 0.9,
+      "source": "llm_cloud",
+      "status": "extracted",
+      "value": "03/10/2026"
+    },
+    "record_id": {
+      "confidence": 0.9,
+      "source": "llm_cloud",
+      "status": "extracted",
+      "value": "INV-1001"
+    },
+    "total_amount": {
+      "confidence": 0.9,
+      "source": "llm_cloud",
+      "status": "extracted",
+      "value": "USD 1200.00"
+    }
+  },
+  "requested_fields": [
+    "record_id",
+    "document_date",
+    "total_amount"
+  ]
+}

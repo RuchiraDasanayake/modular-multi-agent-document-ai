@@ -1,0 +1,15 @@
+{
+  "artifact_id": "81655754cc404a2abbb32ba30da2d251",
+  "kind": "structured_entities",
+  "metadata": {
+    "agent": "llm_extraction",
+    "doc_id": "demo_clean_text",
+    "input_artifacts": [
+      "30d273cdc7c24499b180cb9edaf713f5"
+    ],
+    "model": "gpt-4o-mini",
+    "policy_id": null,
+    "version": "v1"
+  },
+  "path": "tmp_upgrade_batch\\artifacts\\clean\\81655754cc404a2abbb32ba30da2d251_demo_clean_text_structured.json"
+}

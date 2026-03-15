@@ -1,0 +1,11 @@
+{
+  "artifact_id": "3d06aec051524800a1e18da035c5f65b",
+  "kind": "validation",
+  "metadata": {
+    "agent": "validation",
+    "doc_id": "invoice",
+    "stage": "initial",
+    "version": "v1"
+  },
+  "path": "tmp_openai_audit\\run2\\artifacts\\clean\\3d06aec051524800a1e18da035c5f65b_invoice_validation_initial.json"
+}

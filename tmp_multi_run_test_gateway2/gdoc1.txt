@@ -1,0 +1,4 @@
+Record ID: INV-2026-301
+Date: 03/09/2026
+Total Amount: 300.00
+Customer Name: Gateway Batch2 1

@@ -1,0 +1,10 @@
+{
+  "artifact_id": "63ae666521e64d4e91e81aeaff706752",
+  "kind": "plan",
+  "metadata": {
+    "agent": "router",
+    "doc_id": "demo_image_invoice",
+    "policy_id": "default"
+  },
+  "path": "tmp_ocr_upgrade_smoke\\artifacts\\clean\\63ae666521e64d4e91e81aeaff706752_demo_image_invoice_plan.json"
+}

@@ -1,0 +1,6 @@
+﻿Invoice Number: INV-20012
+Date: 2026-03-13
+Vendor: Batch Vendor 12
+Subtotal: 104.00
+Tax: 20.00
+Total Amount: 126.00

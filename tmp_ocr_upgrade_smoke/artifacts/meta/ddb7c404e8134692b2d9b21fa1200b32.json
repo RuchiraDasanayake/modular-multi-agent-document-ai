@@ -1,0 +1,9 @@
+{
+  "artifact_id": "ddb7c404e8134692b2d9b21fa1200b32",
+  "kind": "structured_export",
+  "metadata": {
+    "agent": "export_structured",
+    "format": "xlsx"
+  },
+  "path": "tmp_ocr_upgrade_smoke\\entities.xlsx"
+}

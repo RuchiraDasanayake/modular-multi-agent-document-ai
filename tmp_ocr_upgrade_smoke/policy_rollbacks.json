@@ -1,0 +1,26 @@
+{
+  "history": {
+    "forms": [
+      {
+        "latency_ms": 8029.9036502838135,
+        "validation_failure": 0.0,
+        "quality_proxy": 0.7833333333333333
+      }
+    ],
+    "default": [
+      {
+        "latency_ms": 3457.6966762542725,
+        "validation_failure": 0.0,
+        "quality_proxy": 0.7783333333333333
+      }
+    ],
+    "table_heavy": [
+      {
+        "latency_ms": 5104.424953460693,
+        "validation_failure": 0.0,
+        "quality_proxy": 0.77
+      }
+    ]
+  },
+  "blocked": []
+}

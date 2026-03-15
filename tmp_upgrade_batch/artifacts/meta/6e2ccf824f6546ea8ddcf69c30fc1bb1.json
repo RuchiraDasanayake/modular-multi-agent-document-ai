@@ -1,0 +1,10 @@
+{
+  "artifact_id": "6e2ccf824f6546ea8ddcf69c30fc1bb1",
+  "kind": "plan",
+  "metadata": {
+    "agent": "router",
+    "doc_id": "demo_table_statement",
+    "policy_id": "table_heavy"
+  },
+  "path": "tmp_upgrade_batch\\artifacts\\clean\\6e2ccf824f6546ea8ddcf69c30fc1bb1_demo_table_statement_plan.json"
+}

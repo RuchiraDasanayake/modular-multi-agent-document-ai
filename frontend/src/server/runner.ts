@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { loadRunnerConfig, getCommandConfig } from "@/server/config";
 import { createJob, appendJobLog, setJobFailed, setJobRunning, setJobSuccess, updateJob } from "@/server/jobs";
 import { ensurePathInside, resolvePathForDisplay, resolvePrimaryRunPath, resolveRunRoot } from "@/server/paths";
@@ -28,6 +28,10 @@ interface StartRunRequest {
     llmUseExtraction?: boolean;
     llmUseSummarization?: boolean;
     flagshipModel?: string;
+    autoInstallLocalModel?: boolean;
+    apiKeys?: {
+      openai?: string;
+    };
   };
   files: File[];
   sourceRunId?: string;
@@ -250,7 +254,7 @@ function patchConfig(baseConfig: Record<string, unknown>, settings: StartRunRequ
   return updated;
 }
 
-function prepareRuntimeConfig(baseConfigPath: string, uploadDir: string, settings: StartRunRequest["settings"]): string {
+function prepareRuntimeConfig(baseConfigPath: string, jobId: string, settings: StartRunRequest["settings"]): string {
   let baseConfig: Record<string, unknown> = {};
   if (fs.existsSync(baseConfigPath)) {
     try {
@@ -261,9 +265,55 @@ function prepareRuntimeConfig(baseConfigPath: string, uploadDir: string, setting
   }
 
   const finalConfig = patchConfig(baseConfig, settings);
-  const runtimeConfigPath = path.join(uploadDir, "runtime_config.json");
+  const runtimeConfigPath = path.join(loadRunnerConfig().jobsDir, `${jobId}_runtime_config.json`);
   fs.writeFileSync(runtimeConfigPath, JSON.stringify(finalConfig, null, 2), "utf-8");
   return runtimeConfigPath;
+}
+
+function redactSettings(settings: StartRunRequest["settings"]): Record<string, unknown> {
+  const redacted: Record<string, unknown> = { ...settings };
+  if (settings.apiKeys?.openai) {
+    redacted.apiKeys = { openai: "***" };
+  }
+  return redacted;
+}
+
+function maybeInstallLocalModel(jobId: string, settings: StartRunRequest["settings"]): void {
+  if (!settings.autoInstallLocalModel || !settings.llmLocalModel?.trim()) {
+    return;
+  }
+  const model = settings.llmLocalModel.trim();
+  appendJobLog(jobId, `[runner] checking local model '${model}'`);
+
+  const listResult = spawnSync("ollama", ["list"], {
+    encoding: "utf-8",
+    timeout: 15000,
+    windowsHide: true,
+  });
+
+  if (listResult.error) {
+    appendJobLog(jobId, `[runner] ollama not available: ${listResult.error.message}`);
+    return;
+  }
+
+  const listOutput = `${listResult.stdout ?? ""}\n${listResult.stderr ?? ""}`;
+  if (listOutput.toLowerCase().includes(model.toLowerCase())) {
+    appendJobLog(jobId, `[runner] local model already present: ${model}`);
+    return;
+  }
+
+  appendJobLog(jobId, `[runner] pulling local model: ${model}`);
+  const pull = spawnSync("ollama", ["pull", model], {
+    encoding: "utf-8",
+    timeout: 20 * 60 * 1000,
+    windowsHide: true,
+  });
+  const pullOut = `${pull.stdout ?? ""}\n${pull.stderr ?? ""}`.trim();
+  if (pull.status === 0) {
+    appendJobLog(jobId, `[runner] model pull complete: ${model}`);
+  } else {
+    appendJobLog(jobId, `[runner] model pull failed (${pull.status ?? "unknown"}): ${pullOut.slice(0, 300)}`);
+  }
 }
 
 function buildCommandArgs(
@@ -311,11 +361,11 @@ export async function startRunJob(payload: StartRunRequest) {
     throw new Error("No input artifacts found for run start");
   }
 
-  const job = createJob(commandConfig.id, payload.settings, resolvePathForDisplay(uploadDir));
+  const job = createJob(commandConfig.id, redactSettings(payload.settings), resolvePathForDisplay(uploadDir));
   const startedAtMs = Date.now();
 
   const baseConfigPath = resolveConfigPathFromSettings(payload.settings);
-  const runtimeConfigPath = prepareRuntimeConfig(baseConfigPath, uploadDir, payload.settings);
+  const runtimeConfigPath = prepareRuntimeConfig(baseConfigPath, job.jobId, payload.settings);
 
   updateJob(job.jobId, {
     logs: [
@@ -325,6 +375,8 @@ export async function startRunJob(payload: StartRunRequest) {
       `Runtime config: ${resolvePathForDisplay(runtimeConfigPath)}`,
     ],
   });
+
+  maybeInstallLocalModel(job.jobId, payload.settings);
 
   const placeholders = {
     input_dir: uploadDir,
@@ -341,6 +393,11 @@ export async function startRunJob(payload: StartRunRequest) {
     env: {
       ...process.env,
       ...commandConfig.env,
+      ...(payload.settings.apiKeys?.openai?.trim()
+        ? {
+            OPENAI_API_KEY: payload.settings.apiKeys.openai.trim(),
+          }
+        : {}),
     },
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,

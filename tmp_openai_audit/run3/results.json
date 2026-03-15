@@ -1,0 +1,779 @@
+{
+  "results": [
+    {
+      "doc_id": "invoice",
+      "path": "tmp_openai_audit\\input\\invoice.txt",
+      "source": "digital",
+      "doc_type": "form_document",
+      "vendor_cluster": "invoice",
+      "layout_cluster_id": "unknown",
+      "quality_bin": "A",
+      "complexity_bin": "2",
+      "route_bin": "standard",
+      "content_profile": "form-centric",
+      "profile": "form-centric",
+      "category": "form",
+      "bin": "form",
+      "quality_score": 0.9347826086956522,
+      "complexity_score": 0.39999999999999997,
+      "analysis_confidence": 0.9347826086956522,
+      "analysis_confidence_type": "heuristic",
+      "quality_features": {},
+      "structural_features": {},
+      "entities": [
+        {
+          "key": "record_id",
+          "value": "INV-2026-9001",
+          "confidence": 0.9,
+          "page": null,
+          "span": null,
+          "metadata": {
+            "explicit": true,
+            "source": "llm_cloud",
+            "model": "gpt-4o-mini"
+          }
+        },
+        {
+          "key": "vendor",
+          "value": "Acme Logistics",
+          "confidence": 0.55,
+          "page": 1,
+          "span": [
+            33,
+            47
+          ],
+          "metadata": {
+            "generic_kv": true,
+            "evidence": "Acme Logistics"
+          }
+        },
+        {
+          "key": "total_amount",
+          "value": "1499.50",
+          "confidence": 0.9,
+          "page": null,
+          "span": null,
+          "metadata": {
+            "explicit": true,
+            "source": "llm_cloud",
+            "model": "gpt-4o-mini"
+          }
+        },
+        {
+          "key": "notes",
+          "value": "Date intentionally omitted to test unresolved-field fallback",
+          "confidence": 0.55,
+          "page": 1,
+          "span": [
+            77,
+            137
+          ],
+          "metadata": {
+            "generic_kv": true,
+            "evidence": "Date intentionally omitted to test unresolved-field fallback"
+          }
+        },
+        {
+          "key": "customer_name",
+          "value": "Acme Logistics",
+          "confidence": 0.9,
+          "page": null,
+          "span": null,
+          "metadata": {
+            "explicit": true,
+            "source": "llm_cloud",
+            "model": "gpt-4.1"
+          }
+        }
+      ],
+      "extracted_fields": [
+        {
+          "key": "record_id",
+          "value": "INV-2026-9001",
+          "confidence": 0.9,
+          "page": null,
+          "span": null,
+          "metadata": {
+            "explicit": true,
+            "source": "llm_cloud",
+            "model": "gpt-4o-mini"
+          }
+        },
+        {
+          "key": "vendor",
+          "value": "Acme Logistics",
+          "confidence": 0.55,
+          "page": 1,
+          "span": [
+            33,
+            47
+          ],
+          "metadata": {
+            "generic_kv": true,
+            "evidence": "Acme Logistics"
+          }
+        },
+        {
+          "key": "total_amount",
+          "value": "1499.50",
+          "confidence": 0.9,
+          "page": null,
+          "span": null,
+          "metadata": {
+            "explicit": true,
+            "source": "llm_cloud",
+            "model": "gpt-4o-mini"
+          }
+        },
+        {
+          "key": "notes",
+          "value": "Date intentionally omitted to test unresolved-field fallback",
+          "confidence": 0.55,
+          "page": 1,
+          "span": [
+            77,
+            137
+          ],
+          "metadata": {
+            "generic_kv": true,
+            "evidence": "Date intentionally omitted to test unresolved-field fallback"
+          }
+        },
+        {
+          "key": "customer_name",
+          "value": "Acme Logistics",
+          "confidence": 0.9,
+          "page": null,
+          "span": null,
+          "metadata": {
+            "explicit": true,
+            "source": "llm_cloud",
+            "model": "gpt-4.1"
+          }
+        }
+      ],
+      "explicit_entities": [
+        {
+          "key": "record_id",
+          "value": "INV-2026-9001",
+          "confidence": 0.9,
+          "page": null,
+          "span": null,
+          "metadata": {
+            "explicit": true,
+            "source": "llm_cloud",
+            "model": "gpt-4o-mini"
+          }
+        },
+        {
+          "key": "total_amount",
+          "value": "1499.50",
+          "confidence": 0.9,
+          "page": null,
+          "span": null,
+          "metadata": {
+            "explicit": true,
+            "source": "llm_cloud",
+            "model": "gpt-4o-mini"
+          }
+        },
+        {
+          "key": "customer_name",
+          "value": "Acme Logistics",
+          "confidence": 0.9,
+          "page": null,
+          "span": null,
+          "metadata": {
+            "explicit": true,
+            "source": "llm_cloud",
+            "model": "gpt-4.1"
+          }
+        }
+      ],
+      "default_entities": [
+        {
+          "key": "record_id",
+          "value": "INV-2026-9001",
+          "confidence": 0.7,
+          "page": 1,
+          "span": [
+            11,
+            24
+          ],
+          "metadata": {
+            "generic_kv": true,
+            "evidence": "INV-2026-9001"
+          }
+        },
+        {
+          "key": "vendor",
+          "value": "Acme Logistics",
+          "confidence": 0.55,
+          "page": 1,
+          "span": [
+            33,
+            47
+          ],
+          "metadata": {
+            "generic_kv": true,
+            "evidence": "Acme Logistics"
+          }
+        },
+        {
+          "key": "total_amount",
+          "value": "1499.50",
+          "confidence": 0.72,
+          "page": 1,
+          "span": [
+            62,
+            69
+          ],
+          "metadata": {
+            "generic_kv": true,
+            "evidence": "1499.50"
+          }
+        },
+        {
+          "key": "notes",
+          "value": "Date intentionally omitted to test unresolved-field fallback",
+          "confidence": 0.55,
+          "page": 1,
+          "span": [
+            77,
+            137
+          ],
+          "metadata": {
+            "generic_kv": true,
+            "evidence": "Date intentionally omitted to test unresolved-field fallback"
+          }
+        }
+      ],
+      "explicit_source": "plan",
+      "sections": [
+        {
+          "name": "section_1",
+          "text": "Record ID: INV-2026-9001",
+          "page_start": 1,
+          "page_end": 1,
+          "confidence": 0.7,
+          "metadata": {}
+        },
+        {
+          "name": "total_amount_1499_50",
+          "text": "Notes: Date intentionally omitted to test unresolved-field fallback.",
+          "page_start": 1,
+          "page_end": 1,
+          "confidence": 0.6,
+          "metadata": {}
+        }
+      ],
+      "chunks": [
+        {
+          "chunk_id": "invoice_chunk_0",
+          "doc_id": "invoice",
+          "text": "Record ID: INV-2026-9001",
+          "tokens": 3,
+          "page_range": [
+            1,
+            1
+          ],
+          "section": "section_1",
+          "metadata": {
+            "index": 0
+          }
+        },
+        {
+          "chunk_id": "invoice_chunk_1",
+          "doc_id": "invoice",
+          "text": "Notes: Date intentionally omitted to test unresolved-field fallback.",
+          "tokens": 8,
+          "page_range": [
+            1,
+            1
+          ],
+          "section": "total_amount_1499_50",
+          "metadata": {
+            "index": 1
+          }
+        }
+      ],
+      "summary": "Record ID: INV-2026-9001 Vendor: Acme Logistics Total Amount: 1499.50 Notes: Date intentionally omitted to test unresolved-field fallback.",
+      "normalized_entities": {
+        "record_id": "INV-2026-9001",
+        "vendor": "Acme Logistics",
+        "total_amount": "1499.50",
+        "notes": "Date intentionally omitted to test unresolved-field fallback",
+        "customer_name": "Acme Logistics"
+      },
+      "validation_issues": [],
+      "field_details": {
+        "record_id": {
+          "status": "extracted",
+          "confidence": 0.9,
+          "value": "INV-2026-9001",
+          "source": "llm_cloud"
+        },
+        "document_date": {
+          "status": "missing",
+          "confidence": 0.0,
+          "value": "",
+          "source": "none"
+        },
+        "total_amount": {
+          "status": "extracted",
+          "confidence": 0.9,
+          "value": "1499.50",
+          "source": "llm_cloud"
+        },
+        "customer_name": {
+          "status": "extracted",
+          "confidence": 0.9,
+          "value": "Acme Logistics",
+          "source": "llm_cloud"
+        }
+      },
+      "llm_diagnostics": {
+        "enabled": true,
+        "requested_mode": "cloud",
+        "strategy": "local_first_cloud_cascade",
+        "local_attempted": false,
+        "local_succeeded": false,
+        "local_failure_reason": null,
+        "local_call": {},
+        "cloud_attempted": true,
+        "cloud_succeeded": true,
+        "cloud_failure_reason": null,
+        "cloud_calls": [
+          {
+            "provider": "openai",
+            "model": "gpt-4o-mini",
+            "prompt_tokens": 345,
+            "completion_tokens": 44,
+            "total_tokens": 389,
+            "estimated_cost_usd": 7.814999999999999e-05,
+            "prompt_chars": 959,
+            "requested_fields": 4,
+            "latency_ms": 3010.021686553955,
+            "success": true,
+            "entity_count": 2,
+            "max_tokens_requested": 320,
+            "prompt_version": "extraction_v2",
+            "context": {
+              "strategy": "full",
+              "full_chars": 138,
+              "selected_chars": 138,
+              "truncated": false,
+              "targeted_context_chars": 0,
+              "targeted_context_lines": 0
+            },
+            "request": {
+              "temperature": 0.0,
+              "strict_json_output": true,
+              "max_tokens": 320,
+              "response_format": "json_schema",
+              "endpoint": "chat.completions"
+            }
+          },
+          {
+            "provider": "openai",
+            "model": "gpt-4.1",
+            "prompt_tokens": 327,
+            "completion_tokens": 22,
+            "total_tokens": 349,
+            "estimated_cost_usd": 0.00393,
+            "prompt_chars": 924,
+            "requested_fields": 2,
+            "latency_ms": 1761.79838180542,
+            "success": true,
+            "entity_count": 1,
+            "max_tokens_requested": 160,
+            "prompt_version": "extraction_v2",
+            "context": {
+              "strategy": "full",
+              "full_chars": 138,
+              "selected_chars": 138,
+              "truncated": false,
+              "targeted_context_chars": 0,
+              "targeted_context_lines": 0
+            },
+            "request": {
+              "temperature": 0.0,
+              "strict_json_output": true,
+              "max_tokens": 160,
+              "response_format": "json_schema",
+              "endpoint": "chat.completions"
+            }
+          }
+        ],
+        "cloud_usage": {
+          "prompt_tokens": 672,
+          "completion_tokens": 66,
+          "total_tokens": 738,
+          "estimated_cost_usd": 0.00400815
+        },
+        "flagship_attempted": true,
+        "flagship_succeeded": true,
+        "flagship_model": "gpt-4.1",
+        "flagship_failure_reason": null,
+        "fallback_keys": [
+          "document_date",
+          "customer_name"
+        ]
+      },
+      "recovered_fields": {},
+      "failed_recovery_fields": [],
+      "recovery_log": [],
+      "escalated": false,
+      "escalation_info": {
+        "escalated": false
+      },
+      "field_confidence": {
+        "record_id": 0.9,
+        "vendor": 0.55,
+        "total_amount": 0.9,
+        "notes": 0.55,
+        "customer_name": 0.9
+      },
+      "stage_signals": [
+        {
+          "stage": "document_analysis",
+          "confidence": 0.9347826086956522,
+          "uncertainty": 0.06521739130434778,
+          "failure_reason": null,
+          "metadata": {
+            "table_ratio": 0.0,
+            "form_ratio": 1.0,
+            "quality_bin": "A"
+          }
+        },
+        {
+          "stage": "table_form",
+          "confidence": 0.5,
+          "uncertainty": 0.5,
+          "failure_reason": null,
+          "metadata": {
+            "table_pages": 0
+          }
+        },
+        {
+          "stage": "llm_extraction",
+          "confidence": 0.7,
+          "uncertainty": 0.3,
+          "failure_reason": null,
+          "metadata": {
+            "explicit_count": 3,
+            "default_count": 4,
+            "llm_count": 3,
+            "model": "gpt-4o-mini",
+            "requested_fields": 4,
+            "missing_fields": 1,
+            "llm_diagnostics": {
+              "enabled": true,
+              "requested_mode": "cloud",
+              "strategy": "local_first_cloud_cascade",
+              "local_attempted": false,
+              "local_succeeded": false,
+              "local_failure_reason": null,
+              "local_call": {},
+              "cloud_attempted": true,
+              "cloud_succeeded": true,
+              "cloud_failure_reason": null,
+              "cloud_calls": [
+                {
+                  "provider": "openai",
+                  "model": "gpt-4o-mini",
+                  "prompt_tokens": 345,
+                  "completion_tokens": 44,
+                  "total_tokens": 389,
+                  "estimated_cost_usd": 7.814999999999999e-05,
+                  "prompt_chars": 959,
+                  "requested_fields": 4,
+                  "latency_ms": 3010.021686553955,
+                  "success": true,
+                  "entity_count": 2,
+                  "max_tokens_requested": 320,
+                  "prompt_version": "extraction_v2",
+                  "context": {
+                    "strategy": "full",
+                    "full_chars": 138,
+                    "selected_chars": 138,
+                    "truncated": false,
+                    "targeted_context_chars": 0,
+                    "targeted_context_lines": 0
+                  },
+                  "request": {
+                    "temperature": 0.0,
+                    "strict_json_output": true,
+                    "max_tokens": 320,
+                    "response_format": "json_schema",
+                    "endpoint": "chat.completions"
+                  }
+                },
+                {
+                  "provider": "openai",
+                  "model": "gpt-4.1",
+                  "prompt_tokens": 327,
+                  "completion_tokens": 22,
+                  "total_tokens": 349,
+                  "estimated_cost_usd": 0.00393,
+                  "prompt_chars": 924,
+                  "requested_fields": 2,
+                  "latency_ms": 1761.79838180542,
+                  "success": true,
+                  "entity_count": 1,
+                  "max_tokens_requested": 160,
+                  "prompt_version": "extraction_v2",
+                  "context": {
+                    "strategy": "full",
+                    "full_chars": 138,
+                    "selected_chars": 138,
+                    "truncated": false,
+                    "targeted_context_chars": 0,
+                    "targeted_context_lines": 0
+                  },
+                  "request": {
+                    "temperature": 0.0,
+                    "strict_json_output": true,
+                    "max_tokens": 160,
+                    "response_format": "json_schema",
+                    "endpoint": "chat.completions"
+                  }
+                }
+              ],
+              "cloud_usage": {
+                "prompt_tokens": 672,
+                "completion_tokens": 66,
+                "total_tokens": 738,
+                "estimated_cost_usd": 0.00400815
+              },
+              "flagship_attempted": true,
+              "flagship_succeeded": true,
+              "flagship_model": "gpt-4.1",
+              "flagship_failure_reason": null,
+              "fallback_keys": [
+                "document_date",
+                "customer_name"
+              ]
+            }
+          }
+        },
+        {
+          "stage": "sectioning",
+          "confidence": 0.7,
+          "uncertainty": 0.3,
+          "failure_reason": null,
+          "metadata": {
+            "section_count": 2
+          }
+        },
+        {
+          "stage": "summarization",
+          "confidence": 0.7,
+          "uncertainty": 0.3,
+          "failure_reason": null,
+          "metadata": {
+            "summary_length": 138,
+            "sentence_count": 1
+          }
+        },
+        {
+          "stage": "validation",
+          "confidence": 0.76,
+          "uncertainty": 0.24,
+          "failure_reason": null,
+          "metadata": {
+            "issue_count": 0,
+            "confirmed_count": 5,
+            "low_confidence_count": 0,
+            "rejected_count": 0,
+            "calibration": {
+              "enabled": false,
+              "method": "heuristic",
+              "version": "v1"
+            }
+          }
+        },
+        {
+          "stage": "chunking",
+          "confidence": 0.7,
+          "uncertainty": 0.3,
+          "failure_reason": null,
+          "metadata": {
+            "chunk_count": 2
+          }
+        }
+      ],
+      "chunk_artifact_id": "1f729f292b0c4c69b5d43f3aa857ea16",
+      "preprocess_route": [
+        "table_extract"
+      ],
+      "preprocess_artifacts": [
+        "8b800f7b63ef4e26a087c977c353f5ec"
+      ],
+      "policy_id": "forms",
+      "policy_name": "Form Extraction Policy",
+      "policy_reason": "match",
+      "advice_source": "config",
+      "ranked_policies": [],
+      "route_specialization": "standard",
+      "operator_stack": [
+        "preprocess.table_extract",
+        "structuring.extract",
+        "structuring.section",
+        "structuring.summary",
+        "validation",
+        "recovery",
+        "escalation",
+        "chunking"
+      ],
+      "plan_id": "c69770cad78844b4b822e4da6096bf74",
+      "plan_source": "config",
+      "plan_budgets": {
+        "max_cost_units": 6.0
+      },
+      "plan_retrieval": {
+        "dense_k": 12,
+        "sparse_k": 12,
+        "final_k": 12,
+        "mmr_lambda": 0.7,
+        "metadata_boost": 0.15
+      },
+      "plan_token_budget": {
+        "max_tokens": 1600,
+        "reserved_tokens": 200,
+        "strategy": "simple"
+      },
+      "plan_payload": {
+        "plan_id": "c69770cad78844b4b822e4da6096bf74",
+        "doc_id": "invoice",
+        "policy_id": "forms",
+        "policy_name": "Form Extraction Policy",
+        "source": "config",
+        "steps": [
+          {
+            "step_id": "0_preprocess.table_extract",
+            "operator": "preprocess.table_extract",
+            "params": {
+              "type": "heuristic"
+            },
+            "timeout_ms": 30000,
+            "budget_units": 1.0,
+            "fallback": []
+          },
+          {
+            "step_id": "1_structuring.extract",
+            "operator": "structuring.extract",
+            "params": {
+              "model_tier": "cloud",
+              "explicit_entities": [
+                "record_id",
+                "document_date",
+                "total_amount",
+                "customer_name"
+              ],
+              "field_descriptions": {},
+              "ruleset": "config"
+            },
+            "timeout_ms": 30000,
+            "budget_units": 1.0,
+            "fallback": []
+          },
+          {
+            "step_id": "2_structuring.section",
+            "operator": "structuring.section",
+            "params": {},
+            "timeout_ms": 30000,
+            "budget_units": 1.0,
+            "fallback": []
+          },
+          {
+            "step_id": "3_structuring.summary",
+            "operator": "structuring.summary",
+            "params": {},
+            "timeout_ms": 30000,
+            "budget_units": 1.0,
+            "fallback": []
+          },
+          {
+            "step_id": "4_validation",
+            "operator": "validation",
+            "params": {
+              "min_confidence": 0.6
+            },
+            "timeout_ms": 30000,
+            "budget_units": 1.0,
+            "fallback": []
+          },
+          {
+            "step_id": "5_recovery",
+            "operator": "recovery",
+            "params": {
+              "strategy": "alternate_rules"
+            },
+            "timeout_ms": 30000,
+            "budget_units": 1.0,
+            "fallback": []
+          },
+          {
+            "step_id": "6_escalation",
+            "operator": "escalation",
+            "params": {
+              "tier": "tier2"
+            },
+            "timeout_ms": 30000,
+            "budget_units": 1.0,
+            "fallback": []
+          },
+          {
+            "step_id": "7_chunking",
+            "operator": "chunking",
+            "params": {
+              "chunk_size": 350,
+              "chunk_overlap": 60,
+              "max_chunks": 128
+            },
+            "timeout_ms": 30000,
+            "budget_units": 1.0,
+            "fallback": []
+          }
+        ],
+        "budgets": {
+          "max_cost_units": 6.0
+        },
+        "retrieval": {
+          "dense_k": 12,
+          "sparse_k": 12,
+          "final_k": 12,
+          "mmr_lambda": 0.7,
+          "metadata_boost": 0.15
+        },
+        "token_budget": {
+          "max_tokens": 1600,
+          "reserved_tokens": 200,
+          "strategy": "simple"
+        },
+        "rationale": "match",
+        "created_at": 1772965200.8137553
+      },
+      "model_used": "gpt-4o-mini",
+      "model_mode": "cloud",
+      "model_reason": "plan",
+      "dae_signals": {
+        "dpi_est": 0.0,
+        "blur_score": 0.07826086956521738,
+        "skew_angle": 0.0,
+        "text_density": 0.8188405797101449,
+        "image_ratio": 0.2,
+        "table_likelihood": 0.0
+      },
+      "queue_partition": "",
+      "queue_wait_ms": 0.0,
+      "artifacts": {
+        "raw": "dadcb74ca1fe4d43a81f6289a6eda50c",
+        "plan": "71161c63601a4e0b9a69672d2f29e56b"
+      },
+      "latency_ms": 4791.488170623779,
+      "shadow_comparisons": []
+    }
+  ]
+}

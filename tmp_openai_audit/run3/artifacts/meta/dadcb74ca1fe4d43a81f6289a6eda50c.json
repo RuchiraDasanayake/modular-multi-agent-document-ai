@@ -1,0 +1,9 @@
+{
+  "artifact_id": "dadcb74ca1fe4d43a81f6289a6eda50c",
+  "kind": "raw_text",
+  "metadata": {
+    "agent": "intake",
+    "doc_id": "invoice"
+  },
+  "path": "tmp_openai_audit\\run3\\artifacts\\raw\\dadcb74ca1fe4d43a81f6289a6eda50c_invoice_raw.txt"
+}

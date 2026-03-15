@@ -1,0 +1,18 @@
+{
+  "artifact_id": "c91b255a9b0147c7b67237f4bae985c1",
+  "kind": "chunks",
+  "metadata": {
+    "agent": "chunking",
+    "doc_id": "demo_clean_text",
+    "parameters": {
+      "chunk_size": 350,
+      "max_chunks": 128,
+      "overlap": 60
+    },
+    "source_artifacts": [
+      "090a3d8f98744dd7b1e4ed7a6ac98df7"
+    ],
+    "version": "v1"
+  },
+  "path": "tmp_upgrade_batch\\artifacts\\clean\\c91b255a9b0147c7b67237f4bae985c1_demo_clean_text_chunks.json"
+}

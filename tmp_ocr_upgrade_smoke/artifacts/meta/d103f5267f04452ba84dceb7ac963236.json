@@ -1,0 +1,11 @@
+{
+  "artifact_id": "d103f5267f04452ba84dceb7ac963236",
+  "kind": "validation",
+  "metadata": {
+    "agent": "validation",
+    "doc_id": "demo_table_statement",
+    "stage": "initial",
+    "version": "v1"
+  },
+  "path": "tmp_ocr_upgrade_smoke\\artifacts\\clean\\d103f5267f04452ba84dceb7ac963236_demo_table_statement_validation_initial.json"
+}

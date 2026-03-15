@@ -1,0 +1,11 @@
+{
+  "artifact_id": "859c5262797a4fb1ab3dde308a66be81",
+  "kind": "embedding_index",
+  "metadata": {
+    "agent": "embedding",
+    "dim": 256,
+    "seed": 13,
+    "version": "v1"
+  },
+  "path": "tmp_openai_audit\\run\\index\\vectors.json"
+}

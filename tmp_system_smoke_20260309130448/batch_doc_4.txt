@@ -1,0 +1,6 @@
+﻿Invoice Number: INV-2004
+Date: 2026-03-05
+Vendor: Batch Vendor 4
+Subtotal: 88.00
+Tax: 12.00
+Total Amount: 102.00
