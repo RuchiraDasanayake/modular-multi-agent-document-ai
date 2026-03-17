@@ -120,7 +120,7 @@ class AHMNScheduler:
         Promote successful strategies from MTM to LTM.
 
         Criteria:
-          - F1 > 0.40
+          - F1 > 0.50
           - Not 'default_policy' (only named policies are worth promoting)
           - At least 2 observations
         """
@@ -134,7 +134,7 @@ class AHMNScheduler:
                         COUNT(*) as usage_count,
                         AVG((outcome_metrics->>'f1_score')::float) as avg_f1
                     FROM mtm_outcomes
-                    WHERE (outcome_metrics->>'f1_score')::float > 0.40
+                    WHERE (outcome_metrics->>'f1_score')::float > 0.50
                       AND policy_id_used != 'default_policy'
                     GROUP BY document_context, policy_id_used
                     HAVING COUNT(*) >= 2
@@ -180,8 +180,26 @@ class AHMNScheduler:
                                last_promoted_at = NOW()""",
                         (
                             context_hash, vector, policy_id,
-                            json.dumps({"origin": "promoted_from_mtm", "avg_f1": avg_f1}),
-                            json.dumps({"f1_score": avg_f1, "sample_size": count}),
+                            json.dumps(
+                                {
+                                    "origin": "promoted_from_mtm",
+                                    "avg_f1": avg_f1,
+                                    "doc_type": doc_type,
+                                    "vendor": vendor,
+                                    "content_profile": content_profile,
+                                }
+                            ),
+                            json.dumps(
+                                {
+                                    "f1_score": avg_f1,
+                                    "sample_size": count,
+                                    "document_context": {
+                                        "doc_type": doc_type,
+                                        "vendor": vendor,
+                                        "content_profile": content_profile,
+                                    },
+                                }
+                            ),
                             alpha_init, beta_init, confidence,
                         ),
                     )

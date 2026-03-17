@@ -548,7 +548,7 @@ Pipeline Stage → Confidence Source:
 New observation arrives (F1 from IDPO)
   → STM cached for 30 min (Redis)
   → MTM stored immediately (PostgreSQL mtm_outcomes)
-  → If avg_f1 > 0.40 and usage_count ≥ 2 over 24h:
+  → If avg_f1 > 0.50 and usage_count ≥ 2 over 24h:
       Promotion job embeds context → LTM (ltm_strategies)
   → DAAF forgetting job decays stale MTM entries every 6h
 ```
@@ -563,7 +563,7 @@ Three scheduled jobs run independently via Docker Compose or cron:
 
 - **Schedule**: Every 30 minutes
 - **Purpose**: Promote successful MTM strategies to LTM
-- **Criteria**: `f1_score > 0.40`, `usage_count ≥ 2`, within last 24 hours, not `default_policy`
+- **Criteria**: `f1_score > 0.50`, `usage_count ≥ 2`, within last 24 hours, not `default_policy`
 - **Process**:
   1. Query MTM for qualifying strategies (grouped by context + policy)
   2. Compute context embedding using sentence-transformers

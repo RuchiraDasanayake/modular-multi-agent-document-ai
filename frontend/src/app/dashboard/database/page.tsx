@@ -11,10 +11,14 @@ interface LTMEntry {
     context_hash: string;
     policy_id: string;
     policy_data: Record<string, unknown>;
+    validation_metrics?: Record<string, unknown>;
     alpha: number;
     beta: number;
     confidence_score: number;
     last_promoted_at: string;
+    doc_type?: string;
+    vendor?: string;
+    content_profile?: string;
 }
 
 interface MTMEntry {
@@ -296,8 +300,14 @@ function LTMTable({ data }: { data: LTMEntry[] }) {
                 {data.map((row, i) => {
                     const mean = row.alpha / (row.alpha + row.beta);
                     const policyData = row.policy_data || {};
-                    const docType = (policyData as Record<string, string>).doc_type || "—";
-                    const contentProfile = (policyData as Record<string, string>).content_profile || "—";
+                    const validationMetrics = row.validation_metrics || {};
+                    const vmContext = (validationMetrics as Record<string, Record<string, string>>).document_context || {};
+                    const docType = row.doc_type || (policyData as Record<string, string>).doc_type || vmContext.doc_type || "—";
+                    const contentProfile =
+                        row.content_profile
+                        || (policyData as Record<string, string>).content_profile
+                        || vmContext.content_profile
+                        || "—";
                     return (
                         <tr key={row.id || i} className="hover:bg-slate-50/50 dark:hover:bg-gray-800/20 transition-colors">
                             <Td className="text-xs font-medium">{docType}</Td>

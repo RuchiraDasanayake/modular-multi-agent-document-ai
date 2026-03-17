@@ -54,13 +54,6 @@ const METHOD_COLORS: Record<string, string> = {
     "AHMN-Full": "#3b82f6",
 };
 
-const SCENARIO_LABELS: Record<string, string> = {
-    stationary: "Stationary",
-    cold_start: "Cold Start",
-    concept_drift: "Concept Drift",
-    combined: "Combined",
-};
-
 /* ─── Helpers ─── */
 function avg(arr: number[]): number {
     return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
@@ -70,22 +63,6 @@ function std(arr: number[]): number {
     if (arr.length < 2) return 0;
     const m = avg(arr);
     return Math.sqrt(arr.reduce((s, v) => s + (v - m) ** 2, 0) / (arr.length - 1));
-}
-
-function Badge({ children, color = "gray" }: { children: React.ReactNode; color?: string }) {
-    const colors: Record<string, string> = {
-        green: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20",
-        red: "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/20",
-        blue: "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/20",
-        amber: "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/20",
-        violet: "bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400 border-violet-200 dark:border-violet-500/20",
-        gray: "bg-slate-50 dark:bg-gray-800 text-slate-600 dark:text-gray-400 border-slate-200 dark:border-gray-700",
-    };
-    return (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${colors[color] || colors.gray}`}>
-            {children}
-        </span>
-    );
 }
 
 /* ─── Aggregation ─── */
@@ -149,8 +126,6 @@ export default function ExperimentsPage() {
     };
 
     const aggregated = data ? aggregateResults(data.main_results) : [];
-    const filtered = aggregated;
-
     const methodSummary = data
         ? (data.experiment_config?.methods ?? []).map(method => {
             const entries = aggregated.filter(a => a.method === method);
@@ -248,104 +223,10 @@ export default function ExperimentsPage() {
                         </ResponsiveContainer>
                     </div>
 
-                    {/* Detailed Results Table */}
-                    <div className="glass-panel rounded-2xl p-6 overflow-hidden">
-                            <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Detailed Results</h2>
-                            <p className="text-xs text-slate-500 dark:text-gray-500 mb-4">Per method-scenario averages over {data.experiment_config?.n_seeds ?? 30} seeds</p>
-                            <div className="overflow-auto max-h-[320px]">
-                                <table className="min-w-full text-xs">
-                                    <thead className="bg-slate-50 dark:bg-gray-900/50 sticky top-0">
-                                        <tr>
-                                            <th className="px-3 py-2 text-left font-semibold text-slate-500 dark:text-gray-500 uppercase tracking-wider">Method</th>
-                                            <th className="px-3 py-2 text-left font-semibold text-slate-500 dark:text-gray-500 uppercase tracking-wider">Scenario</th>
-                                            <th className="px-3 py-2 text-right font-semibold text-slate-500 dark:text-gray-500 uppercase tracking-wider">Regret</th>
-                                            <th className="px-3 py-2 text-right font-semibold text-slate-500 dark:text-gray-500 uppercase tracking-wider">Reward</th>
-                                            <th className="px-3 py-2 text-right font-semibold text-slate-500 dark:text-gray-500 uppercase tracking-wider">Accuracy</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-gray-800">
-                                        {filtered.sort((a, b) => a.mean_regret - b.mean_regret).map((row, i) => (
-                                            <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-gray-800/20">
-                                                <td className="px-3 py-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: METHOD_COLORS[row.method] || "#94a3b8" }} />
-                                                        <span className="font-medium text-slate-700 dark:text-gray-300">{row.method}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-3 py-2 text-slate-500 dark:text-gray-400">{SCENARIO_LABELS[row.scenario] || row.scenario}</td>
-                                                <td className="px-3 py-2 text-right font-mono font-semibold text-slate-700 dark:text-gray-300">
-                                                    {row.mean_regret.toFixed(1)} <span className="text-slate-400 dark:text-gray-600">±{row.std_regret.toFixed(1)}</span>
-                                                </td>
-                                                <td className="px-3 py-2 text-right font-mono text-slate-700 dark:text-gray-300">{row.mean_reward.toFixed(3)}</td>
-                                                <td className="px-3 py-2 text-right">
-                                                    <Badge color={row.mean_accuracy >= 0.7 ? "green" : row.mean_accuracy >= 0.5 ? "amber" : "red"}>
-                                                        {(row.mean_accuracy * 100).toFixed(1)}%
-                                                    </Badge>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                    <div className="glass-panel rounded-xl p-4 text-sm text-slate-600 dark:text-gray-400">
+                        The page now shows a compact summary and core comparison charts only.
+                        Full ablation details remain available from backend experiment artifacts.
                     </div>
-
-                    {/* Ablation Studies */}
-                    {(data.ablation_daaf_window || data.ablation_rabi_temperature || data.ablation_similarity_threshold) && (
-                        <div className="glass-panel rounded-2xl p-6">
-                            <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Ablation Studies</h2>
-                            <p className="text-xs text-slate-500 dark:text-gray-500 mb-4">Sensitivity analysis of key hyperparameters</p>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                {data.ablation_daaf_window && (
-                                    <div>
-                                        <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-300 mb-2">DAAF Window Size</h3>
-                                        <div className="space-y-1">
-                                            {Object.entries(data.ablation_daaf_window).map(([k, v]) => (
-                                                <div key={k} className="flex items-center justify-between text-xs">
-                                                    <span className="text-slate-500 dark:text-gray-400">w={k}</span>
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="font-mono text-slate-700 dark:text-gray-300">{v.regret_mean.toFixed(1)}±{v.regret_std.toFixed(1)}</span>
-                                                        <Badge color={(v.accuracy_mean ?? 0) >= 0.75 ? "green" : "amber"}>Acc: {((v.accuracy_mean ?? 0) * 100).toFixed(1)}%</Badge>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                                {data.ablation_rabi_temperature && (
-                                    <div>
-                                        <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-300 mb-2">RABI Temperature</h3>
-                                        <div className="space-y-1">
-                                            {Object.entries(data.ablation_rabi_temperature).map(([k, v]) => (
-                                                <div key={k} className="flex items-center justify-between text-xs">
-                                                    <span className="text-slate-500 dark:text-gray-400">τ={k}</span>
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="font-mono text-slate-700 dark:text-gray-300">{v.regret_mean.toFixed(1)}±{v.regret_std.toFixed(1)}</span>
-                                                        <Badge color={v.reward_mean >= 0.854 ? "green" : "amber"}>R̄: {v.reward_mean.toFixed(3)}</Badge>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                                {data.ablation_similarity_threshold && (
-                                    <div>
-                                        <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-300 mb-2">RABI Similarity Threshold</h3>
-                                        <div className="space-y-1">
-                                            {Object.entries(data.ablation_similarity_threshold).map(([k, v]) => (
-                                                <div key={k} className="flex items-center justify-between text-xs">
-                                                    <span className="text-slate-500 dark:text-gray-400">θ={k}</span>
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="font-mono text-slate-700 dark:text-gray-300">{v.regret_mean.toFixed(1)}±{v.regret_std.toFixed(1)}</span>
-                                                        <Badge color={v.reward_mean >= 0.855 ? "green" : "amber"}>R̄: {v.reward_mean.toFixed(3)}</Badge>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
                 </>
             ) : null}
 

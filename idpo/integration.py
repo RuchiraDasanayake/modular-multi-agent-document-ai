@@ -53,6 +53,26 @@ def _load_expected_fields() -> dict[str, list[str]]:
     return mapping
 
 _POLICY_EXPECTED_FIELDS: dict[str, list[str]] = _load_expected_fields()
+_POLICY_STORE_MTIME: float | None = None
+
+
+def _maybe_refresh_expected_fields() -> None:
+    """Reload policy expected fields if policy_store.json changed on disk."""
+    global _POLICY_EXPECTED_FIELDS, _POLICY_STORE_MTIME
+    store_path = Path(__file__).resolve().parents[1] / "configs" / "policy_store.json"
+    try:
+        mtime = store_path.stat().st_mtime
+    except OSError:
+        return
+
+    if _POLICY_STORE_MTIME is None:
+        _POLICY_STORE_MTIME = mtime
+        return
+
+    if mtime != _POLICY_STORE_MTIME:
+        _POLICY_EXPECTED_FIELDS = _load_expected_fields()
+        _POLICY_STORE_MTIME = mtime
+        logger.info("Reloaded policy expected fields from policy_store.json")
 
 # ---------------------------------------------------------------------------
 # Service URLs — resolved from environment or Docker defaults
@@ -240,12 +260,12 @@ class IntegrationResult:
 
     @property
     def ahmn_advice(self) -> AHMNAdvice:
-        """Backward-compatible alias for single-advice consumers."""
+        """Backward-compatible alias for the first advice item."""
         return self.ahmn_advices[0] if self.ahmn_advices else AHMNAdvice()
 
     @property
     def ahmn_feedback(self) -> AHMNFeedback:
-        """Backward-compatible alias for single-feedback consumers."""
+        """Backward-compatible alias for the first feedback item."""
         return self.ahmn_feedbacks[0] if self.ahmn_feedbacks else AHMNFeedback()
 
     def to_dict(self) -> dict:
@@ -349,12 +369,14 @@ def get_per_doc_ahmn_advices(
             },
             doc_id=doc_id,
         )
+
     if len(doc_records) == 1:
         return [_advice_for_doc(doc_records[0])]
 
-    max_workers = min(4, len(doc_records))
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
-        return list(pool.map(_advice_for_doc, doc_records))
+    # Parallelize network-bound advice calls across documents.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(doc_records))) as pool:
+        futures = [pool.submit(_advice_for_doc, doc) for doc in doc_records]
+        return [f.result() for f in futures]
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Step 3: Guardrails Validation (post-processing)
@@ -794,10 +816,9 @@ def log_per_doc_ahmn_feedbacks(
 
     per_doc_time_ms = processing_time_ms / max(len(doc_records), 1)
 
-    def _feedback_for_index(index: int) -> AHMNFeedback:
-        doc = doc_records[index]
-        advice = ahmn_advices[index] if index < len(ahmn_advices) else AHMNAdvice()
-        gr = guardrail_results[index] if index < len(guardrail_results) else GuardrailResult()
+    def _feedback_for_index(i: int, doc: dict[str, Any]) -> AHMNFeedback:
+        advice = ahmn_advices[i] if i < len(ahmn_advices) else AHMNAdvice()
+        gr = guardrail_results[i] if i < len(guardrail_results) else GuardrailResult()
         return log_ahmn_feedback(
             advice=advice,
             doc_records=[doc],  # Single doc
@@ -807,11 +828,12 @@ def log_per_doc_ahmn_feedbacks(
         )
 
     if len(doc_records) == 1:
-        return [_feedback_for_index(0)]
+        return [_feedback_for_index(0, doc_records[0])]
 
-    max_workers = min(4, len(doc_records))
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
-        return list(pool.map(_feedback_for_index, range(len(doc_records))))
+    # Parallelize network-bound feedback calls across documents.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(doc_records))) as pool:
+        futures = [pool.submit(_feedback_for_index, i, doc) for i, doc in enumerate(doc_records)]
+        return [f.result() for f in futures]
 
 
 def log_ahmn_feedback(
@@ -836,6 +858,8 @@ def log_ahmn_feedback(
         return feedback
 
     try:
+        _maybe_refresh_expected_fields()
+
         # Determine the actual policy IDPO used
         used_policy = actual_policy_id
         if not used_policy:
@@ -894,15 +918,31 @@ def log_ahmn_feedback(
                     f1 = 0.0
             else:
                 # No expected fields defined (default policy):
-                # Use mean confidence of extracted entities as quality signal
-                confs: list[float] = []
+                # Derive separate precision/recall proxies from the
+                # confidence distribution instead of mirroring one value.
+                all_confs: list[float] = []
                 for ed in details:
                     c = ed.get("confidence", 0) if isinstance(ed, dict) else getattr(ed, "confidence", 0)
                     if isinstance(c, (int, float)) and c > 0:
-                        confs.append(float(c))
-                f1 = sum(confs) / len(confs) if confs else 0.0
-                precision = f1  # no ground truth; mirror confidence
-                recall = f1
+                        all_confs.append(float(c))
+                if not all_confs:
+                    fc = doc.get("field_confidence", {})
+                    if fc and isinstance(fc, dict):
+                        all_confs = [float(v) for v in fc.values()
+                                     if isinstance(v, (int, float)) and v > 0]
+                if all_confs:
+                    # Precision proxy: mean confidence of entities above
+                    # acceptance threshold (quality of accepted extractions)
+                    accepted = [c for c in all_confs if c >= 0.5]
+                    precision = sum(accepted) / len(accepted) if accepted else 0.0
+                    # Recall proxy: fraction of entities that exceeded
+                    # the acceptance threshold (extraction coverage)
+                    recall = len(accepted) / len(all_confs)
+                    f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
+                else:
+                    f1 = 0.0
+                    precision = 0.0
+                    recall = 0.0
 
             doc_f1_scores.append(f1)
             doc_precisions.append(precision)

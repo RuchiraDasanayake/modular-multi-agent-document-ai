@@ -161,8 +161,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2048m  # Increased for RoBERTa-base-squad2 (larger model)
-          cpus: "1.5"
+          memory: 4096m  # BART (bart_lfqa) + LIME requires more memory
+          cpus: "2.0"
     logging:
       driver: json-file
       options:
