@@ -14,7 +14,7 @@ class RecoveryAgent(Agent):
     name = "recovery"
     version = "v1"
     input_contract = {"document": "Document", "entities": "list", "issues": "list", "strategy": "str|None"}
-    output_contract = {"entities": "list", "recovered_fields": "dict", "signal": "StageSignal"}
+    output_contract = {"entities": "list", "recovered_fields": "dict", "recovery_trace": "list", "signal": "StageSignal"}
 
     def run(
         self,
@@ -33,18 +33,35 @@ class RecoveryAgent(Agent):
             alternate_text = mock_ocr(raw_text, passes=2)
         updated_entities = {entity.key: entity for entity in entities}
         recovered_fields: dict[str, str] = {}
+        recovery_trace: list[dict[str, object]] = []
 
         for issue in issues:
             if not self._is_recoverable_issue(issue):
                 continue
             pattern = self._pattern_for_field(issue.field, strategy)
             match = re.search(pattern, raw_text, re.IGNORECASE) or re.search(pattern, alternate_text, re.IGNORECASE)
+            before_value = updated_entities.get(issue.field).value if issue.field in updated_entities else ""
+            trace = {
+                "field": issue.field,
+                "issue_type": issue.issue,
+                "strategy": strategy,
+                "before_value": before_value,
+                "after_value": "",
+                "success": False,
+                "reason": "no_match",
+            }
             if not match:
+                recovery_trace.append(trace)
                 continue
             value = match.group(1).strip()
             if not value:
+                trace["reason"] = "empty_match"
+                recovery_trace.append(trace)
                 continue
             if not self._passes_validation(issue.field, value, ctx):
+                trace["after_value"] = value
+                trace["reason"] = "candidate_failed_validation"
+                recovery_trace.append(trace)
                 continue
             updated_entities[issue.field] = Entity(
                 key=issue.field,
@@ -58,10 +75,14 @@ class RecoveryAgent(Agent):
                 },
             )
             recovered_fields[issue.field] = value
+            trace["after_value"] = value
+            trace["success"] = True
+            trace["reason"] = "recovered"
+            recovery_trace.append(trace)
 
         artifact = ctx.artifact_store.save_json(
             f"{doc.doc_id}_recovery.json",
-            {"recovered_fields": recovered_fields},
+            {"recovered_fields": recovered_fields, "recovery_trace": recovery_trace},
             kind="recovery",
             raw=False,
             metadata={"doc_id": doc.doc_id, "agent": self.name, "version": self.version},
@@ -70,12 +91,16 @@ class RecoveryAgent(Agent):
             stage=self.name,
             confidence=0.65 if recovered_fields else 0.35,
             uncertainty=0.35 if recovered_fields else 0.65,
-            metadata={"recovered_count": len(recovered_fields)},
+            metadata={"recovered_count": len(recovered_fields), "attempt_count": len(recovery_trace)},
         )
         self._record(
             ctx,
             inputs={"doc_id": doc.doc_id, "issue_count": len(issues)},
-            outputs={"recovered": list(recovered_fields.keys()), "artifact_id": artifact.artifact_id},
+            outputs={
+                "recovered": list(recovered_fields.keys()),
+                "artifact_id": artifact.artifact_id,
+                "attempt_count": len(recovery_trace),
+            },
             parameters={"max_retries": ctx.config.preprocessing.max_retries, "strategy": strategy},
             artifacts=[artifact.artifact_id],
             output_artifacts=[artifact.artifact_id],
@@ -86,6 +111,7 @@ class RecoveryAgent(Agent):
             artifacts={
                 "entities": list(updated_entities.values()),
                 "recovered_fields": recovered_fields,
+                "recovery_trace": recovery_trace,
                 "signal": signal,
                 "recovery_artifact": artifact,
             }

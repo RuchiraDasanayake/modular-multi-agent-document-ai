@@ -1,9 +1,0 @@
-{
-  "artifact_id": "ac7f718ca33947bebb96270a05efce2a",
-  "kind": "raw_text",
-  "metadata": {
-    "agent": "intake",
-    "doc_id": "demo_clean_text"
-  },
-  "path": "tmp_upgrade_batch\\artifacts\\raw\\ac7f718ca33947bebb96270a05efce2a_demo_clean_text_raw.txt"
-}

@@ -1,12 +1,11 @@
 # IDPO Frontend Runner UI
 
-Frontend-only control plane for the multi-agent Document AI stack.
+Frontend-only control plane for browsing and launching IDPO runs.
 
 This project adds:
-- Next.js web UI for running and inspecting IDPO runs.
-- Local Runner API (`/api/*`) inside frontend that executes whitelisted CLI commands.
-- Artifact discovery over `runs/<run_id>/...` without backend code changes.
-- Presentation mode flow for PP1 demos.
+- Next.js UI for starting and inspecting IDPO runs.
+- Local runner API (`/api/*`) that executes a small whitelist of CLI commands.
+- Artifact discovery over the external IDPO runtime data root.
 
 ## Stack
 - Next.js 15 (App Router) + React + TypeScript
@@ -30,13 +29,15 @@ Edit `frontend/runner.config.json`:
 - `runsDir`: real runs folder to read
 - `commands`: whitelisted CLI commands only
 
+Runtime data defaults to the shared `IDPO_DATA_DIR` root when that environment variable is set. If it is unset, the checked-in config points to the external sibling folder `../idpo-data` rather than writing under the source tree.
+
 Default command included:
 
 ```json
 {
-  "id": "idpo_demo",
+  "id": "idpo_process_inbox",
   "program": "python",
-  "args": ["-m", "idpo.demo", "--input", "{input_dir}", "--config", "{config_path}"],
+  "args": ["-m", "idpo.cli", "process-inbox", "--root", "{workspace_root}", "--config", "{config_path}", "--input-dir", "{input_dir}"],
   "cwd": ".."
 }
 ```
@@ -55,20 +56,19 @@ npm run dev
 Open:
 - `http://localhost:3000/dashboard/idpo`
 
-## 4) Demo Flow (PP1)
+## 4) Run Flow
 
 1. Open `Dashboard > Doc Processing` (`/dashboard/idpo`).
 2. Upload documents in **New Run Wizard**.
-3. Configure shadow mode/policy/budget options.
+3. Adjust config and extraction settings if needed.
 4. Start run and watch live logs.
 5. Open run detail page and show:
    - overview cards
    - document extraction
-   - validation/guardrails
+   - validation
    - recovery/escalation
    - provenance timeline export
-   - shadow comparison and rerun-with-policy action
-6. Open `Presentation Mode` (`/dashboard/idpo/presentation`) for guided step cards.
+6. Open `Presentation Mode` (`/dashboard/idpo/presentation`) to inspect saved runs.
 
 ## 5) API Endpoints (Runner + Artifacts)
 
@@ -94,7 +94,7 @@ Open:
 - Path traversal protection for artifact file reads.
 - Run file reads restricted to configured run directory.
 
-## 7) Mock Mode (Offline)
+## 7) Sample Runs
 
 If `runsDir` is empty/unavailable, UI falls back to:
 - `frontend/demo_sample_runs/`

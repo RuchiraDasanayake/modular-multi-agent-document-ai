@@ -1,4 +1,4 @@
-"""Execution planning with AHMN integration and policy-driven step selection."""
+"""Execution planning with config-gated static/adaptive policy routing."""
 
 from __future__ import annotations
 
@@ -10,37 +10,25 @@ from typing import Any
 from idpo.core.config import PipelineConfig
 from idpo.core.policy_store import PolicyStore
 from idpo.core.types import DAEOutput, ExecutionPlan, PlanStep, PolicyDefinition, SystemConstraints
+from idpo.pipeline.policy_advisor import PolicyAdvice, PolicyAdvisor
+
 
 @dataclass(frozen=True)
-class AHMNRecommendation:
-    policy_id: str | None
-    action_overrides: dict[str, Any]
-    source: str = "ahmn"
+class RouteDecision:
+    plan: ExecutionPlan
+    policy: PolicyDefinition
+    plan_source: str
+    advice_source: str
+    ranked_policies: list[dict[str, Any]]
+    fallback_reason: str | None = None
+    route_specialization: str | None = None
 
-class AHMNAdapter:
-    def __init__(self, config: PipelineConfig) -> None:
-        self.config = config
-
-    def recommend(
-        self,
-        dae_output: DAEOutput,
-        objective: str,
-        slo_state: dict[str, Any] | None = None,
-    ) -> AHMNRecommendation | None:
-        if not self.config.ahmn.enabled:
-            return None
-        if self.config.ahmn.mode != "mock":
-            return None
-        return AHMNRecommendation(
-            policy_id=self.config.ahmn.policy_override_id,
-            action_overrides=self.config.ahmn.action_overrides or {},
-        )
 
 class PlanRouter:
     def __init__(self, config: PipelineConfig, policy_store: PolicyStore) -> None:
         self.config = config
         self.policy_store = policy_store
-        self.ahmn = AHMNAdapter(config)
+        self.advisor = PolicyAdvisor(config)
 
     def route(
         self,
@@ -48,31 +36,104 @@ class PlanRouter:
         system_constraints: SystemConstraints,
         doc_metadata: dict[str, Any] | None = None,
         doc: object | None = None,
-        slo_state: dict[str, Any] | None = None,
-    ) -> tuple[ExecutionPlan, PolicyDefinition, str]:
-        policy, reason = self.policy_store.select_policy(dae_output, doc)
-        source = "config"
-        action_overrides: dict[str, Any] = {}
+        blocked_policy_ids: set[str] | None = None,
+    ) -> RouteDecision:
+        metadata = doc_metadata or {}
+        blocked = blocked_policy_ids or set()
+        route_specialization = _route_specialization(dae_output)
 
-        recommendation = self.ahmn.recommend(dae_output, self.config.ahmn.objective, slo_state)
-        if recommendation:
-            if recommendation.policy_id and recommendation.policy_id in self.policy_store._policy_map:
-                policy = self.policy_store._policy_map[recommendation.policy_id]
-                source = "ahmn"
-            if recommendation.action_overrides:
-                action_overrides = recommendation.action_overrides
-                source = "blended" if source == "config" else source
+        baseline_policy, baseline_reason = self.policy_store.select_policy(dae_output, doc)
+        policy_mode = str(self.config.ahmn.policy_mode or "static").strip().lower()
+
+        advice_source = "static"
+        plan_source = "static"
+        fallback_reason: str | None = None
+        selected_policy = baseline_policy
+        rationale = baseline_reason
+        action_overrides: dict[str, Any] = {}
+        ranked_payloads: list[dict[str, Any]] = []
+
+        if policy_mode == "adaptive":
+            advice = self.advisor.advise(dae_output, system_constraints, self.policy_store, metadata)
+            ranked_payloads = _ranked_payloads(advice)
+            advice_source = advice.source
+            plan_source = advice.source
+            selected_policy, action_overrides, rationale, fallback_reason = self._select_adaptive_policy(
+                advice,
+                baseline_policy,
+                baseline_reason,
+                blocked,
+            )
+            if selected_policy.policy_id in blocked and selected_policy.policy_id != self.config.knowledge.default_policy_id:
+                selected_policy = self.policy_store._policy_map.get(self.config.knowledge.default_policy_id, selected_policy)
+                action_overrides = {}
+                fallback_reason = fallback_reason or "blocked_recommendation"
+                rationale = fallback_reason
+            if fallback_reason:
+                plan_source = "fallback"
+                rationale = fallback_reason
+        else:
+            ranked_payloads = [
+                {
+                    "policy_id": baseline_policy.policy_id,
+                    "score": 1.0,
+                    "reason": "static_baseline",
+                    "source": "static",
+                }
+            ]
+            if baseline_policy.policy_id in blocked and baseline_policy.policy_id != self.config.knowledge.default_policy_id:
+                fallback = self.policy_store._policy_map.get(self.config.knowledge.default_policy_id, baseline_policy)
+                selected_policy = fallback
+                plan_source = "static_fallback"
+                advice_source = "static"
+                fallback_reason = "baseline_blocked"
+                rationale = fallback_reason
 
         plan = build_plan(
             config=self.config,
             dae_output=dae_output,
-            policy=policy,
+            policy=selected_policy,
             system_constraints=system_constraints,
             action_overrides=action_overrides,
-            source=source,
-            rationale=reason,
+            source=plan_source,
+            rationale=rationale,
         )
-        return plan, policy, source
+        return RouteDecision(
+            plan=plan,
+            policy=selected_policy,
+            plan_source=plan_source,
+            advice_source=advice_source,
+            ranked_policies=ranked_payloads,
+            fallback_reason=fallback_reason,
+            route_specialization=route_specialization,
+        )
+
+    def _select_adaptive_policy(
+        self,
+        advice: PolicyAdvice,
+        baseline_policy: PolicyDefinition,
+        baseline_reason: str,
+        blocked_policy_ids: set[str],
+    ) -> tuple[PolicyDefinition, dict[str, Any], str, str | None]:
+        fallback_reason: str | None = None
+        for recommendation in advice.recommendations:
+            policy = self.policy_store._policy_map.get(recommendation.policy_id)
+            if not policy:
+                fallback_reason = "invalid_recommendation"
+                continue
+            if recommendation.policy_id in blocked_policy_ids:
+                fallback_reason = "blocked_recommendation"
+                continue
+            return policy, recommendation.action_overrides, recommendation.reason, None
+        if advice.recommendations:
+            if fallback_reason is None:
+                fallback_reason = "no_allowed_recommendation"
+        elif advice.fallback_used:
+            fallback_reason = str((advice.raw or {}).get("reason") or "ahmn_fallback")
+        else:
+            fallback_reason = "empty_recommendation_set"
+        return baseline_policy, {}, baseline_reason, fallback_reason
+
 
 def build_plan(
     config: PipelineConfig,
@@ -157,36 +218,47 @@ def build_plan(
         created_at=time.time(),
     )
 
+
 def _default_operator_specs(dae_output: DAEOutput, actions: dict[str, Any]) -> list[dict[str, Any]]:
     specs: list[dict[str, Any]] = []
     preprocess = actions.get("preprocess", {})
     execution_mode = str(actions.get("execution_mode", "")).strip().lower()
     extraction_only = execution_mode in {"extract", "extraction_only", "fields_only"}
-    is_image_pipeline = dae_output.doc_type == "scanned_document" or dae_output.content_profile == "image-heavy"
+    structural = dae_output.structural_features or {}
+    quality = dae_output.quality_features or {}
+    table_ratio = float(structural.get("table_ratio", dae_output.signals.get("table_likelihood", 0.0)))
+    form_ratio = float(structural.get("form_ratio", 0.0))
+    image_ratio = float(quality.get("image_ratio", dae_output.signals.get("image_ratio", 0.0)))
+    skew_angle = abs(float(quality.get("skew_angle", dae_output.signals.get("skew_angle", 0.0))))
+    is_image_pipeline = (
+        dae_output.doc_type == "scanned_document"
+        or dae_output.content_profile == "image-heavy"
+        or (dae_output.route_bin == "heavy" and image_ratio >= 0.35)
+    )
 
-    # For scanned/image-heavy docs, image cleanup must happen before OCR.
     if is_image_pipeline and preprocess.get("deskew", {}).get("enabled", True) and (
-        dae_output.quality_bin == "C" or abs(dae_output.signals.get("skew_angle", 0.0)) > 2.0
+        dae_output.quality_bin == "C" or skew_angle > 2.0
     ):
         specs.append({"operator": "preprocess.deskew"})
-    if is_image_pipeline and preprocess.get("denoise", {}).get("enabled", True) and dae_output.quality_bin in {"B", "C"}:
+    if is_image_pipeline and preprocess.get("denoise", {}).get("enabled", True) and (
+        dae_output.route_bin == "heavy" or dae_output.quality_bin in {"B", "C"}
+    ):
         specs.append({"operator": "preprocess.denoise"})
     if is_image_pipeline and preprocess.get("ocr", {}).get("enabled", True):
         specs.append({"operator": "preprocess.ocr"})
     if preprocess.get("table_extract", {}).get("enabled", True) and (
         dae_output.content_profile in {"table-heavy", "form-centric"}
-        or dae_output.signals.get("table_likelihood", 0.0) > 0.2
+        or dae_output.layout_cluster_id in {"table_dense", "form_dense"}
+        or table_ratio >= 0.15
+        or form_ratio >= 0.2
     ):
         specs.append({"operator": "preprocess.table_extract"})
 
     specs.append({"operator": "structuring.extract"})
     if not extraction_only:
-        specs.extend(
-            [
-                {"operator": "structuring.section"},
-                {"operator": "structuring.summary"},
-            ]
-        )
+        specs.append({"operator": "structuring.section"})
+        if dae_output.route_bin != "light":
+            specs.append({"operator": "structuring.summary"})
     specs.extend(
         [
             {"operator": "validation"},
@@ -198,6 +270,7 @@ def _default_operator_specs(dae_output: DAEOutput, actions: dict[str, Any]) -> l
         specs.append({"operator": "chunking"})
     return specs
 
+
 def _normalize_operator_specs(operators: list[Any]) -> list[dict[str, Any]]:
     specs: list[dict[str, Any]] = []
     for item in operators:
@@ -206,6 +279,7 @@ def _normalize_operator_specs(operators: list[Any]) -> list[dict[str, Any]]:
         elif isinstance(item, dict) and "operator" in item:
             specs.append(item)
     return specs
+
 
 def _params_for_operator(
     operator: str,
@@ -264,6 +338,7 @@ def _params_for_operator(
         }
     return {}
 
+
 def _merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     if not override:
         return dict(base)
@@ -274,3 +349,31 @@ def _merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, An
         else:
             merged[key] = value
     return merged
+
+
+def _ranked_payloads(advice: PolicyAdvice) -> list[dict[str, Any]]:
+    return [
+        {
+            "policy_id": item.policy_id,
+            "score": round(float(item.score), 4),
+            "reason": item.reason,
+            "source": item.source,
+            "action_overrides": item.action_overrides,
+            "rag_hints": item.rag_hints,
+            "field_templates": item.field_templates,
+        }
+        for item in advice.recommendations
+    ]
+
+
+def _route_specialization(dae_output: DAEOutput) -> str:
+    table_ratio = float((dae_output.structural_features or {}).get("table_ratio", 0.0))
+    form_ratio = float((dae_output.structural_features or {}).get("form_ratio", 0.0))
+    image_ratio = float((dae_output.quality_features or {}).get("image_ratio", dae_output.signals.get("image_ratio", 0.0)))
+    if dae_output.layout_cluster_id == "table_dense" or table_ratio >= 0.2:
+        return "table"
+    if dae_output.layout_cluster_id == "form_dense" or form_ratio >= 0.2:
+        return "form"
+    if dae_output.layout_cluster_id == "image_sparse" or image_ratio >= 0.5:
+        return "image"
+    return "text"

@@ -1,3 +1,0 @@
-Invoice Number: INV-2026-1111
-Total Amount: 750.00
-Date: 2026-03-09

@@ -1,4 +1,0 @@
-﻿Invoice Number: INV-1008
-Date: 2026-03-09
-Vendor: Demo Vendor 8
-Total Amount: 124.00

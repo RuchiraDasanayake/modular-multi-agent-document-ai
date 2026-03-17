@@ -146,6 +146,7 @@ class QueueConfig:
 @dataclass
 class AHMNConfig:
     enabled: bool = False
+    policy_mode: str = "static"
     mode: str = "mock"
     objective: str = "min_cost"
     timeout_ms: int = 500

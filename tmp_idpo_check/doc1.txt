@@ -1,3 +1,0 @@
-Invoice ID: INV-1
-Total Amount: 100.00
-Date: 2026-03-01

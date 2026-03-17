@@ -396,22 +396,22 @@ IDPO can also be used standalone via CLI for batch document processing:
 python -m pip install -e .
 
 # Ingest documents
-idpo ingest --input data/synthetic/docs --out runs/ingested.json
+idpo ingest --input data/synthetic/docs --out ../idpo-data/runs/ingested.json
 
 # Process + index (full pipeline)
-idpo process --input data/synthetic/docs --run-dir runs/demo
+idpo process --input data/synthetic/docs --run-dir ../idpo-data/runs/demo
 
-# Simple output layout (entities.xlsx + text_extracted/)
-idpo process-simple --input data/demo_inputs --config configs/config.json
+# Preferred operational flow with managed runtime storage
+idpo process-inbox --root . --config configs/config.json --input-dir data/demo_inputs
 
 # Query processed documents
-idpo query --run-dir runs/demo --question "What is the total charge?" --doc-id doc_001
+idpo query --run-dir ../idpo-data/runs/demo --question "What is the total charge?" --doc-id doc_001
 
 # Evaluate extraction quality
-idpo evaluate --input data/synthetic/docs/synthetic_documents.json --run-dir runs/eval
+idpo evaluate --input data/synthetic/docs/synthetic_documents.json --run-dir ../idpo-data/runs/eval
 
 # Export provenance audit trail
-idpo export-provenance --run-dir runs/demo --out runs/demo/provenance_export.json
+idpo export-provenance --run-dir ../idpo-data/runs/demo --out ../idpo-data/runs/demo/provenance_export.json
 ```
 
 ### Optional Extras

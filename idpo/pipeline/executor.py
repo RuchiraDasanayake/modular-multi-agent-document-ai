@@ -41,7 +41,11 @@ class ExecutionState:
     normalized_entities: dict[str, str] = field(default_factory=dict)
     field_confidence: dict[str, float] = field(default_factory=dict)
     recovered_fields: dict[str, str] = field(default_factory=dict)
+    recovery_trace: list[dict[str, object]] = field(default_factory=list)
+    failed_recovery_fields: list[str] = field(default_factory=list)
     escalated: bool = False
+    escalation_status: str = "not_needed"
+    escalation_info: dict[str, object] = field(default_factory=dict)
     chunks: list[Chunk] = field(default_factory=list)
     chunk_artifact_id: str = ""
     preprocess_route: list[str] = field(default_factory=list)
@@ -110,6 +114,8 @@ class PlanExecutor:
                     self._run_recovery(step, state, ctx)
                 else:
                     executed = False
+                    state.recovery_trace = []
+                    state.failed_recovery_fields = []
                     ctx.provenance.record(
                         agent="recovery",
                         version="v1",
@@ -125,6 +131,15 @@ class PlanExecutor:
                     self._run_escalation(step, state, ctx, budget_remaining=remaining, count=escalation_count)
                 else:
                     executed = False
+                    state.escalation_status = "not_needed"
+                    state.escalation_info = {
+                        "status": "not_needed",
+                        "reason": "no_validation_issues",
+                        "fields": [],
+                        "estimated_cost_units": 0.0,
+                        "estimated_latency_ms": 0.0,
+                        "unresolved_field_count": 0,
+                    }
                     ctx.provenance.record(
                         agent="escalation",
                         version="v1",
@@ -236,6 +251,12 @@ class PlanExecutor:
         )
         state.entities = result.artifacts.get("entities", state.entities)
         state.recovered_fields = result.artifacts.get("recovered_fields", {})
+        state.recovery_trace = result.artifacts.get("recovery_trace", [])
+        state.failed_recovery_fields = [
+            str(item.get("field", ""))
+            for item in state.recovery_trace
+            if not bool(item.get("success", False))
+        ]
         signal = result.artifacts.get("signal")
         if signal:
             state.stage_signals.append(signal)
@@ -257,6 +278,16 @@ class PlanExecutor:
             ctx,
         )
         state.escalated = bool(result.artifacts.get("escalated", False))
+        state.escalation_status = str(result.artifacts.get("escalation_status", "not_needed") or "not_needed")
+        state.escalation_info = {
+            "status": state.escalation_status,
+            "reason": result.artifacts.get("escalation_reason", ""),
+            "fields": result.artifacts.get("fields", []),
+            "target_model": result.artifacts.get("target_model", ""),
+            "estimated_cost_units": float(result.artifacts.get("estimated_cost_units", 0.0) or 0.0),
+            "estimated_latency_ms": float(result.artifacts.get("estimated_latency_ms", 0.0) or 0.0),
+            "unresolved_field_count": len({issue.field for issue in state.validation_issues}),
+        }
         signal = result.artifacts.get("signal")
         if signal:
             state.stage_signals.append(signal)

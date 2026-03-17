@@ -127,7 +127,7 @@ def evaluate_documents(docs: list[Document], pipeline: Pipeline, run_dir: str) -
     )
 
     total_latency = sum(result.latency_ms for result in results)
-    total_cost = _sum_cost_units(Path(run_dir) / "provenance.jsonl")
+    total_cost = _sum_cost_units(Path(run_dir) / "provenance" / "events.jsonl")
     elapsed = (time.time() - started) * 1000
     ablations = _ablation_report(results, doc_metrics)
     return {

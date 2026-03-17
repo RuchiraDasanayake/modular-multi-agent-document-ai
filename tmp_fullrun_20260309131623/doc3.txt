@@ -1,5 +1,0 @@
-﻿Invoice Number: INV-1003
-Vendor: Nova Trading
-Total Amount: 75.40
-Date: 2026-03-07
-PO Number: PO-1003

@@ -1,4 +1,0 @@
-﻿Invoice Number: INV-1004
-Date: 2026-03-05
-Vendor: Demo Vendor 4
-Total Amount: 112.00

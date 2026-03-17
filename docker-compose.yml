@@ -186,10 +186,10 @@ services:
       AHMN_SERVICE_URL: http://ahmn:8001
       GUARDRAILS_SERVICE_URL: http://guardrails:8002
       XAI_HITL_SERVICE_URL: http://xai-hitl:8003
+      IDPO_DATA_DIR: /data/idpo
     volumes:
       - ./configs:/app/configs:ro
-      - ./inputs:/app/inputs
-      - ./runs:/app/runs
+      - ${IDPO_HOST_DATA_DIR:-../idpo-data}:/data/idpo
     depends_on:
       ahmn:
         condition: service_healthy
@@ -282,8 +282,11 @@ services:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
       - INTERNAL_API_URL=http://gateway:8000
       - HOSTNAME=0.0.0.0
+      - IDPO_DATA_DIR=/data/idpo
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - ${IDPO_HOST_DATA_DIR:-../idpo-data}:/data/idpo
     depends_on:
       gateway:
         condition: service_healthy

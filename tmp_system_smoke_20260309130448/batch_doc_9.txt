@@ -1,6 +1,0 @@
-﻿Invoice Number: INV-2009
-Date: 2026-03-10
-Vendor: Batch Vendor 9
-Subtotal: 98.00
-Tax: 17.00
-Total Amount: 117.00

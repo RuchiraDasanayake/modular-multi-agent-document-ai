@@ -319,18 +319,8 @@ function maybeInstallLocalModel(jobId: string, settings: StartRunRequest["settin
 function buildCommandArgs(
   commandArgsTemplate: string[],
   placeholders: Record<string, string>,
-  settings: StartRunRequest["settings"],
 ): string[] {
-  const baseArgs = commandArgsTemplate.map((value) => value.replace(/\{([a-z_]+)\}/g, (_, key) => placeholders[key] ?? ""));
-
-  if (!baseArgs.includes("--shadow") && settings.shadowMode) {
-    baseArgs.push("--shadow");
-  }
-  if (!baseArgs.includes("--report") && settings.report !== false) {
-    baseArgs.push("--report");
-  }
-
-  return baseArgs;
+  return commandArgsTemplate.map((value) => value.replace(/\{([a-z_]+)\}/g, (_, key) => placeholders[key] ?? ""));
 }
 
 function parseRunInfoFromLog(line: string): { runId: string | null; runPath: string | null } {
@@ -384,7 +374,7 @@ export async function startRunJob(payload: StartRunRequest) {
     workspace_root: loadRunnerConfig().workspaceRoot,
   };
 
-  const args = buildCommandArgs(commandConfig.args, placeholders, payload.settings);
+  const args = buildCommandArgs(commandConfig.args, placeholders);
 
   setJobRunning(job.jobId);
 

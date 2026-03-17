@@ -1,4 +1,0 @@
-﻿Invoice Number: INV-1002
-Date: 2026-03-03
-Vendor: Demo Vendor 2
-Total Amount: 106.00

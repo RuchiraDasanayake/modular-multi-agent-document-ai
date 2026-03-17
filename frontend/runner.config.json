@@ -1,8 +1,8 @@
 {
   "workspaceRoot": "..",
-  "runsDir": "../runs",
-  "uploadsDir": "./data/uploads",
-  "jobsDir": "./data/jobs",
+  "runsDir": "../../idpo-data/runs",
+  "uploadsDir": "../../idpo-data/frontend/uploads",
+  "jobsDir": "../../idpo-data/frontend/jobs",
   "demoSampleRunsDir": "./demo_sample_runs",
   "maxUploadMb": 25,
   "allowedExtensions": [
@@ -13,19 +13,22 @@
     ".txt",
     ".json"
   ],
-  "defaultCommandId": "idpo_demo",
+  "defaultCommandId": "idpo_process_inbox",
   "commands": [
     {
-      "id": "idpo_demo",
-      "description": "Run IDPO demo pipeline",
+      "id": "idpo_process_inbox",
+      "description": "Run IDPO inbox pipeline over uploaded files",
       "program": "python",
       "args": [
         "-m",
-        "idpo.demo",
-        "--input",
-        "{input_dir}",
+        "idpo.cli",
+        "process-inbox",
+        "--root",
+        "{workspace_root}",
         "--config",
-        "{config_path}"
+        "{config_path}",
+        "--input-dir",
+        "{input_dir}"
       ],
       "cwd": "..",
       "env": {
@@ -40,27 +43,9 @@
       "command": "python",
       "args": [
         "-m",
-        "idpo.demo",
+        "idpo.cli",
         "--help"
       ]
-    },
-    {
-      "id": "ahmn-api",
-      "kind": "http",
-      "url": "http://localhost:8000/api/health",
-      "timeoutMs": 2000
-    },
-    {
-      "id": "xai-hitl-api",
-      "kind": "http",
-      "url": "http://localhost:8000/api/xai/health",
-      "timeoutMs": 2000
-    },
-    {
-      "id": "guardrails-api",
-      "kind": "http",
-      "url": "http://localhost:8000/api/guardrails/health",
-      "timeoutMs": 2000
     }
   ]
 }

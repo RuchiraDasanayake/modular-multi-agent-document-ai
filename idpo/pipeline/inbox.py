@@ -17,6 +17,10 @@ from typing import Any, Iterable
 from idpo.agents.intake import IntakeAgent
 from idpo.core.config import PipelineConfig, load_config
 from idpo.core.preflight import run_preflight
+from idpo.core.storage import failed_dir as storage_failed_dir
+from idpo.core.storage import inbox_dir as storage_inbox_dir
+from idpo.core.storage import processed_dir as storage_processed_dir
+from idpo.core.storage import runs_root as storage_runs_root
 from idpo.pipeline.orchestrator import Pipeline
 
 SUPPORTED_INPUT_EXTS = {".json", ".txt", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
@@ -27,13 +31,22 @@ BASE_DOC_HEADERS = [
     "source",
     "doc_type",
     "vendor_cluster",
+    "layout_cluster_id",
+    "route_bin",
+    "route_specialization",
     "quality_bin",
     "complexity_bin",
     "content_profile",
     "quality_score",
     "complexity_score",
+    "analysis_confidence",
+    "analysis_confidence_type",
     "policy_id",
     "policy_name",
+    "advice_source",
+    "fallback_reason",
+    "ranked_policies",
+    "operator_stack",
     "plan_id",
     "plan_source",
     "model_used",
@@ -52,8 +65,13 @@ BASE_DOC_HEADERS = [
     "default_entity_count",
     "validation_issue_count",
     "recovered_fields_count",
+    "reward",
+    "reward_type",
+    "escalation_status",
     "requested_field_status",
     "llm_diagnostics",
+    "recovery_log",
+    "escalation_info",
     "escalated",
     "chunk_count",
     "summary",
@@ -70,6 +88,9 @@ BASE_DOC_HEADERS = [
     "validation_normalized_path",
     "recovery_attempts_path",
     "recovery_escalations_path",
+    "decision_chain_path",
+    "reward_path",
+    "recovery_trace_path",
     "chunking_path",
     "embeddings_index_path",
     "provenance_graph_path",
@@ -89,12 +110,14 @@ def process_inbox(
     config.shadow.enabled = False
     preflight_warnings = run_preflight(config)
 
-    root = Path(root)
-    inbox_dir = root / "inputs" / "inbox"
-    processed_dir = root / "inputs" / "processed"
-    runs_dir = root / "runs"
+    _ = Path(root)
+    inbox_dir = storage_inbox_dir()
+    processed_dir = storage_processed_dir()
+    failed_dir = storage_failed_dir()
+    runs_dir = storage_runs_root()
     inbox_dir.mkdir(parents=True, exist_ok=True)
     processed_dir.mkdir(parents=True, exist_ok=True)
+    failed_dir.mkdir(parents=True, exist_ok=True)
     runs_dir.mkdir(parents=True, exist_ok=True)
 
     if file_paths:
@@ -153,8 +176,6 @@ def process_inbox(
             errors_path.parent.mkdir(parents=True, exist_ok=True)
             with errors_path.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps({"file": str(file_path), "error": error_msg}) + "\n")
-            failed_dir = root / "inputs" / "failed"
-            failed_dir.mkdir(parents=True, exist_ok=True)
             try:
                 shutil.move(str(file_path), str(failed_dir / file_path.name))
             except Exception:
@@ -215,6 +236,8 @@ def process_inbox(
         _write_recovery(result, doc_dir)
         _write_chunking(result, doc_dir)
         _write_ocr_output(doc, result, doc_dir)
+        _write_reward(result, doc_dir)
+        _write_decision_chain(result, doc_dir)
         _write_transparency(result, doc_dir)
         _materialize_doc_provenance_from_run(run_dir, doc_dir, str(doc.doc_id))
         _append_events(doc_dir, events_path)
@@ -229,6 +252,7 @@ def process_inbox(
         except Exception:
             pass
 
+    reward_metrics = _aggregate_reward_metrics(doc_records)
     metrics_payload = {
         "file_count": len(files),
         "doc_count": len(ingested_items),
@@ -237,8 +261,10 @@ def process_inbox(
         "failed_doc_count": len(failed_doc_ids),
         "ended_at": time.time(),
         "duration_ms": (time.time() - start_time) * 1000,
+        **reward_metrics,
     }
     (run_dir / "metrics.json").write_text(json.dumps(metrics_payload, indent=2), encoding="utf-8")
+    _write_decision_chain_summary(run_dir, doc_records)
     _write_docs_excel(run_dir, doc_records)
     _write_entities_excel(run_dir, doc_records, expected_fields)
     _write_run_excel(run_dir, run_payload, metrics_payload)
@@ -262,27 +288,83 @@ def process_inbox(
 def _apply_field_overrides(config: PipelineConfig, run_dir: Path, fields: list[dict[str, str]]) -> None:
     names = [field["key"] for field in fields]
     descriptions = {field["key"]: field.get("description", "") for field in fields if field.get("description")}
-    override = {
-        "default_policy_id": "custom_fields",
-        "policies": [
+    override = _build_policy_override(config, names, descriptions)
+    policy_path = run_dir / "policy_override.json"
+    policy_path.write_text(json.dumps(override, indent=2), encoding="utf-8")
+    config.knowledge.policy_store_path = str(policy_path)
+    config.llm.use_extraction = True
+
+def _build_policy_override(
+    config: PipelineConfig,
+    names: list[str],
+    descriptions: dict[str, str],
+) -> dict[str, object]:
+    base_payload: dict[str, object] = {"default_policy_id": config.knowledge.default_policy_id, "policies": []}
+    base_path = str(config.knowledge.policy_store_path or "").strip()
+    if base_path:
+        candidate = Path(base_path)
+        if not candidate.is_absolute():
+            candidate = Path.cwd() / candidate
+        if candidate.exists():
+            try:
+                loaded = json.loads(candidate.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    base_payload = loaded
+            except Exception:
+                base_payload = {"default_policy_id": config.knowledge.default_policy_id, "policies": []}
+
+    policies = base_payload.get("policies", [])
+    if not isinstance(policies, list):
+        policies = []
+
+    updated_policies: list[dict[str, object]] = []
+    for raw_policy in policies:
+        if not isinstance(raw_policy, dict):
+            continue
+        policy = json.loads(json.dumps(raw_policy))
+        actions = policy.setdefault("actions", {})
+        if not isinstance(actions, dict):
+            actions = {}
+            policy["actions"] = actions
+        extraction = actions.setdefault("extraction", {})
+        if not isinstance(extraction, dict):
+            extraction = {}
+            actions["extraction"] = extraction
+        existing_entities = extraction.get("explicit_entities", [])
+        merged_entities = []
+        for item in list(existing_entities) if isinstance(existing_entities, list) else []:
+            value = str(item).strip()
+            if value and value not in merged_entities:
+                merged_entities.append(value)
+        for name in names:
+            if name not in merged_entities:
+                merged_entities.append(name)
+        extraction["explicit_entities"] = merged_entities
+        existing_descriptions = extraction.get("field_descriptions", {})
+        if not isinstance(existing_descriptions, dict):
+            existing_descriptions = {}
+        extraction["field_descriptions"] = {**existing_descriptions, **descriptions}
+        updated_policies.append(policy)
+
+    if not updated_policies:
+        updated_policies = [
             {
-                "policy_id": "custom_fields",
-                "name": "Custom Fields",
+                "policy_id": "default",
+                "name": "Default Policy",
                 "conditions": {},
                 "actions": {
-                    "execution_mode": "extraction_only",
                     "extraction": {
                         "explicit_entities": names,
                         "field_descriptions": descriptions,
                     }
                 },
             }
-        ],
+        ]
+
+    return {
+        "default_policy_id": str(base_payload.get("default_policy_id", config.knowledge.default_policy_id)),
+        "policies": updated_policies,
     }
-    policy_path = run_dir / "policy_override.json"
-    policy_path.write_text(json.dumps(override, indent=2), encoding="utf-8")
-    config.knowledge.policy_store_path = str(policy_path)
-    config.llm.use_extraction = True
 
 def _normalize_fields(fields: list[dict[str, str]]) -> list[dict[str, str]]:
     normalized = []
@@ -357,11 +439,17 @@ def _write_dae_output(result, doc_dir: Path) -> None:
     payload = {
         "doc_type": result.doc_type,
         "vendor_cluster": result.vendor_cluster,
+        "layout_cluster_id": result.layout_cluster_id,
+        "route_bin": result.route_bin,
         "quality_bin": result.quality_bin,
         "complexity_bin": result.complexity_bin,
         "content_profile": result.content_profile,
         "quality_score": result.quality_score,
         "complexity_score": result.complexity_score,
+        "analysis_confidence": result.analysis_confidence,
+        "confidence_type": result.analysis_confidence_type,
+        "quality_features": result.quality_features,
+        "structural_features": result.structural_features,
         "signals": result.dae_signals,
     }
     (doc_dir / "dae" / "output.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -406,11 +494,80 @@ def _write_validation(result, doc_dir: Path) -> None:
 
 def _write_recovery(result, doc_dir: Path) -> None:
     (doc_dir / "recovery" / "attempts.jsonl").write_text(
-        json.dumps(result.recovered_fields, indent=2),
+        json.dumps(result.recovery_log or [], indent=2),
         encoding="utf-8",
     )
     (doc_dir / "recovery" / "escalations.jsonl").write_text(
-        json.dumps({"escalated": result.escalated}, indent=2),
+        json.dumps(result.escalation_info or {"escalated": result.escalated}, indent=2),
+        encoding="utf-8",
+    )
+
+def _write_reward(result, doc_dir: Path) -> None:
+    payload = {
+        "doc_id": result.doc_id,
+        "reward": result.reward,
+        "reward_type": result.reward_type,
+        "reward_details": result.reward_details,
+    }
+    (doc_dir / "reward.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+def _write_decision_chain(result, doc_dir: Path) -> None:
+    payload = {
+        "doc_id": result.doc_id,
+        "dae": {
+            "doc_type": result.doc_type,
+            "vendor_cluster": result.vendor_cluster,
+            "quality_bin": result.quality_bin,
+            "complexity_bin": result.complexity_bin,
+            "content_profile": result.content_profile,
+            "layout_cluster_id": result.layout_cluster_id,
+            "route_bin": result.route_bin,
+            "route_specialization": result.route_specialization,
+            "quality_features": result.quality_features,
+            "structural_features": result.structural_features,
+            "analysis_confidence": result.analysis_confidence,
+            "confidence_type": result.analysis_confidence_type,
+            "signals": result.dae_signals,
+        },
+        "policy": {
+            "policy_id": result.policy_id,
+            "policy_name": result.policy_name,
+            "policy_reason": result.policy_reason,
+            "advice_source": result.advice_source,
+            "fallback_reason": result.fallback_reason,
+            "ranked_policies": result.ranked_policies,
+        },
+        "plan": {
+            "plan_id": result.plan_id,
+            "plan_source": result.plan_source,
+            "operator_stack": result.operator_stack,
+            "budgets": result.plan_budgets,
+            "retrieval": result.plan_retrieval,
+            "token_budget": result.plan_token_budget,
+        },
+        "validation": {
+            "issue_count": len(result.validation_issues),
+            "issues": [issue.__dict__ for issue in result.validation_issues],
+        },
+        "reward": {
+            "reward": result.reward,
+            "reward_type": result.reward_type,
+            "reward_details": result.reward_details,
+        },
+        "recovery": {
+            "recovered_fields": result.recovered_fields,
+            "failed_recovery_fields": result.failed_recovery_fields,
+            "recovery_trace": result.recovery_log,
+        },
+        "escalation": {
+            "escalated": result.escalated,
+            "escalation_status": result.escalation_status,
+            "escalation_info": result.escalation_info,
+        },
+    }
+    (doc_dir / "decision_chain.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    (doc_dir / "recovery_trace.json").write_text(
+        json.dumps(result.recovery_log or [], indent=2),
         encoding="utf-8",
     )
 
@@ -513,6 +670,25 @@ def _write_transparency(result, doc_dir: Path) -> None:
             "unresolved_fields": unresolved,
             "unresolved_count": len(unresolved),
         },
+        "routing": {
+            "advice_source": getattr(result, "advice_source", ""),
+            "fallback_reason": getattr(result, "fallback_reason", None),
+            "route_specialization": getattr(result, "route_specialization", None),
+            "ranked_policies": getattr(result, "ranked_policies", []) or [],
+        },
+        "reward": {
+            "reward": float(getattr(result, "reward", 0.0) or 0.0),
+            "reward_type": getattr(result, "reward_type", "proxy"),
+            "reward_details": getattr(result, "reward_details", {}) or {},
+        },
+        "recovery": {
+            "recovery_trace": getattr(result, "recovery_log", []) or [],
+            "failed_recovery_fields": getattr(result, "failed_recovery_fields", []) or [],
+        },
+        "escalation": {
+            "status": getattr(result, "escalation_status", "not_needed"),
+            "info": getattr(result, "escalation_info", {}) or {},
+        },
         "latency_ms": float(getattr(result, "latency_ms", 0.0) or 0.0),
     }
     (doc_dir / "provenance" / "transparency.json").write_text(
@@ -584,6 +760,9 @@ def _doc_record(result, doc_dir: Path, expected_fields: list[dict[str, str]], do
     expected_keys = [field["key"] for field in expected_fields]
     requested_field_status = getattr(result, "field_details", {}) or {}
     llm_diagnostics = getattr(result, "llm_diagnostics", {}) or {}
+    ranked_policies = getattr(result, "ranked_policies", []) or []
+    recovery_log = getattr(result, "recovery_log", []) or []
+    escalation_info = getattr(result, "escalation_info", {}) or {}
     ocr_signal = None
     for signal in getattr(result, "stage_signals", []) or []:
         if getattr(signal, "stage", "") == "ocr":
@@ -621,13 +800,22 @@ def _doc_record(result, doc_dir: Path, expected_fields: list[dict[str, str]], do
         "category": result.doc_type or result.category or "",
         "doc_type": result.doc_type,
         "vendor_cluster": result.vendor_cluster,
+        "layout_cluster_id": result.layout_cluster_id,
+        "route_bin": result.route_bin,
+        "route_specialization": result.route_specialization,
         "quality_bin": result.quality_bin,
         "complexity_bin": result.complexity_bin,
         "content_profile": result.content_profile,
         "quality_score": result.quality_score,
         "complexity_score": result.complexity_score,
+        "analysis_confidence": round(float(getattr(result, "analysis_confidence", 0.0) or 0.0), 4),
+        "analysis_confidence_type": getattr(result, "analysis_confidence_type", "heuristic"),
         "policy_id": result.policy_id,
         "policy_name": result.policy_name,
+        "advice_source": getattr(result, "advice_source", ""),
+        "fallback_reason": getattr(result, "fallback_reason", None),
+        "ranked_policies": ranked_policies,
+        "operator_stack": getattr(result, "operator_stack", []) or [],
         "plan_id": result.plan_id,
         "plan_source": result.plan_source,
         "model_used": getattr(result, "model_used", ""),
@@ -646,6 +834,12 @@ def _doc_record(result, doc_dir: Path, expected_fields: list[dict[str, str]], do
         "default_entity_count": len(result.default_entities),
         "validation_issue_count": len(result.validation_issues),
         "recovered_fields_count": len(result.recovered_fields),
+        "reward": round(float(getattr(result, "reward", 0.0) or 0.0), 4),
+        "reward_type": getattr(result, "reward_type", "proxy"),
+        "reward_details": getattr(result, "reward_details", {}) or {},
+        "recovery_log": recovery_log,
+        "escalation_info": escalation_info,
+        "escalation_status": getattr(result, "escalation_status", "not_needed"),
         "escalated": result.escalated,
         "chunk_count": len(result.chunks),
         "summary": result.summary,
@@ -673,9 +867,20 @@ def _doc_record(result, doc_dir: Path, expected_fields: list[dict[str, str]], do
                 "model_reason": getattr(result, "model_reason", ""),
                 "fallback_path": fallback_path,
             },
+            "routing": {
+                "advice_source": getattr(result, "advice_source", ""),
+                "fallback_reason": getattr(result, "fallback_reason", None),
+                "route_specialization": getattr(result, "route_specialization", None),
+                "ranked_policies": ranked_policies,
+                "operator_stack": getattr(result, "operator_stack", []) or [],
+            },
             "field_resolution": {
                 "requested": len(requested_field_status),
                 "unresolved": unresolved_field_count,
+            },
+            "reward": {
+                "reward": round(float(getattr(result, "reward", 0.0) or 0.0), 4),
+                "reward_type": getattr(result, "reward_type", "proxy"),
             },
         },
         "input_original_path": _find_original_path(doc_dir),
@@ -691,6 +896,9 @@ def _doc_record(result, doc_dir: Path, expected_fields: list[dict[str, str]], do
         "validation_normalized_path": str(doc_dir / "validation" / "normalized.json"),
         "recovery_attempts_path": str(doc_dir / "recovery" / "attempts.jsonl"),
         "recovery_escalations_path": str(doc_dir / "recovery" / "escalations.jsonl"),
+        "decision_chain_path": str(doc_dir / "decision_chain.json"),
+        "reward_path": str(doc_dir / "reward.json"),
+        "recovery_trace_path": str(doc_dir / "recovery_trace.json"),
         "chunking_path": str(doc_dir / "chunking" / "chunks.jsonl"),
         "embeddings_index_path": str(doc_dir / "embeddings" / "index"),
         "provenance_graph_path": str(doc_dir / "provenance" / "graph.json"),
@@ -763,6 +971,52 @@ def _find_original_path(doc_dir: Path) -> str:
     if matches:
         return str(matches[0])
     return str(input_dir / "original")
+
+def _aggregate_reward_metrics(records: list[dict[str, object]]) -> dict[str, object]:
+    if not records:
+        return {
+            "avg_reward": 0.0,
+            "direct_reward_count": 0,
+            "proxy_reward_count": 0,
+            "avg_direct_f1": 0.0,
+        }
+    rewards = [float(record.get("reward", 0.0) or 0.0) for record in records]
+    direct_scores = [
+        float(((record.get("reward_details") or {}).get("f1", 0.0)) or 0.0)
+        for record in records
+        if str(record.get("reward_type", "")).strip() == "direct_set_based"
+    ]
+    direct_count = sum(1 for record in records if str(record.get("reward_type", "")).strip() == "direct_set_based")
+    proxy_count = sum(1 for record in records if str(record.get("reward_type", "")).strip() == "proxy")
+    return {
+        "avg_reward": round(sum(rewards) / len(rewards), 4),
+        "direct_reward_count": direct_count,
+        "proxy_reward_count": proxy_count,
+        "avg_direct_f1": round(sum(direct_scores) / len(direct_scores), 4) if direct_scores else 0.0,
+    }
+
+def _write_decision_chain_summary(run_dir: Path, records: list[dict[str, object]]) -> None:
+    summary = []
+    for record in records:
+        summary.append(
+            {
+                "doc_id": record.get("doc_id", ""),
+                "filename": record.get("filename", ""),
+                "policy_id": record.get("policy_id", ""),
+                "advice_source": record.get("advice_source", ""),
+                "fallback_reason": record.get("fallback_reason"),
+                "route_bin": record.get("route_bin", ""),
+                "route_specialization": record.get("route_specialization"),
+                "operator_stack": record.get("operator_stack", []),
+                "reward": record.get("reward", 0.0),
+                "reward_type": record.get("reward_type", ""),
+                "validation_issue_count": record.get("validation_issue_count", 0),
+                "recovered_fields_count": record.get("recovered_fields_count", 0),
+                "escalation_status": record.get("escalation_status", "not_needed"),
+                "latency_ms": record.get("latency_ms", 0.0),
+            }
+        )
+    (run_dir / "decision_chain_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
 def _write_docs_excel(run_dir: Path, records: list[dict[str, object]]) -> None:
     if not records:

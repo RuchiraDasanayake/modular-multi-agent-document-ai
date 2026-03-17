@@ -106,6 +106,7 @@
   },
   "ahmn": {
     "enabled": false,
+    "policy_mode": "static",
     "mode": "mock",
     "objective": "min_cost",
     "timeout_ms": 500,

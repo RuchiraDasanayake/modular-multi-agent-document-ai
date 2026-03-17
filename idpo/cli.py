@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import shutil
 from pathlib import Path
 
 from idpo.agents.intake import IntakeAgent
 from idpo.core.config import load_config
 from idpo.core.preflight import run_preflight
 from idpo.core.provenance import export_provenance
+from idpo.core.storage import migrate_legacy_runtime_data
 from idpo.evaluation.runner import evaluate_documents
 from idpo.pipeline.orchestrator import Pipeline
 from idpo.pipeline.serialization import document_to_dict, result_to_dict
@@ -35,17 +34,14 @@ def main() -> None:
     process_parser.add_argument("--excel-out", default=None)
     process_parser.add_argument("--simple-output-dir", default=None, help="Write simple outputs under this folder")
 
-    simple_parser = subparsers.add_parser("process-simple", help="Process documents with a simple output layout")
-    simple_parser.add_argument("--input", required=True)
-    simple_parser.add_argument("--config", default=None)
-
-    dropbox_parser = subparsers.add_parser("process-dropbox", help="Process a drop folder and move inputs to processed/")
-    dropbox_parser.add_argument("--input-dir", required=True)
-    dropbox_parser.add_argument("--config", default=None)
-
     inbox_parser = subparsers.add_parser("process-inbox", help="Process inputs/inbox into a run layout and move files")
-    inbox_parser.add_argument("--root", default=".", help="Repo root with inputs/ and runs/")
+    inbox_parser.add_argument("--root", default=".", help="Project root for relative paths; runtime storage uses IDPO_DATA_DIR")
     inbox_parser.add_argument("--config", default=None)
+    inbox_parser.add_argument("--input-dir", default=None, help="Optional directory to process directly instead of the managed inbox")
+
+    migrate_parser = subparsers.add_parser("migrate-storage", help="Move legacy repo-root runtime data into IDPO_DATA_DIR")
+    migrate_parser.add_argument("--root", default=".", help="Legacy repo root containing runs/ and inputs/")
+    migrate_parser.add_argument("--data-root", default=None, help="Override target data root (defaults to IDPO_DATA_DIR)")
 
     query_parser = subparsers.add_parser("query", help="Query an existing run index")
     query_parser.add_argument("--run-dir", required=True)
@@ -57,12 +53,6 @@ def main() -> None:
     eval_parser.add_argument("--input", required=True)
     eval_parser.add_argument("--run-dir", required=True)
     eval_parser.add_argument("--config", default=None)
-
-    hooks_parser = subparsers.add_parser("evaluate-hooks", help="Compare routes or strategies")
-    hooks_parser.add_argument("--input", required=True)
-    hooks_parser.add_argument("--run-dir", required=True)
-    hooks_parser.add_argument("--configs", required=True, help="Comma-separated list of config files")
-    hooks_parser.add_argument("--mode", choices=["preprocess", "retrieval"], required=True)
 
     prov_parser = subparsers.add_parser("export-provenance", help="Export provenance JSON")
     prov_parser.add_argument("--run-dir", required=True)
@@ -104,70 +94,26 @@ def main() -> None:
             pipeline.export_simple_workspace(docs, results, args.simple_output_dir)
         return
 
-    if args.command == "process-simple":
-        config = load_config(args.config)
-        run_preflight(config)
-        input_dir = Path(args.input)
-        output_dir = input_dir / "output"
-        pipeline = Pipeline(config=config, run_dir=str(output_dir))
-        docs = intake.ingest(args.input)
-        results = pipeline.process_documents(docs)
-        pipeline.build_index(results, directory=str(pipeline.run_dir / "index"))
-        out_path = pipeline.run_dir / "results.json"
-        out_path.write_text(
-            json.dumps({"results": [result_to_dict(result) for result in results]}, indent=2),
-            encoding="utf-8",
-        )
-        excel_out = str(pipeline.run_dir / "entities.xlsx")
-        pipeline.export_structured_results(results, excel_out)
-        pipeline.export_simple_workspace(docs, results, str(pipeline.run_dir))
-        return
-
-    if args.command == "process-dropbox":
-        config = load_config(args.config)
-        config.shadow.enabled = False
-        run_preflight(config)
-        input_dir = Path(args.input_dir)
-        processed_dir = input_dir / "processed"
-        outputs_root = input_dir / "outputs"
-        processed_dir.mkdir(parents=True, exist_ok=True)
-        outputs_root.mkdir(parents=True, exist_ok=True)
-
-        files = [
-            path
-            for path in input_dir.iterdir()
-            if path.is_file() and path.suffix.lower() in SUPPORTED_INPUT_EXTS
-        ]
-        if not files:
-            raise SystemExit(f"No supported files found in {input_dir}")
-
-        failed: list[str] = []
-        for file_path in files:
-            try:
-                docs = intake.ingest(str(file_path))
-                for doc in docs:
-                    output_dir = outputs_root / doc.doc_id
-                    pipeline = Pipeline(config=config, run_dir=str(output_dir))
-                    results = pipeline.process_documents([doc])
-                    pipeline.build_index(results, directory=str(pipeline.run_dir / "index"))
-                    out_path = pipeline.run_dir / "results.json"
-                    out_path.write_text(
-                        json.dumps({"results": [result_to_dict(result) for result in results]}, indent=2),
-                        encoding="utf-8",
-                    )
-                    excel_out = str(pipeline.run_dir / "entities.xlsx")
-                    pipeline.export_structured_results(results, excel_out)
-                    pipeline.export_simple_workspace([doc], results, str(pipeline.run_dir))
-                shutil.move(str(file_path), str(processed_dir / file_path.name))
-            except Exception:
-                failed.append(str(file_path))
-
-        if failed:
-            raise SystemExit(f"Failed to process: {', '.join(failed)}")
-        return
-
     if args.command == "process-inbox":
-        process_inbox(Path(args.root), args.config)
+        file_paths = None
+        if args.input_dir:
+            input_dir = Path(args.input_dir)
+            if not input_dir.exists():
+                raise SystemExit(f"Input directory does not exist: {input_dir}")
+            file_paths = [
+                str(path)
+                for path in sorted(input_dir.iterdir())
+                if path.is_file() and path.suffix.lower() in SUPPORTED_INPUT_EXTS
+            ]
+            if not file_paths:
+                raise SystemExit(f"No supported files found in {input_dir}")
+        result = process_inbox(Path(args.root), args.config, file_paths=file_paths)
+        print(json.dumps({"run_id": result["run_id"], "run_dir": result["run_dir"]}, indent=2))
+        return
+
+    if args.command == "migrate-storage":
+        payload = migrate_legacy_runtime_data(source_repo_root=Path(args.root), target_data_root=args.data_root)
+        print(json.dumps(payload, indent=2))
         return
 
     if args.command == "query":
@@ -234,22 +180,9 @@ def main() -> None:
         out_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
         return
 
-    if args.command == "evaluate-hooks":
-        from idpo.evaluation.hooks import compare_preprocessing_routes, compare_retrieval_strategies
-
-        docs = intake.ingest(args.input)
-        config_paths = [path.strip() for path in args.configs.split(",") if path.strip()]
-        if args.mode == "preprocess":
-            payload = compare_preprocessing_routes(docs, args.run_dir, config_paths)
-        else:
-            payload = compare_retrieval_strategies(docs, args.run_dir, config_paths)
-        out_path = Path(args.run_dir) / "evaluation_hooks.json"
-        out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        return
-
     if args.command == "export-provenance":
         base_dir, primary_dir = _resolve_run_dirs(Path(args.run_dir))
-        export_provenance(str(primary_dir / "provenance.jsonl"), args.out)
+        export_provenance(str(primary_dir / "provenance" / "events.jsonl"), args.out)
         return
 
 if __name__ == "__main__":

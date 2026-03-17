@@ -1,5 +1,0 @@
-﻿Invoice Number: INV-1001
-Vendor: Apex Ltd
-Total Amount: 199.90
-Date: 2026-03-09
-PO Number: PO-1001

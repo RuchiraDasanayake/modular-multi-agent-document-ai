@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import json
 import logging
-import shutil
 import uuid
 from pathlib import Path
 from typing import Any, cast
 
 from fastapi import FastAPI, File, Form, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from idpo.pipeline.inbox import process_inbox
@@ -19,14 +18,15 @@ from idpo.integration import (
     forward_hitl_correction,
     IntegrationResult,
 )
+from idpo.core.storage import inbox_dir as storage_inbox_dir
+from idpo.core.storage import runs_root as storage_runs_root
 
 logger = logging.getLogger("idpo.app")
 
 APP_DIR = Path(__file__).resolve().parent
-TEMPLATE_PATH = APP_DIR / "templates" / "index.html"
 STATIC_DIR = APP_DIR / "static"
 REPO_ROOT = APP_DIR.parents[1]  # /app/ in Docker container
-RUNS_ROOT = REPO_ROOT / "runs"
+RUNS_ROOT = storage_runs_root()
 
 FULL_TEXT_EXPORT_NAME = "full_text.txt"
 
@@ -138,7 +138,7 @@ async def run_demo(
 ) -> JSONResponse:
     import asyncio
 
-    inbox_dir = REPO_ROOT / "inputs" / "inbox"
+    inbox_dir = storage_inbox_dir()
     inbox_dir.mkdir(parents=True, exist_ok=True)
 
     # Validate file sizes (max 50MB per file)

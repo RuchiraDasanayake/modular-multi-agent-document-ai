@@ -75,6 +75,11 @@ next-env.d.ts
 runs/
 data/processed/
 inputs/processed/
+idpo-data/
+frontend/data/uploads/*
+!frontend/data/uploads/.gitkeep
+frontend/data/jobs/*.json
+!frontend/data/jobs/.gitkeep
 
 # Binary assets (images, etc.)
 *.png
@@ -112,6 +117,8 @@ postgres_data/
 *.bak
 tmp/
 temp/
+tmp_*/
+.tmp_*/
 
 # Jupyter Notebook
 .ipynb_checkpoints

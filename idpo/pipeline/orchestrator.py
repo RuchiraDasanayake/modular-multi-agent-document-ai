@@ -36,6 +36,7 @@ from idpo.pipeline.executor import PlanExecutor, ExecutionState
 from idpo.pipeline.planning import PlanRouter, build_plan
 from idpo.pipeline.export import export_simple_workspace as write_simple_workspace
 from idpo.pipeline.export import export_structured_results as write_structured_export
+from idpo.core.storage import resolve_default_run_dir
 
 logger = logging.getLogger("idpo.pipeline")
 
@@ -92,10 +93,15 @@ class PipelineResult:
     llm_diagnostics: dict[str, object] = field(default_factory=dict)
     failed_recovery_fields: list[str] = field(default_factory=list)
     recovery_log: list[dict[str, object]] = field(default_factory=list)
+    reward: float = 0.0
+    reward_type: str = "proxy"
+    reward_details: dict[str, object] = field(default_factory=dict)
     escalation_info: dict[str, object] = field(default_factory=dict)
+    escalation_status: str = "not_needed"
     advice_source: str = "config"
     ranked_policies: list[dict[str, object]] = field(default_factory=list)
     route_specialization: str | None = None
+    fallback_reason: str | None = None
     operator_stack: list[str] = field(default_factory=list)
     dae_signals: dict[str, object] = field(default_factory=dict)
     queue_partition: str = ""
@@ -188,7 +194,7 @@ class Pipeline:
         run_dir: str | None = None,
         read_only: bool = False,
     ) -> None:
-        self.base_run_dir = Path(run_dir) if run_dir else Path("runs") / uuid.uuid4().hex
+        self.base_run_dir = Path(run_dir) if run_dir else resolve_default_run_dir(uuid.uuid4().hex)
         if self.base_run_dir.name == "primary":
             parent_meta = self.base_run_dir.parent / "run_metadata.json"
             if parent_meta.exists():
@@ -347,12 +353,23 @@ class Pipeline:
             max_latency_ms=self.config.rollback.latency_p95_ms,
             rate_limit=None,
         )
-        plan, policy, plan_source = self.router.route(
+        blocked_policy_ids = set(self.rollback_monitor.blocked)
+        if self.config.shadow.enabled:
+            blocked_policy_ids.update(self.config.shadow.candidate_policy_ids)
+        route_decision = self.router.route(
             dae_output=dae_output,
             system_constraints=constraints,
             doc_metadata=doc.metadata,
             doc=doc,
+            blocked_policy_ids=blocked_policy_ids,
         )
+        plan = route_decision.plan
+        policy = route_decision.policy
+        plan_source = route_decision.plan_source
+        advice_source = route_decision.advice_source
+        ranked_policies = route_decision.ranked_policies
+        route_specialization = route_decision.route_specialization
+        fallback_reason = route_decision.fallback_reason
 
         if self.rollback_monitor.is_blocked(policy.policy_id) and policy.policy_id != self.config.knowledge.default_policy_id:
             fallback = self.policy_store._policy_map.get(self.config.knowledge.default_policy_id, policy)
@@ -366,8 +383,19 @@ class Pipeline:
             )
             policy = fallback
             plan_source = "rollback"
+            advice_source = "rollback"
+            fallback_reason = "blocked_policy"
 
         plan_payload = json.loads(json.dumps(plan, default=lambda o: o.__dict__))
+        plan_payload.update(
+            {
+                "ranked_policies": ranked_policies,
+                "advice_source": advice_source,
+                "fallback_reason": fallback_reason,
+                "route_specialization": route_specialization,
+                "operator_stack": [step.operator for step in plan.steps],
+            }
+        )
         plan_artifact = self.artifacts.save_json(
             f"{doc.doc_id}_plan.json",
             plan_payload,
@@ -380,10 +408,9 @@ class Pipeline:
             version="v1",
             inputs={"doc_id": doc.doc_id, "dae_output": dae_output.__dict__},
             outputs={
-                "source": plan_source,
-                "recommendations": [
-                    {"policy_id": policy.policy_id, "score": 1.0, "reason": plan.rationale}
-                ],
+                "source": advice_source,
+                "recommendations": ranked_policies,
+                "fallback_reason": fallback_reason,
             },
             parameters={"rationale": plan.rationale},
             artifacts=[],
@@ -398,9 +425,12 @@ class Pipeline:
                 "policy_name": policy.name,
                 "plan_id": plan.plan_id,
                 "plan_source": plan_source,
+                "advice_source": advice_source,
+                "route_specialization": route_specialization,
+                "operator_stack": [step.operator for step in plan.steps],
                 "output_artifacts": [plan_artifact.artifact_id],
             },
-            parameters={"rationale": plan.rationale},
+            parameters={"rationale": plan.rationale, "fallback_reason": fallback_reason},
             artifacts=[plan_artifact.artifact_id],
             event_type="RouteSelection",
         )
@@ -424,6 +454,16 @@ class Pipeline:
             "raw": raw_artifact.artifact_id,
             "plan": plan_artifact.artifact_id,
         }
+        reward_type, reward_value, reward_details = self._compute_reward(doc, plan, state)
+        self.ctx.provenance.record(
+            agent="reward",
+            version="v1",
+            inputs={"doc_id": doc.doc_id, "policy_id": policy.policy_id},
+            outputs={"reward": reward_value, "reward_type": reward_type, "reward_details": reward_details},
+            parameters={"plan_id": plan.plan_id},
+            artifacts=[],
+            event_type="RewardComputation",
+        )
 
         self.ctx.provenance.record(
             agent="finalize",
@@ -432,6 +472,8 @@ class Pipeline:
             outputs={
                 "entity_count": len(state.entities),
                 "chunk_count": len(state.chunks),
+                "reward": reward_value,
+                "reward_type": reward_type,
                 "output_artifacts": list(artifact_ids.values()),
             },
             parameters={"plan_id": plan.plan_id, "policy_id": policy.policy_id},
@@ -483,8 +525,8 @@ class Pipeline:
             complexity_score=dae_output.complexity_score,
             layout_cluster_id=getattr(dae_output, "layout_cluster_id", "unknown"),
             route_bin=getattr(dae_output, "route_bin", "standard"),
-            analysis_confidence=analysis_signal.confidence if analysis_signal else dae_output.quality_score,
-            analysis_confidence_type="heuristic",
+            analysis_confidence=getattr(dae_output, "analysis_confidence", analysis_signal.confidence if analysis_signal else dae_output.quality_score),
+            analysis_confidence_type=getattr(dae_output, "confidence_type", "heuristic"),
             quality_features=getattr(dae_output, "quality_features", {}),
             structural_features=getattr(dae_output, "structural_features", {}),
             entities=state.entities,
@@ -500,10 +542,14 @@ class Pipeline:
             field_details=state.requested_field_status,
             llm_diagnostics=state.llm_diagnostics,
             recovered_fields=state.recovered_fields,
-            failed_recovery_fields=[],
-            recovery_log=[],
+            failed_recovery_fields=state.failed_recovery_fields,
+            recovery_log=state.recovery_trace,
+            reward=reward_value,
+            reward_type=reward_type,
+            reward_details=reward_details,
             escalated=state.escalated,
-            escalation_info={"escalated": state.escalated},
+            escalation_info=state.escalation_info,
+            escalation_status=state.escalation_status,
             field_confidence=state.field_confidence,
             stage_signals=state.stage_signals,
             chunk_artifact_id=state.chunk_artifact_id,
@@ -512,9 +558,10 @@ class Pipeline:
             policy_id=policy.policy_id,
             policy_name=policy.name,
             policy_reason=plan.rationale,
-            advice_source=plan_source,
-            ranked_policies=[],
-            route_specialization=getattr(dae_output, "route_bin", None),
+            advice_source=advice_source,
+            ranked_policies=ranked_policies,
+            route_specialization=route_specialization,
+            fallback_reason=fallback_reason,
             operator_stack=[step.operator for step in plan.steps],
             plan_id=plan.plan_id,
             plan_source=plan.source,
@@ -641,7 +688,7 @@ class Pipeline:
         artifacts = ArtifactStore(str(shadow_dir / "artifacts"))
         from idpo.core.provenance import ProvenanceRecorder
 
-        provenance = ProvenanceRecorder(str(shadow_dir / "provenance.jsonl"))
+        provenance = ProvenanceRecorder(str(shadow_dir / "provenance" / "events.jsonl"))
         shadow_ctx = AgentContext(
             config=self.config,
             artifact_store=artifacts,
@@ -678,6 +725,89 @@ class Pipeline:
             "validation_failure": 1.0 if state.validation_issues else 0.0,
             "quality_proxy": avg_conf,
         }
+
+    def _compute_reward(
+        self,
+        doc: Document,
+        plan: ExecutionPlan,
+        state: ExecutionState,
+    ) -> tuple[str, float, dict[str, object]]:
+        expected_fields = self._expected_fields_for_reward(plan, state)
+        if expected_fields:
+            extracted_expected = {
+                key
+                for key in expected_fields
+                if self._has_field_value(key, state.requested_field_status, state.entities)
+            }
+            all_extracted_keys = {entity.key for entity in state.entities}
+            tp = len(extracted_expected)
+            fn = max(len(expected_fields) - tp, 0)
+            fp = len([key for key in all_extracted_keys if key not in expected_fields])
+            precision = tp / (tp + fp) if (tp + fp) else 0.0
+            recall = tp / (tp + fn) if (tp + fn) else 0.0
+            f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
+            details = {
+                "doc_id": doc.doc_id,
+                "expected_fields": expected_fields,
+                "extracted_field_count": len(all_extracted_keys),
+                "true_positive_count": tp,
+                "false_positive_count": fp,
+                "false_negative_count": fn,
+                "precision": round(precision, 4),
+                "recall": round(recall, 4),
+                "f1": round(f1, 4),
+            }
+            return "direct_set_based", round(f1, 4), details
+
+        validation_component = 1.0 if not state.validation_issues else 0.0
+        unresolved_fields = len({issue.field for issue in state.validation_issues})
+        unresolved_penalty = min(unresolved_fields * 0.15, 0.6)
+        recovery_component = min(len(state.recovered_fields) * 0.1, 0.3)
+        confidence_component = 0.0
+        if state.field_confidence:
+            confidence_component = sum(state.field_confidence.values()) / max(len(state.field_confidence), 1)
+        elif state.entities:
+            confidence_component = sum(entity.confidence for entity in state.entities) / max(len(state.entities), 1)
+        escalation_penalty = 0.15 if state.escalated else 0.0
+        proxy_value = max(
+            0.0,
+            min(validation_component + recovery_component + (confidence_component * 0.4) - unresolved_penalty - escalation_penalty, 1.0),
+        )
+        details = {
+            "doc_id": doc.doc_id,
+            "validation_component": round(validation_component, 4),
+            "recovery_component": round(recovery_component, 4),
+            "confidence_component": round(confidence_component, 4),
+            "unresolved_field_penalty": round(unresolved_penalty, 4),
+            "escalation_penalty": round(escalation_penalty, 4),
+            "unresolved_field_count": unresolved_fields,
+        }
+        return "proxy", round(proxy_value, 4), details
+
+    def _expected_fields_for_reward(self, plan: ExecutionPlan, state: ExecutionState) -> list[str]:
+        requested = sorted(key for key in state.requested_field_status.keys() if str(key).strip())
+        if requested and state.explicit_source in {"plan", "policy", "rules"}:
+            return requested
+        for step in plan.steps:
+            if step.operator == "structuring.extract":
+                explicit = step.params.get("explicit_entities", [])
+                if isinstance(explicit, list):
+                    expected = [str(item).strip() for item in explicit if str(item).strip()]
+                    if expected:
+                        return expected
+        return []
+
+    def _has_field_value(
+        self,
+        key: str,
+        requested_field_status: dict[str, dict[str, object]],
+        entities: list[Entity],
+    ) -> bool:
+        status = requested_field_status.get(key) or {}
+        value = str(status.get("value", "") or "").strip()
+        if value:
+            return True
+        return any(entity.key == key and str(entity.value).strip() for entity in entities)
 
     def _shadow_comparison(
         self,

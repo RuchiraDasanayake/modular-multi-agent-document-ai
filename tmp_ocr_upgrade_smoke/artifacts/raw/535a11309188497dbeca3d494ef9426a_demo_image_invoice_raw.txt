@@ -1,5 +1,0 @@
-Invoice ID: INV-1001
-Customer Name: Alice Doe
-Total Amount: USD 1200.00
-Due Date: 03/10/2026
-Please process urgently.

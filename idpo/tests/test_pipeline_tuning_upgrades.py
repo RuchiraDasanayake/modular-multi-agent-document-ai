@@ -112,9 +112,10 @@ def test_recovery_rejects_invalid_amount_candidate(tmp_path: Path) -> None:
     assert result.artifacts["recovered_fields"] == {}
 
 
-def test_inbox_batch_run_processes_multiple_docs_in_one_run(tmp_path: Path) -> None:
+def test_inbox_batch_run_processes_multiple_docs_in_one_run(tmp_path: Path, monkeypatch) -> None:
     root = tmp_path / "workspace"
     root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("IDPO_DATA_DIR", str(tmp_path / "idpo-data"))
     doc1 = root / "one.txt"
     doc2 = root / "two.txt"
     doc1.write_text("Invoice Number: INV-1\nTotal Amount: 10.00\n", encoding="utf-8")

@@ -15,7 +15,10 @@ from idpo.core.provenance import ProvenanceRecorder
 from idpo.core.types import DAEOutput, Document, Entity, Page, SystemConstraints, ValidationIssue
 from idpo.pipeline.orchestrator import Pipeline
 from idpo.pipeline.policy_advisor import PolicyAdvisor
+from idpo.pipeline.inbox import process_inbox
 from idpo.pipeline.policy_safety import PolicySafetyMonitor
+from idpo.pipeline.planning import PlanRouter
+from scripts.run_idpo_benchmark import run_benchmark
 
 
 def _ctx(tmp_path: Path, config: PipelineConfig | None = None) -> AgentContext:
@@ -55,6 +58,10 @@ def test_dae_feature_extraction_is_deterministic(tmp_path: Path) -> None:
     assert first.layout_cluster_id == second.layout_cluster_id
     assert first.quality_features == second.quality_features
     assert first.structural_features == second.structural_features
+    assert first.route_bin in {"light", "standard", "heavy"}
+    assert first.layout_cluster_id != "unknown"
+    assert first.analysis_confidence > 0.0
+    assert first.confidence_type == "heuristic"
 
 
 def test_policy_advisor_ranked_fallback(tmp_path: Path) -> None:
@@ -94,6 +101,61 @@ def test_policy_advisor_ranked_fallback(tmp_path: Path) -> None:
     assert advice.recommendations
     assert advice.recommendations[0].policy_id == "table_policy"
     assert advice.fallback_used is True
+
+
+def test_plan_router_uses_adaptive_fallback_and_static_mode(tmp_path: Path) -> None:
+    policy_path = tmp_path / "policies.json"
+    policy_path.write_text(
+        json.dumps(
+            {
+                "default_policy_id": "default",
+                "policies": [
+                    {"policy_id": "default", "name": "Default", "conditions": {}, "actions": {}},
+                    {
+                        "policy_id": "table_policy",
+                        "name": "Table",
+                        "conditions": {"route_bin": ["heavy"]},
+                        "actions": {"preprocess": {"table_extract": {"enabled": True}}},
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    dae = DAEOutput(
+        doc_id="d1",
+        doc_type="table_document",
+        vendor_cluster="acme",
+        quality_bin="B",
+        complexity_bin="2",
+        content_profile="table-heavy",
+        quality_score=0.7,
+        complexity_score=0.8,
+        layout_cluster_id="table_dense",
+        route_bin="heavy",
+        structural_features={"table_ratio": 0.4, "form_ratio": 0.0, "page_count": 1.0, "avg_line_length": 20.0, "heading_density": 0.0},
+        quality_features={"blur_score": 0.2, "skew_angle": 0.0, "text_density": 0.8, "image_ratio": 0.1, "dpi_est": 300.0},
+    )
+    constraints = SystemConstraints(max_cost_units=5, max_latency_ms=2000)
+
+    adaptive_config = PipelineConfig()
+    adaptive_config.ahmn.policy_mode = "adaptive"
+    adaptive_store = PolicyStore(str(policy_path), default_policy_id="default")
+    adaptive_router = PlanRouter(adaptive_config, adaptive_store)
+    adaptive = adaptive_router.route(dae, constraints, blocked_policy_ids=set())
+    assert adaptive.policy.policy_id == "table_policy"
+    assert adaptive.advice_source == "fallback"
+    assert adaptive.ranked_policies
+    assert adaptive.route_specialization == "table"
+
+    static_config = PipelineConfig()
+    static_config.ahmn.policy_mode = "static"
+    static_store = PolicyStore(str(policy_path), default_policy_id="default")
+    static_router = PlanRouter(static_config, static_store)
+    static = static_router.route(dae, constraints, blocked_policy_ids={"table_policy"})
+    assert static.policy.policy_id == "default"
+    assert static.advice_source == "static"
+    assert static.fallback_reason == "baseline_blocked"
 
 
 def test_budget_manager_blocks_escalation_when_budget_exceeded() -> None:
@@ -151,8 +213,93 @@ def test_recovery_retries_only_failing_fields(tmp_path: Path) -> None:
     )
     recovered = result.artifacts["recovered_fields"]
     assert list(recovered.keys()) == ["total_amount"]
+    trace = result.artifacts["recovery_trace"]
+    assert trace
+    assert trace[0]["field"] == "total_amount"
+    assert trace[0]["success"] is True
     updated = {entity.key: entity.value for entity in result.artifacts["entities"]}
     assert updated["invoice_id"] == "INV-1"
+
+
+def test_pipeline_emits_reward_and_trace_fields(tmp_path: Path) -> None:
+    config = PipelineConfig()
+    config.validation.min_confidence = 0.95
+    pipeline = Pipeline(config=config, run_dir=str(tmp_path / "run"))
+    doc = Document(
+        doc_id="reward-doc",
+        source="digital",
+        path="reward.txt",
+        pages=[Page(number=1, text="Invoice Number: INV-55\nTotal Amount: 10.00\nDate: 01/01/2026\n")],
+    )
+    result = pipeline.process_documents([doc])[0]
+    assert result.reward_type == "proxy"
+    assert isinstance(result.reward_details, dict)
+    assert result.recovery_log is not None
+    assert result.escalation_status in {"not_needed", "attempted", "budget_blocked", "quota_blocked", "model_unavailable"}
+
+
+def test_process_inbox_writes_decision_chain_and_reward_artifacts(tmp_path: Path, monkeypatch) -> None:
+    runtime_root = tmp_path / "idpo-data"
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("IDPO_DATA_DIR", str(runtime_root))
+    doc_path = workspace / "invoice.txt"
+    doc_path.write_text("Invoice Number: INV-1\nTotal Amount: 10.00\nDue Date: 2026-03-25\n", encoding="utf-8")
+
+    result = process_inbox(
+        root=workspace,
+        file_paths=[str(doc_path)],
+        extraction_fields=[
+            {"name": "invoice_number", "description": "Invoice identifier"},
+            {"name": "total_amount", "description": "Total due amount"},
+        ],
+    )
+    doc = result["doc_records"][0]
+    assert doc["reward_type"] == "direct_set_based"
+    assert Path(doc["decision_chain_path"]).exists()
+    assert Path(doc["reward_path"]).exists()
+    assert Path(doc["recovery_trace_path"]).exists()
+    decision_chain = json.loads(Path(doc["decision_chain_path"]).read_text(encoding="utf-8"))
+    assert "policy" in decision_chain
+    assert "reward" in decision_chain
+    metrics = result["metrics"]
+    assert "avg_reward" in metrics
+
+
+def test_benchmark_generates_paper_evidence(tmp_path: Path, monkeypatch) -> None:
+    runtime_root = tmp_path / "idpo-data"
+    monkeypatch.setenv("IDPO_DATA_DIR", str(runtime_root))
+    pack_path = tmp_path / "pack.json"
+    pack_path.write_text(
+        json.dumps(
+            {
+                "name": "tiny_pack",
+                "cases": [
+                    {
+                        "case_id": "invoice_basic",
+                        "path": "idpo/benchmark/data/invoice_basic.txt",
+                        "fields": {
+                            "invoice_number": "Invoice identifier",
+                            "total_amount": "Total due amount",
+                        },
+                        "expected": {
+                            "invoice_number": "INV-2026-1001",
+                            "total_amount": "1388.80",
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    evidence = run_benchmark(config_path="configs/config.json", pack_path=str(pack_path))
+    report_path = runtime_root / "runs" / "benchmarks" / evidence["experiment"]["benchmark_run_id"] / "paper_evidence.json"
+    assert report_path.exists()
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    assert set(payload.keys()) == {"experiment", "conditions", "comparison", "documents"}
+    assert "static" in payload["conditions"]
+    assert "adaptive" in payload["conditions"]
+    assert "table" in payload["comparison"]
 
 
 def test_shadow_mode_does_not_change_canonical_output(tmp_path: Path) -> None:
