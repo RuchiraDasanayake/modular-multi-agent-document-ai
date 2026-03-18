@@ -38,7 +38,7 @@ async def promote_strategies():
     try:
         async with pool.connection() as conn:
             async with conn.cursor() as cur:
-                # Only consider outcomes from the last 24 hours to avoid re-promoting
+                # Consider outcomes from the last 7 days (more flexible for demos)
                 query = """
                     SELECT 
                         document_context,
@@ -47,16 +47,15 @@ async def promote_strategies():
                         AVG((outcome_metrics->>'f1_score')::float) as avg_f1
                     FROM mtm_outcomes
                     WHERE (outcome_metrics->>'f1_score')::float > 0.50
-                      AND policy_id_used != 'default_policy'
-                      AND created_at > NOW() - interval '24 hours'
+                      AND created_at > NOW() - interval '7 days'
                     GROUP BY document_context, policy_id_used
-                    HAVING COUNT(*) >= 2
+                    HAVING COUNT(*) >= 1
                 """
 
                 await cur.execute(query)
                 rows = await cur.fetchall()
 
-                logger.info(\"Found %d candidate strategies for promotion\", len(rows))
+                logger.info("Found %d candidate strategies for promotion", len(rows))
 
                 for row in rows:
                     doc_context_json, policy_id, count, avg_f1 = row

@@ -32,6 +32,8 @@ export default function IDPOPage() {
     const elapsedRef = useRef<NodeJS.Timeout | null>(null);
     const [integrationTab, setIntegrationTab] = useState<"advice" | "guardrails" | "xai" | "feedback">("advice");
     const [enableGuardrails, setEnableGuardrails] = useState(true);
+    const [enableXAI, setEnableXAI] = useState(false);
+    const [enableAHMN, setEnableAHMN] = useState(false);
     const [entitySearch, setEntitySearch] = useState("");
     const [entityConfidenceFilter, setEntityConfidenceFilter] = useState<"all" | "high" | "medium" | "low">("all");
     const [entityPage, setEntityPage] = useState(0);
@@ -49,13 +51,15 @@ export default function IDPOPage() {
             if (saved) {
                 const parsed = JSON.parse(saved);
                 if (typeof parsed.guardrails === "boolean") setEnableGuardrails(parsed.guardrails);
+                if (typeof parsed.xai === "boolean") setEnableXAI(parsed.xai);
+                if (typeof parsed.ahmn === "boolean") setEnableAHMN(parsed.ahmn);
             }
         } catch { }
     }, []);
 
     useEffect(() => {
-        try { localStorage.setItem("idpo_toggles", JSON.stringify({ guardrails: enableGuardrails })); } catch { }
-    }, [enableGuardrails]);
+        try { localStorage.setItem("idpo_toggles", JSON.stringify({ guardrails: enableGuardrails, xai: enableXAI, ahmn: enableAHMN })); } catch { }
+    }, [enableGuardrails, enableXAI, enableAHMN]);
 
     // Restore extraction results from sessionStorage on mount
     useEffect(() => {
@@ -148,7 +152,7 @@ export default function IDPOPage() {
         setDocProgress(files.map((f) => ({ name: f.name, status: "queued" as const })));
         let currentDoc = 0;
         // Cycle through docs with realistic timing
-        const baseMs = enableGuardrails ? 3500 : 2200;
+        const baseMs = enableGuardrails && enableXAI && enableAHMN ? 45000 : enableGuardrails && (enableXAI || enableAHMN) ? 27000 : enableGuardrails ? 12000 : 7000;
         const tickMs = 500;
         const interval = setInterval(() => {
             const elapsed = Date.now() - progressStartRef.current;
@@ -170,7 +174,7 @@ export default function IDPOPage() {
         }, tickMs);
         progressTimerRef.current = interval;
         return () => clearInterval(interval);
-    }, [loading, files.length, enableGuardrails]);
+    }, [loading, files.length, enableGuardrails, enableXAI, enableAHMN]);
 
     /* ── Download helper ── */
     const handleDownload = async (file: "docs.xlsx" | "entities.xlsx" | "run.xlsx", filename: string) => {
@@ -263,7 +267,7 @@ export default function IDPOPage() {
 
 
         try {
-            const data = await api.runIDPO(files, fields, configPath, { enableGuardrails });
+            const data = await api.runIDPO(files, fields, configPath, { enableGuardrails, enableXAI, enableAHMN });
 
             // Mark all doc progress as done
             setDocProgress((prev) => prev.map((d) => ({ ...d, status: "done" as const })));
@@ -440,7 +444,7 @@ export default function IDPOPage() {
                                 <div className="h-full rounded-full bg-gradient-to-r from-brand-500 via-cyan-400 to-violet-500" style={{
                                     backgroundSize: "200% 100%",
                                     animation: "gradientMove 1.5s ease-in-out infinite",
-                                    width: `${Math.min(95, (elapsedSec / (enableGuardrails ? 30 : 12)) * 100)}%`,
+                                    width: `${Math.min(95, (elapsedSec / (enableGuardrails && enableXAI && enableAHMN ? 45 : enableGuardrails && (enableXAI || enableAHMN) ? 27 : enableGuardrails ? 12 : 7)) * 100)}%`,
                                     transition: "width 1s ease-out"
                                 }} />
                             </div>
@@ -584,6 +588,8 @@ export default function IDPOPage() {
                             <div className="space-y-2">
                                 {([
                                     { key: "guardrails" as const, icon: "🛡️", label: "Guardrails", desc: "6-layer quality validation (~8-20s)", checked: enableGuardrails, setter: setEnableGuardrails },
+                                    { key: "xai" as const, icon: "🔍", label: "XAI Explanations", desc: "LIME + attention explanations (~5-15s)", checked: enableXAI, setter: setEnableXAI },
+                                    { key: "ahmn" as const, icon: "🧠", label: "AHMN Learning", desc: "Thompson Sampling feedback loop (~2-5s)", checked: enableAHMN, setter: setEnableAHMN },
                                 ]).map((opt) => (
                                     <label key={opt.key} className={`flex items-center justify-between cursor-pointer px-3 py-2.5 rounded-lg border transition-all duration-150 ${opt.checked ? "bg-brand-50/50 dark:bg-brand-500/5 border-brand-200 dark:border-brand-500/20" : "bg-white/30 dark:bg-gray-800/20 border-slate-200/60 dark:border-gray-700/40 hover:border-slate-300 dark:hover:border-gray-600"}`}>
                                         <div className="flex items-center gap-2.5">
@@ -602,7 +608,12 @@ export default function IDPOPage() {
                                 ))}
                             </div>
                             <p className="text-[9px] text-slate-400 dark:text-gray-500 text-center pt-1">
-                                Estimated time: ~{enableGuardrails ? "15-30s" : "5-10s"} per document
+                                Estimated time: ~{
+                                  enableGuardrails && enableXAI && enableAHMN ? "30-60s" :
+                                  enableGuardrails && (enableXAI || enableAHMN) ? "20-35s" :
+                                  enableGuardrails ? "8-15s" :
+                                  enableXAI || enableAHMN ? "5-10s" : "2-5s"
+                                } per document
                             </p>
                         </div>
 

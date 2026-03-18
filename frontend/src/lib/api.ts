@@ -172,7 +172,7 @@ export const api = {
     files: File[],
     fields: { name: string; description: string }[],
     configPath: string,
-    options?: { enableGuardrails?: boolean },
+    options?: { enableGuardrails?: boolean; enableXAI?: boolean; enableAHMN?: boolean },
   ) => {
     const token = getToken();
     const formData = new FormData();
@@ -180,9 +180,8 @@ export const api = {
     formData.append("fields", JSON.stringify(fields));
     formData.append("config_path", configPath);
     formData.append("skip_guardrails", String(!(options?.enableGuardrails ?? true)));
-    // Keep XAI and AHMN enabled by default; guardrails is the only user-facing runtime toggle.
-    formData.append("skip_xai", "false");
-    formData.append("skip_ahmn", "false");
+    formData.append("skip_xai", String(!(options?.enableXAI ?? false)));
+    formData.append("skip_ahmn", String(!(options?.enableAHMN ?? false)));
 
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -209,6 +208,17 @@ export const api = {
     if (!res.ok) throw new Error(`Download failed: ${res.status}`);
     return res.blob();
   },
+
+  // ── Database Management ──
+
+  getDatabaseLTM: () => request<unknown[]>("/api/admin/database/ltm"),
+  getDatabaseMTM: () => request<unknown[]>("/api/admin/database/mtm"),
+  getDatabaseSTM: () => request<unknown[]>("/api/admin/database/stm"),
+  getDatabaseGuardrails: () => request<unknown[]>("/api/admin/database/guardrails"),
+  getDatabaseHITL: () => request<unknown[]>("/api/admin/database/hitl"),
+
+  deleteRecord: (table: string, recordId: string) =>
+    request(`/api/admin/database/${table}/${recordId}`, { method: "DELETE" }),
 
   forwardIDPOHITLCorrection: (adviceId: string, feedbackType: "correct" | "incorrect" | "partially_correct" | "needs_more_context") =>
     request<{ status: string; human_corrected?: boolean; error?: string }>("/api/idpo/hitl-correction", {
