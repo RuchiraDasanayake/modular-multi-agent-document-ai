@@ -74,7 +74,9 @@ next-env.d.ts
 # Generated / runtime outputs
 runs/
 data/processed/
+inputs/inbox/
 inputs/processed/
+inputs/failed/
 idpo-data/
 frontend/data/uploads/*
 !frontend/data/uploads/.gitkeep

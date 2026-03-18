@@ -10,7 +10,12 @@ import type {
   GuardrailValidateResponse,
   GuardrailStats,
   IDPORun,
+  IDPODocRecord,
+  IDPOEntityDetail,
+  IDPORunMetrics,
+  IDPORunResult,
 } from "@/types";
+import type { JobStatus } from "@/types/idpo";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -37,6 +42,235 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new Error(body.detail || `API ${res.status}`);
   }
   return res.json();
+}
+
+async function localRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const res = await fetch(path, {
+    cache: "no-store",
+    ...options,
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || body.detail || `API ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function asString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function asNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function mapEntityDetails(detail: Record<string, unknown>): { entityDetails: IDPOEntityDetail[]; entities: Record<string, unknown> } {
+  const fieldValues = Array.isArray(detail.fields) ? detail.fields : [];
+  const entityDetails: IDPOEntityDetail[] = [];
+  const entities: Record<string, unknown> = {};
+
+  for (const fieldValue of fieldValues) {
+    const field = asRecord(fieldValue);
+    if (!field) {
+      continue;
+    }
+    const key = asString(field.key);
+    if (!key) {
+      continue;
+    }
+    const metadata = asRecord(field.metadata) ?? {};
+    const evidence = asRecord(field.evidence) ?? {};
+    const value = field.value;
+    const textValue =
+      typeof value === "string" ? value : typeof value === "number" || typeof value === "boolean" ? String(value) : "";
+    entities[key] = value ?? "";
+    entityDetails.push({
+      key,
+      label: asString(metadata.label) ?? key,
+      value: textValue,
+      confidence: asNumber(field.confidence) ?? 0,
+      page: asNumber(evidence.page) ?? null,
+      source: asString(metadata.source) ?? asString(field.extraction_method) ?? "unknown",
+      is_explicit: Boolean(metadata.explicit),
+    });
+  }
+
+  return { entityDetails, entities };
+}
+
+function buildExtractedText(content: unknown): string {
+  const payload = asRecord(content);
+  const pages = Array.isArray(payload?.pages) ? payload.pages : [];
+  const chunks: string[] = [];
+  for (const pageValue of pages) {
+    const page = asRecord(pageValue);
+    if (!page) {
+      continue;
+    }
+    const text = asString(page.text);
+    if (!text) {
+      continue;
+    }
+    const pageNumber = asNumber(page.number);
+    chunks.push(pageNumber != null ? `--- Page ${pageNumber} ---\n${text}` : text);
+  }
+  return chunks.join("\n\n");
+}
+
+async function loadExtractedText(runId: string, docId: string): Promise<string> {
+  const relativePath = `docs/${docId}/preprocessing/ocr/text.json`;
+  try {
+    const payload = await localRequest<{ type: "json" | "text"; content: unknown }>(
+      `/api/runs/${encodeURIComponent(runId)}/file?path=${encodeURIComponent(relativePath)}`,
+    );
+    if (payload.type === "text") {
+      return typeof payload.content === "string" ? payload.content : "";
+    }
+    return buildExtractedText(payload.content);
+  } catch {
+    return "";
+  }
+}
+
+async function waitForJob(jobId: string, timeoutMs = 30 * 60 * 1000, intervalMs = 1200): Promise<JobStatus> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const job = await localRequest<JobStatus>(`/api/jobs/${encodeURIComponent(jobId)}`);
+    if (job.status === "success") {
+      return job;
+    }
+    if (job.status === "failed") {
+      throw new Error(job.error || "IDPO job failed");
+    }
+    await sleep(intervalMs);
+  }
+  throw new Error("IDPO job timed out");
+}
+
+async function hydrateRunResult(job: JobStatus): Promise<IDPORunResult> {
+  const runId = job.runId;
+  if (!runId) {
+    throw new Error("IDPO job completed without a run id");
+  }
+
+  const [overviewPayload, metricsPayload, docsPayload] = await Promise.all([
+    localRequest<Record<string, unknown>>(`/api/runs/${encodeURIComponent(runId)}/summary`),
+    localRequest<Record<string, unknown>>(`/api/runs/${encodeURIComponent(runId)}/metrics`),
+    localRequest<{ docs: Array<Record<string, unknown>> }>(`/api/runs/${encodeURIComponent(runId)}/docs`),
+  ]);
+
+  const docs = await Promise.all(
+    docsPayload.docs.map(async (summaryValue) => {
+      const summary = asRecord(summaryValue) ?? {};
+      const docId = asString(summary.docId);
+      if (!docId) {
+        throw new Error("Run document entry is missing docId");
+      }
+
+      const detail = await localRequest<Record<string, unknown>>(
+        `/api/runs/${encodeURIComponent(runId)}/docs/${encodeURIComponent(docId)}`,
+      );
+      const metadata = asRecord(detail.metadata) ?? {};
+      const raw = asRecord(detail.raw) ?? {};
+      const dae = asRecord(raw.dae) ?? {};
+      const route = asRecord(raw.route) ?? {};
+      const extract = asRecord(raw.extract) ?? {};
+      const transparency = asRecord(detail.transparency) ?? {};
+      const llmDiagnostics = asRecord(detail.llmDiagnostics) ?? {};
+      const validationIssues = Array.isArray(detail.validationIssues)
+        ? (detail.validationIssues as Array<{ field: string; issue: string; severity: string }>)
+        : [];
+      const recoveryAttempts = Array.isArray(detail.recoveryAttempts)
+        ? (detail.recoveryAttempts as Array<Record<string, unknown>>)
+        : [];
+      const { entityDetails, entities } = mapEntityDetails(detail);
+      const extractedText = await loadExtractedText(runId, docId);
+
+      const docRecord: IDPODocRecord = {
+        doc_id: docId,
+        filename: asString(summary.filename) ?? docId,
+        source: asString(extract.source),
+        category: asString(metadata.docType),
+        doc_type: asString(metadata.docType),
+        vendor_cluster: asString(metadata.vendorCluster),
+        quality_bin: asString(dae.quality_bin),
+        complexity_bin: asString(metadata.complexityBin) ?? asString(dae.complexity_bin),
+        content_profile: asString(metadata.profile) ?? asString(dae.content_profile),
+        quality_score: asNumber(dae.quality_score),
+        complexity_score: asNumber(dae.complexity_score),
+        summary: asString(extract.summary),
+        status: asString(summary.status) ?? "success",
+        extracted_text: extractedText || undefined,
+        entities,
+        entity_details: entityDetails,
+        sections: [],
+        validation_issues: validationIssues,
+        field_confidence: {},
+        recovered_fields: {},
+        entity_count: entityDetails.length,
+        explicit_entity_count: entityDetails.filter((item) => item.is_explicit).length,
+        default_entity_count: entityDetails.filter((item) => !item.is_explicit).length,
+        validation_issue_count: validationIssues.length,
+        recovered_fields_count: recoveryAttempts.filter((item) => Boolean(asRecord(item)?.success)).length,
+        chunk_count: Array.isArray(extract.chunks) ? extract.chunks.length : undefined,
+        escalated: Boolean(summary.escalated),
+        model_used: asString(metadata.modelUsed),
+        model_mode: asString(metadata.modelMode),
+        model_reason: asString(metadata.modelReason),
+        policy_id: asString(metadata.policyId) ?? asString(route.policy_id),
+        policy_name: asString(route.policy_name),
+        plan_id: asString(route.plan_id),
+        plan_source: asString(route.source),
+        preprocess_route: undefined,
+        ocr_engine_used: asString(metadata.ocrEngineUsed),
+        ocr_avg_confidence: asNumber(metadata.ocrAvgConfidence),
+        ocr_rerun_attempted_pages: asNumber(metadata.ocrRerunAttemptedPages),
+        ocr_rerun_used_pages: asNumber(metadata.ocrRerunUsedPages),
+        fallback_path: asString(metadata.fallbackPath),
+        unresolved_field_count: asNumber(metadata.unresolvedFieldCount),
+        transparency,
+        transparency_path: asString(metadata.transparencyPath),
+        llm_diagnostics: Object.keys(llmDiagnostics).length > 0 ? llmDiagnostics : undefined,
+      };
+      return docRecord;
+    }),
+  );
+
+  const entities = docs.flatMap((doc) =>
+    (doc.entity_details ?? []).map((entity) => ({
+      doc_id: doc.doc_id,
+      key: entity.key,
+      label: entity.label,
+      value: entity.value,
+      confidence: entity.confidence,
+      page: entity.page ?? null,
+      source: entity.source,
+      is_explicit: entity.is_explicit,
+    })),
+  );
+
+  const runInfo = asRecord(metricsPayload.runInfo) ?? {};
+  const warningsText = asString(runInfo.preflight_warnings) ?? "";
+  const metrics = (asRecord(metricsPayload.metrics) ?? {}) as IDPORunMetrics;
+  const overview = asRecord(overviewPayload.run) ?? {};
+
+  return {
+    run_id: runId,
+    run_dir: job.runPath ?? asString(overview.rootPath) ?? "",
+    metrics,
+    docs,
+    entities,
+    warnings: warningsText ? warningsText.split(" | ").filter(Boolean) : [],
+  };
 }
 
 // ── Auth ──
@@ -174,30 +408,27 @@ export const api = {
     configPath: string,
     options?: { enableGuardrails?: boolean },
   ) => {
-    const token = getToken();
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
-    formData.append("fields", JSON.stringify(fields));
-    formData.append("config_path", configPath);
-    formData.append("skip_guardrails", String(!(options?.enableGuardrails ?? true)));
-    // Keep XAI and AHMN enabled by default; guardrails is the only user-facing runtime toggle.
-    formData.append("skip_xai", "false");
-    formData.append("skip_ahmn", "false");
+    formData.append(
+      "settings",
+      JSON.stringify({
+        configPath,
+        report: true,
+        guardrailsEnabled: options?.enableGuardrails ?? true,
+        customFields: fields.map((field) => ({
+          key: field.name,
+          description: field.description,
+        })),
+      }),
+    );
 
-    const headers: Record<string, string> = {};
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-
-    const res = await fetch(`${API_BASE}/api/idpo/run`, {
+    const job = await localRequest<JobStatus>("/api/runs/start", {
       method: "POST",
-      headers,
       body: formData,
     });
-
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || body.detail || `API ${res.status}`);
-    }
-    return res.json();
+    const completed = await waitForJob(job.jobId);
+    return hydrateRunResult(completed);
   },
 
   downloadIDPOFile: async (runId: string, file: "docs.xlsx" | "entities.xlsx" | "run.xlsx") => {

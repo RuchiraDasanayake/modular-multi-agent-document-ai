@@ -43,6 +43,62 @@
         "supplier_name": "Apex Components Ltd",
         "total_amount": "5240.00"
       }
+    },
+    {
+      "case_id": "ocr_receipt_scan",
+      "path": "idpo/benchmark/data/ocr_receipt_scan.json",
+      "fields": {
+        "receipt_number": "Receipt identifier",
+        "total_amount": "Final amount paid",
+        "purchase_date": "Date of purchase"
+      },
+      "expected": {
+        "receipt_number": "RCPT-9912",
+        "total_amount": "47.85",
+        "purchase_date": "2026-03-03"
+      }
+    },
+    {
+      "case_id": "table_invoice_dense",
+      "path": "idpo/benchmark/data/table_invoice_dense.json",
+      "fields": {
+        "invoice_number": "Invoice identifier",
+        "supplier_name": "Supplier name",
+        "total_amount": "Total due amount"
+      },
+      "expected": {
+        "invoice_number": "INV-TBL-204",
+        "supplier_name": "Northwind Industrial Supply",
+        "total_amount": "8045.10"
+      }
+    },
+    {
+      "case_id": "form_claim_dense",
+      "path": "idpo/benchmark/data/form_claim_dense.json",
+      "fields": {
+        "claim_number": "Claim number",
+        "member_id": "Member identifier",
+        "service_date": "Date of service"
+      },
+      "expected": {
+        "claim_number": "CLM-77019",
+        "member_id": "M-44591",
+        "service_date": "2026-02-27"
+      }
+    },
+    {
+      "case_id": "noisy_low_quality_invoice",
+      "path": "idpo/benchmark/data/noisy_low_quality_invoice.json",
+      "fields": {
+        "invoice_number": "Invoice identifier",
+        "total_amount": "Total due amount",
+        "due_date": "Payment due date"
+      },
+      "expected": {
+        "invoice_number": "INV-9045",
+        "total_amount": "904.50",
+        "due_date": "2026-04-01"
+      }
     }
   ]
 }

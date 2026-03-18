@@ -16,9 +16,11 @@ from idpo.core.types import DAEOutput, Document, Entity, Page, SystemConstraints
 from idpo.pipeline.orchestrator import Pipeline
 from idpo.pipeline.policy_advisor import PolicyAdvisor
 from idpo.pipeline.inbox import process_inbox
+import idpo.pipeline.inbox as inbox_module
 from idpo.pipeline.policy_safety import PolicySafetyMonitor
 from idpo.pipeline.planning import PlanRouter
 from scripts.run_idpo_benchmark import run_benchmark
+from idpo.core.storage import repo_root
 
 
 def _ctx(tmp_path: Path, config: PipelineConfig | None = None) -> AgentContext:
@@ -266,6 +268,66 @@ def test_process_inbox_writes_decision_chain_and_reward_artifacts(tmp_path: Path
     assert "avg_reward" in metrics
 
 
+def test_process_inbox_preserves_shadow_and_queue_config(tmp_path: Path, monkeypatch) -> None:
+    runtime_root = tmp_path / "idpo-data"
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("IDPO_DATA_DIR", str(runtime_root))
+
+    policy_path = tmp_path / "policy_store.json"
+    policy_path.write_text(
+        json.dumps(
+            {
+                "default_policy_id": "default",
+                "policies": [
+                    {"policy_id": "default", "name": "Default", "conditions": {}, "actions": {}},
+                    {"policy_id": "shadow_alt", "name": "ShadowAlt", "conditions": {}, "actions": {}},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    config_payload = json.loads((repo_root() / "configs" / "config.json").read_text(encoding="utf-8"))
+    config_payload.setdefault("shadow", {})
+    config_payload["shadow"]["enabled"] = True
+    config_payload["shadow"]["sample_rate"] = 1.0
+    config_payload["shadow"]["candidate_policy_ids"] = ["shadow_alt"]
+    config_payload.setdefault("queue", {})
+    config_payload["queue"]["enabled"] = False
+    config_payload.setdefault("knowledge", {})
+    config_payload["knowledge"]["policy_store_path"] = str(policy_path)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config_payload, indent=2), encoding="utf-8")
+
+    doc_a = workspace / "invoice_a.txt"
+    doc_b = workspace / "invoice_b.txt"
+    doc_a.write_text("Invoice Number: INV-11\nTotal Amount: 10.00\n", encoding="utf-8")
+    doc_b.write_text("Invoice Number: INV-12\nTotal Amount: 15.00\n", encoding="utf-8")
+
+    captured: dict[str, object] = {}
+
+    class DummyPipeline:
+        def __init__(self, config, run_dir: str) -> None:
+            captured["shadow_enabled"] = config.shadow.enabled
+            captured["queue_enabled"] = config.queue.enabled
+            self.run_dir = Path(run_dir)
+
+        def process_documents(self, docs):  # noqa: ANN001
+            return []
+
+        def build_index(self, *args, **kwargs):  # noqa: ANN002, ANN003
+            return None
+
+    monkeypatch.setattr(inbox_module, "Pipeline", DummyPipeline)
+
+    result = process_inbox(root=workspace, config_path=str(config_path), file_paths=[str(doc_a), str(doc_b)])
+
+    assert captured["shadow_enabled"] is True
+    assert captured["queue_enabled"] is False
+    assert not any("Queue mode auto-enabled" in warning for warning in result["preflight_warnings"])
+
+
 def test_benchmark_generates_paper_evidence(tmp_path: Path, monkeypatch) -> None:
     runtime_root = tmp_path / "idpo-data"
     monkeypatch.setenv("IDPO_DATA_DIR", str(runtime_root))
@@ -300,6 +362,10 @@ def test_benchmark_generates_paper_evidence(tmp_path: Path, monkeypatch) -> None
     assert "static" in payload["conditions"]
     assert "adaptive" in payload["conditions"]
     assert "table" in payload["comparison"]
+    assert payload["experiment"]["condition_configs"]["adaptive"]["ahmn_enabled"] is True
+    assert payload["experiment"]["condition_configs"]["adaptive"]["ahmn_mode"] != "mock"
+    assert "exact_f1" in payload["comparison"]["table"]
+    assert "advice_source_counts" in payload["comparison"]["table"]
 
 
 def test_shadow_mode_does_not_change_canonical_output(tmp_path: Path) -> None:

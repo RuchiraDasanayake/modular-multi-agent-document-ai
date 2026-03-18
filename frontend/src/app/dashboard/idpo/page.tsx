@@ -301,9 +301,10 @@ export default function IDPOPage() {
             }
 
             // Show partial failure warnings
-            if (data.partial_failures?.length > 0) {
-                const failedFiles = data.partial_failures.map((f: { file: string; error: string }) => f.file).join(", ");
-                setError(`${data.partial_failures.length} file(s) failed processing: ${failedFiles}. Successfully processed ${data.docs.length} document(s).`);
+            const partialFailures = data.partial_failures ?? [];
+            if (partialFailures.length > 0) {
+                const failedFiles = partialFailures.map((f: { file: string; error: string }) => f.file).join(", ");
+                setError(`${partialFailures.length} file(s) failed processing: ${failedFiles}. Successfully processed ${data.docs.length} document(s).`);
             }
         } catch (err) {
 

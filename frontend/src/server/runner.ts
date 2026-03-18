@@ -383,6 +383,8 @@ export async function startRunJob(payload: StartRunRequest) {
     env: {
       ...process.env,
       ...commandConfig.env,
+      IDPO_EXECUTION_SURFACE: "frontend_job_runner",
+      IDPO_JOB_ID: job.jobId,
       ...(payload.settings.apiKeys?.openai?.trim()
         ? {
             OPENAI_API_KEY: payload.settings.apiKeys.openai.trim(),

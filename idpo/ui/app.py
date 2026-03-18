@@ -138,6 +138,8 @@ async def run_demo(
 ) -> JSONResponse:
     import asyncio
 
+    logger.warning("Legacy direct-run endpoint /idpo/run invoked; prefer the hosted job path via /api/runs/start")
+
     inbox_dir = storage_inbox_dir()
     inbox_dir.mkdir(parents=True, exist_ok=True)
 

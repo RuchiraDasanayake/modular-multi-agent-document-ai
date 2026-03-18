@@ -1,10 +1,10 @@
 # IDPO Frontend Runner UI
 
-Frontend-only control plane for browsing and launching IDPO runs.
+Frontend control plane for browsing and launching IDPO runs through the hosted job path.
 
 This project adds:
 - Next.js UI for starting and inspecting IDPO runs.
-- Local runner API (`/api/*`) that executes a small whitelist of CLI commands.
+- Job API (`/api/*`) that queues uploads and executes a small whitelist of CLI commands.
 - Artifact discovery over the external IDPO runtime data root.
 
 ## Stack
@@ -61,7 +61,7 @@ Open:
 1. Open `Dashboard > Doc Processing` (`/dashboard/idpo`).
 2. Upload documents in **New Run Wizard**.
 3. Adjust config and extraction settings if needed.
-4. Start run and watch live logs.
+4. Start a job, watch live logs, and wait for the run id to resolve.
 5. Open run detail page and show:
    - overview cards
    - document extraction

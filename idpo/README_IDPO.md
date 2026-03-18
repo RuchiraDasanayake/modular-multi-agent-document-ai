@@ -9,6 +9,10 @@ The supported entrypoints are:
 - `idpo.ui.app`
 - `scripts/run_idpo_benchmark.py`
 
+In the integrated UI, the supported hosted launch path is:
+
+`frontend upload -> /api/runs/start -> frontend job runner -> idpo.cli process-inbox -> IDPO_DATA_DIR/runs/<run_id>`
+
 Everything else in IDPO should be treated as internal support code for those entrypoints.
 
 ## What the runtime does today

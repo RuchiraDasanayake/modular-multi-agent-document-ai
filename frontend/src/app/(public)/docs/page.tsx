@@ -28,38 +28,20 @@ const sections = [
 const apiEndpoints = [
     {
         method: "POST",
-        path: "/api/idpo/run",
-        desc: "Submit documents for extraction (multipart form)",
+        path: "/api/runs/start",
+        desc: "Create an IDPO processing job from uploaded files",
         color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
     },
     {
         method: "GET",
-        path: "/api/idpo/runs/{run_id}/docs.xlsx",
-        desc: "Download extraction results as Excel",
+        path: "/api/jobs/{job_id}",
+        desc: "Poll queued or running IDPO job status",
         color: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10",
     },
     {
-        method: "POST",
-        path: "/api/xai/ask",
-        desc: "Ask a question with explainable AI analysis",
-        color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
-    },
-    {
-        method: "POST",
-        path: "/api/guardrails/validate",
-        desc: "Validate extracted data with 5-layer quality checks",
-        color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
-    },
-    {
-        method: "POST",
-        path: "/api/hitl/feedback",
-        desc: "Submit expert review feedback",
-        color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
-    },
-    {
         method: "GET",
-        path: "/api/services/health",
-        desc: "Health check for all microservices",
+        path: "/api/runs/{run_id}/summary",
+        desc: "Read run-level metrics and document summary after completion",
         color: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10",
     },
 ];
@@ -217,31 +199,23 @@ Navigate to Document Extraction to start processing.`}
                                 />
                             </div>
                             <div>
-                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">3. Submit a document</h3>
+                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">3. Start a processing job</h3>
                                 <CodeBlock
                                     language="bash"
-                                    code={`curl -X POST http://localhost:8000/api/idpo/run \\
-  -H "Authorization: Bearer YOUR_TOKEN" \\
+                                    code={`curl -X POST http://localhost:3000/api/runs/start \\
   -F "files=@invoice.pdf" \\
-  -F 'fields=[{"name":"total_amount","description":"Total due"}]' \\
-  -F "config_path=configs/config.json"`}
+  -F 'settings={"configPath":"configs/config.json","customFields":[{"key":"total_amount","description":"Total due"}]}'`}
                                 />
                             </div>
                             <div>
-                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">4. Get results with explanations</h3>
+                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">4. Poll the job and open the run</h3>
                                 <CodeBlock
                                     language="json"
                                     code={`{
-  "id": "ext_abc123",
-  "status": "completed",
-  "fields": {
-    "vendor_name": { "value": "Acme Corp", "confidence": 0.97 },
-    "total_amount": { "value": "$1,234.56", "confidence": 0.94 },
-    "invoice_date": { "value": "2024-01-15", "confidence": 0.99 }
-  },
-  "explanation": {
-    "summary": "High confidence extraction based on document layout analysis..."
-  }
+  "jobId": "c1b2f3...",
+  "status": "success",
+  "runId": "7f8a9b...",
+  "runPath": "../idpo-data/runs/7f8a9b..."
 }`}
                                 />
                             </div>

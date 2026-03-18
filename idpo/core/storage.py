@@ -100,7 +100,7 @@ def migrate_legacy_runtime_data(
             shutil.move(str(entry), str(dest))
             moved_runs.append(entry.name)
 
-    for name in ("processed", "failed"):
+    for name in ("inbox", "processed", "failed"):
         source_dir = source_inputs / name
         dest_dir = target_inputs / name
         if not source_dir.exists():
@@ -112,10 +112,6 @@ def migrate_legacy_runtime_data(
                 raise RuntimeError(f"Input collision while migrating '{entry.name}' to {dest}")
             shutil.move(str(entry), str(dest))
             moved_inputs.append(f"{name}/{entry.name}")
-
-    legacy_inbox = source_inputs / "inbox"
-    if legacy_inbox.exists():
-        skipped.append(str(legacy_inbox))
 
     return {
         "data_root": str(target_root),

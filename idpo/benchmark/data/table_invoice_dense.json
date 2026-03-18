@@ -1,0 +1,14 @@
+{
+  "doc_id": "table_invoice_dense",
+  "source": "digital",
+  "metadata": {
+    "vendor": "northwind"
+  },
+  "pages": [
+    {
+      "number": 1,
+      "text": "Northwind Industrial Supply\nInvoice Number: INV-TBL-204\nSupplier Name: Northwind Industrial Supply\nInvoice Date: 2026-03-11\nLine Items\nItem | Qty | Unit Price | Line Total\nMotor Housing | 10 | 220.50 | 2205.00\nBearing Kit | 15 | 114.34 | 1715.10\nDrive Assembly | 5 | 825.00 | 4125.00\nTotal Amount: 8045.10",
+      "raw_text": "Northwind Industrial Supply\nInvoice Number: INV-TBL-204\nSupplier Name: Northwind Industrial Supply\nInvoice Date: 2026-03-11\nLine Items\nItem | Qty | Unit Price | Line Total\nMotor Housing | 10 | 220.50 | 2205.00\nBearing Kit | 15 | 114.34 | 1715.10\nDrive Assembly | 5 | 825.00 | 4125.00\nTotal Amount: 8045.10"
+    }
+  ]
+}

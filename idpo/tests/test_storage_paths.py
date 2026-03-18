@@ -97,8 +97,9 @@ def test_migrate_storage_moves_runs_and_runtime_inputs(tmp_path: Path) -> None:
     payload = migrate_legacy_runtime_data(source_repo_root=legacy_root, target_data_root=data_root)
 
     assert payload["moved_runs"] == ["run-a"]
-    assert sorted(payload["moved_inputs"]) == ["failed/bad.txt", "processed/done.txt"]
+    assert sorted(payload["moved_inputs"]) == ["failed/bad.txt", "inbox/keep.csv", "processed/done.txt"]
     assert (data_root / "runs" / "run-a" / "results.json").exists()
+    assert (data_root / "inputs" / "inbox" / "keep.csv").exists()
     assert (data_root / "inputs" / "processed" / "done.txt").exists()
     assert (data_root / "inputs" / "failed" / "bad.txt").exists()
-    assert (legacy_root / "inputs" / "inbox" / "keep.csv").exists()
+    assert not (legacy_root / "inputs" / "inbox" / "keep.csv").exists()

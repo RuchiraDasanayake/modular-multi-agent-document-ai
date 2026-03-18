@@ -107,7 +107,6 @@ def process_inbox(
     file_paths: list[str] | None = None,
 ) -> dict[str, Any]:
     config = load_config(config_path)
-    config.shadow.enabled = False
     preflight_warnings = run_preflight(config)
 
     _ = Path(root)
@@ -147,6 +146,8 @@ def process_inbox(
         "started_at": start_time,
         "config_path": config_path,
         "policy_store_path": config.knowledge.policy_store_path,
+        "execution_surface": os.getenv("IDPO_EXECUTION_SURFACE", "cli_process_inbox"),
+        "job_id": os.getenv("IDPO_JOB_ID"),
         "preflight_warnings": " | ".join(preflight_warnings),
     }
     (run_dir / "run.json").write_text(json.dumps(run_payload, indent=2), encoding="utf-8")
@@ -183,12 +184,6 @@ def process_inbox(
 
     if not ingested_items:
         raise ValueError("No valid documents were ingested for processing.")
-
-    # Throughput mode: process all docs in a single pipeline run and auto-enable queueing for multi-doc batches.
-    if len(ingested_items) > 1 and not config.queue.enabled:
-        config.queue.enabled = True
-        config.queue.max_workers = max(1, min(config.queue.max_workers, len(ingested_items)))
-        preflight_warnings.append("Queue mode auto-enabled for multi-document batch processing")
 
     pipeline = Pipeline(config=config, run_dir=str(run_dir))
     docs_batch = [item["doc"] for item in ingested_items]

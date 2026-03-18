@@ -66,8 +66,9 @@ def _write_condition_config(base_config: Path, condition: str, temp_dir: Path) -
     if condition == "static":
         ahmn["enabled"] = False
     else:
-        ahmn.setdefault("enabled", False)
-        ahmn.setdefault("mode", "auto")
+        ahmn["enabled"] = True
+        if str(ahmn.get("mode", "")).strip().lower() in {"", "mock"}:
+            ahmn["mode"] = "auto"
     out_path = temp_dir / f"{condition}_config.json"
     out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return out_path
@@ -87,14 +88,22 @@ def _condition_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     policy_distribution = Counter(str(item["doc"].get("policy_id", "")).strip() for item in results)
     operator_counts = Counter()
     reward_types = Counter()
+    advice_sources = Counter()
     exact_tp = exact_fp = exact_fn = 0
     for item in results:
         operator_counts.update(str(op).strip() for op in item["doc"].get("operator_stack", []) or [])
         reward_types.update([str(item["doc"].get("reward_type", "proxy")).strip() or "proxy"])
+        advice_sources.update([str(item["doc"].get("advice_source", "unknown")).strip() or "unknown"])
         exact = item.get("exact_metrics", {})
         exact_tp += int(exact.get("tp", 0) or 0)
         exact_fp += int(exact.get("fp", 0) or 0)
         exact_fn += int(exact.get("fn", 0) or 0)
+    exact_metrics = {
+        "tp": exact_tp,
+        "fp": exact_fp,
+        "fn": exact_fn,
+        **_precision_recall_f1(exact_tp, exact_fp, exact_fn),
+    }
     summary = {
         "doc_count": doc_count,
         "run_ids": [str(item.get("run_id", "")) for item in results if item.get("run_id")],
@@ -107,12 +116,8 @@ def _condition_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "policy_distribution": dict(sorted(policy_distribution.items())),
         "operator_counts": dict(sorted(operator_counts.items())),
         "reward_type_counts": dict(sorted(reward_types.items())),
-        "exact_field_metrics": {
-            "tp": exact_tp,
-            "fp": exact_fp,
-            "fn": exact_fn,
-            **_precision_recall_f1(exact_tp, exact_fp, exact_fn),
-        },
+        "advice_source_counts": dict(sorted(advice_sources.items())),
+        "exact_field_metrics": exact_metrics,
     }
     return summary
 
@@ -138,6 +143,11 @@ def run_benchmark(config_path: str = "configs/config.json", pack_path: str = "id
             "static": _write_condition_config(base_config_path, "static", cfg_root),
             "adaptive": _write_condition_config(base_config_path, "adaptive", cfg_root),
         }
+        condition_settings = {
+            name: _load_config_payload(path).get("ahmn", {}) for name, path in condition_configs.items()
+        }
+        if not bool(condition_settings["adaptive"].get("enabled")):
+            raise SystemExit("Adaptive benchmark configuration must enable AHMN")
         for case in cases:
             case_id = str(case.get("case_id", "")).strip() or f"case_{sum(len(v) for v in conditions.values()) + 1}"
             source_path = (repo_root / str(case.get("path", ""))).resolve()
@@ -237,6 +247,15 @@ def run_benchmark(config_path: str = "configs/config.json", pack_path: str = "id
             "pack_name": pack.get("name", "benchmark_pack"),
             "pack_path": str(pack_file),
             "config_path": str(base_config_path),
+            "condition_configs": {
+                name: {
+                    "path": str(path),
+                    "ahmn_enabled": bool(condition_settings[name].get("enabled")),
+                    "ahmn_mode": str(condition_settings[name].get("mode", "")).strip() or None,
+                    "policy_mode": str(condition_settings[name].get("policy_mode", name)).strip() or name,
+                }
+                for name, path in condition_configs.items()
+            },
             "generated_at": time.time(),
             "elapsed_ms": round((time.time() - started) * 1000, 2),
             "doc_count": len(cases),
@@ -257,6 +276,18 @@ def run_benchmark(config_path: str = "configs/config.json", pack_path: str = "id
                     "static": condition_summaries["static"]["avg_reward"],
                     "adaptive": condition_summaries["adaptive"]["avg_reward"],
                 },
+                "exact_precision": {
+                    "static": condition_summaries["static"]["exact_field_metrics"]["precision"],
+                    "adaptive": condition_summaries["adaptive"]["exact_field_metrics"]["precision"],
+                },
+                "exact_recall": {
+                    "static": condition_summaries["static"]["exact_field_metrics"]["recall"],
+                    "adaptive": condition_summaries["adaptive"]["exact_field_metrics"]["recall"],
+                },
+                "exact_f1": {
+                    "static": condition_summaries["static"]["exact_field_metrics"]["f1"],
+                    "adaptive": condition_summaries["adaptive"]["exact_field_metrics"]["f1"],
+                },
                 "validation_pass_rate": {
                     "static": condition_summaries["static"]["validation_pass_rate"],
                     "adaptive": condition_summaries["adaptive"]["validation_pass_rate"],
@@ -272,6 +303,10 @@ def run_benchmark(config_path: str = "configs/config.json", pack_path: str = "id
                 "policy_distribution": {
                     "static": condition_summaries["static"]["policy_distribution"],
                     "adaptive": condition_summaries["adaptive"]["policy_distribution"],
+                },
+                "advice_source_counts": {
+                    "static": condition_summaries["static"]["advice_source_counts"],
+                    "adaptive": condition_summaries["adaptive"]["advice_source_counts"],
                 },
                 "operator_counts": {
                     "static": condition_summaries["static"]["operator_counts"],
@@ -296,10 +331,14 @@ def _table_markdown(evidence: dict[str, Any]) -> str:
         f"| Doc Count | {table['doc_count']} | {table['doc_count']} |",
         f"| Avg Latency (ms) | {table['avg_latency_ms']['static']} | {table['avg_latency_ms']['adaptive']} |",
         f"| Avg Reward | {table['avg_reward']['static']} | {table['avg_reward']['adaptive']} |",
+        f"| Exact Precision | {table['exact_precision']['static']} | {table['exact_precision']['adaptive']} |",
+        f"| Exact Recall | {table['exact_recall']['static']} | {table['exact_recall']['adaptive']} |",
+        f"| Exact F1 | {table['exact_f1']['static']} | {table['exact_f1']['adaptive']} |",
         f"| Validation Pass Rate | {table['validation_pass_rate']['static']} | {table['validation_pass_rate']['adaptive']} |",
         f"| Recovery Rate | {table['recovery_rate']['static']} | {table['recovery_rate']['adaptive']} |",
         f"| Escalation Rate | {table['escalation_rate']['static']} | {table['escalation_rate']['adaptive']} |",
         f"| Policy Distribution | `{json.dumps(table['policy_distribution']['static'], sort_keys=True)}` | `{json.dumps(table['policy_distribution']['adaptive'], sort_keys=True)}` |",
+        f"| Advice Sources | `{json.dumps(table['advice_source_counts']['static'], sort_keys=True)}` | `{json.dumps(table['advice_source_counts']['adaptive'], sort_keys=True)}` |",
         f"| Operator Counts | `{json.dumps(table['operator_counts']['static'], sort_keys=True)}` | `{json.dumps(table['operator_counts']['adaptive'], sort_keys=True)}` |",
     ]
     return "\n".join(rows) + "\n"
@@ -312,10 +351,14 @@ def _table_csv(evidence: dict[str, Any]) -> str:
         f"doc_count,{table['doc_count']},{table['doc_count']}",
         f"avg_latency_ms,{table['avg_latency_ms']['static']},{table['avg_latency_ms']['adaptive']}",
         f"avg_reward,{table['avg_reward']['static']},{table['avg_reward']['adaptive']}",
+        f"exact_precision,{table['exact_precision']['static']},{table['exact_precision']['adaptive']}",
+        f"exact_recall,{table['exact_recall']['static']},{table['exact_recall']['adaptive']}",
+        f"exact_f1,{table['exact_f1']['static']},{table['exact_f1']['adaptive']}",
         f"validation_pass_rate,{table['validation_pass_rate']['static']},{table['validation_pass_rate']['adaptive']}",
         f"recovery_rate,{table['recovery_rate']['static']},{table['recovery_rate']['adaptive']}",
         f"escalation_rate,{table['escalation_rate']['static']},{table['escalation_rate']['adaptive']}",
         f"policy_distribution,\"{json.dumps(table['policy_distribution']['static'], sort_keys=True)}\",\"{json.dumps(table['policy_distribution']['adaptive'], sort_keys=True)}\"",
+        f"advice_source_counts,\"{json.dumps(table['advice_source_counts']['static'], sort_keys=True)}\",\"{json.dumps(table['advice_source_counts']['adaptive'], sort_keys=True)}\"",
         f"operator_counts,\"{json.dumps(table['operator_counts']['static'], sort_keys=True)}\",\"{json.dumps(table['operator_counts']['adaptive'], sort_keys=True)}\"",
     ]
     return "\n".join(rows) + "\n"
