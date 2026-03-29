@@ -43,10 +43,18 @@ BASE_DOC_HEADERS = [
     "analysis_confidence_type",
     "policy_id",
     "policy_name",
+    "static_policy_id",
+    "static_policy_name",
+    "static_policy_reason",
     "advice_source",
+    "advice_accepted",
+    "policy_changed",
     "fallback_reason",
-    "ranked_policies",
+    "advisor_recommendation",
+    "fallback_candidates",
     "operator_stack",
+    "defer_status",
+    "defer_reason",
     "plan_id",
     "plan_source",
     "model_used",
@@ -60,6 +68,14 @@ BASE_DOC_HEADERS = [
     "ocr_rerun_used_pages",
     "fallback_path",
     "unresolved_field_count",
+    "schema_required_field_count",
+    "schema_extracted_required_count",
+    "schema_missing_required_count",
+    "schema_hallucinated_field_count",
+    "schema_grounded_field_count",
+    "schema_coverage",
+    "schema_grounding_coverage",
+    "schema_valid",
     "entity_count",
     "explicit_entity_count",
     "default_entity_count",
@@ -136,7 +152,7 @@ def process_inbox(
     expected_fields = _normalize_fields(extraction_fields or [])
     if expected_fields:
         _write_fields_schema(run_dir, expected_fields)
-        _apply_field_overrides(config, run_dir, expected_fields)
+        _apply_requested_fields(config, expected_fields)
 
     events_path = run_dir / "events.jsonl"
     errors_path = run_dir / "errors.jsonl"
@@ -280,86 +296,14 @@ def process_inbox(
         "failed": failed,
     }
 
-def _apply_field_overrides(config: PipelineConfig, run_dir: Path, fields: list[dict[str, str]]) -> None:
-    names = [field["key"] for field in fields]
-    descriptions = {field["key"]: field.get("description", "") for field in fields if field.get("description")}
-    override = _build_policy_override(config, names, descriptions)
-    policy_path = run_dir / "policy_override.json"
-    policy_path.write_text(json.dumps(override, indent=2), encoding="utf-8")
-    config.knowledge.policy_store_path = str(policy_path)
-    config.llm.use_extraction = True
-
-def _build_policy_override(
-    config: PipelineConfig,
-    names: list[str],
-    descriptions: dict[str, str],
-) -> dict[str, object]:
-    base_payload: dict[str, object] = {"default_policy_id": config.knowledge.default_policy_id, "policies": []}
-    base_path = str(config.knowledge.policy_store_path or "").strip()
-    if base_path:
-        candidate = Path(base_path)
-        if not candidate.is_absolute():
-            candidate = Path.cwd() / candidate
-        if candidate.exists():
-            try:
-                loaded = json.loads(candidate.read_text(encoding="utf-8"))
-                if isinstance(loaded, dict):
-                    base_payload = loaded
-            except Exception:
-                base_payload = {"default_policy_id": config.knowledge.default_policy_id, "policies": []}
-
-    policies = base_payload.get("policies", [])
-    if not isinstance(policies, list):
-        policies = []
-
-    updated_policies: list[dict[str, object]] = []
-    for raw_policy in policies:
-        if not isinstance(raw_policy, dict):
-            continue
-        policy = json.loads(json.dumps(raw_policy))
-        actions = policy.setdefault("actions", {})
-        if not isinstance(actions, dict):
-            actions = {}
-            policy["actions"] = actions
-        extraction = actions.setdefault("extraction", {})
-        if not isinstance(extraction, dict):
-            extraction = {}
-            actions["extraction"] = extraction
-        existing_entities = extraction.get("explicit_entities", [])
-        merged_entities = []
-        for item in list(existing_entities) if isinstance(existing_entities, list) else []:
-            value = str(item).strip()
-            if value and value not in merged_entities:
-                merged_entities.append(value)
-        for name in names:
-            if name not in merged_entities:
-                merged_entities.append(name)
-        extraction["explicit_entities"] = merged_entities
-        existing_descriptions = extraction.get("field_descriptions", {})
-        if not isinstance(existing_descriptions, dict):
-            existing_descriptions = {}
-        extraction["field_descriptions"] = {**existing_descriptions, **descriptions}
-        updated_policies.append(policy)
-
-    if not updated_policies:
-        updated_policies = [
-            {
-                "policy_id": "default",
-                "name": "Default Policy",
-                "conditions": {},
-                "actions": {
-                    "extraction": {
-                        "explicit_entities": names,
-                        "field_descriptions": descriptions,
-                    }
-                },
-            }
-        ]
-
-    return {
-        "default_policy_id": str(base_payload.get("default_policy_id", config.knowledge.default_policy_id)),
-        "policies": updated_policies,
+def _apply_requested_fields(config: PipelineConfig, fields: list[dict[str, str]]) -> None:
+    config.structuring.requested_fields = [field["key"] for field in fields if field.get("key")]
+    config.structuring.field_descriptions = {
+        field["key"]: field.get("description", "")
+        for field in fields
+        if field.get("key") and field.get("description")
     }
+    config.llm.use_extraction = True
 
 def _normalize_fields(fields: list[dict[str, str]]) -> list[dict[str, str]]:
     normalized = []
@@ -528,9 +472,24 @@ def _write_decision_chain(result, doc_dir: Path) -> None:
             "policy_id": result.policy_id,
             "policy_name": result.policy_name,
             "policy_reason": result.policy_reason,
+            "static_policy_id": getattr(result, "static_policy_id", None),
+            "static_policy_name": getattr(result, "static_policy_name", None),
+            "static_policy_reason": getattr(result, "static_policy_reason", None),
             "advice_source": result.advice_source,
+            "advice_id": getattr(result, "advice_id", None),
+            "advice_confidence": getattr(result, "advice_confidence", 0.0),
+            "retrieval_source": getattr(result, "retrieval_source", None),
+            "rabi_used": getattr(result, "rabi_used", False),
+            "n_neighbors": getattr(result, "n_neighbors", None),
+            "advice_accepted": getattr(result, "advice_accepted", False),
+            "policy_changed": getattr(result, "policy_changed", False),
             "fallback_reason": result.fallback_reason,
-            "ranked_policies": result.ranked_policies,
+            "blocked_policy": getattr(result, "blocked_policy", False),
+            "rollback_triggered": getattr(result, "rollback_triggered", False),
+            "rollback_reason": getattr(result, "rollback_reason", None),
+            "policy_blocked_count": getattr(result, "policy_blocked_count", 0),
+            "advisor_recommendation": getattr(result, "advisor_recommendation", None),
+            "fallback_candidates": getattr(result, "fallback_candidates", []) or [],
         },
         "plan": {
             "plan_id": result.plan_id,
@@ -548,6 +507,24 @@ def _write_decision_chain(result, doc_dir: Path) -> None:
             "reward": result.reward,
             "reward_type": result.reward_type,
             "reward_details": result.reward_details,
+            "spent_budget_units": getattr(result, "spent_budget_units", 0.0),
+            "feedback_logged": getattr(result, "feedback_logged", False),
+            "feedback_error": getattr(result, "feedback_error", None),
+        },
+        "feedback_status": {
+            "logged": getattr(result, "feedback_logged", False),
+            "error": getattr(result, "feedback_error", None),
+            "advice_id": getattr(result, "advice_id", None),
+        },
+        "safety_status": {
+            "blocked_policy": getattr(result, "blocked_policy", False),
+            "rollback_triggered": getattr(result, "rollback_triggered", False),
+            "rollback_reason": getattr(result, "rollback_reason", None),
+            "policy_blocked_count": getattr(result, "policy_blocked_count", 0),
+            "advice_accepted": getattr(result, "advice_accepted", False),
+            "policy_changed": getattr(result, "policy_changed", False),
+            "defer_status": getattr(result, "defer_status", "not_needed"),
+            "defer_reason": getattr(result, "defer_reason", None),
         },
         "recovery": {
             "recovered_fields": result.recovered_fields,
@@ -558,6 +535,17 @@ def _write_decision_chain(result, doc_dir: Path) -> None:
             "escalated": result.escalated,
             "escalation_status": result.escalation_status,
             "escalation_info": result.escalation_info,
+        },
+        "review": {
+            "defer_status": getattr(result, "defer_status", "not_needed"),
+            "defer_reason": getattr(result, "defer_reason", None),
+        },
+        "policy_impact": {
+            "static_policy_id": getattr(result, "static_policy_id", None),
+            "static_policy_name": getattr(result, "static_policy_name", None),
+            "static_policy_reason": getattr(result, "static_policy_reason", None),
+            "advice_accepted": getattr(result, "advice_accepted", False),
+            "policy_changed": getattr(result, "policy_changed", False),
         },
     }
     (doc_dir / "decision_chain.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -667,14 +655,40 @@ def _write_transparency(result, doc_dir: Path) -> None:
         },
         "routing": {
             "advice_source": getattr(result, "advice_source", ""),
+            "advice_id": getattr(result, "advice_id", None),
+            "advice_confidence": getattr(result, "advice_confidence", 0.0),
+            "retrieval_source": getattr(result, "retrieval_source", None),
+            "rabi_used": getattr(result, "rabi_used", False),
+            "n_neighbors": getattr(result, "n_neighbors", None),
             "fallback_reason": getattr(result, "fallback_reason", None),
             "route_specialization": getattr(result, "route_specialization", None),
-            "ranked_policies": getattr(result, "ranked_policies", []) or [],
+            "blocked_policy": getattr(result, "blocked_policy", False),
+            "rollback_triggered": getattr(result, "rollback_triggered", False),
+            "rollback_reason": getattr(result, "rollback_reason", None),
+            "policy_blocked_count": getattr(result, "policy_blocked_count", 0),
+            "advisor_recommendation": getattr(result, "advisor_recommendation", None),
+            "fallback_candidates": getattr(result, "fallback_candidates", []) or [],
         },
         "reward": {
             "reward": float(getattr(result, "reward", 0.0) or 0.0),
             "reward_type": getattr(result, "reward_type", "proxy"),
             "reward_details": getattr(result, "reward_details", {}) or {},
+            "spent_budget_units": float(getattr(result, "spent_budget_units", 0.0) or 0.0),
+            "feedback_logged": bool(getattr(result, "feedback_logged", False)),
+            "feedback_error": getattr(result, "feedback_error", None),
+        },
+        "feedback_status": {
+            "logged": bool(getattr(result, "feedback_logged", False)),
+            "error": getattr(result, "feedback_error", None),
+            "advice_id": getattr(result, "advice_id", None),
+        },
+        "safety_status": {
+            "blocked_policy": bool(getattr(result, "blocked_policy", False)),
+            "rollback_triggered": bool(getattr(result, "rollback_triggered", False)),
+            "rollback_reason": getattr(result, "rollback_reason", None),
+            "policy_blocked_count": int(getattr(result, "policy_blocked_count", 0) or 0),
+            "defer_status": getattr(result, "defer_status", "not_needed"),
+            "defer_reason": getattr(result, "defer_reason", None),
         },
         "recovery": {
             "recovery_trace": getattr(result, "recovery_log", []) or [],
@@ -683,6 +697,10 @@ def _write_transparency(result, doc_dir: Path) -> None:
         "escalation": {
             "status": getattr(result, "escalation_status", "not_needed"),
             "info": getattr(result, "escalation_info", {}) or {},
+        },
+        "review": {
+            "defer_status": getattr(result, "defer_status", "not_needed"),
+            "defer_reason": getattr(result, "defer_reason", None),
         },
         "latency_ms": float(getattr(result, "latency_ms", 0.0) or 0.0),
     }
@@ -755,7 +773,8 @@ def _doc_record(result, doc_dir: Path, expected_fields: list[dict[str, str]], do
     expected_keys = [field["key"] for field in expected_fields]
     requested_field_status = getattr(result, "field_details", {}) or {}
     llm_diagnostics = getattr(result, "llm_diagnostics", {}) or {}
-    ranked_policies = getattr(result, "ranked_policies", []) or []
+    advisor_recommendation = getattr(result, "advisor_recommendation", None)
+    fallback_candidates = getattr(result, "fallback_candidates", []) or []
     recovery_log = getattr(result, "recovery_log", []) or []
     escalation_info = getattr(result, "escalation_info", {}) or {}
     ocr_signal = None
@@ -767,6 +786,12 @@ def _doc_record(result, doc_dir: Path, expected_fields: list[dict[str, str]], do
     fallback_path = _fallback_path(llm_diagnostics) if isinstance(llm_diagnostics, dict) else "none"
     unresolved_field_count = sum(
         1 for item in requested_field_status.values() if str((item or {}).get("status", "")).strip() != "extracted"
+    )
+    schema_metrics = _schema_quality_metrics(
+        expected_keys,
+        requested_field_status,
+        result.entities,
+        result.validation_issues,
     )
     for key in expected_keys:
         entities_dict.setdefault(key, "")
@@ -807,9 +832,26 @@ def _doc_record(result, doc_dir: Path, expected_fields: list[dict[str, str]], do
         "analysis_confidence_type": getattr(result, "analysis_confidence_type", "heuristic"),
         "policy_id": result.policy_id,
         "policy_name": result.policy_name,
+        "static_policy_id": getattr(result, "static_policy_id", None),
+        "static_policy_name": getattr(result, "static_policy_name", None),
+        "static_policy_reason": getattr(result, "static_policy_reason", None),
         "advice_source": getattr(result, "advice_source", ""),
+        "advice_id": getattr(result, "advice_id", None),
+        "advice_confidence": round(float(getattr(result, "advice_confidence", 0.0) or 0.0), 4),
+        "retrieval_source": getattr(result, "retrieval_source", None),
+        "rabi_used": bool(getattr(result, "rabi_used", False)),
+        "n_neighbors": getattr(result, "n_neighbors", None),
         "fallback_reason": getattr(result, "fallback_reason", None),
-        "ranked_policies": ranked_policies,
+        "advice_accepted": bool(getattr(result, "advice_accepted", False)),
+        "policy_changed": bool(getattr(result, "policy_changed", False)),
+        "advisor_recommendation": advisor_recommendation,
+        "fallback_candidates": fallback_candidates,
+        "defer_status": getattr(result, "defer_status", "not_needed"),
+        "defer_reason": getattr(result, "defer_reason", None),
+        "blocked_policy": bool(getattr(result, "blocked_policy", False)),
+        "rollback_triggered": bool(getattr(result, "rollback_triggered", False)),
+        "rollback_reason": getattr(result, "rollback_reason", None),
+        "policy_blocked_count": int(getattr(result, "policy_blocked_count", 0) or 0),
         "operator_stack": getattr(result, "operator_stack", []) or [],
         "plan_id": result.plan_id,
         "plan_source": result.plan_source,
@@ -824,6 +866,14 @@ def _doc_record(result, doc_dir: Path, expected_fields: list[dict[str, str]], do
         "ocr_rerun_used_pages": int(ocr_meta.get("rerun_used_pages", 0) or 0),
         "fallback_path": fallback_path,
         "unresolved_field_count": unresolved_field_count,
+        "schema_required_field_count": schema_metrics["required_field_count"],
+        "schema_extracted_required_count": schema_metrics["extracted_required_count"],
+        "schema_missing_required_count": schema_metrics["missing_required_count"],
+        "schema_hallucinated_field_count": schema_metrics["hallucinated_field_count"],
+        "schema_grounded_field_count": schema_metrics["grounded_field_count"],
+        "schema_coverage": schema_metrics["schema_coverage"],
+        "schema_grounding_coverage": schema_metrics["schema_grounding_coverage"],
+        "schema_valid": schema_metrics["schema_valid"],
         "entity_count": len(result.entities),
         "explicit_entity_count": len(result.explicit_entities),
         "default_entity_count": len(result.default_entities),
@@ -832,6 +882,9 @@ def _doc_record(result, doc_dir: Path, expected_fields: list[dict[str, str]], do
         "reward": round(float(getattr(result, "reward", 0.0) or 0.0), 4),
         "reward_type": getattr(result, "reward_type", "proxy"),
         "reward_details": getattr(result, "reward_details", {}) or {},
+        "spent_budget_units": round(float(getattr(result, "spent_budget_units", 0.0) or 0.0), 4),
+        "feedback_logged": bool(getattr(result, "feedback_logged", False)),
+        "feedback_error": getattr(result, "feedback_error", None),
         "recovery_log": recovery_log,
         "escalation_info": escalation_info,
         "escalation_status": getattr(result, "escalation_status", "not_needed"),
@@ -864,18 +917,52 @@ def _doc_record(result, doc_dir: Path, expected_fields: list[dict[str, str]], do
             },
             "routing": {
                 "advice_source": getattr(result, "advice_source", ""),
+                "advice_id": getattr(result, "advice_id", None),
+                "advice_confidence": round(float(getattr(result, "advice_confidence", 0.0) or 0.0), 4),
+                "retrieval_source": getattr(result, "retrieval_source", None),
+                "rabi_used": bool(getattr(result, "rabi_used", False)),
+                "n_neighbors": getattr(result, "n_neighbors", None),
                 "fallback_reason": getattr(result, "fallback_reason", None),
+                "static_policy_id": getattr(result, "static_policy_id", None),
+                "static_policy_name": getattr(result, "static_policy_name", None),
+                "static_policy_reason": getattr(result, "static_policy_reason", None),
+                "advice_accepted": bool(getattr(result, "advice_accepted", False)),
+                "policy_changed": bool(getattr(result, "policy_changed", False)),
                 "route_specialization": getattr(result, "route_specialization", None),
-                "ranked_policies": ranked_policies,
+                "blocked_policy": bool(getattr(result, "blocked_policy", False)),
+                "rollback_triggered": bool(getattr(result, "rollback_triggered", False)),
+                "rollback_reason": getattr(result, "rollback_reason", None),
+                "policy_blocked_count": int(getattr(result, "policy_blocked_count", 0) or 0),
+                "advisor_recommendation": advisor_recommendation,
+                "fallback_candidates": fallback_candidates,
                 "operator_stack": getattr(result, "operator_stack", []) or [],
+                "defer_status": getattr(result, "defer_status", "not_needed"),
+                "defer_reason": getattr(result, "defer_reason", None),
             },
             "field_resolution": {
                 "requested": len(requested_field_status),
                 "unresolved": unresolved_field_count,
             },
+            "schema_quality": schema_metrics,
             "reward": {
                 "reward": round(float(getattr(result, "reward", 0.0) or 0.0), 4),
                 "reward_type": getattr(result, "reward_type", "proxy"),
+                "spent_budget_units": round(float(getattr(result, "spent_budget_units", 0.0) or 0.0), 4),
+                "feedback_logged": bool(getattr(result, "feedback_logged", False)),
+                "feedback_error": getattr(result, "feedback_error", None),
+            },
+            "feedback_status": {
+                "logged": bool(getattr(result, "feedback_logged", False)),
+                "error": getattr(result, "feedback_error", None),
+                "advice_id": getattr(result, "advice_id", None),
+            },
+            "safety_status": {
+                "blocked_policy": bool(getattr(result, "blocked_policy", False)),
+                "rollback_triggered": bool(getattr(result, "rollback_triggered", False)),
+                "rollback_reason": getattr(result, "rollback_reason", None),
+                "policy_blocked_count": int(getattr(result, "policy_blocked_count", 0) or 0),
+                "defer_status": getattr(result, "defer_status", "not_needed"),
+                "defer_reason": getattr(result, "defer_reason", None),
             },
         },
         "input_original_path": _find_original_path(doc_dir),
@@ -960,6 +1047,72 @@ def _map_entities(entities) -> dict[str, tuple[str, str, str, str, str]]:
         mapped[key] = (value, confidence, page, span, source)
     return mapped
 
+def _entity_is_grounded(entity) -> bool:
+    if getattr(entity, "page", None) is not None:
+        return True
+    if getattr(entity, "span", None):
+        return True
+    metadata = getattr(entity, "metadata", {}) or {}
+    bbox = metadata.get("bbox")
+    return isinstance(bbox, list) and len(bbox) >= 4
+
+def _schema_quality_metrics(
+    expected_keys: list[str],
+    requested_field_status: dict[str, dict[str, object]],
+    entities,
+    validation_issues,
+) -> dict[str, object]:
+    expected = [str(key).strip() for key in expected_keys if str(key).strip()]
+    expected_set = set(expected)
+    extracted_keys: set[str] = set()
+    extracted_required_keys: set[str] = set()
+    grounded_required_keys: set[str] = set()
+
+    for entity in entities or []:
+        key = _normalize_key(getattr(entity, "key", ""))
+        if not key:
+            continue
+        extracted_keys.add(key)
+        if key in expected_set:
+            extracted_required_keys.add(key)
+            if _entity_is_grounded(entity):
+                grounded_required_keys.add(key)
+
+    for key in expected:
+        status = requested_field_status.get(key) or {}
+        value = str(status.get("value", "")).strip()
+        if value:
+            extracted_required_keys.add(key)
+
+    grounded_field_count = len(grounded_required_keys)
+    required_field_count = len(expected_set)
+    extracted_required_count = len(extracted_required_keys)
+    missing_required_count = max(required_field_count - extracted_required_count, 0)
+    hallucinated_field_count = len([key for key in extracted_keys if key not in expected_set]) if expected_set else 0
+    schema_coverage = (
+        round(extracted_required_count / required_field_count, 4) if required_field_count else 0.0
+    )
+    schema_grounding_coverage = (
+        round(grounded_field_count / extracted_required_count, 4) if extracted_required_count else 0.0
+    )
+    schema_valid = (
+        required_field_count > 0
+        and missing_required_count == 0
+        and hallucinated_field_count == 0
+        and len(validation_issues or []) == 0
+    )
+
+    return {
+        "required_field_count": required_field_count,
+        "extracted_required_count": extracted_required_count,
+        "missing_required_count": missing_required_count,
+        "hallucinated_field_count": hallucinated_field_count,
+        "grounded_field_count": grounded_field_count,
+        "schema_coverage": schema_coverage,
+        "schema_grounding_coverage": schema_grounding_coverage,
+        "schema_valid": schema_valid,
+    }
+
 def _find_original_path(doc_dir: Path) -> str:
     input_dir = doc_dir / "input"
     matches = list(input_dir.glob("original.*"))
@@ -974,6 +1127,13 @@ def _aggregate_reward_metrics(records: list[dict[str, object]]) -> dict[str, obj
             "direct_reward_count": 0,
             "proxy_reward_count": 0,
             "avg_direct_f1": 0.0,
+            "avg_schema_coverage": 0.0,
+            "avg_schema_grounding_coverage": 0.0,
+            "schema_valid_rate": 0.0,
+            "defer_requested_count": 0,
+            "defer_blocked_count": 0,
+            "advice_accepted_count": 0,
+            "policy_changed_count": 0,
         }
     rewards = [float(record.get("reward", 0.0) or 0.0) for record in records]
     direct_scores = [
@@ -983,11 +1143,25 @@ def _aggregate_reward_metrics(records: list[dict[str, object]]) -> dict[str, obj
     ]
     direct_count = sum(1 for record in records if str(record.get("reward_type", "")).strip() == "direct_set_based")
     proxy_count = sum(1 for record in records if str(record.get("reward_type", "")).strip() == "proxy")
+    schema_coverages = [float(record.get("schema_coverage", 0.0) or 0.0) for record in records]
+    grounding_coverages = [float(record.get("schema_grounding_coverage", 0.0) or 0.0) for record in records]
+    schema_valid_count = sum(1 for record in records if bool(record.get("schema_valid", False)))
+    defer_requested_count = sum(1 for record in records if str(record.get("defer_status", "")).strip() == "requested")
+    defer_blocked_count = sum(1 for record in records if str(record.get("defer_status", "")).strip() == "blocked")
+    advice_accepted_count = sum(1 for record in records if bool(record.get("advice_accepted", False)))
+    policy_changed_count = sum(1 for record in records if bool(record.get("policy_changed", False)))
     return {
         "avg_reward": round(sum(rewards) / len(rewards), 4),
         "direct_reward_count": direct_count,
         "proxy_reward_count": proxy_count,
         "avg_direct_f1": round(sum(direct_scores) / len(direct_scores), 4) if direct_scores else 0.0,
+        "avg_schema_coverage": round(sum(schema_coverages) / len(schema_coverages), 4) if schema_coverages else 0.0,
+        "avg_schema_grounding_coverage": round(sum(grounding_coverages) / len(grounding_coverages), 4) if grounding_coverages else 0.0,
+        "schema_valid_rate": round(schema_valid_count / len(records), 4),
+        "defer_requested_count": defer_requested_count,
+        "defer_blocked_count": defer_blocked_count,
+        "advice_accepted_count": advice_accepted_count,
+        "policy_changed_count": policy_changed_count,
     }
 
 def _write_decision_chain_summary(run_dir: Path, records: list[dict[str, object]]) -> None:
@@ -998,13 +1172,37 @@ def _write_decision_chain_summary(run_dir: Path, records: list[dict[str, object]
                 "doc_id": record.get("doc_id", ""),
                 "filename": record.get("filename", ""),
                 "policy_id": record.get("policy_id", ""),
+                "static_policy_id": record.get("static_policy_id"),
+                "static_policy_name": record.get("static_policy_name"),
+                "static_policy_reason": record.get("static_policy_reason"),
                 "advice_source": record.get("advice_source", ""),
+                "advice_id": record.get("advice_id"),
+                "advice_confidence": record.get("advice_confidence", 0.0),
+                "retrieval_source": record.get("retrieval_source"),
+                "rabi_used": record.get("rabi_used", False),
+                "advice_accepted": record.get("advice_accepted", False),
+                "policy_changed": record.get("policy_changed", False),
+                "advisor_recommendation": record.get("advisor_recommendation"),
+                "fallback_candidates": record.get("fallback_candidates", []),
                 "fallback_reason": record.get("fallback_reason"),
+                "blocked_policy": record.get("blocked_policy", False),
+                "rollback_triggered": record.get("rollback_triggered", False),
+                "rollback_reason": record.get("rollback_reason"),
+                "defer_status": record.get("defer_status", "not_needed"),
+                "defer_reason": record.get("defer_reason"),
                 "route_bin": record.get("route_bin", ""),
                 "route_specialization": record.get("route_specialization"),
                 "operator_stack": record.get("operator_stack", []),
+                "schema_coverage": record.get("schema_coverage", 0.0),
+                "schema_grounding_coverage": record.get("schema_grounding_coverage", 0.0),
+                "schema_valid": record.get("schema_valid", False),
+                "schema_missing_required_count": record.get("schema_missing_required_count", 0),
+                "schema_hallucinated_field_count": record.get("schema_hallucinated_field_count", 0),
                 "reward": record.get("reward", 0.0),
                 "reward_type": record.get("reward_type", ""),
+                "spent_budget_units": record.get("spent_budget_units", 0.0),
+                "feedback_logged": record.get("feedback_logged", False),
+                "feedback_error": record.get("feedback_error"),
                 "validation_issue_count": record.get("validation_issue_count", 0),
                 "recovered_fields_count": record.get("recovered_fields_count", 0),
                 "escalation_status": record.get("escalation_status", "not_needed"),

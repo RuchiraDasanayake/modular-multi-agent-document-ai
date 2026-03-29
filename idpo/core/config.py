@@ -74,6 +74,8 @@ class ValidationRule:
 @dataclass
 class StructuringConfig:
     extraction_rules: list[ExtractionRule] = field(default_factory=list)
+    requested_fields: list[str] = field(default_factory=list)
+    field_descriptions: dict[str, str] = field(default_factory=dict)
     allow_generic_kv: bool = True
     heading_max_words: int = 6
 
@@ -152,7 +154,7 @@ class AHMNConfig:
     timeout_ms: int = 500
     endpoint: str | None = None
     advice_endpoint: str = "/advice"
-    log_endpoint: str = "/log"
+    log_endpoint: str = "/advice/log"
     direct_import: str | None = None
     policy_override_id: str | None = None
     action_overrides: dict[str, Any] = field(default_factory=dict)
@@ -256,6 +258,18 @@ def config_from_dict(data: dict[str, Any]) -> PipelineConfig:
                 rules.append(ExtractionRule(**item))
             return StructuringConfig(
                 extraction_rules=rules,
+                requested_fields=[
+                    str(item).strip()
+                    for item in payload.get("requested_fields", [])
+                    if str(item).strip()
+                ],
+                field_descriptions={
+                    str(key).strip(): str(value).strip()
+                    for key, value in payload.get("field_descriptions", {}).items()
+                    if str(key).strip()
+                }
+                if isinstance(payload.get("field_descriptions"), dict)
+                else {},
                 allow_generic_kv=payload.get("allow_generic_kv", True),
                 heading_max_words=payload.get("heading_max_words", 6),
             )

@@ -75,18 +75,13 @@ export async function POST(request: Request) {
         commandId: json.commandId,
         settings: {
           configPath: typeof json.settings?.configPath === "string" ? json.settings.configPath : undefined,
+          adaptiveMode:
+            json.settings?.adaptiveMode === "static" || json.settings?.adaptiveMode === "adaptive_safe"
+              ? (json.settings.adaptiveMode as "static" | "adaptive_safe")
+              : "adaptive_safe",
           shadowMode: typeof json.settings?.shadowMode === "boolean" ? json.settings.shadowMode : false,
           shadowSampleRate:
             typeof json.settings?.shadowSampleRate === "number" ? (json.settings.shadowSampleRate as number) : undefined,
-          policyPreference:
-            typeof json.settings?.policyPreference === "string" ? (json.settings.policyPreference as string) : undefined,
-          routingMode:
-            json.settings?.routingMode === "auto" ||
-            json.settings?.routingMode === "light" ||
-            json.settings?.routingMode === "standard" ||
-            json.settings?.routingMode === "heavy"
-              ? (json.settings.routingMode as "auto" | "light" | "standard" | "heavy")
-              : "auto",
           maxCostPerDoc:
             typeof json.settings?.maxCostPerDoc === "number" ? (json.settings.maxCostPerDoc as number) : undefined,
           escalationEnabled:
@@ -130,10 +125,9 @@ export async function POST(request: Request) {
         ? (JSON.parse(settingsRaw) as Record<string, unknown>)
         : {
             configPath: form.get("configPath"),
+            adaptiveMode: form.get("adaptiveMode"),
             shadowMode: parseBoolean(form.get("shadowMode"), false),
             shadowSampleRate: parseNumber(form.get("shadowSampleRate")),
-            policyPreference: form.get("policyPreference"),
-            routingMode: form.get("routingMode"),
             maxCostPerDoc: parseNumber(form.get("maxCostPerDoc")),
             escalationEnabled: parseBoolean(form.get("escalationEnabled"), true),
             report: parseBoolean(form.get("report"), true),
@@ -143,16 +137,12 @@ export async function POST(request: Request) {
       commandId: typeof form.get("commandId") === "string" ? (form.get("commandId") as string) : undefined,
       settings: {
         configPath: typeof settings.configPath === "string" ? settings.configPath : undefined,
+        adaptiveMode:
+          settings.adaptiveMode === "static" || settings.adaptiveMode === "adaptive_safe"
+            ? (settings.adaptiveMode as "static" | "adaptive_safe")
+            : "adaptive_safe",
         shadowMode: typeof settings.shadowMode === "boolean" ? settings.shadowMode : false,
         shadowSampleRate: typeof settings.shadowSampleRate === "number" ? settings.shadowSampleRate : undefined,
-        policyPreference: typeof settings.policyPreference === "string" ? settings.policyPreference : undefined,
-        routingMode:
-          settings.routingMode === "auto" ||
-          settings.routingMode === "light" ||
-          settings.routingMode === "standard" ||
-          settings.routingMode === "heavy"
-            ? (settings.routingMode as "auto" | "light" | "standard" | "heavy")
-            : "auto",
         maxCostPerDoc: typeof settings.maxCostPerDoc === "number" ? settings.maxCostPerDoc : undefined,
         escalationEnabled: typeof settings.escalationEnabled === "boolean" ? settings.escalationEnabled : undefined,
         report: typeof settings.report === "boolean" ? settings.report : true,

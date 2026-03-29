@@ -1,4 +1,10 @@
-"""FastAPI web UI for document upload and pipeline execution."""
+"""FastAPI web UI for document upload and pipeline execution.
+
+Research note:
+This module is legacy compatibility surface. It is not the canonical
+paper-facing runtime, which is the frontend job runner path ending in
+``idpo.cli process-inbox``.
+"""
 
 from __future__ import annotations
 
@@ -136,6 +142,7 @@ async def run_demo(
     skip_guardrails: str = Form("false"),
     skip_xai: str = Form("false"),
 ) -> JSONResponse:
+    """Legacy direct-run endpoint kept only for compatibility."""
     import asyncio
 
     logger.warning("Legacy direct-run endpoint /idpo/run invoked; prefer the hosted job path via /api/runs/start")

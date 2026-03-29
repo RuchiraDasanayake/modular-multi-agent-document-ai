@@ -14,6 +14,9 @@ import type {
   IDPOEntityDetail,
   IDPORunMetrics,
   IDPORunResult,
+  AHMNAdvice,
+  AHMNFeedback,
+  PipelineIntegration,
 } from "@/types";
 import type { JobStatus } from "@/types/idpo";
 
@@ -185,7 +188,23 @@ async function hydrateRunResult(job: JobStatus): Promise<IDPORunResult> {
       const route = asRecord(raw.route) ?? {};
       const extract = asRecord(raw.extract) ?? {};
       const transparency = asRecord(detail.transparency) ?? {};
+      const reward = asRecord(detail.reward) ?? {};
+      const rewardDetails = asRecord(reward.details) ?? {};
       const llmDiagnostics = asRecord(detail.llmDiagnostics) ?? {};
+      const advisorRecommendation = asRecord(detail.advisorRecommendation);
+      const fallbackCandidatesRaw = Array.isArray(detail.fallbackCandidates) ? detail.fallbackCandidates : [];
+      const fallbackCandidates = fallbackCandidatesRaw
+        .map((item) => asRecord(item))
+        .filter((item): item is Record<string, unknown> => item !== null)
+        .map((item) => ({
+          policy_id: asString(item.policy_id) ?? "",
+          score: asNumber(item.score),
+          reason: asString(item.reason),
+          source: asString(item.source),
+        }))
+        .filter((item) => item.policy_id);
+      const feedbackStatus = asRecord(detail.feedbackStatus) ?? {};
+      const safetyStatus = asRecord(detail.safetyStatus) ?? {};
       const validationIssues = Array.isArray(detail.validationIssues)
         ? (detail.validationIssues as Array<{ field: string; issue: string; severity: string }>)
         : [];
@@ -202,11 +221,15 @@ async function hydrateRunResult(job: JobStatus): Promise<IDPORunResult> {
         category: asString(metadata.docType),
         doc_type: asString(metadata.docType),
         vendor_cluster: asString(metadata.vendorCluster),
+        layout_cluster_id: asString(metadata.layoutClusterId),
+        route_bin: asString(metadata.routeBin),
+        route_specialization: asString(metadata.routeSpecialization),
         quality_bin: asString(dae.quality_bin),
         complexity_bin: asString(metadata.complexityBin) ?? asString(dae.complexity_bin),
         content_profile: asString(metadata.profile) ?? asString(dae.content_profile),
         quality_score: asNumber(dae.quality_score),
         complexity_score: asNumber(dae.complexity_score),
+        analysis_confidence: asNumber(dae.analysis_confidence),
         summary: asString(extract.summary),
         status: asString(summary.status) ?? "success",
         extracted_text: extractedText || undefined,
@@ -228,6 +251,33 @@ async function hydrateRunResult(job: JobStatus): Promise<IDPORunResult> {
         model_reason: asString(metadata.modelReason),
         policy_id: asString(metadata.policyId) ?? asString(route.policy_id),
         policy_name: asString(route.policy_name),
+        advice_source: asString(metadata.adviceSource),
+        advice_id: asString(metadata.adviceId) ?? null,
+        advice_confidence: asNumber(metadata.adviceConfidence),
+        retrieval_source: asString(metadata.retrievalSource) ?? null,
+        rabi_used: Boolean(metadata.rabiUsed),
+        n_neighbors: asNumber(metadata.nNeighbors) ?? null,
+        fallback_reason: asString(metadata.fallbackReason) ?? null,
+        advisor_recommendation: advisorRecommendation
+          ? {
+              policy_id: asString(advisorRecommendation.policy_id) ?? "",
+              score: asNumber(advisorRecommendation.score),
+              reason: asString(advisorRecommendation.reason),
+              source: asString(advisorRecommendation.source),
+            }
+          : null,
+        fallback_candidates: fallbackCandidates,
+        feedback_status: {
+          logged: Boolean(feedbackStatus.logged),
+          error: asString(feedbackStatus.error) ?? null,
+          advice_id: asString(feedbackStatus.advice_id) ?? asString(metadata.adviceId) ?? null,
+        },
+        safety_status: {
+          blocked_policy: Boolean(safetyStatus.blocked_policy),
+          rollback_triggered: Boolean(safetyStatus.rollback_triggered),
+          rollback_reason: asString(safetyStatus.rollback_reason) ?? null,
+          policy_blocked_count: asNumber(safetyStatus.policy_blocked_count) ?? null,
+        },
         plan_id: asString(route.plan_id),
         plan_source: asString(route.source),
         preprocess_route: undefined,
@@ -237,6 +287,9 @@ async function hydrateRunResult(job: JobStatus): Promise<IDPORunResult> {
         ocr_rerun_used_pages: asNumber(metadata.ocrRerunUsedPages),
         fallback_path: asString(metadata.fallbackPath),
         unresolved_field_count: asNumber(metadata.unresolvedFieldCount),
+        reward: asNumber(reward.reward),
+        reward_type: asString(reward.rewardType),
+        reward_details: rewardDetails,
         transparency,
         transparency_path: asString(metadata.transparencyPath),
         llm_diagnostics: Object.keys(llmDiagnostics).length > 0 ? llmDiagnostics : undefined,
@@ -262,6 +315,44 @@ async function hydrateRunResult(job: JobStatus): Promise<IDPORunResult> {
   const warningsText = asString(runInfo.preflight_warnings) ?? "";
   const metrics = (asRecord(metricsPayload.metrics) ?? {}) as IDPORunMetrics;
   const overview = asRecord(overviewPayload.run) ?? {};
+  const ahmnAdvices: AHMNAdvice[] = docs.map((doc, idx) => {
+    const recommendation = doc.advisor_recommendation;
+    return {
+      advice_id: doc.advice_id ?? `doc_${idx + 1}`,
+      policy_id: recommendation?.policy_id ?? doc.policy_id ?? "default",
+      policy_data: recommendation ? { ...recommendation } : {},
+      confidence: doc.advice_confidence ?? 0,
+      rabi_used: Boolean(doc.rabi_used),
+      retrieval_source: doc.retrieval_source ?? "unknown",
+      n_neighbors: doc.n_neighbors ?? null,
+      selected_policy_id: doc.policy_id ?? null,
+      advice_source: doc.advice_source ?? null,
+      fallback_reason: doc.fallback_reason ?? null,
+      advisor_recommendation: recommendation ?? null,
+      fallback_candidates: doc.fallback_candidates ?? [],
+      safety_status: doc.safety_status,
+      error: doc.advice_source === "fallback" && !recommendation ? "fallback_only" : null,
+    };
+  });
+  const ahmnFeedbacks: AHMNFeedback[] = docs.map((doc, idx) => ({
+    status: doc.feedback_status?.logged ? "logged" : doc.advice_id ? "failed" : "skipped",
+    advice_id: doc.feedback_status?.advice_id ?? doc.advice_id ?? `doc_${idx + 1}`,
+    policy_id_used: doc.policy_id ?? "default",
+    metrics_sent: {},
+    feedback_status: doc.feedback_status,
+    error: doc.feedback_status?.error ?? null,
+  }));
+  const pipelineIntegration: PipelineIntegration = {
+    ahmn_advices: ahmnAdvices,
+    guardrails: [],
+    xai_explanations: [],
+    ahmn_feedbacks: ahmnFeedbacks,
+    cycle_time_ms: asNumber(metrics.duration_ms) ?? 0,
+    skipped_guardrails: true,
+    skipped_xai: true,
+    ahmn_advice: ahmnAdvices[0] as AHMNAdvice,
+    ahmn_feedback: ahmnFeedbacks[0] as AHMNFeedback,
+  };
 
   return {
     run_id: runId,
@@ -270,6 +361,7 @@ async function hydrateRunResult(job: JobStatus): Promise<IDPORunResult> {
     docs,
     entities,
     warnings: warningsText ? warningsText.split(" | ").filter(Boolean) : [],
+    pipeline_integration: pipelineIntegration,
   };
 }
 
@@ -406,7 +498,11 @@ export const api = {
     files: File[],
     fields: { name: string; description: string }[],
     configPath: string,
-    options?: { enableGuardrails?: boolean },
+    options?: {
+      adaptiveMode?: "static" | "adaptive_safe";
+      maxCostPerDoc?: number;
+      escalationEnabled?: boolean;
+    },
   ) => {
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
@@ -414,8 +510,10 @@ export const api = {
       "settings",
       JSON.stringify({
         configPath,
+        adaptiveMode: options?.adaptiveMode ?? "adaptive_safe",
         report: true,
-        guardrailsEnabled: options?.enableGuardrails ?? true,
+        maxCostPerDoc: options?.maxCostPerDoc,
+        escalationEnabled: options?.escalationEnabled,
         customFields: fields.map((field) => ({
           key: field.name,
           description: field.description,

@@ -17,11 +17,22 @@ from idpo.pipeline.policy_advisor import PolicyAdvice, PolicyAdvisor
 class RouteDecision:
     plan: ExecutionPlan
     policy: PolicyDefinition
+    baseline_policy: PolicyDefinition
+    baseline_policy_reason: str
     plan_source: str
     advice_source: str
+    advisor_recommendation: dict[str, Any] | None
+    fallback_candidates: list[dict[str, Any]]
     ranked_policies: list[dict[str, Any]]
+    advice_id: str | None = None
+    advice_confidence: float = 0.0
+    retrieval_source: str | None = None
+    rabi_used: bool = False
+    n_neighbors: int | None = None
     fallback_reason: str | None = None
     route_specialization: str | None = None
+    advice_accepted: bool = False
+    policy_changed: bool = False
 
 
 class PlanRouter:
@@ -51,11 +62,15 @@ class PlanRouter:
         selected_policy = baseline_policy
         rationale = baseline_reason
         action_overrides: dict[str, Any] = {}
+        advisor_recommendation: dict[str, Any] | None = None
+        fallback_candidates: list[dict[str, Any]] = []
         ranked_payloads: list[dict[str, Any]] = []
 
         if policy_mode == "adaptive":
             advice = self.advisor.advise(dae_output, system_constraints, self.policy_store, metadata)
-            ranked_payloads = _ranked_payloads(advice)
+            advisor_recommendation = _advisor_payload(advice)
+            fallback_candidates = _fallback_payloads(advice)
+            ranked_payloads = _recommendation_payloads(advice.recommendations)
             advice_source = advice.source
             plan_source = advice.source
             selected_policy, action_overrides, rationale, fallback_reason = self._select_adaptive_policy(
@@ -101,11 +116,22 @@ class PlanRouter:
         return RouteDecision(
             plan=plan,
             policy=selected_policy,
+            baseline_policy=baseline_policy,
+            baseline_policy_reason=baseline_reason,
             plan_source=plan_source,
             advice_source=advice_source,
+            advisor_recommendation=advisor_recommendation,
+            fallback_candidates=fallback_candidates,
             ranked_policies=ranked_payloads,
+            advice_id=advice.advice_id if policy_mode == "adaptive" else None,
+            advice_confidence=advice.confidence if policy_mode == "adaptive" else 0.0,
+            retrieval_source=advice.retrieval_source if policy_mode == "adaptive" else None,
+            rabi_used=advice.rabi_used if policy_mode == "adaptive" else False,
+            n_neighbors=advice.n_neighbors if policy_mode == "adaptive" else None,
             fallback_reason=fallback_reason,
             route_specialization=route_specialization,
+            advice_accepted=policy_mode == "adaptive" and fallback_reason is None and selected_policy.policy_id == (advisor_recommendation or {}).get("policy_id"),
+            policy_changed=selected_policy.policy_id != baseline_policy.policy_id,
         )
 
     def _select_adaptive_policy(
@@ -311,10 +337,20 @@ def _params_for_operator(
         return {"type": params.get("type", config.preprocessing.table_mode)}
     if operator == "structuring.extract":
         params = actions.get("extraction", {})
+        explicit_entities = params.get("explicit_entities", [])
+        if config.structuring.requested_fields:
+            explicit_entities = list(config.structuring.requested_fields)
+        field_descriptions = params.get("field_descriptions", {})
+        if config.structuring.field_descriptions:
+            merged_descriptions = {}
+            if isinstance(field_descriptions, dict):
+                merged_descriptions.update(field_descriptions)
+            merged_descriptions.update(config.structuring.field_descriptions)
+            field_descriptions = merged_descriptions
         return {
             "model_tier": params.get("model_tier", config.llm.default_mode),
-            "explicit_entities": params.get("explicit_entities", []),
-            "field_descriptions": params.get("field_descriptions", {}),
+            "explicit_entities": explicit_entities,
+            "field_descriptions": field_descriptions,
             "ruleset": params.get("ruleset", "config"),
         }
     if operator == "structuring.section":
@@ -351,19 +387,36 @@ def _merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, An
     return merged
 
 
-def _ranked_payloads(advice: PolicyAdvice) -> list[dict[str, Any]]:
+def _recommendation_payload(item) -> dict[str, Any]:
+    return {
+        "policy_id": item.policy_id,
+        "score": round(float(item.score), 4),
+        "reason": item.reason,
+        "source": item.source,
+        "action_overrides": item.action_overrides,
+        "rag_hints": item.rag_hints,
+        "field_templates": item.field_templates,
+    }
+
+
+def _recommendation_payloads(items: list[Any]) -> list[dict[str, Any]]:
     return [
-        {
-            "policy_id": item.policy_id,
-            "score": round(float(item.score), 4),
-            "reason": item.reason,
-            "source": item.source,
-            "action_overrides": item.action_overrides,
-            "rag_hints": item.rag_hints,
-            "field_templates": item.field_templates,
-        }
-        for item in advice.recommendations
+        _recommendation_payload(item)
+        for item in items
     ]
+
+
+def _advisor_payload(advice: PolicyAdvice) -> dict[str, Any] | None:
+    if advice.source == "fallback":
+        return None
+    for item in advice.recommendations:
+        if item.source != "fallback":
+            return _recommendation_payload(item)
+    return None
+
+
+def _fallback_payloads(advice: PolicyAdvice) -> list[dict[str, Any]]:
+    return _recommendation_payloads(advice.fallback_recommendations)
 
 
 def _route_specialization(dae_output: DAEOutput) -> str:

@@ -2,8 +2,77 @@
   "default_policy_id": "default",
   "policies": [
     {
+      "policy_id": "unknown_vendor_safe",
+      "name": "Unknown Vendor Safe Policy",
+      "conditions": {
+        "vendor_cluster": [
+          "unknown",
+          "new",
+          "unseen"
+        ]
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2,
+            "psm": 6,
+            "alt_psm": [
+              4,
+              11
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "standard"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "record_id",
+            "document_date",
+            "issuer_name",
+            "total_amount"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_unknown_vendor_safe"
+        },
+        "recovery": {
+          "strategy": "regex"
+        },
+        "chunking": {
+          "chunk_size": 300,
+          "chunk_overlap": 45,
+          "max_chunks": 96
+        },
+        "retrieval": {
+          "dense_k": 8,
+          "sparse_k": 8,
+          "final_k": 8,
+          "mmr_lambda": 0.6,
+          "metadata_boost": 0.08
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "unknown_vendor_safe",
+        "schema_valid_required": false,
+        "max_missing_required": 2,
+        "max_hallucinated_fields": 1,
+        "min_grounding_coverage": 0.4,
+        "max_latency_ms": 2500
+      }
+    },
+    {
       "policy_id": "table_heavy",
-      "name": "Table Heavy Policy",
+      "name": "Table Heavy Research Policy",
       "conditions": {
         "content_profile": [
           "table-heavy"
@@ -17,7 +86,12 @@
         "preprocess": {
           "ocr": {
             "enabled": true,
-            "passes": 2
+            "passes": 2,
+            "psm": 6,
+            "alt_psm": [
+              4,
+              11
+            ]
           },
           "deskew": {
             "enabled": true
@@ -33,11 +107,15 @@
         },
         "extraction": {
           "explicit_entities": [
-            "statement_id",
-            "date",
-            "total_amount"
+            "invoice_number",
+            "supplier_name",
+            "total_amount",
+            "subtotal",
+            "tax",
+            "due_date"
           ],
-          "model_tier": "local"
+          "model_tier": "cloud",
+          "ruleset": "research_table"
         },
         "recovery": {
           "strategy": "alternate_rules"
@@ -46,15 +124,28 @@
           "chunk_size": 260,
           "chunk_overlap": 40,
           "max_chunks": 160
+        },
+        "retrieval": {
+          "dense_k": 10,
+          "sparse_k": 16,
+          "final_k": 12,
+          "mmr_lambda": 0.8,
+          "metadata_boost": 0.2
+        },
+        "token_budget": {
+          "max_tokens": 1700,
+          "reserved_tokens": 220,
+          "strategy": "simple"
         }
       },
       "metadata": {
-        "owner": "idpo-research"
+        "owner": "idpo-research",
+        "regime": "table_precision"
       }
     },
     {
       "policy_id": "forms",
-      "name": "Form Extraction Policy",
+      "name": "Form Validation Research Policy",
       "conditions": {
         "content_profile": [
           "form-centric"
@@ -64,7 +155,13 @@
         "preprocess": {
           "ocr": {
             "enabled": true,
-            "passes": 3
+            "passes": 3,
+            "psm": 6,
+            "alt_psm": [
+              4,
+              6,
+              11
+            ]
           },
           "deskew": {
             "enabled": true
@@ -80,43 +177,63 @@
         },
         "extraction": {
           "explicit_entities": [
-            "invoice_id",
-            "document_date",
-            "total_amount",
-            "customer_name",
-            "approval_code"
+            "claim_number",
+            "member_id",
+            "service_date",
+            "approval_code",
+            "total_amount"
           ],
           "field_descriptions": {
-            "approval_code": "Approval code required by policy checks."
+            "approval_code": "Approval code required by form review workflows."
           },
-          "model_tier": "cloud"
+          "model_tier": "cloud",
+          "ruleset": "research_forms"
         },
         "recovery": {
-          "strategy": "alternate_ocr"
+          "strategy": "alternate_rules"
         },
         "escalation": {
-          "target_model": "flagship-model"
+          "tier": "tier2"
+        },
+        "chunking": {
+          "chunk_size": 320,
+          "chunk_overlap": 45,
+          "max_chunks": 128
         }
       },
       "metadata": {
-        "owner": "idpo-research"
+        "owner": "idpo-research",
+        "regime": "form_validation"
       }
     },
     {
-      "policy_id": "default",
-      "name": "Default Policy",
-      "conditions": {},
+      "policy_id": "noisy_ocr_rescue",
+      "name": "Noisy OCR Rescue Policy",
+      "conditions": {
+        "quality_bin": [
+          "C"
+        ],
+        "quality_features.ocr_noise_ratio": {
+          "min": 0.12
+        }
+      },
       "actions": {
         "preprocess": {
           "ocr": {
             "enabled": true,
-            "passes": 2
+            "passes": 3,
+            "psm": 4,
+            "alt_psm": [
+              6,
+              11
+            ]
           },
           "deskew": {
             "enabled": true
           },
           "denoise": {
-            "enabled": true
+            "enabled": true,
+            "strength": "aggressive"
           },
           "table_extract": {
             "enabled": true,
@@ -125,18 +242,388 @@
         },
         "extraction": {
           "explicit_entities": [
-            "invoice_id",
+            "record_id",
             "document_date",
+            "reference_code",
             "total_amount"
           ],
-          "model_tier": "local"
+          "model_tier": "cloud",
+          "ruleset": "research_noisy_ocr_rescue"
         },
         "recovery": {
-          "strategy": "regex"
+          "strategy": "alternate_rules"
+        },
+        "chunking": {
+          "chunk_size": 280,
+          "chunk_overlap": 55,
+          "max_chunks": 120
+        },
+        "retrieval": {
+          "dense_k": 12,
+          "sparse_k": 14,
+          "final_k": 12,
+          "mmr_lambda": 0.78,
+          "metadata_boost": 0.18
         }
       },
       "metadata": {
-        "owner": "idpo-research"
+        "owner": "idpo-research",
+        "regime": "noisy_ocr_rescue",
+        "schema_valid_required": true,
+        "max_missing_required": 1,
+        "max_hallucinated_fields": 0,
+        "min_grounding_coverage": 0.5,
+        "max_latency_ms": 3200
+      }
+    },
+    {
+      "policy_id": "scanned_text",
+      "name": "Scanned Text Research Policy",
+      "conditions": {
+        "doc_type": [
+          "scanned_document",
+          "text_document"
+        ],
+        "content_profile": [
+          "image-heavy",
+          "text-heavy",
+          "text-light"
+        ]
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2,
+            "psm": 3,
+            "alt_psm": [
+              4,
+              6
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "aggressive"
+          },
+          "table_extract": {
+            "enabled": false,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "letter_id",
+            "document_date",
+            "sender_name",
+            "reference_code"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_scanned_text"
+        },
+        "recovery": {
+          "strategy": "regex"
+        },
+        "chunking": {
+          "chunk_size": 420,
+          "chunk_overlap": 60,
+          "max_chunks": 96
+        },
+        "retrieval": {
+          "dense_k": 14,
+          "sparse_k": 10,
+          "final_k": 10,
+          "mmr_lambda": 0.6,
+          "metadata_boost": 0.1
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "ocr_text"
+      }
+    },
+    {
+      "policy_id": "long_document_chunked",
+      "name": "Long Document Chunked Policy",
+      "conditions": {
+        "route_bin": [
+          "heavy"
+        ],
+        "complexity_bin": [
+          "3"
+        ],
+        "structural_features.line_length_cv": {
+          "max": 0.55
+        }
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2,
+            "psm": 3,
+            "alt_psm": [
+              4,
+              6
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "standard"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "agreement_id",
+            "effective_date",
+            "party_a",
+            "party_b",
+            "reference_code",
+            "total_value"
+          ],
+          "model_tier": "cloud",
+          "ruleset": "research_long_document_chunked"
+        },
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "chunking": {
+          "chunk_size": 540,
+          "chunk_overlap": 110,
+          "max_chunks": 220
+        },
+        "retrieval": {
+          "dense_k": 16,
+          "sparse_k": 14,
+          "final_k": 14,
+          "mmr_lambda": 0.72,
+          "metadata_boost": 0.2
+        },
+        "token_budget": {
+          "max_tokens": 2200,
+          "reserved_tokens": 260,
+          "strategy": "simple"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "long_document_chunked",
+        "schema_valid_required": true,
+        "max_missing_required": 1,
+        "max_hallucinated_fields": 1,
+        "min_grounding_coverage": 0.55,
+        "max_latency_ms": 4200
+      }
+    },
+    {
+      "policy_id": "mixed_content",
+      "name": "Mixed Content Research Policy",
+      "conditions": {
+        "content_profile": [
+          "mixed"
+        ]
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2,
+            "psm": 3,
+            "alt_psm": [
+              4,
+              6
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "standard"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "agreement_id",
+            "effective_date",
+            "party_a",
+            "party_b",
+            "total_value"
+          ],
+          "model_tier": "cloud",
+          "ruleset": "research_mixed"
+        },
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "chunking": {
+          "chunk_size": 380,
+          "chunk_overlap": 70,
+          "max_chunks": 150
+        },
+        "retrieval": {
+          "dense_k": 12,
+          "sparse_k": 12,
+          "final_k": 12,
+          "mmr_lambda": 0.7,
+          "metadata_boost": 0.15
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "balanced_multisection"
+      }
+    },
+    {
+      "policy_id": "fast_local_text",
+      "name": "Fast Local Text Policy",
+      "conditions": {
+        "content_profile": [
+          "text-heavy",
+          "text-light"
+        ],
+        "route_bin": [
+          "light",
+          "standard"
+        ],
+        "quality_features.ocr_noise_ratio": {
+          "max": 0.08
+        }
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 1,
+            "psm": 6,
+            "alt_psm": [
+              4
+            ]
+          },
+          "deskew": {
+            "enabled": false
+          },
+          "denoise": {
+            "enabled": false,
+            "strength": "standard"
+          },
+          "table_extract": {
+            "enabled": false,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "record_id",
+            "document_date",
+            "reference_code"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_fast_local_text"
+        },
+        "recovery": {
+          "strategy": "regex"
+        },
+        "chunking": {
+          "chunk_size": 260,
+          "chunk_overlap": 24,
+          "max_chunks": 72
+        },
+        "retrieval": {
+          "dense_k": 6,
+          "sparse_k": 6,
+          "final_k": 6,
+          "mmr_lambda": 0.58,
+          "metadata_boost": 0.06
+        },
+        "token_budget": {
+          "max_tokens": 900,
+          "reserved_tokens": 120,
+          "strategy": "simple"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "fast_local_text",
+        "schema_valid_required": false,
+        "max_missing_required": 2,
+        "max_hallucinated_fields": 0,
+        "min_grounding_coverage": 0.45,
+        "max_latency_ms": 1400
+      }
+    },
+    {
+      "policy_id": "default",
+      "name": "Safe Default Research Policy",
+      "conditions": {},
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 1,
+            "psm": 6,
+            "alt_psm": [
+              4
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "standard"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "record_id",
+            "document_date",
+            "total_amount"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_safe_default"
+        },
+        "recovery": {
+          "strategy": "regex"
+        },
+        "chunking": {
+          "chunk_size": 320,
+          "chunk_overlap": 50,
+          "max_chunks": 96
+        },
+        "retrieval": {
+          "dense_k": 10,
+          "sparse_k": 10,
+          "final_k": 10,
+          "mmr_lambda": 0.65,
+          "metadata_boost": 0.1
+        },
+        "token_budget": {
+          "max_tokens": 1400,
+          "reserved_tokens": 200,
+          "strategy": "simple"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "safe_default"
       }
     }
   ]

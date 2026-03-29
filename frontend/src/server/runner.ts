@@ -10,10 +10,9 @@ interface StartRunRequest {
   commandId?: string;
   settings: {
     configPath?: string;
+    adaptiveMode?: "static" | "adaptive_safe";
     shadowMode?: boolean;
     shadowSampleRate?: number;
-    policyPreference?: string;
-    routingMode?: "auto" | "light" | "standard" | "heavy";
     maxCostPerDoc?: number;
     escalationEnabled?: boolean;
     report?: boolean;
@@ -153,6 +152,21 @@ function resolveConfigPathFromSettings(settings: StartRunRequest["settings"]): s
 function patchConfig(baseConfig: Record<string, unknown>, settings: StartRunRequest["settings"]): Record<string, unknown> {
   const updated = structuredClone(baseConfig);
 
+  if (settings.adaptiveMode) {
+    const ahmn = ((updated.ahmn as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
+    if (settings.adaptiveMode === "static") {
+      ahmn.enabled = false;
+      ahmn.policy_mode = "static";
+    } else {
+      ahmn.enabled = true;
+      ahmn.policy_mode = "adaptive";
+      if (typeof ahmn.mode !== "string" || !String(ahmn.mode).trim()) {
+        ahmn.mode = "http";
+      }
+    }
+    updated.ahmn = ahmn;
+  }
+
   if (settings.shadowMode !== undefined) {
     const shadow = ((updated.shadow as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
     shadow.enabled = settings.shadowMode;
@@ -160,18 +174,6 @@ function patchConfig(baseConfig: Record<string, unknown>, settings: StartRunRequ
       shadow.sample_rate = Math.max(0, Math.min(1, settings.shadowSampleRate));
     }
     updated.shadow = shadow;
-  }
-
-  if (settings.policyPreference && settings.policyPreference !== "auto" && settings.policyPreference !== "baseline") {
-    const ahmn = ((updated.ahmn as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
-    ahmn.policy_override_id = settings.policyPreference;
-    updated.ahmn = ahmn;
-  }
-
-  if (settings.routingMode && settings.routingMode !== "auto") {
-    const routing = ((updated.routing as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
-    routing.force_route_bin = settings.routingMode;
-    updated.routing = routing;
   }
 
   if (typeof settings.maxCostPerDoc === "number" && Number.isFinite(settings.maxCostPerDoc)) {
@@ -223,6 +225,9 @@ function patchConfig(baseConfig: Record<string, unknown>, settings: StartRunRequ
     const currentRules = Array.isArray(structuring.extraction_rules)
       ? [...(structuring.extraction_rules as Array<Record<string, unknown>>)]
       : [];
+    const requestedFields = Array.isArray(structuring.requested_fields)
+      ? [...(structuring.requested_fields as Array<unknown>).map((item) => String(item).trim()).filter(Boolean)]
+      : [];
     const descriptions =
       typeof structuring.field_descriptions === "object" && structuring.field_descriptions !== null
         ? ({ ...(structuring.field_descriptions as Record<string, unknown>) } as Record<string, unknown>)
@@ -232,6 +237,9 @@ function patchConfig(baseConfig: Record<string, unknown>, settings: StartRunRequ
       const key = (field.key || "").trim().toLowerCase().replace(/\s+/g, "_");
       if (!key) {
         continue;
+      }
+      if (!requestedFields.includes(key)) {
+        requestedFields.push(key);
       }
       const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
       const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -247,6 +255,7 @@ function patchConfig(baseConfig: Record<string, unknown>, settings: StartRunRequ
     }
 
     structuring.extraction_rules = currentRules;
+    structuring.requested_fields = requestedFields;
     structuring.field_descriptions = descriptions;
     updated.structuring = structuring;
   }

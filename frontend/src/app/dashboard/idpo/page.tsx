@@ -15,13 +15,47 @@ import type {
     AHMNFeedback,
 } from "@/types";
 
+function formatPercent(value?: number | null, digits = 0) {
+    if (typeof value !== "number" || Number.isNaN(value)) return "-";
+    return `${(value * 100).toFixed(digits)}%`;
+}
+
+function average(values: Array<number | null | undefined>) {
+    const valid = values.filter((value): value is number => typeof value === "number" && !Number.isNaN(value));
+    if (valid.length === 0) return null;
+    return valid.reduce((sum, value) => sum + value, 0) / valid.length;
+}
+
+function formatPolicyLabel(policyId?: string | null) {
+    return (policyId || "default").replace(/_/g, " ").trim();
+}
+
+function looksCorruptedText(value?: string | null) {
+    if (!value) return true;
+    return /Ãƒ|Ã‚|Ã¢|Ã°|Ã¯Â¸/.test(value);
+}
+
+function shortToken(label: string) {
+    const words = label
+        .split(/[\s/+_-]+/)
+        .map((word) => word.trim())
+        .filter(Boolean);
+    if (words.length === 0) return "--";
+    if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+    return words.slice(0, 2).map((word) => word[0]?.toUpperCase() || "").join("");
+}
+
+function safeIconText(value: string, fallbackLabel: string) {
+    return looksCorruptedText(value) ? shortToken(fallbackLabel) : value;
+}
+
 export default function IDPOPage() {
-    /* â”€â”€ State â”€â”€ */
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ State Ã¢â€â‚¬Ã¢â€â‚¬ */
     const [files, setFiles] = useState<File[]>([]);
     const [fields, setFields] = useState<IDPOExtractionField[]>([]);
     const [newFieldName, setNewFieldName] = useState("");
     const [newFieldDesc, setNewFieldDesc] = useState("");
-    const [configPath, setConfigPath] = useState("configs/config.json");
+    const configPath = "configs/idpo_research_config.json";
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [result, setResult] = useState<IDPORunResult | null>(null);
@@ -29,13 +63,17 @@ export default function IDPOPage() {
     const [expandedDoc, setExpandedDoc] = useState<string | null>(null);
     const [dragActive, setDragActive] = useState(false);
     const [showConfig, setShowConfig] = useState(false);
+    const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+    const [maxCostPerDoc, setMaxCostPerDoc] = useState("");
+    const [escalationEnabled, setEscalationEnabled] = useState(true);
     const [elapsedSec, setElapsedSec] = useState(0);
     const elapsedRef = useRef<NodeJS.Timeout | null>(null);
     const [integrationTab, setIntegrationTab] = useState<"advice" | "guardrails" | "xai" | "feedback">("advice");
-    const [enableGuardrails, setEnableGuardrails] = useState(true);
+    const [adaptiveMode, setAdaptiveMode] = useState<"static" | "adaptive_safe">("adaptive_safe");
     const [entitySearch, setEntitySearch] = useState("");
     const [entityConfidenceFilter, setEntityConfidenceFilter] = useState<"all" | "high" | "medium" | "low">("all");
     const [entityPage, setEntityPage] = useState(0);
+    const [pairedRunId, setPairedRunId] = useState<string | null>(null);
     const ENTITIES_PER_PAGE = 15;
     const fileInputRef = useRef<HTMLInputElement>(null);
     // Per-document progress tracking for multi-doc uploads
@@ -49,14 +87,23 @@ export default function IDPOPage() {
             const saved = localStorage.getItem("idpo_toggles");
             if (saved) {
                 const parsed = JSON.parse(saved);
-                if (typeof parsed.guardrails === "boolean") setEnableGuardrails(parsed.guardrails);
+                if (parsed.adaptiveMode === "static" || parsed.adaptiveMode === "adaptive_safe") {
+                    setAdaptiveMode(parsed.adaptiveMode);
+                }
+                if (typeof parsed.maxCostPerDoc === "string") setMaxCostPerDoc(parsed.maxCostPerDoc);
+                if (typeof parsed.escalationEnabled === "boolean") setEscalationEnabled(parsed.escalationEnabled);
             }
         } catch { }
     }, []);
 
     useEffect(() => {
-        try { localStorage.setItem("idpo_toggles", JSON.stringify({ guardrails: enableGuardrails })); } catch { }
-    }, [enableGuardrails]);
+        try {
+            localStorage.setItem(
+                "idpo_toggles",
+                JSON.stringify({ adaptiveMode, maxCostPerDoc, escalationEnabled }),
+            );
+        } catch { }
+    }, [adaptiveMode, maxCostPerDoc, escalationEnabled]);
 
     // Restore extraction results from sessionStorage on mount
     useEffect(() => {
@@ -65,6 +112,13 @@ export default function IDPOPage() {
             if (savedResult) {
                 const parsed = JSON.parse(savedResult);
                 setResult(parsed);
+                const savedPairs = sessionStorage.getItem("idpo_last_runs");
+                if (savedPairs) {
+                    const runs = JSON.parse(savedPairs) as { static?: string; adaptive_safe?: string };
+                    const inferredMode = parsed?.run_id && runs?.static === parsed.run_id ? "static" : "adaptive_safe";
+                    const counterpart = inferredMode === "static" ? runs?.adaptive_safe : runs?.static;
+                    setPairedRunId(counterpart ?? null);
+                }
                 const savedTab = sessionStorage.getItem("idpo_activeTab");
                 if (savedTab) setActiveTab(savedTab as typeof activeTab);
                 const savedExpanded = sessionStorage.getItem("idpo_expandedDoc");
@@ -90,7 +144,7 @@ export default function IDPOPage() {
         try { if (result && expandedDoc) sessionStorage.setItem("idpo_expandedDoc", expandedDoc); } catch { }
     }, [expandedDoc, result]);
 
-    /* â”€â”€ Drag & drop handlers â”€â”€ */
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ Drag & drop handlers Ã¢â€â‚¬Ã¢â€â‚¬ */
     const handleDrag = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -113,7 +167,7 @@ export default function IDPOPage() {
 
     const removeFile = (index: number) => setFiles(files.filter((_, i) => i !== index));
 
-    /* â”€â”€ Field management â”€â”€ */
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ Field management Ã¢â€â‚¬Ã¢â€â‚¬ */
     const addField = () => {
         if (newFieldName.trim()) {
             setFields([...fields, { name: newFieldName.trim(), description: newFieldDesc.trim() }]);
@@ -128,7 +182,7 @@ export default function IDPOPage() {
         if (e.key === "Enter") { e.preventDefault(); addField(); }
     };
 
-    /* â”€â”€ Elapsed timer â”€â”€ */
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ Elapsed timer Ã¢â€â‚¬Ã¢â€â‚¬ */
     useEffect(() => {
         if (!loading) {
             if (elapsedRef.current) clearInterval(elapsedRef.current);
@@ -139,7 +193,7 @@ export default function IDPOPage() {
         return () => { if (elapsedRef.current) clearInterval(elapsedRef.current); };
     }, [loading]);
 
-    /* â”€â”€ Per-document progress simulator â”€â”€ */
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ Per-document progress simulator Ã¢â€â‚¬Ã¢â€â‚¬ */
     useEffect(() => {
         if (!loading || files.length === 0) {
             if (progressTimerRef.current) clearInterval(progressTimerRef.current);
@@ -149,7 +203,7 @@ export default function IDPOPage() {
         setDocProgress(files.map((f) => ({ name: f.name, status: "queued" as const })));
         let currentDoc = 0;
         // Cycle through docs with realistic timing
-        const baseMs = enableGuardrails ? 3500 : 2200;
+        const baseMs = 2200;
         const tickMs = 500;
         const interval = setInterval(() => {
             const elapsed = Date.now() - progressStartRef.current;
@@ -171,9 +225,9 @@ export default function IDPOPage() {
         }, tickMs);
         progressTimerRef.current = interval;
         return () => clearInterval(interval);
-    }, [loading, files.length, enableGuardrails]);
+    }, [loading, files.length]);
 
-    /* â”€â”€ Download helper â”€â”€ */
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ Download helper Ã¢â€â‚¬Ã¢â€â‚¬ */
     const handleDownload = async (file: "docs.xlsx" | "entities.xlsx" | "run.xlsx", filename: string) => {
         if (!result) return;
         try {
@@ -238,10 +292,8 @@ export default function IDPOPage() {
         window.URL.revokeObjectURL(url);
     };
 
-    /* â”€â”€ Submit handler â”€â”€ */
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (files.length === 0) { setError("Please select at least one file"); return; }
+    function validateSelectedFiles() {
+        if (files.length === 0) { setError("Please select at least one file"); return false; }
 
         // Client-side validation
         const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
@@ -249,14 +301,88 @@ export default function IDPOPage() {
         for (const file of files) {
             if (file.size > MAX_FILE_SIZE) {
                 setError(`File '${file.name}' exceeds 50MB limit (${(file.size / 1024 / 1024).toFixed(1)}MB)`);
-                return;
+                return false;
             }
             const ext = "." + (file.name.split(".").pop()?.toLowerCase() || "");
             if (!SUPPORTED_EXTS.includes(ext)) {
                 setError(`Unsupported file type '${ext}'. Supported: ${SUPPORTED_EXTS.join(", ")}`);
-                return;
+                return false;
             }
         }
+        return true;
+    }
+
+    function buildRunOptions(mode: "static" | "adaptive_safe") {
+        const parsedMaxCost = maxCostPerDoc.trim().length > 0 ? Number(maxCostPerDoc) : undefined;
+        return {
+            adaptiveMode: mode,
+            maxCostPerDoc: typeof parsedMaxCost === "number" && Number.isFinite(parsedMaxCost) ? parsedMaxCost : undefined,
+            escalationEnabled,
+        };
+    }
+
+    function rememberRun(runId: string, mode: "static" | "adaptive_safe") {
+        try {
+            const savedPairs = sessionStorage.getItem("idpo_last_runs");
+            const runs = savedPairs ? (JSON.parse(savedPairs) as { static?: string; adaptive_safe?: string }) : {};
+            runs[mode] = runId;
+            sessionStorage.setItem("idpo_last_runs", JSON.stringify(runs));
+            return mode === "static" ? (runs.adaptive_safe ?? null) : (runs.static ?? null);
+        } catch {
+            return null;
+        }
+    }
+
+    function cacheRunArtifacts(data: IDPORunResult) {
+        try {
+            const extractedDocs = (data.docs || [])
+                .filter((d: { extracted_text?: string }) => d.extracted_text)
+                .map((d: { doc_id: string; filename?: string; extracted_text?: string }) => ({
+                    id: d.doc_id,
+                    filename: d.filename || d.doc_id,
+                    text: d.extracted_text,
+                }));
+            if (extractedDocs.length > 0) {
+                sessionStorage.setItem("idpo_extracted_docs", JSON.stringify(extractedDocs));
+            }
+
+            const adviceId = data.pipeline_integration?.ahmn_advice?.advice_id;
+            if (adviceId) {
+                sessionStorage.setItem("xai_advice_id", adviceId);
+                localStorage.setItem("xai_advice_id", adviceId);
+            }
+        } catch {
+            // storage may be unavailable
+        }
+    }
+
+    function finalizeVisibleRun(data: IDPORunResult, mode: "static" | "adaptive_safe", overridePairedRunId?: string | null) {
+        setDocProgress((prev) => prev.map((d) => ({ ...d, status: "done" as const })));
+        setResult(data);
+        const counterpartRunId = overridePairedRunId ?? rememberRun(data.run_id, mode);
+        setPairedRunId(counterpartRunId ?? null);
+        cacheRunArtifacts(data);
+        setFiles([]);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        setActiveTab("documents");
+        if (data.docs?.length > 0) {
+            setExpandedDoc(data.docs[0].doc_id);
+        }
+    }
+
+    function formatPartialFailures(prefix: string, data: IDPORunResult) {
+        const partialFailures = data.partial_failures ?? [];
+        if (partialFailures.length === 0) {
+            return "";
+        }
+        const failedFiles = partialFailures.map((f: { file: string; error: string }) => f.file).join(", ");
+        return `${prefix}: ${partialFailures.length} file(s) failed processing: ${failedFiles}. Successfully processed ${data.docs.length} document(s).`;
+    }
+
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ Submit handler Ã¢â€â‚¬Ã¢â€â‚¬ */
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!validateSelectedFiles()) return;
 
         setLoading(true);
         setError("");
@@ -264,61 +390,23 @@ export default function IDPOPage() {
 
 
         try {
-            const data = await api.runIDPO(files, fields, configPath, { enableGuardrails });
-
-            // Mark all doc progress as done
-            setDocProgress((prev) => prev.map((d) => ({ ...d, status: "done" as const })));
-            setResult(data);
-            setFiles([]);
-            if (fileInputRef.current) fileInputRef.current.value = "";
-            // Default to Documents tab to show extraction results first
-            setActiveTab("documents");
-            // Auto-expand the first document so results are immediately visible
-            if (data.docs?.length > 0) {
-                setExpandedDoc(data.docs[0].doc_id);
-            }
-
-            // Save extracted document texts to sessionStorage for XAI page
-            try {
-                const extractedDocs = (data.docs || [])
-                    .filter((d: { extracted_text?: string }) => d.extracted_text)
-                    .map((d: { doc_id: string; filename?: string; extracted_text?: string }) => ({
-                        id: d.doc_id,
-                        filename: d.filename || d.doc_id,
-                        text: d.extracted_text,
-                    }));
-                if (extractedDocs.length > 0) {
-                    sessionStorage.setItem("idpo_extracted_docs", JSON.stringify(extractedDocs));
-                }
-
-                const adviceId = data.pipeline_integration?.ahmn_advice?.advice_id;
-                if (adviceId) {
-                    sessionStorage.setItem("xai_advice_id", adviceId);
-                    localStorage.setItem("xai_advice_id", adviceId);
-                }
-            } catch {
-                // sessionStorage may be full or unavailable
-            }
-
-            // Show partial failure warnings
-            const partialFailures = data.partial_failures ?? [];
-            if (partialFailures.length > 0) {
-                const failedFiles = partialFailures.map((f: { file: string; error: string }) => f.file).join(", ");
-                setError(`${partialFailures.length} file(s) failed processing: ${failedFiles}. Successfully processed ${data.docs.length} document(s).`);
-            }
+            const data = await api.runIDPO(files, fields, configPath, buildRunOptions(adaptiveMode));
+            finalizeVisibleRun(data, adaptiveMode);
+            const partialFailureMessage = formatPartialFailures("Current run", data);
+            if (partialFailureMessage) setError(partialFailureMessage);
         } catch (err) {
 
             setDocProgress((prev) => prev.map((d) => d.status === "processing" || d.status === "queued" ? { ...d, status: "error" as const } : d));
             let errorMessage = "Unknown error";
             if (err instanceof Error) {
                 if (err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
-                    errorMessage = "Network error â€” check that all backend services are running";
+                    errorMessage = "Network error Ã¢â‚¬â€ check that all backend services are running";
                 } else if (err.message.includes("502")) {
-                    errorMessage = "IDPO service is unavailable â€” make sure the extraction service is running";
+                    errorMessage = "IDPO service is unavailable Ã¢â‚¬â€ make sure the extraction service is running";
                 } else if (err.message.includes("504") || err.message.includes("timed out")) {
-                    errorMessage = "Processing timed out â€” try with fewer or smaller documents";
+                    errorMessage = "Processing timed out Ã¢â‚¬â€ try with fewer or smaller documents";
                 } else if (err.message.includes("413")) {
-                    errorMessage = "File too large â€” reduce file size and try again";
+                    errorMessage = "File too large Ã¢â‚¬â€ reduce file size and try again";
                 } else {
                     errorMessage = err.message;
                 }
@@ -330,20 +418,85 @@ export default function IDPOPage() {
         }
     };
 
-    /* â”€â”€ Helpers â”€â”€ */
+    const handlePairedRun = async () => {
+        if (!validateSelectedFiles()) return;
+
+        setLoading(true);
+        setError("");
+        setResult(null);
+
+        let staticData: IDPORunResult | null = null;
+
+        try {
+            staticData = await api.runIDPO(files, fields, configPath, buildRunOptions("static"));
+            rememberRun(staticData.run_id, "static");
+
+            const adaptiveData = await api.runIDPO(files, fields, configPath, buildRunOptions("adaptive_safe"));
+            rememberRun(adaptiveData.run_id, "adaptive_safe");
+            finalizeVisibleRun(adaptiveData, "adaptive_safe", staticData.run_id);
+
+            const warnings = [
+                formatPartialFailures("Static run", staticData),
+                formatPartialFailures("Adaptive-safe run", adaptiveData),
+            ].filter(Boolean);
+            if (warnings.length > 0) {
+                setError(warnings.join(" "));
+            }
+        } catch (err) {
+            if (staticData) {
+                finalizeVisibleRun(staticData, "static");
+            }
+            setDocProgress((prev) => prev.map((d) => d.status === "processing" || d.status === "queued" ? { ...d, status: "error" as const } : d));
+            let errorMessage = "Paired run failed";
+            if (err instanceof Error) {
+                errorMessage = staticData
+                    ? `Adaptive-safe run failed after static completed: ${err.message}`
+                    : err.message;
+            }
+            setError(errorMessage);
+        } finally {
+            setLoading(false);
+            if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+        }
+    };
+
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ Helpers Ã¢â€â‚¬Ã¢â€â‚¬ */
     const fileIcon = (name: string) => {
         const ext = name.split(".").pop()?.toLowerCase();
-        if (ext === "pdf") return "ðŸ“„";
-        if (["png", "jpg", "jpeg", "tiff", "bmp"].includes(ext || "")) return "ðŸ–¼ï¸";
-        if (ext === "json") return "ðŸ“‹";
-        return "ðŸ“ƒ";
+        if (ext === "pdf") return "[PDF]";
+        if (["png", "jpg", "jpeg", "tiff", "bmp"].includes(ext || "")) return "[IMG]";
+        if (ext === "json") return "[JSON]";
+        return "[FILE]";
     };
 
     const integration = result?.pipeline_integration;
+    const resultDocs = result?.docs || [];
+    const adviceFollowedCount = resultDocs.filter((doc, index) => {
+        const advisedPolicy =
+            integration?.ahmn_advices?.[index]?.selected_policy_id ||
+            integration?.ahmn_advices?.[index]?.policy_id ||
+            doc.advisor_recommendation?.policy_id;
+        return Boolean(
+            doc.policy_id &&
+            advisedPolicy &&
+            doc.policy_id === advisedPolicy &&
+            !doc.fallback_reason &&
+            !doc.safety_status?.rollback_triggered,
+        );
+    }).length;
+    const fallbackCount = resultDocs.filter((doc) => Boolean(doc.fallback_reason)).length;
+    const rollbackCount = resultDocs.filter((doc) => Boolean(doc.safety_status?.rollback_triggered)).length;
+    const reviewCount = resultDocs.filter((doc) => (doc.defer_status || "not_needed") !== "not_needed").length;
+    const feedbackLoggedCount = resultDocs.filter((doc) => Boolean(doc.feedback_status?.logged)).length;
+    const schemaValidRate = resultDocs.length > 0
+        ? resultDocs.filter((doc) => doc.schema_valid === true).length / resultDocs.length
+        : null;
+    const avgSchemaCoverage = average(resultDocs.map((doc) => doc.schema_coverage));
+    const avgGroundingCoverage = average(resultDocs.map((doc) => doc.schema_grounding_coverage));
 
     return (
         <div className="max-w-7xl 3xl:max-w-[1800px] mx-auto space-y-5">
-            {/* â”€â”€ Header â”€â”€ */}
+            {/* Ã¢â€â‚¬Ã¢â€â‚¬ Header Ã¢â€â‚¬Ã¢â€â‚¬ */}
             <div className="relative overflow-hidden glass-panel rounded-2xl p-6">
                 <div className="absolute inset-0 bg-gradient-to-r from-brand-500/5 to-cyan-500/5 dark:from-brand-500/[0.03] dark:to-cyan-500/[0.03]" />
                 <div className="relative flex items-center justify-between flex-wrap gap-4">
@@ -354,19 +507,16 @@ export default function IDPOPage() {
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                                 </svg>
                             </div>
-                            Document Extraction
+                            IDPO Document Journey
                         </h1>
                         <p className="text-slate-500 dark:text-gray-400 mt-1.5 text-sm">
-                            Full-cycle AI pipeline: AHMN advice â†’ 13-agent extraction â†’ guardrails â†’ XAI â†’ learning
+                            Identify documents, retrieve or default a policy, execute the extraction path, evaluate schema quality, and log feedback in one visible IDPO flow.
                         </p>
                     </div>
                     <div className="flex items-center gap-3">
-                        <Link
-                            href="/dashboard/idpo/presentation"
-                            className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-full text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                        >
-                            Run Explorer
-                        </Link>
+                        <span className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-full text-xs font-medium">
+                            Mode: {adaptiveMode}
+                        </span>
                         {result && (
                             <span className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded-full text-xs font-medium">
                                 Run: {result.run_id.slice(0, 8)}...
@@ -384,22 +534,28 @@ export default function IDPOPage() {
                     </div>
                 </div>
             </div>
+            <div className="relative mt-4 rounded-xl border border-brand-200/60 dark:border-brand-500/20 bg-brand-50/60 dark:bg-brand-500/5 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-brand-700 dark:text-brand-300">IDPO Runtime Path</p>
+                <p className="mt-1 text-sm text-slate-700 dark:text-gray-200">
+                    Use <span className="font-mono">static</span> or <span className="font-mono">adaptive_safe</span> to compare deterministic routing against fixed AHMN top-1 advice in the same IDPO runtime and evidence path.
+                </p>
+            </div>
 
-            {/* Advanced Views quick access */}
+            {/* Runtime quick access */}
             <div className="glass-panel rounded-2xl p-4">
                 <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <span className="text-slate-500 dark:text-gray-400 font-medium">Advanced Views:</span>
+                    <span className="text-slate-500 dark:text-gray-400 font-medium">Runtime Views:</span>
                     <Link
-                        href="/dashboard/idpo/presentation"
+                        href="/dashboard/idpo/benchmark"
                         className="px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                     >
-                        Run Explorer
+                        Benchmark Results
                     </Link>
                     <Link
-                        href="/dashboard/history"
+                        href="/dashboard/idpo/compare"
                         className="px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                     >
-                        Processing History
+                        Compare Runs
                     </Link>
                     {result && (
                         <Link
@@ -407,6 +563,14 @@ export default function IDPOPage() {
                             className="px-2.5 py-1 rounded-full border border-brand-300 dark:border-brand-500/40 text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10 transition-colors"
                         >
                             Current Run Detail
+                        </Link>
+                    )}
+                    {result && pairedRunId && (
+                        <Link
+                            href={`/dashboard/idpo/compare?left=${encodeURIComponent(result.run_id)}&right=${encodeURIComponent(pairedRunId)}`}
+                            className="px-2.5 py-1 rounded-full border border-emerald-300 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors"
+                        >
+                            Compare Paired Runs
                         </Link>
                     )}
                 </div>
@@ -466,11 +630,11 @@ export default function IDPOPage() {
                             {/* Pipeline steps visualization */}
                             <div className="flex items-center gap-1 mb-3">
                                 {[
-                                    { icon: "ðŸ“¥", label: "Ingest", delay: "0s" },
-                                    { icon: "ðŸ”", label: "OCR", delay: "0.5s" },
-                                    { icon: "ðŸ§ ", label: "Extract", delay: "1s" },
-                                    { icon: "âœ…", label: "Validate", delay: "1.5s" },
-                                    { icon: "ðŸŽ¯", label: "Learn", delay: "2s" },
+                                    { icon: "Ã°Å¸â€œÂ¥", label: "Ingest", delay: "0s" },
+                                    { icon: "Ã°Å¸Å½Â¯", label: "Advise", delay: "0.5s" },
+                                    { icon: "Ã°Å¸Â§Â ", label: "Extract", delay: "1s" },
+                                    { icon: "Ã¢Å“â€¦", label: "Safe Route", delay: "1.5s" },
+                                    { icon: "Ã°Å¸â€œË†", label: "Feedback", delay: "2s" },
                                 ].map((step, i) => (
                                     <div key={i} className="flex items-center gap-1">
                                         <div className="flex flex-col items-center px-1.5 py-1 rounded-lg" style={{ animation: `pipelineStep 2s ease-in-out ${step.delay} infinite` }}>
@@ -488,7 +652,7 @@ export default function IDPOPage() {
                                 <div className="h-full rounded-full bg-gradient-to-r from-brand-500 via-cyan-400 to-violet-500" style={{
                                     backgroundSize: "200% 100%",
                                     animation: "gradientMove 1.5s ease-in-out infinite",
-                                    width: `${Math.min(95, (elapsedSec / (enableGuardrails ? 30 : 12)) * 100)}%`,
+                                    width: `${Math.min(95, (elapsedSec / 12) * 100)}%`,
                                     transition: "width 1s ease-out"
                                 }} />
                             </div>
@@ -504,16 +668,16 @@ export default function IDPOPage() {
                 </div>
             )}
 
-            {/* â”€â”€ Main content grid â”€â”€ */}
+            {/* Ã¢â€â‚¬Ã¢â€â‚¬ Main content grid Ã¢â€â‚¬Ã¢â€â‚¬ */}
             <div className="grid gap-5 lg:grid-cols-5">
-                {/* â”€â”€ Upload Panel (2 cols) â”€â”€ */}
+                {/* Ã¢â€â‚¬Ã¢â€â‚¬ Upload Panel (2 cols) Ã¢â€â‚¬Ã¢â€â‚¬ */}
                 <div className="lg:col-span-2 space-y-4">
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {/* Drop Zone */}
                         <div
                             role="button"
                             tabIndex={0}
-                            aria-label="Upload documents â€” drag and drop or click to browse"
+                            aria-label="Upload documents Ã¢â‚¬â€ drag and drop or click to browse"
                             className={`relative overflow-hidden glass-panel rounded-2xl p-8 text-center cursor-pointer transition-all duration-300 ${dragActive
                                 ? "ring-2 ring-brand-500 bg-brand-50/50 dark:bg-brand-500/5 border-brand-300 dark:border-brand-500/30 scale-[1.02] shadow-2xl shadow-brand-500/20"
                                 : "hover:border-brand-300 dark:hover:border-brand-500/20 hover:shadow-xl"
@@ -539,10 +703,10 @@ export default function IDPOPage() {
                                     </svg>
                                 </div>
                                 <p className="text-sm font-semibold text-slate-700 dark:text-gray-200">
-                                    {dragActive ? "Drop files here" : "Drag & drop documents"}
+                                    {dragActive ? "Drop files here" : "Drag and drop documents"}
                                 </p>
                                 <p className="text-xs text-slate-400 dark:text-gray-500 mt-1.5">
-                                    PDF, PNG, JPG, TIFF, TXT, JSON â€” or click to browse
+                                    PDF, PNG, JPG, TIFF, TXT, JSON or click to browse
                                 </p>
                             </div>
                         </div>
@@ -564,7 +728,8 @@ export default function IDPOPage() {
                                                 </span>
                                             </div>
                                             <button type="button" onClick={() => removeFile(i)}
-                                                className="text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors text-sm ml-2">âœ•</button>
+                                                aria-label={`Remove ${file.name}`}
+                                                className="text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors text-[11px] font-semibold ml-2">Remove</button>
                                         </div>
                                     ))}
                                 </div>
@@ -583,9 +748,10 @@ export default function IDPOPage() {
                                         <div key={i} className="flex items-center gap-2 px-3 py-2 bg-brand-50/50 dark:bg-brand-500/5 rounded-lg border border-brand-100 dark:border-brand-500/10">
                                             <span className="w-1.5 h-1.5 rounded-full bg-brand-500 flex-shrink-0" />
                                             <span className="text-xs font-medium text-slate-800 dark:text-gray-200">{field.name}</span>
-                                            {field.description && <span className="text-[10px] text-slate-400 dark:text-gray-500 truncate">â€” {field.description}</span>}
+                                            {field.description && <span className="text-[10px] text-slate-400 dark:text-gray-500 truncate">- {field.description}</span>}
                                             <button type="button" onClick={() => removeField(i)}
-                                                className="ml-auto text-slate-400 hover:text-red-500 text-xs flex-shrink-0">âœ•</button>
+                                                aria-label={`Remove field ${field.name}`}
+                                                className="ml-auto text-slate-400 hover:text-red-500 text-[11px] font-semibold flex-shrink-0">Remove</button>
                                         </div>
                                     ))}
                                 </div>
@@ -593,7 +759,7 @@ export default function IDPOPage() {
                             {fields.length === 0 && (
                                 <div className="space-y-2">
                                     <p className="text-[11px] text-slate-500 dark:text-gray-400">
-                                        No fields defined â€” the system will auto-extract all detected entities. Add fields below to target specific data.
+                                        No fields defined. The system will auto-extract detected entities. Add fields below to target specific data.
                                     </p>
                                     <div className="flex flex-wrap gap-1.5">
                                         <span className="text-[10px] text-slate-400 dark:text-gray-500 italic mr-1">Examples:</span>
@@ -626,77 +792,166 @@ export default function IDPOPage() {
                             </div>
                         </div>
 
-                        {/* Pipeline Options â€” Upfront Toggles */}
+                        {/* Pipeline Options Ã¢â‚¬â€ Upfront Toggles */}
                         <div className="glass-panel rounded-xl p-4 space-y-3">
                             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Pipeline Options</p>
+                            <div className="rounded-xl border border-slate-200 dark:border-gray-700 p-3 bg-white/40 dark:bg-gray-800/30">
+                                <div className="flex items-center justify-between gap-3 mb-2">
+                                    <div>
+                                        <p className="text-[11px] font-semibold text-slate-700 dark:text-gray-200">Run Mode</p>
+                                        <p className="text-[9px] text-slate-400 dark:text-gray-500">Use the same workflow for deterministic and adaptive-safe processing.</p>
+                                    </div>
+                                    <span className="px-2 py-0.5 rounded-full bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-[10px] font-medium text-brand-700 dark:text-brand-300">
+                                        {adaptiveMode}
+                                    </span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {([
+                                        {
+                                            key: "static" as const,
+                                            label: "static",
+                                            desc: "Deterministic baseline without AHMN advice.",
+                                        },
+                                        {
+                                            key: "adaptive_safe" as const,
+                                            label: "adaptive_safe",
+                                            desc: "AHMN top-1 advice with IDPO fallback and rollback.",
+                                        },
+                                    ]).map((mode) => (
+                                        <button
+                                            key={mode.key}
+                                            type="button"
+                                            onClick={() => setAdaptiveMode(mode.key)}
+                                            className={`rounded-lg border px-3 py-3 text-left transition-all ${
+                                                adaptiveMode === mode.key
+                                                    ? "border-brand-300 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 shadow-sm"
+                                                    : "border-slate-200 dark:border-gray-700 bg-white/50 dark:bg-gray-800/40 hover:border-slate-300 dark:hover:border-gray-600"
+                                            }`}
+                                        >
+                                            <p className="text-[11px] font-semibold text-slate-800 dark:text-gray-100">{mode.label}</p>
+                                            <p className="mt-1 text-[10px] text-slate-500 dark:text-gray-400">{mode.desc}</p>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                             <div className="space-y-2">
-                                {([
-                                    { key: "guardrails" as const, icon: "ðŸ›¡ï¸", label: "Guardrails", desc: "6-layer quality validation (~8-20s)", checked: enableGuardrails, setter: setEnableGuardrails },
-                                ]).map((opt) => (
-                                    <label key={opt.key} className={`flex items-center justify-between cursor-pointer px-3 py-2.5 rounded-lg border transition-all duration-150 ${opt.checked ? "bg-brand-50/50 dark:bg-brand-500/5 border-brand-200 dark:border-brand-500/20" : "bg-white/30 dark:bg-gray-800/20 border-slate-200/60 dark:border-gray-700/40 hover:border-slate-300 dark:hover:border-gray-600"}`}>
-                                        <div className="flex items-center gap-2.5">
-                                            <span className="text-base">{opt.icon}</span>
-                                            <div>
-                                                <p className="text-[11px] font-semibold text-slate-700 dark:text-gray-200">{opt.label}</p>
-                                                <p className="text-[9px] text-slate-400 dark:text-gray-500">{opt.desc}</p>
-                                            </div>
-                                        </div>
-                                        <div className="relative">
-                                            <input type="checkbox" checked={opt.checked} onChange={(e) => opt.setter(e.target.checked)} className="sr-only peer" />
-                                            <div className="w-9 h-5 bg-slate-200 dark:bg-gray-700 rounded-full peer peer-checked:bg-brand-500 transition-colors" />
-                                            <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-4 transition-transform" />
-                                        </div>
-                                    </label>
-                                ))}
+                                <div className="rounded-lg border border-amber-200/70 bg-amber-50/60 px-3 py-2.5 text-[10px] text-amber-900 dark:border-amber-400/20 dark:bg-amber-500/10 dark:text-amber-100">
+                                    Guardrails and XAI are not part of the canonical research runtime. Those legacy toggles were removed from this path.
+                                </div>
                             </div>
                             <p className="text-[9px] text-slate-400 dark:text-gray-500 text-center pt-1">
-                                Estimated time: ~{enableGuardrails ? "15-30s" : "5-10s"} per document
+                                Estimated time: ~{adaptiveMode === "adaptive_safe" ? "8-15s" : "5-10s"} per document
                             </p>
                         </div>
 
-                        {/* Config (collapsible) */}
-                        <button type="button" onClick={() => setShowConfig(!showConfig)}
-                            className="w-full glass-panel rounded-xl px-4 py-3 text-left hover:bg-white/80 dark:hover:bg-gray-800/60 transition-all duration-150">
+                        <button
+                            type="button"
+                            onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                            className="w-full glass-panel rounded-xl px-4 py-3 text-left hover:bg-white/80 dark:hover:bg-gray-800/60 transition-all duration-150"
+                        >
                             <div className="flex items-center justify-between">
-                                <span className="text-xs font-medium text-slate-600 dark:text-gray-300">Advanced Configuration</span>
-                                <span className="text-slate-400 text-xs transition-transform duration-150" style={{ transform: showConfig ? "rotate(180deg)" : "rotate(0deg)" }}>â–¼</span>
+                                <span className="text-xs font-medium text-slate-600 dark:text-gray-300">Advanced Settings</span>
+                                <span className="text-slate-400 text-xs transition-transform duration-150" style={{ transform: showAdvancedSettings ? "rotate(180deg)" : "rotate(0deg)" }}>v</span>
                             </div>
                         </button>
-                        {showConfig && (
+                        {showAdvancedSettings && (
+                            <div className="glass-panel rounded-xl p-4 space-y-4">
+                                <div className="rounded-lg border border-slate-200/70 dark:border-gray-700/70 bg-white/40 dark:bg-gray-800/20 px-3 py-2.5">
+                                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Base Config</p>
+                                    <p className="mt-1 text-xs font-mono text-slate-700 dark:text-gray-200">{configPath}</p>
+                                    <p className="mt-1 text-[10px] text-slate-400 dark:text-gray-500">Only canonical runtime controls remain here. Dead routing, guardrails, and XAI toggles were removed.</p>
+                                </div>
+                                <div className="grid gap-3 sm:grid-cols-1">
+                                    <label className="block">
+                                        <span className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-gray-400">Max Cost Per Doc</span>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={maxCostPerDoc}
+                                            onChange={(e) => setMaxCostPerDoc(e.target.value)}
+                                            placeholder="Use config default"
+                                            className="w-full glass-input px-3 py-2 text-xs rounded-lg"
+                                        />
+                                    </label>
+                                </div>
+                                <label className={`flex items-center justify-between rounded-lg border px-3 py-2.5 transition-all duration-150 ${escalationEnabled ? "bg-brand-50/50 dark:bg-brand-500/5 border-brand-200 dark:border-brand-500/20" : "bg-white/30 dark:bg-gray-800/20 border-slate-200/60 dark:border-gray-700/40"}`}>
+                                    <div>
+                                        <p className="text-[11px] font-semibold text-slate-700 dark:text-gray-200">Escalation</p>
+                                        <p className="text-[9px] text-slate-400 dark:text-gray-500">Allow stronger-model escalation when the runtime requests it.</p>
+                                    </div>
+                                    <div className="relative">
+                                        <input type="checkbox" checked={escalationEnabled} onChange={(e) => setEscalationEnabled(e.target.checked)} className="sr-only peer" />
+                                        <div className="w-9 h-5 bg-slate-200 dark:bg-gray-700 rounded-full peer peer-checked:bg-brand-500 transition-colors" />
+                                        <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-4 transition-transform" />
+                                    </div>
+                                </label>
+                            </div>
+                        )}
+
+                        {/* Legacy config path control kept hidden for compatibility */}
+                        <button type="button" onClick={() => setShowConfig(!showConfig)}
+                            className="hidden w-full glass-panel rounded-xl px-4 py-3 text-left hover:bg-white/80 dark:hover:bg-gray-800/60 transition-all duration-150">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-medium text-slate-600 dark:text-gray-300">Advanced Configuration</span>
+                                <span className="text-slate-400 text-xs transition-transform duration-150" style={{ transform: showConfig ? "rotate(180deg)" : "rotate(0deg)" }}>Ã¢â€“Â¼</span>
+                            </div>
+                        </button>
+                        {false && showConfig && (
                             <div className="glass-panel rounded-xl p-4">
                                 <label className="block text-xs font-medium text-slate-500 dark:text-gray-400 mb-2">Pipeline Config Path</label>
-                                <input type="text" value={configPath} onChange={(e) => setConfigPath(e.target.value)}
+                                <input type="text" value={configPath} readOnly
                                     className="w-full glass-input px-3 py-2 text-xs rounded-lg" />
                             </div>
                         )}
 
                         {/* Submit */}
-                        <button type="submit" disabled={loading || files.length === 0}
-                            className="w-full rounded-2xl px-4 py-4 text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2.5 font-bold text-white shadow-lg hover:shadow-xl transition-all duration-200 active:scale-[0.98] bg-gradient-to-r from-brand-500 to-cyan-500 shadow-brand-500/20 hover:shadow-brand-500/30">
-                            {loading ? (
-                                <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing Pipeline...</>
-                            ) : (
-                                <>
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                    </svg>
-                                    Process {files.length > 0 ? `${files.length} Document${files.length > 1 ? "s" : ""}` : "Documents"}
-                                </>
-                            )}
-                        </button>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                            <button type="submit" disabled={loading || files.length === 0}
+                                className="w-full rounded-2xl px-4 py-4 text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2.5 font-bold text-white shadow-lg hover:shadow-xl transition-all duration-200 active:scale-[0.98] bg-gradient-to-r from-brand-500 to-cyan-500 shadow-brand-500/20 hover:shadow-brand-500/30">
+                                {loading ? (
+                                    <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing Pipeline...</>
+                                ) : (
+                                    <>
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                        </svg>
+                                        Run {adaptiveMode}
+                                    </>
+                                )}
+                            </button>
+                            <button
+                                type="button"
+                                disabled={loading || files.length === 0}
+                                onClick={handlePairedRun}
+                                className="w-full rounded-2xl px-4 py-4 text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2.5 font-bold text-slate-900 dark:text-white shadow-lg hover:shadow-xl transition-all duration-200 active:scale-[0.98] bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                            >
+                                {loading ? (
+                                    <><div className="w-4 h-4 border-2 border-slate-400/30 border-t-slate-600 dark:border-white/30 dark:border-t-white rounded-full animate-spin" /> Running paired comparison...</>
+                                ) : (
+                                    <>
+                                        <span className="text-base font-semibold">2x</span>
+                                        Run static + adaptive_safe
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                        <p className="text-[10px] text-slate-400 dark:text-gray-500 text-center">
+                            Paired run submits the same upload twice and links both runs for comparison and evidence generation.
+                        </p>
                     </form>
 
                     {error && (
                         <div role="alert" aria-live="assertive" className={`glass-panel rounded-xl p-4 border-l-4 ${result && result.docs.length > 0 ? "border-l-amber-500" : "border-l-red-500"}`}>
                             <div className="flex items-start gap-2">
-                                <span className="text-sm mt-0.5">{result && result.docs.length > 0 ? "âš ï¸" : "âŒ"}</span>
+                                <span className="text-sm mt-0.5">{result && result.docs.length > 0 ? "Ã¢Å¡Â Ã¯Â¸Â" : "Ã¢ÂÅ’"}</span>
                                 <div>
                                     <p className={`text-xs font-medium ${result && result.docs.length > 0 ? "text-amber-700 dark:text-amber-300" : "text-red-700 dark:text-red-300"}`}>{error}</p>
                                     {result?.partial_failures && result.partial_failures.length > 0 && (
                                         <div className="mt-2 space-y-1">
                                             {result.partial_failures.map((pf, i) => (
                                                 <div key={i} className="flex items-start gap-1.5 text-[10px] text-amber-600 dark:text-amber-400">
-                                                    <span className="mt-0.5 flex-shrink-0">â€¢</span>
+                                                    <span className="mt-0.5 flex-shrink-0">Ã¢â‚¬Â¢</span>
                                                     <span><span className="font-medium">{pf.file}:</span> {pf.error}</span>
                                                 </div>
                                             ))}
@@ -707,7 +962,7 @@ export default function IDPOPage() {
                         </div>
                     )}
 
-                    {/* â”€â”€ Multi-Document Progress Tracker â”€â”€ */}
+                    {/* Ã¢â€â‚¬Ã¢â€â‚¬ Multi-Document Progress Tracker Ã¢â€â‚¬Ã¢â€â‚¬ */}
                     {loading && docProgress.length > 1 && (
                         <div className="glass-panel rounded-xl p-4 space-y-3" role="status" aria-label="Document processing progress">
                             <div className="flex items-center justify-between">
@@ -738,11 +993,11 @@ export default function IDPOPage() {
                                         }`}>
                                         {/* Status icon */}
                                         <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center">
-                                            {dp.status === "done" && <span className="text-emerald-500 text-sm">âœ“</span>}
+                                            {dp.status === "done" && <span className="text-emerald-500 text-sm">Ã¢Å“â€œ</span>}
                                             {dp.status === "processing" && (
                                                 <div className="w-4 h-4 border-2 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
                                             )}
-                                            {dp.status === "error" && <span className="text-red-500 text-sm">âœ•</span>}
+                                            {dp.status === "error" && <span className="text-red-500 text-sm">Ã¢Å“â€¢</span>}
                                             {dp.status === "queued" && (
                                                 <div className="w-2 h-2 rounded-full bg-slate-300 dark:bg-gray-600" />
                                             )}
@@ -778,7 +1033,7 @@ export default function IDPOPage() {
                         </div>
                     )}
 
-                    {/* â”€â”€ Quick Integration Summary (sidebar) â”€â”€ */}
+                    {/* Ã¢â€â‚¬Ã¢â€â‚¬ Quick Integration Summary (sidebar) Ã¢â€â‚¬Ã¢â€â‚¬ */}
                     {integration && (() => {
                         // Compute per-doc advice summary
                         const advices = integration.ahmn_advices || [];
@@ -791,21 +1046,25 @@ export default function IDPOPage() {
 
                         return (
                             <div className="glass-panel rounded-xl p-4 space-y-3">
-                                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Integration Summary</p>
+                                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Adaptive Routing Summary</p>
                                 <div className="space-y-2">
-                                    <SummaryRow icon="ðŸŽ¯" label="AHMN Policies"
+                                    <SummaryRow icon="Ã°Å¸Å½Â¯" label="Top-1 Advice"
                                         value={`${validAdvices.length} doc${validAdvices.length !== 1 ? "s" : ""}`}
                                         status={validAdvices.length > 0}
-                                        detail={uniquePolicies.length > 1 ? `${uniquePolicies.length} policies, avg ${(avgConfidence * 100).toFixed(0)}%` : validAdvices.length > 0 ? `${uniquePolicies[0] || "default"} (${(avgConfidence * 100).toFixed(0)}%)` : "No advices"} />
-                                    <SummaryRow icon="ðŸ›¡ï¸" label="Guardrails"
+                                        detail={uniquePolicies.length > 1 ? `${uniquePolicies.length} recommendations, avg ${(avgConfidence * 100).toFixed(0)}%` : validAdvices.length > 0 ? `${uniquePolicies[0] || "default"} (${(avgConfidence * 100).toFixed(0)}%)` : "No advice"} />
+                                    <SummaryRow icon="Ã°Å¸Â§Â­" label="Fallback / Safety"
+                                        value={`${advices.filter(a => a.fallback_reason || a.safety_status?.rollback_triggered || a.safety_status?.blocked_policy).length} doc${advices.filter(a => a.fallback_reason || a.safety_status?.rollback_triggered || a.safety_status?.blocked_policy).length !== 1 ? "s" : ""}`}
+                                        status={advices.some(a => a.selected_policy_id || a.policy_id)}
+                                        detail={advices.some(a => a.fallback_reason || a.safety_status?.rollback_triggered || a.safety_status?.blocked_policy) ? "Fallback or rollback recorded" : "No fallback or rollback recorded"} />
+                                    <SummaryRow icon="Ã°Å¸â€ºÂ¡Ã¯Â¸Â" label="Guardrails"
                                         value={integration.skipped_guardrails ? "Skipped" : `${integration.guardrails.filter(g => g.overall_passes).length}/${integration.guardrails.length} passed`}
                                         status={integration.skipped_guardrails ? null : integration.guardrails.every(g => g.overall_passes || !!g.error)}
                                         detail={integration.skipped_guardrails ? "Disabled by user" : integration.guardrails.some(g => g.error) ? "Some checks unavailable" : undefined} />
-                                    <SummaryRow icon="ðŸ“Š" label="Explanations"
+                                    <SummaryRow icon="Ã°Å¸â€œÅ " label="Explanations"
                                         value={integration.skipped_xai ? "Skipped" : `${integration.xai_explanations.filter(x => !x.error).length} docs explained`}
                                         status={integration.skipped_xai ? null : integration.xai_explanations.some(x => !x.error)}
                                         detail={integration.skipped_xai ? "Disabled by user" : integration.xai_explanations.some(x => x.error) ? "Some unavailable" : undefined} />
-                                    <SummaryRow icon="ðŸ“ˆ" label="AHMN Learn"
+                                    <SummaryRow icon="Ã°Å¸â€œË†" label="Feedback Logged"
                                         value={`${loggedFeedbacks.length}/${advices.length} logged`}
                                         status={loggedFeedbacks.length > 0}
                                         detail={loggedFeedbacks.length > 0 ? `Avg F1: ${(avgF1 * 100).toFixed(1)}%` : "No feedback logged"} />
@@ -818,7 +1077,7 @@ export default function IDPOPage() {
                     })()}
                 </div>
 
-                {/* â”€â”€ Results Panel (3 cols) â”€â”€ */}
+                {/* Ã¢â€â‚¬Ã¢â€â‚¬ Results Panel (3 cols) Ã¢â€â‚¬Ã¢â€â‚¬ */}
                 <div className="lg:col-span-3 space-y-4">
                     {!result ? (
                         <div className="glass-panel rounded-2xl p-12 text-center">
@@ -828,17 +1087,17 @@ export default function IDPOPage() {
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                                     </svg>
                                 </div>
-                                <p className="text-lg font-bold text-slate-600 dark:text-gray-300">Ready to extract</p>
-                                <p className="text-sm text-slate-400 dark:text-gray-500 mt-2">Upload documents to run the full AI processing pipeline</p>
-                                <div className="mt-6 grid grid-cols-4 gap-2 stagger-children">
+                                <p className="text-lg font-bold text-slate-600 dark:text-gray-300">Ready to run the IDPO journey</p>
+                                <p className="text-sm text-slate-400 dark:text-gray-500 mt-2">Upload documents to see identification, policy selection, execution, evaluation, and feedback in one path.</p>
+                                <div className="mt-6 grid grid-cols-5 gap-2 stagger-children">
                                     {[
-                                        { icon: "ðŸŽ¯", label: "Advise" },
-                                        { icon: "âš™ï¸", label: "Extract" },
-                                        { icon: "ðŸ›¡ï¸", label: "Validate" },
-                                        { icon: "ï¿½", label: "Learn" },
+                                        { icon: "Ã°Å¸Å½Â¯", label: "Advise" },
+                                        { icon: "Ã¢Å¡â„¢Ã¯Â¸Â", label: "Execute" },
+                                        { icon: "Ã°Å¸Â§Â­", label: "Safeguard" },
+                                        { icon: "Ã°Å¸â€œË†", label: "Feedback" },
                                     ].map((step) => (
                                         <div key={step.label} className="px-2 py-2.5 bg-slate-50 dark:bg-gray-800/50 rounded-xl border border-slate-200/60 dark:border-gray-700">
-                                            <span className="text-lg block mb-0.5">{step.icon}</span>
+                                            <span className="text-sm block mb-0.5 font-semibold text-slate-700 dark:text-slate-200">{safeIconText(step.icon, step.label)}</span>
                                             <p className="text-[10px] text-slate-500 dark:text-gray-400 text-center font-medium">{step.label}</p>
                                         </div>
                                     ))}
@@ -876,16 +1135,55 @@ export default function IDPOPage() {
                                     )}
                                     <div className="ml-auto flex gap-2">
                                         <button onClick={() => handleDownload("docs.xlsx", "docs.xlsx")}
-                                            className="px-3 py-1.5 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-500/20 text-xs font-medium transition-all shadow-sm shadow-brand-500/5">â†“ Results</button>
+                                            className="px-3 py-1.5 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-500/20 text-xs font-medium transition-all shadow-sm shadow-brand-500/5">Download Results</button>
                                         {result.entities?.length > 0 && (
                                             <button onClick={() => handleDownload("entities.xlsx", "entities.xlsx")}
-                                                className="px-3 py-1.5 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 text-violet-700 dark:text-violet-300 rounded-lg hover:bg-violet-100 dark:hover:bg-violet-500/20 text-xs font-medium transition-all shadow-sm shadow-violet-500/5">â†“ Entities</button>
+                                                className="px-3 py-1.5 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 text-violet-700 dark:text-violet-300 rounded-lg hover:bg-violet-100 dark:hover:bg-violet-500/20 text-xs font-medium transition-all shadow-sm shadow-violet-500/5">Download Fields</button>
                                         )}
                                         {result.docs.some((doc) => Boolean(doc.extracted_text?.trim())) && (
                                             <button onClick={handleDownloadFullExtractedDocs}
-                                                className="px-3 py-1.5 bg-cyan-50 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/20 text-cyan-700 dark:text-cyan-300 rounded-lg hover:bg-cyan-100 dark:hover:bg-cyan-500/20 text-xs font-medium transition-all shadow-sm shadow-cyan-500/5">â†“ Full Text</button>
+                                                className="px-3 py-1.5 bg-cyan-50 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/20 text-cyan-700 dark:text-cyan-300 rounded-lg hover:bg-cyan-100 dark:hover:bg-cyan-500/20 text-xs font-medium transition-all shadow-sm shadow-cyan-500/5">Download Text</button>
                                         )}
                                     </div>
+                                    <div className="hidden">
+                                        <button onClick={() => handleDownload("docs.xlsx", "docs.xlsx")}
+                                            className="px-3 py-1.5 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-500/20 text-xs font-medium transition-all shadow-sm shadow-brand-500/5">Ã¢â€ â€œ Results</button>
+                                        {result.entities?.length > 0 && (
+                                            <button onClick={() => handleDownload("entities.xlsx", "entities.xlsx")}
+                                                className="px-3 py-1.5 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 text-violet-700 dark:text-violet-300 rounded-lg hover:bg-violet-100 dark:hover:bg-violet-500/20 text-xs font-medium transition-all shadow-sm shadow-violet-500/5">Ã¢â€ â€œ Entities</button>
+                                        )}
+                                        {result.docs.some((doc) => Boolean(doc.extracted_text?.trim())) && (
+                                            <button onClick={handleDownloadFullExtractedDocs}
+                                                className="px-3 py-1.5 bg-cyan-50 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/20 text-cyan-700 dark:text-cyan-300 rounded-lg hover:bg-cyan-100 dark:hover:bg-cyan-500/20 text-xs font-medium transition-all shadow-sm shadow-cyan-500/5">Ã¢â€ â€œ Full Text</button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                <div className="glass-panel rounded-xl p-4">
+                                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Advice Followed</p>
+                                    <p className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{adviceFollowedCount}</p>
+                                    <p className="mt-1 text-[11px] text-slate-500 dark:text-gray-400">Documents that stayed on the advised policy.</p>
+                                </div>
+                                <div className="glass-panel rounded-xl p-4">
+                                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Safety + Review</p>
+                                    <p className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">
+                                        {fallbackCount} fallback / {rollbackCount} rollback / {reviewCount} review
+                                    </p>
+                                    <p className="mt-1 text-[11px] text-slate-500 dark:text-gray-400">Fallback, rollback, and defer states across this run.</p>
+                                </div>
+                                <div className="glass-panel rounded-xl p-4">
+                                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Schema Quality</p>
+                                    <p className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{formatPercent(schemaValidRate)} valid</p>
+                                    <p className="mt-1 text-[11px] text-slate-500 dark:text-gray-400">
+                                        Coverage {formatPercent(avgSchemaCoverage)} / grounded {formatPercent(avgGroundingCoverage)}
+                                    </p>
+                                </div>
+                                <div className="glass-panel rounded-xl p-4">
+                                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Feedback Logged</p>
+                                    <p className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{feedbackLoggedCount}</p>
+                                    <p className="mt-1 text-[11px] text-slate-500 dark:text-gray-400">Completed feedback updates sent back to AHMN.</p>
                                 </div>
                             </div>
 
@@ -896,7 +1194,7 @@ export default function IDPOPage() {
                                     <ul className="space-y-1">
                                         {result.warnings.map((w, i) => (
                                             <li key={i} className="text-xs text-amber-600 dark:text-amber-400 flex items-start gap-1.5">
-                                                <span className="mt-0.5">âš </span> {w}
+                                                <span className="mt-0.5">Ã¢Å¡Â </span> {w}
                                             </li>
                                         ))}
                                     </ul>
@@ -905,7 +1203,7 @@ export default function IDPOPage() {
 
                             {/* Tab Bar */}
                             <div className="glass-panel rounded-xl p-1.5 flex gap-1" role="tablist" aria-label="Result views">
-                                {(["documents", "entities", "fulltext", "integration"] as const).map((tab) => (
+                                {(["documents", "integration", "entities", "fulltext"] as const).map((tab) => (
                                     <button key={tab} onClick={() => setActiveTab(tab)}
                                         role="tab"
                                         aria-selected={activeTab === tab}
@@ -916,10 +1214,10 @@ export default function IDPOPage() {
                                                 : "bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-500/20 shadow-sm shadow-brand-500/5"
                                             : "text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 hover:bg-slate-50 dark:hover:bg-gray-800 border border-transparent"
                                             }`}>
-                                        {tab === "documents" && `ðŸ“„ Docs (${result.docs.length})`}
-                                        {tab === "entities" && `ðŸ·ï¸ Entities (${result.entities?.length || 0})`}
-                                        {tab === "fulltext" && "ðŸ“ Full Text"}
-                                        {tab === "integration" && "ðŸ”„ Pipeline"}
+                                        {tab === "documents" && `Journey (${result.docs.length})`}
+                                        {tab === "entities" && `Fields (${result.entities?.length || 0})`}
+                                        {tab === "fulltext" && "Extracted Text"}
+                                        {tab === "integration" && "Policy + Feedback"}
                                     </button>
                                 ))}
                             </div>
@@ -927,7 +1225,7 @@ export default function IDPOPage() {
                             {/* Tab Content */}
                             <div className="space-y-3">
                                 {activeTab === "documents" && result.docs.map((doc, docIndex) => (
-                                    <DocCard key={doc.doc_id} doc={doc} expanded={expandedDoc === doc.doc_id}
+                                    <JourneyDocCard key={doc.doc_id} doc={doc} expanded={expandedDoc === doc.doc_id}
                                         onToggle={() => setExpandedDoc(expandedDoc === doc.doc_id ? null : doc.doc_id)}
                                         guardrail={integration?.guardrails.find(g => g.document_id === doc.doc_id)}
                                         xai={integration?.xai_explanations.find(x => x.document_id === doc.doc_id)}
@@ -957,7 +1255,7 @@ export default function IDPOPage() {
                                                             {f === "all" ? `All (${(() => {
                                                                 const allEnts = result.docs.flatMap(d => d.entity_details || []);
                                                                 return allEnts.length || result.entities.length;
-                                                            })()})` : f === "high" ? "â‰¥70%" : f === "medium" ? "50-70%" : "<50%"}
+                                                            })()})` : f === "high" ? "Ã¢â€°Â¥70%" : f === "medium" ? "50-70%" : "<50%"}
                                                         </button>
                                                     ))}
                                                 </div>
@@ -973,12 +1271,12 @@ export default function IDPOPage() {
                                                     allEntities = result.entities.map((e: any) => ({
                                                         key: e.field_key || e.key || Object.keys(e)[0] || "",
                                                         label: e.field_key || e.key || "",
-                                                        value: e.field_value || e.value || Object.values(e)[1] || "â€”",
+                                                        value: e.field_value || e.value || Object.values(e)[1] || "Ã¢â‚¬â€",
                                                         confidence: typeof e.confidence === "number" ? e.confidence : parseFloat(e.field_confidence) || 0,
-                                                        source: e.source || e.field_source || "â€”",
+                                                        source: e.source || e.field_source || "Ã¢â‚¬â€",
                                                         page: e.page,
                                                         is_explicit: false,
-                                                        docName: "â€”",
+                                                        docName: "Ã¢â‚¬â€",
                                                     }));
                                                 }
                                                 // Apply search filter
@@ -1033,7 +1331,7 @@ export default function IDPOPage() {
                                                                                     </span>
                                                                                 </div>
                                                                             </td>
-                                                                            <td className="px-4 py-2 text-slate-500 dark:text-gray-400 text-[10px]">{entity.source || "â€”"}</td>
+                                                                            <td className="px-4 py-2 text-slate-500 dark:text-gray-400 text-[10px]">{entity.source || "Ã¢â‚¬â€"}</td>
                                                                             <td className="px-4 py-2 text-slate-500 dark:text-gray-400 text-[10px] truncate max-w-[100px]">{entity.docName}</td>
                                                                         </tr>
                                                                     ))}
@@ -1048,10 +1346,10 @@ export default function IDPOPage() {
                                                                 </p>
                                                                 <div className="flex gap-1">
                                                                     <button onClick={() => setEntityPage(Math.max(0, currentPage - 1))} disabled={currentPage === 0}
-                                                                        className="px-2 py-1 rounded text-[10px] font-medium border border-slate-200 dark:border-gray-700 text-slate-500 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800 disabled:opacity-30 transition-all">â† Prev</button>
+                                                                        className="px-2 py-1 rounded text-[10px] font-medium border border-slate-200 dark:border-gray-700 text-slate-500 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800 disabled:opacity-30 transition-all">Ã¢â€ Â Prev</button>
                                                                     <span className="px-2 py-1 text-[10px] font-semibold text-slate-600 dark:text-gray-300">{currentPage + 1}/{totalPages}</span>
                                                                     <button onClick={() => setEntityPage(Math.min(totalPages - 1, currentPage + 1))} disabled={currentPage >= totalPages - 1}
-                                                                        className="px-2 py-1 rounded text-[10px] font-medium border border-slate-200 dark:border-gray-700 text-slate-500 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800 disabled:opacity-30 transition-all">Next â†’</button>
+                                                                        className="px-2 py-1 rounded text-[10px] font-medium border border-slate-200 dark:border-gray-700 text-slate-500 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800 disabled:opacity-30 transition-all">Next Ã¢â€ â€™</button>
                                                                 </div>
                                                             </div>
                                                         )}
@@ -1066,7 +1364,7 @@ export default function IDPOPage() {
                                         </div>
                                     ) : (
                                         <div className="glass-panel rounded-xl p-8 text-center text-slate-400 dark:text-gray-500 text-sm">
-                                            No entities extracted â€” try adding extraction fields before processing
+                                            No entities extracted Ã¢â‚¬â€ try adding extraction fields before processing
                                         </div>
                                     )
                                 )}
@@ -1078,12 +1376,12 @@ export default function IDPOPage() {
                                                 <div key={doc.doc_id} className="glass-panel rounded-xl overflow-hidden">
                                                     <div className="px-5 py-3 border-b border-slate-200 dark:border-gray-700 bg-slate-50/50 dark:bg-gray-800/30 flex items-center justify-between">
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-base">ðŸ“„</span>
+                                                            <span className="text-base">Ã°Å¸â€œâ€ž</span>
                                                             <p className="text-sm font-semibold text-slate-900 dark:text-white">{doc.filename || doc.doc_id}</p>
                                                             {doc.extracted_text && (
                                                                 <span className="text-[10px] text-slate-400 dark:text-gray-500">
                                                                     {(doc.extracted_text.match(/--- Page \d+ ---/g) || []).length || 1} page{((doc.extracted_text.match(/--- Page \d+ ---/g) || []).length || 1) !== 1 ? "s" : ""}
-                                                                    {" Â· "}{doc.extracted_text.length.toLocaleString()} chars
+                                                                    {" Ã‚Â· "}{doc.extracted_text.length.toLocaleString()} chars
                                                                 </span>
                                                             )}
                                                         </div>
@@ -1092,7 +1390,7 @@ export default function IDPOPage() {
                                                                 onClick={() => handleDownloadSingleExtractedDoc(doc)}
                                                                 className="px-3 py-1.5 bg-cyan-50 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/20 text-cyan-700 dark:text-cyan-300 rounded-lg hover:bg-cyan-100 dark:hover:bg-cyan-500/20 text-xs font-medium transition-all"
                                                             >
-                                                                â†“ Download Text
+                                                                Ã¢â€ â€œ Download Text
                                                             </button>
                                                             <button
                                                                 onClick={() => {
@@ -1100,7 +1398,7 @@ export default function IDPOPage() {
                                                                 }}
                                                                 className="px-3 py-1.5 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-500/20 text-xs font-medium transition-all"
                                                             >
-                                                                ðŸ“‹ Copy Text
+                                                                Ã°Å¸â€œâ€¹ Copy Text
                                                             </button>
                                                         </div>
                                                     </div>
@@ -1112,7 +1410,7 @@ export default function IDPOPage() {
                                         </div>
                                     ) : (
                                         <div className="glass-panel rounded-xl p-8 text-center text-slate-400 dark:text-gray-500 text-sm">
-                                            No extracted text available â€” text will appear here after processing documents
+                                            No extracted text available Ã¢â‚¬â€ text will appear here after processing documents
                                         </div>
                                     )
                                 )}
@@ -1122,7 +1420,7 @@ export default function IDPOPage() {
                                 )}
                                 {activeTab === "integration" && !integration && (
                                     <div className="glass-panel rounded-xl p-8 text-center text-slate-400 dark:text-gray-500 text-sm">
-                                        No integration data â€” services may be unavailable
+                                        No integration data Ã¢â‚¬â€ services may be unavailable
                                     </div>
                                 )}
                             </div>
@@ -1134,16 +1432,17 @@ export default function IDPOPage() {
     );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 /*  Sub-Components                                                          */
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 
 function CycleStatusBadge({ integration }: { integration: PipelineIntegration }) {
+    const safeRoutingOk = integration.ahmn_advices.some((advice) => advice.selected_policy_id || advice.policy_id);
     const stages = [
         { ok: !integration.ahmn_advice.error, label: "A" },
-        { ok: integration.guardrails.some(g => g.overall_passes), label: "G" },
-        { ok: integration.xai_explanations.some(x => !x.error), label: "X" },
-        { ok: integration.ahmn_feedback.status === "logged", label: "L" },
+        { ok: safeRoutingOk, label: "S" },
+        { ok: integration.guardrails.length === 0 || integration.guardrails.some(g => g.overall_passes), label: "G" },
+        { ok: integration.ahmn_feedback.status === "logged", label: "F" },
     ];
     const allOk = stages.every(s => s.ok);
     return (
@@ -1153,7 +1452,7 @@ function CycleStatusBadge({ integration }: { integration: PipelineIntegration })
             {stages.map((s, i) => (
                 <span key={i} className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${s.ok ? "bg-emerald-500 text-white" : "bg-slate-300 dark:bg-gray-600 text-white"}`}>{s.label}</span>
             ))}
-            <span className="ml-1">{allOk ? "Full Cycle" : "Partial"}</span>
+            <span className="ml-1">{allOk ? "Adaptive Safe" : "Partial"}</span>
         </div>
     );
 }
@@ -1161,7 +1460,7 @@ function CycleStatusBadge({ integration }: { integration: PipelineIntegration })
 function SummaryRow({ icon, label, value, status, detail }: { icon: string; label: string; value: string; status: boolean | null; detail?: string }) {
     return (
         <div className="flex items-start gap-2.5 px-3 py-2 bg-white/40 dark:bg-gray-800/30 rounded-lg">
-            <span className="text-sm mt-0.5">{icon}</span>
+            <span className="text-[11px] font-semibold text-slate-500 dark:text-gray-400 mt-0.5">{safeIconText(icon, label)}</span>
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                     <p className="text-[11px] font-medium text-slate-700 dark:text-gray-200">{label}</p>
@@ -1181,10 +1480,10 @@ function IntegrationPanel({ integration, activeSubTab, onSubTabChange, durationM
     durationMs?: number;
 }) {
     const tabs = [
-        { key: "advice" as const, icon: "ðŸŽ¯", label: "AHMN Advice" },
-        { key: "guardrails" as const, icon: "ðŸ›¡ï¸", label: "Guardrails" },
-        { key: "xai" as const, icon: "ðŸ“Š", label: "Explanations" },
-        { key: "feedback" as const, icon: "ï¿½", label: "AHMN Learn" },
+        { key: "advice" as const, icon: "Ã°Å¸Å½Â¯", label: "Advisor" },
+        { key: "guardrails" as const, icon: "Ã°Å¸â€ºÂ¡Ã¯Â¸Â", label: "Guardrails" },
+        { key: "xai" as const, icon: "Ã°Å¸â€œÅ ", label: "Explanations" },
+        { key: "feedback" as const, icon: "Ã¯Â¿Â½", label: "Feedback" },
     ];
     return (
         <div className="space-y-3">
@@ -1213,7 +1512,7 @@ function IntegrationPanel({ integration, activeSubTab, onSubTabChange, durationM
 }
 
 function AdvicePanel({ advices }: { advices: AHMNAdvice[] }) {
-    if (advices.length === 0) return <div className="glass-panel rounded-xl p-8 text-center text-slate-400 dark:text-gray-500 text-sm">No AHMN advices available</div>;
+    if (advices.length === 0) return <div className="glass-panel rounded-xl p-8 text-center text-slate-400 dark:text-gray-500 text-sm">No AHMN advice available</div>;
 
     const validAdvices = advices.filter(a => a && !a.error);
     const uniquePolicies = [...new Set(validAdvices.map(a => a.policy_id).filter(Boolean))];
@@ -1224,9 +1523,10 @@ function AdvicePanel({ advices }: { advices: AHMNAdvice[] }) {
             {/* Summary Header */}
             <div className="glass-panel rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2"><span className="text-lg">ðŸŽ¯</span><p className="text-sm font-semibold text-slate-900 dark:text-white">Per-Document AHMN Policies</p></div>
+                <div className="flex items-center gap-2"><span className="text-lg">Ã°Å¸Å½Â¯</span><p className="text-sm font-semibold text-slate-900 dark:text-white">Per-Document Top-1 Advice</p></div>
+                
                     <span className="px-2.5 py-1 rounded-full text-[10px] font-medium border bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300">
-                        {validAdvices.length} doc{validAdvices.length !== 1 ? "s" : ""} â€¢ {uniquePolicies.length} polic{uniquePolicies.length !== 1 ? "ies" : "y"}
+                        {validAdvices.length} doc{validAdvices.length !== 1 ? "s" : ""} Ã¢â‚¬Â¢ {uniquePolicies.length} polic{uniquePolicies.length !== 1 ? "ies" : "y"}
                     </span>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
@@ -1240,7 +1540,7 @@ function AdvicePanel({ advices }: { advices: AHMNAdvice[] }) {
                     </div>
                     <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Unique Policies</p>
-                        <p className="text-xs font-medium text-slate-900 dark:text-white truncate">{uniquePolicies.join(", ") || "â€”"}</p>
+                        <p className="text-xs font-medium text-slate-900 dark:text-white truncate">{uniquePolicies.join(", ") || "Ã¢â‚¬â€"}</p>
                     </div>
                 </div>
             </div>
@@ -1270,7 +1570,7 @@ function AdvicePanel({ advices }: { advices: AHMNAdvice[] }) {
 function GuardrailsPanel({ results, skipped }: { results: GuardrailDocResult[]; skipped?: boolean }) {
     if (skipped) return (
         <div className="glass-panel rounded-xl p-8 text-center">
-            <span className="text-3xl block mb-3">ðŸ›¡ï¸</span>
+            <span className="text-3xl block mb-3">Ã°Å¸â€ºÂ¡Ã¯Â¸Â</span>
             <p className="text-sm font-medium text-slate-600 dark:text-gray-300 mb-1">Guardrails Validation Skipped</p>
             <p className="text-xs text-slate-400 dark:text-gray-500">Enable guardrails in Pipeline Options to run 6-layer quality validation</p>
         </div>
@@ -1282,7 +1582,7 @@ function GuardrailsPanel({ results, skipped }: { results: GuardrailDocResult[]; 
                 <div key={gr.document_id} className={`glass-panel rounded-xl p-4 border-l-4 ${gr.error ? "border-l-amber-500" : gr.overall_passes ? "border-l-emerald-500" : "border-l-red-500"}`}>
                     <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
-                            <span className="text-base">ðŸ›¡ï¸</span>
+                            <span className="text-base">Ã°Å¸â€ºÂ¡Ã¯Â¸Â</span>
                             <p className="text-xs font-medium text-slate-900 dark:text-white">Doc: {gr.document_id.slice(0, 12)}...</p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -1326,12 +1626,12 @@ function ComponentCard({ comp }: { comp: { component: string; title: string; sum
         info: "border-l-slate-400 bg-slate-50/30 dark:bg-slate-500/5",
     };
     const icons = {
-        ahmn: "ðŸŽ¯",
-        idpo: "âš™ï¸",
-        guardrails: "ðŸ›¡ï¸",
+        ahmn: "Ã°Å¸Å½Â¯",
+        idpo: "Ã¢Å¡â„¢Ã¯Â¸Â",
+        guardrails: "Ã°Å¸â€ºÂ¡Ã¯Â¸Â",
     };
     const bgClass = statusColors[comp.status as keyof typeof statusColors] || statusColors.info;
-    const icon = icons[comp.component as keyof typeof icons] || "ðŸ“‹";
+    const icon = icons[comp.component as keyof typeof icons] || "Ã°Å¸â€œâ€¹";
 
     return (
         <div className={`rounded-xl border-l-4 p-4 ${bgClass}`}>
@@ -1361,7 +1661,7 @@ function ComponentCard({ comp }: { comp: { component: string; title: string; sum
                                 <p className={`mt-0.5 ${detail.passed === true ? "text-emerald-600 dark:text-emerald-400" :
                                     detail.passed === false ? "text-red-600 dark:text-red-400" :
                                         "text-slate-600 dark:text-gray-300"
-                                    }`}>â†’ {detail.outcome}</p>
+                                    }`}>Ã¢â€ â€™ {detail.outcome}</p>
                             </div>
                         </div>
                     ))}
@@ -1374,7 +1674,7 @@ function ComponentCard({ comp }: { comp: { component: string; title: string; sum
 function XAIPanel({ explanations, skipped }: { explanations: XAIDocExplanation[]; skipped?: boolean }) {
     if (skipped) return (
         <div className="glass-panel rounded-xl p-8 text-center">
-            <span className="text-3xl block mb-3">ðŸ“Š</span>
+            <span className="text-3xl block mb-3">Ã°Å¸â€œÅ </span>
             <p className="text-sm font-medium text-slate-600 dark:text-gray-300 mb-1">Component Explanations Skipped</p>
             <p className="text-xs text-slate-400 dark:text-gray-500">Enable XAI in Pipeline Options to see how AHMN, IDPO, and Guardrails processed your documents</p>
         </div>
@@ -1387,7 +1687,7 @@ function XAIPanel({ explanations, skipped }: { explanations: XAIDocExplanation[]
                 <div key={xai.document_id} className="glass-panel rounded-xl p-4">
                     <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200 dark:border-gray-700">
                         <div className="flex items-center gap-2">
-                            <span className="text-base">ðŸ“„</span>
+                            <span className="text-base">Ã°Å¸â€œâ€ž</span>
                             <p className="text-sm font-medium text-slate-900 dark:text-white">Doc: {xai.document_id.slice(0, 12)}...</p>
                         </div>
                         {!xai.error && (
@@ -1443,7 +1743,7 @@ function FeedbackPanel({ feedbacks }: { feedbacks: AHMNFeedback[] }) {
             {/* Summary Header */}
             <div className="glass-panel rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2"><span className="text-lg">ðŸ“ˆ</span><p className="text-sm font-semibold text-slate-900 dark:text-white">Per-Document AHMN Learning</p></div>
+                    <div className="flex items-center gap-2"><span className="text-lg">Ã°Å¸â€œË†</span><p className="text-sm font-semibold text-slate-900 dark:text-white">Per-Document Feedback</p></div>
                     <span className={`px-2.5 py-1 rounded-full text-[10px] font-medium border ${loggedFeedbacks.length > 0 ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300" : "bg-slate-100 dark:bg-gray-800 border-slate-200 dark:border-gray-700 text-slate-600 dark:text-gray-300"}`}>
                         {loggedFeedbacks.length}/{feedbacks.length} logged
                     </span>
@@ -1451,15 +1751,15 @@ function FeedbackPanel({ feedbacks }: { feedbacks: AHMNFeedback[] }) {
                 <div className="grid grid-cols-3 gap-3">
                     <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Avg F1 Score</p>
-                        <p className="text-lg font-bold text-slate-900 dark:text-white">{loggedFeedbacks.length > 0 ? `${(avgF1 * 100).toFixed(1)}%` : "â€”"}</p>
+                        <p className="text-lg font-bold text-slate-900 dark:text-white">{loggedFeedbacks.length > 0 ? `${(avgF1 * 100).toFixed(1)}%` : "Ã¢â‚¬â€"}</p>
                     </div>
                     <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Avg Precision</p>
-                        <p className="text-lg font-bold text-slate-900 dark:text-white">{loggedFeedbacks.length > 0 ? `${(avgPrecision * 100).toFixed(1)}%` : "â€”"}</p>
+                        <p className="text-lg font-bold text-slate-900 dark:text-white">{loggedFeedbacks.length > 0 ? `${(avgPrecision * 100).toFixed(1)}%` : "Ã¢â‚¬â€"}</p>
                     </div>
                     <div className="p-3 bg-slate-50 dark:bg-gray-800/50 rounded-lg border border-slate-200 dark:border-gray-700">
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 mb-1">Avg Recall</p>
-                        <p className="text-lg font-bold text-slate-900 dark:text-white">{loggedFeedbacks.length > 0 ? `${(avgRecall * 100).toFixed(1)}%` : "â€”"}</p>
+                        <p className="text-lg font-bold text-slate-900 dark:text-white">{loggedFeedbacks.length > 0 ? `${(avgRecall * 100).toFixed(1)}%` : "Ã¢â‚¬â€"}</p>
                     </div>
                 </div>
                 {loggedFeedbacks.length > 0 && (
@@ -1499,9 +1799,9 @@ function FeedbackPanel({ feedbacks }: { feedbacks: AHMNFeedback[] }) {
     );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 /*  Document Card (enhanced with inline integration data)                   */
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 
 function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: {
     doc: IDPODocRecord; expanded: boolean; onToggle: () => void;
@@ -1522,12 +1822,12 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
     const complexityScore = typeof doc.complexity_score === "number" ? doc.complexity_score : null;
 
     const sourceIcon = (src: string) => {
-        if (src === "llm_cloud" || src === "llm_local") return "ðŸ¤–";
-        if (src === "rule" || src === "schema_regex") return "ðŸ“";
-        if (src === "generic_kv") return "ðŸ”‘";
-        if (src === "schema_match") return "ðŸ”—";
-        if (src === "policy") return "ðŸ“‹";
-        return "âš¡";
+        if (src === "llm_cloud" || src === "llm_local") return "Ã°Å¸Â¤â€“";
+        if (src === "rule" || src === "schema_regex") return "Ã°Å¸â€œÂ";
+        if (src === "generic_kv") return "Ã°Å¸â€â€˜";
+        if (src === "schema_match") return "Ã°Å¸â€â€”";
+        if (src === "policy") return "Ã°Å¸â€œâ€¹";
+        return "Ã¢Å¡Â¡";
     };
 
     const confidenceColor = (conf: number) => {
@@ -1546,12 +1846,12 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
 
     return (
         <div className="glass-panel rounded-xl overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-brand-500/5">
-            {/* â”€â”€ Card Header (always visible) â”€â”€ */}
+            {/* Ã¢â€â‚¬Ã¢â€â‚¬ Card Header (always visible) Ã¢â€â‚¬Ã¢â€â‚¬ */}
             <button onClick={onToggle} className="w-full px-5 py-4 text-left hover:bg-white/40 dark:hover:bg-gray-800/30 transition-colors">
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-100 to-cyan-100 dark:from-brand-500/10 dark:to-cyan-500/10 border border-brand-200/50 dark:border-brand-500/20 flex items-center justify-center flex-shrink-0">
-                            <span className="text-lg">ðŸ“„</span>
+                            <span className="text-lg">Ã°Å¸â€œâ€ž</span>
                         </div>
                         <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
@@ -1581,9 +1881,9 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                             </span>
                         )}
                         {guardrail && !guardrail.error && (
-                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] ${guardrail.overall_passes ? "bg-emerald-100 dark:bg-emerald-500/10 ring-1 ring-emerald-200 dark:ring-emerald-500/20" : "bg-red-100 dark:bg-red-500/10 ring-1 ring-red-200 dark:ring-red-500/20"}`} title={guardrail.overall_passes ? "Guardrails passed" : "Guardrails failed"}>ðŸ›¡ï¸</span>
+                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] ${guardrail.overall_passes ? "bg-emerald-100 dark:bg-emerald-500/10 ring-1 ring-emerald-200 dark:ring-emerald-500/20" : "bg-red-100 dark:bg-red-500/10 ring-1 ring-red-200 dark:ring-red-500/20"}`} title={guardrail.overall_passes ? "Guardrails passed" : "Guardrails failed"}>Ã°Å¸â€ºÂ¡Ã¯Â¸Â</span>
                         )}
-                        {xai && !xai.error && <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] bg-violet-100 dark:bg-violet-500/10 ring-1 ring-violet-200 dark:ring-violet-500/20" title="XAI explanation available">ðŸ”</span>}
+                        {xai && !xai.error && <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] bg-violet-100 dark:bg-violet-500/10 ring-1 ring-violet-200 dark:ring-violet-500/20" title="XAI explanation available">Ã°Å¸â€Â</span>}
                         {entityDetails.length > 0 && (
                             <span className="px-2 py-1 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded-full text-[10px] font-semibold">
                                 {entityDetails.length} field{entityDetails.length !== 1 ? "s" : ""}
@@ -1598,7 +1898,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                 </div>
             </button>
 
-            {/* â”€â”€ Expanded Content â”€â”€ */}
+            {/* Ã¢â€â‚¬Ã¢â€â‚¬ Expanded Content Ã¢â€â‚¬Ã¢â€â‚¬ */}
             {expanded && (
                 <div className="px-5 pb-5 border-t border-slate-100 dark:border-gray-800 pt-4 space-y-4">
 
@@ -1640,7 +1940,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                             <div className="flex flex-wrap gap-1">
                                 {doc.preprocess_route ? doc.preprocess_route.split(",").filter(Boolean).map((step, i) => (
                                     <span key={i} className="px-1.5 py-0.5 bg-slate-200 dark:bg-gray-700 rounded text-[9px] font-medium text-slate-600 dark:text-gray-300">{step}</span>
-                                )) : <span className="text-[10px] text-slate-400 dark:text-gray-500">â€”</span>}
+                                )) : <span className="text-[10px] text-slate-400 dark:text-gray-500">Ã¢â‚¬â€</span>}
                             </div>
                         </div>
                     </div>
@@ -1670,7 +1970,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                             )}
                             {doc.model_used && (
                                 <span className="px-2 py-1 rounded-lg text-[10px] font-medium border bg-cyan-50 dark:bg-cyan-500/5 border-cyan-200 dark:border-cyan-500/10 text-cyan-700 dark:text-cyan-300">
-                                    ðŸ¤– {doc.model_used} ({doc.model_mode || "local"})
+                                    Ã°Å¸Â¤â€“ {doc.model_used} ({doc.model_mode || "local"})
                                 </span>
                             )}
                         </div>
@@ -1681,7 +1981,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                         <div className={`p-4 rounded-xl border ${advice.error ? "bg-amber-50/50 dark:bg-amber-500/5 border-amber-200 dark:border-amber-500/20" : "bg-gradient-to-r from-brand-50/50 to-cyan-50/50 dark:from-brand-500/5 dark:to-cyan-500/5 border-brand-200 dark:border-brand-500/20"}`}>
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-base">ðŸŽ¯</span>
+                                    <span className="text-base">Ã°Å¸Å½Â¯</span>
                                     <p className="text-[10px] font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">AHMN Policy</p>
                                 </div>
                                 {!advice.error && (
@@ -1722,7 +2022,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                         </div>
                     )}
 
-                    {/* Extracted Entities â€” show top 3, collapse rest */}
+                    {/* Extracted Entities Ã¢â‚¬â€ show top 3, collapse rest */}
                     {entityDetails.length > 0 && (
                         <div className="p-4 bg-gradient-to-br from-brand-50/40 to-cyan-50/30 dark:from-brand-500/5 dark:to-cyan-500/5 rounded-xl border border-brand-100 dark:border-brand-500/10">
                             <div className="flex items-center justify-between mb-3">
@@ -1824,7 +2124,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                     {doc.validation_issues && doc.validation_issues.length > 0 && (
                         <div className="p-3 bg-amber-50/50 dark:bg-amber-500/5 rounded-xl border border-amber-200 dark:border-amber-500/10">
                             <div className="flex items-center gap-2 mb-2">
-                                <span className="text-sm">âš ï¸</span>
+                                <span className="text-sm">Ã¢Å¡Â Ã¯Â¸Â</span>
                                 <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
                                     {doc.validation_issues.length} Validation Issue{doc.validation_issues.length !== 1 ? "s" : ""}
                                 </p>
@@ -1845,7 +2145,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                     {doc.recovered_fields && Object.keys(doc.recovered_fields).length > 0 && (
                         <div className="p-3 bg-emerald-50/50 dark:bg-emerald-500/5 rounded-xl border border-emerald-200 dark:border-emerald-500/10">
                             <div className="flex items-center gap-2 mb-2">
-                                <span className="text-sm">ðŸ”§</span>
+                                <span className="text-sm">Ã°Å¸â€Â§</span>
                                 <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Recovered Fields</p>
                             </div>
                             <div className="grid grid-cols-2 gap-1.5">
@@ -1894,7 +2194,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                                         onClick={() => navigator.clipboard.writeText(doc.extracted_text || "")}
                                         className="px-2 py-1 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded text-[9px] font-medium hover:bg-brand-100 dark:hover:bg-brand-500/20 transition-colors"
                                     >
-                                        ðŸ“‹ Copy
+                                        Ã°Å¸â€œâ€¹ Copy
                                     </button>
                                 </div>
                                 <p className="text-[11px] text-slate-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">{doc.extracted_text}</p>
@@ -1907,7 +2207,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                         <div className={`p-3 rounded-xl border ${guardrail.overall_passes ? "bg-emerald-50/30 dark:bg-emerald-500/5 border-emerald-200 dark:border-emerald-500/10" : "bg-red-50/30 dark:bg-red-500/5 border-red-200 dark:border-red-500/10"}`}>
                             <div className="flex items-center justify-between mb-2">
                                 <p className={`text-[10px] font-semibold uppercase tracking-wider ${guardrail.overall_passes ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                                    ðŸ›¡ï¸ Guardrails: {guardrail.overall_passes ? "PASSED" : "FAILED"}
+                                    Ã°Å¸â€ºÂ¡Ã¯Â¸Â Guardrails: {guardrail.overall_passes ? "PASSED" : "FAILED"}
                                 </p>
                                 <span className="text-[9px] text-slate-400">{(guardrail.processing_time_ms / 1000).toFixed(1)}s</span>
                             </div>
@@ -1926,7 +2226,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                         <details className="group">
                             <summary className="flex items-center gap-2 cursor-pointer hover:text-slate-600 dark:hover:text-gray-300 transition-colors">
                                 <svg className="w-3.5 h-3.5 text-violet-400 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                                <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-wider">ðŸ“Š Component Explanations</span>
+                                <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-wider">Ã°Å¸â€œÅ  Component Explanations</span>
                                 <span className="text-[9px] text-violet-500">{(xai.confidence * 100).toFixed(0)}% confident</span>
                             </summary>
                             <div className="mt-2 space-y-2">
@@ -1938,7 +2238,7 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
                                                 "border-l-slate-400 bg-slate-50/30 dark:bg-slate-500/5"
                                         }`}>
                                         <div className="flex items-center gap-1.5 mb-1">
-                                            <span className="text-sm">{comp.component === "ahmn" ? "ðŸŽ¯" : comp.component === "idpo" ? "âš™ï¸" : "ðŸ›¡ï¸"}</span>
+                                            <span className="text-sm">{comp.component === "ahmn" ? "Ã°Å¸Å½Â¯" : comp.component === "idpo" ? "Ã¢Å¡â„¢Ã¯Â¸Â" : "Ã°Å¸â€ºÂ¡Ã¯Â¸Â"}</span>
                                             <span className="text-[10px] font-semibold text-slate-700 dark:text-gray-200">{comp.title}</span>
                                         </div>
                                         <p className="text-[10px] text-slate-600 dark:text-gray-400">{comp.summary}</p>
@@ -1955,9 +2255,382 @@ function DocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: 
     );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
+function JourneyDocCard({ doc, expanded, onToggle, guardrail, xai, advice, feedback }: {
+    doc: IDPODocRecord; expanded: boolean; onToggle: () => void;
+    guardrail?: GuardrailDocResult; xai?: XAIDocExplanation;
+    advice?: AHMNAdvice; feedback?: AHMNFeedback;
+}) {
+    const statusColor = doc.status === "success"
+        ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/20"
+        : doc.status === "error"
+            ? "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/20"
+            : "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/20";
+
+    const flattenedFields: IDPOEntityDetail[] = (doc.entity_details && doc.entity_details.length > 0)
+        ? doc.entity_details
+        : Object.entries(doc.entities || {}).map(([key, value]) => ({
+            key,
+            label: key,
+            value: String(value),
+            confidence: typeof doc.field_confidence?.[key] === "number" ? doc.field_confidence[key] : 0,
+            source: "result",
+            is_explicit: false,
+        }));
+
+    const previewFields = flattenedFields.slice(0, 6);
+    const selectedPolicy = doc.policy_id || advice?.selected_policy_id || advice?.policy_id || "default";
+    const advisorPolicy = advice?.advisor_recommendation?.policy_id || advice?.policy_id || doc.advisor_recommendation?.policy_id || null;
+    const reviewStatus = doc.defer_status || (doc.escalated ? "requested" : "not_needed");
+    const reviewReason = doc.defer_reason || doc.model_reason || null;
+    const unseenVendor = !doc.vendor_cluster || /unknown|unseen|new/i.test(doc.vendor_cluster);
+    const feedbackLogged = feedback?.status === "logged" || doc.feedback_status?.logged === true;
+    const validationIssueCount = doc.validation_issues?.length || 0;
+    const recoveredFieldCount = doc.recovered_fields ? Object.keys(doc.recovered_fields).length : 0;
+    const executionStages = [
+        {
+            label: "Identify",
+            status: "done",
+            detail: [doc.doc_type, doc.vendor_cluster, doc.content_profile].filter(Boolean).join(" / ") || "Context derived from the uploaded document.",
+        },
+        {
+            label: "Retrieve Advice",
+            status: advice?.error ? "warning" : advisorPolicy ? "done" : "skipped",
+            detail: advice?.error
+                ? advice.error
+                : advisorPolicy
+                    ? `${formatPolicyLabel(advisorPolicy)} via ${advice?.retrieval_source || doc.retrieval_source || "advisor"}`
+                    : "Static or local routing path.",
+        },
+        {
+            label: "Select Policy",
+            status: doc.fallback_reason ? "warning" : "done",
+            detail: doc.fallback_reason
+                ? `${formatPolicyLabel(selectedPolicy)} after fallback: ${doc.fallback_reason}`
+                : formatPolicyLabel(selectedPolicy),
+        },
+        {
+            label: "Execute",
+            status: doc.status === "error" ? "error" : "done",
+            detail: [doc.preprocess_route, doc.ocr_engine_used, doc.model_used].filter(Boolean).join(" / ") || "Extraction path completed.",
+        },
+        {
+            label: "Evaluate",
+            status: validationIssueCount > 0 ? "warning" : "done",
+            detail: validationIssueCount > 0
+                ? `${validationIssueCount} validation issue(s)`
+                : `Schema ${doc.schema_valid === true ? "valid" : doc.schema_valid === false ? "needs review" : "pending"}`,
+        },
+        {
+            label: "Update",
+            status: feedbackLogged ? "done" : reviewStatus !== "not_needed" ? "review" : "pending",
+            detail: feedbackLogged
+                ? `Feedback logged for ${formatPolicyLabel(feedback?.policy_id_used || selectedPolicy)}`
+                : reviewStatus !== "not_needed"
+                    ? `Review ${reviewStatus}${reviewReason ? `: ${reviewReason}` : ""}`
+                    : "Feedback not logged yet.",
+        },
+    ];
+
+    const stageTone = (status: string) => {
+        if (status === "done") return "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20";
+        if (status === "warning" || status === "review") return "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20";
+        if (status === "error") return "bg-red-50 text-red-700 border-red-200 dark:bg-red-500/10 dark:text-red-300 dark:border-red-500/20";
+        return "bg-slate-100 text-slate-600 border-slate-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700";
+    };
+
+    return (
+        <div className="glass-panel rounded-xl overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-brand-500/5">
+            <button onClick={onToggle} className="w-full px-5 py-4 text-left hover:bg-white/40 dark:hover:bg-gray-800/30 transition-colors">
+                <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{doc.filename || doc.source || doc.doc_id}</p>
+                            {(doc.category || doc.doc_type) && (
+                                <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                                    {doc.category || doc.doc_type}
+                                </span>
+                            )}
+                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${statusColor}`}>{doc.status || "processed"}</span>
+                            <span className="rounded-full border border-brand-200 bg-brand-50 px-2 py-0.5 text-[10px] font-medium text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-300">
+                                {formatPolicyLabel(selectedPolicy)}
+                            </span>
+                            {reviewStatus !== "not_needed" && (
+                                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+                                    review: {reviewStatus}
+                                </span>
+                            )}
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">
+                            {advisorPolicy ? `Advisor ${formatPolicyLabel(advisorPolicy)} -> selected ${formatPolicyLabel(selectedPolicy)}` : `Selected ${formatPolicyLabel(selectedPolicy)}`}
+                            {doc.fallback_reason ? ` -> fallback: ${doc.fallback_reason}` : ""}
+                            {doc.safety_status?.rollback_triggered ? ` -> rollback: ${doc.safety_status.rollback_reason || "triggered"}` : ""}
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium text-slate-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                            {flattenedFields.length} field{flattenedFields.length !== 1 ? "s" : ""}
+                        </span>
+                        <svg className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+                </div>
+            </button>
+
+            {expanded && (
+                <div className="space-y-5 border-t border-slate-100 px-5 pb-5 pt-4 dark:border-gray-800">
+                    <section className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">1. Identify</h3>
+                            {unseenVendor && (
+                                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+                                    unseen vendor path
+                                </span>
+                            )}
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Document Type</p>
+                                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{doc.doc_type || doc.category || "-"}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Vendor</p>
+                                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{doc.vendor_cluster || "unknown_vendor"}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Layout + Profile</p>
+                                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{[doc.layout_cluster_id, doc.content_profile].filter(Boolean).join(" / ") || "-"}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Quality + Complexity</p>
+                                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{[doc.quality_bin, doc.complexity_bin].filter(Boolean).join(" / ") || "-"}</p>
+                                <p className="mt-1 text-[11px] text-slate-500 dark:text-gray-400">analysis confidence {formatPercent(doc.analysis_confidence)}</p>
+                            </div>
+                        </div>
+                        {unseenVendor && (
+                            <p className="text-xs text-amber-700 dark:text-amber-300">
+                                This document is currently taking the honest safe path for unseen vendors: use the default-backed policy path and log the outcome for future advice.
+                            </p>
+                        )}
+                    </section>
+
+                    <section className="space-y-3">
+                        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">2. Policy Decision</h3>
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                            <div className="rounded-xl border border-brand-200 bg-brand-50/70 p-3 dark:border-brand-500/20 dark:bg-brand-500/10">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-600 dark:text-brand-300">Advisor Recommendation</p>
+                                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{advisorPolicy ? formatPolicyLabel(advisorPolicy) : "static or local path"}</p>
+                                <p className="mt-1 text-[11px] text-slate-500 dark:text-gray-400">
+                                    {advice?.error ? advice.error : `${formatPercent(advice?.confidence)} via ${advice?.retrieval_source || doc.retrieval_source || "advisor"}`}
+                                </p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Selected Policy</p>
+                                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{formatPolicyLabel(selectedPolicy)}</p>
+                                <p className="mt-1 text-[11px] text-slate-500 dark:text-gray-400">{doc.advice_source || advice?.advice_source || "runtime selection"}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Safety Status</p>
+                                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">
+                                    {doc.safety_status?.rollback_triggered ? "rollback triggered" : doc.fallback_reason ? "fallback used" : "clear"}
+                                </p>
+                                <p className="mt-1 text-[11px] text-slate-500 dark:text-gray-400">{doc.safety_status?.rollback_reason || doc.fallback_reason || "No safety intervention."}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Review / Defer</p>
+                                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{reviewStatus.replace(/_/g, " ")}</p>
+                                <p className="mt-1 text-[11px] text-slate-500 dark:text-gray-400">{reviewReason || "No review requested."}</p>
+                            </div>
+                        </div>
+                        {(doc.fallback_candidates && doc.fallback_candidates.length > 0) && (
+                            <div className="rounded-xl border border-slate-200 bg-white/60 p-3 dark:border-gray-700 dark:bg-gray-800/40">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Fallback Candidates</p>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    {doc.fallback_candidates.map((candidate, index) => (
+                                        <span key={`${candidate.policy_id}-${index}`} className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] text-slate-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                                            {formatPolicyLabel(candidate.policy_id)}
+                                            {candidate.reason ? ` - ${candidate.reason}` : ""}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </section>
+
+                    <section className="space-y-3">
+                        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">3. Execution Path</h3>
+                        <div className="grid gap-2 lg:grid-cols-2">
+                            {executionStages.map((stage) => (
+                                <div key={stage.label} className="rounded-xl border border-slate-200 bg-white/60 p-3 dark:border-gray-700 dark:bg-gray-800/40">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <p className="text-xs font-semibold text-slate-900 dark:text-white">{stage.label}</p>
+                                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${stageTone(stage.status)}`}>
+                                            {stage.status}
+                                        </span>
+                                    </div>
+                                    <p className="mt-1 text-[11px] text-slate-500 dark:text-gray-400">{stage.detail}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+
+                    <section className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">4. Extracted Fields</h3>
+                            <span className="text-[11px] text-slate-500 dark:text-gray-400">{flattenedFields.length} total</span>
+                        </div>
+                        {previewFields.length > 0 ? (
+                            <div className="space-y-2">
+                                {previewFields.map((field, index) => (
+                                    <div key={`${field.key}-${index}`} className="rounded-xl border border-slate-200 bg-white/70 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+                                        <div className="flex flex-wrap items-start justify-between gap-3">
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">{field.label || field.key}</span>
+                                                    {field.is_explicit && (
+                                                        <span className="rounded-full border border-brand-200 bg-brand-50 px-2 py-0.5 text-[9px] font-medium text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-300">
+                                                            required
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white break-words">{field.value}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm font-semibold text-slate-900 dark:text-white">{formatPercent(field.confidence)}</p>
+                                                <p className="text-[10px] text-slate-500 dark:text-gray-400">{field.confidence_type || "confidence"}</p>
+                                            </div>
+                                        </div>
+                                        <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-slate-500 dark:text-gray-400">
+                                            <span>source: {field.source || "-"}</span>
+                                            {field.page != null && <span>page: {field.page}</span>}
+                                            {field.span && <span>span: {field.span}</span>}
+                                            {field.bbox && <span>bbox: [{field.bbox.join(", ")}]</span>}
+                                        </div>
+                                    </div>
+                                ))}
+                                {flattenedFields.length > previewFields.length && (
+                                    <p className="text-[11px] text-slate-500 dark:text-gray-400">
+                                        Open the run detail page for the full field list and deeper document evidence.
+                                    </p>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-500 dark:border-gray-700 dark:bg-gray-800/40 dark:text-gray-400">
+                                No extracted fields are available for this document yet.
+                            </div>
+                        )}
+                    </section>
+
+                    <section className="space-y-3">
+                        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">5. Evaluation</h3>
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Reward</p>
+                                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{typeof doc.reward === "number" ? doc.reward.toFixed(3) : "-"}</p>
+                                <p className="mt-1 text-[11px] text-slate-500 dark:text-gray-400">{doc.reward_type || "task reward"}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Schema</p>
+                                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">
+                                    {doc.schema_valid === true ? "valid" : doc.schema_valid === false ? "review needed" : "-"}
+                                </p>
+                                <p className="mt-1 text-[11px] text-slate-500 dark:text-gray-400">coverage {formatPercent(doc.schema_coverage)} / grounded {formatPercent(doc.schema_grounding_coverage)}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Validation</p>
+                                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{validationIssueCount} issue(s)</p>
+                                <p className="mt-1 text-[11px] text-slate-500 dark:text-gray-400">{recoveredFieldCount} recovered field(s)</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Required / Hallucinated</p>
+                                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">
+                                    {doc.schema_missing_required_count ?? 0} missing / {doc.schema_hallucinated_field_count ?? 0} extra
+                                </p>
+                                <p className="mt-1 text-[11px] text-slate-500 dark:text-gray-400">Grounded fields matter more than raw field count.</p>
+                            </div>
+                        </div>
+                        {validationIssueCount > 0 && (
+                            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-500/20 dark:bg-amber-500/10">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">Validation Issues</p>
+                                <div className="mt-2 space-y-1">
+                                    {doc.validation_issues?.map((issue, index) => (
+                                        <p key={`${issue.field}-${index}`} className="text-[11px] text-amber-700 dark:text-amber-300">
+                                            <span className="font-medium">{issue.field}</span>: {issue.issue}
+                                        </p>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </section>
+
+                    <section className="space-y-3">
+                        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">6. Feedback Update</h3>
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Advice Id</p>
+                                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white break-all">{feedback?.advice_id || doc.advice_id || doc.feedback_status?.advice_id || "-"}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Policy Used</p>
+                                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{formatPolicyLabel(feedback?.policy_id_used || selectedPolicy)}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Feedback Status</p>
+                                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{feedback?.status || (feedbackLogged ? "logged" : "not logged")}</p>
+                                <p className="mt-1 text-[11px] text-slate-500 dark:text-gray-400">{feedback?.error || doc.feedback_status?.error || "Outcome available for future advice."}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500">Metrics Sent</p>
+                                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">F1 {formatPercent(feedback?.metrics_sent?.f1_score, 1)}</p>
+                                <p className="mt-1 text-[11px] text-slate-500 dark:text-gray-400">P {formatPercent(feedback?.metrics_sent?.precision, 1)} / R {formatPercent(feedback?.metrics_sent?.recall, 1)}</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <details className="group">
+                        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-slate-400 transition-colors hover:text-slate-600 dark:text-gray-500 dark:hover:text-gray-300">
+                            Supporting diagnostics
+                        </summary>
+                        <div className="mt-3 space-y-3">
+                            {guardrail && !guardrail.error && (
+                                <div className={`rounded-xl border p-3 ${guardrail.overall_passes ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-500/20 dark:bg-emerald-500/10" : "border-red-200 bg-red-50/60 dark:border-red-500/20 dark:bg-red-500/10"}`}>
+                                    <p className="text-xs font-medium text-slate-900 dark:text-white">Guardrails {guardrail.overall_passes ? "passed" : "failed"}</p>
+                                    <p className="mt-1 text-[11px] text-slate-500 dark:text-gray-400">{(guardrail.processing_time_ms / 1000).toFixed(1)}s processing time</p>
+                                </div>
+                            )}
+                            {xai && !xai.error && (
+                                <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-3 dark:border-violet-500/20 dark:bg-violet-500/10">
+                                    <p className="text-xs font-medium text-slate-900 dark:text-white">Supporting explanation available</p>
+                                    <p className="mt-1 text-[11px] text-slate-500 dark:text-gray-400">{xai.answer}</p>
+                                </div>
+                            )}
+                            {doc.extracted_text && (
+                                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 dark:border-gray-700 dark:bg-gray-800/40">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <p className="text-xs font-medium text-slate-900 dark:text-white">Extracted text</p>
+                                        <button
+                                            onClick={() => navigator.clipboard.writeText(doc.extracted_text || "")}
+                                            className="rounded-md border border-brand-200 bg-brand-50 px-2 py-1 text-[10px] font-medium text-brand-700 transition-colors hover:bg-brand-100 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-300 dark:hover:bg-brand-500/20"
+                                        >
+                                            Copy
+                                        </button>
+                                    </div>
+                                    <div className="mt-2 max-h-[300px] overflow-y-auto rounded-lg border border-slate-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900/50">
+                                        <FormattedExtractedText text={doc.extracted_text} />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </details>
+                </div>
+            )}
+        </div>
+    );
+}
+
 /*  Formatted Extracted Text (styled page separators)                       */
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 
 function FormattedExtractedText({ text }: { text: string }) {
     const parts = text.split(/(--- Page \d+ ---)/g);
@@ -1987,3 +2660,4 @@ function FormattedExtractedText({ text }: { text: string }) {
         </div>
     );
 }
+
