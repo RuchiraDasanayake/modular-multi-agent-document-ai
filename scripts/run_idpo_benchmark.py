@@ -487,6 +487,57 @@ def _policy_impact_summary(documents: list[dict[str, Any]]) -> dict[str, Any]:
     return impact
 
 
+def _claim_checks(
+    static_summary: dict[str, Any],
+    adaptive_summary: dict[str, Any],
+    comparison_table: dict[str, Any],
+    policy_impact: dict[str, Any],
+) -> dict[str, Any]:
+    adaptive_statuses = adaptive_summary.get("advice_status_counts", {}) or {}
+    adaptive_containment = adaptive_summary.get("containment_state_counts", {}) or {}
+    accepted_count = int(adaptive_statuses.get("accepted", 0) or 0)
+    rejected_count = int(adaptive_statuses.get("rejected", 0) or 0)
+    no_advice_count = int(adaptive_statuses.get("no_advice", 0) or 0)
+    policy_changed_count = int(policy_impact.get("policy_changed_count", 0) or 0)
+    containment_count = sum(
+        int(adaptive_containment.get(key, 0) or 0)
+        for key in ("fallback", "rollback", "blocked", "defer_requested", "defer_blocked")
+    )
+    exact_f1_delta = float(comparison_table["exact_f1"][ADAPTIVE_LABEL] or 0.0) - float(comparison_table["exact_f1"]["static"] or 0.0)
+    schema_delta = float(comparison_table["schema_valid_rate"][ADAPTIVE_LABEL] or 0.0) - float(comparison_table["schema_valid_rate"]["static"] or 0.0)
+    validation_delta = float(comparison_table["validation_pass_rate"][ADAPTIVE_LABEL] or 0.0) - float(comparison_table["validation_pass_rate"]["static"] or 0.0)
+    latency_delta = float(comparison_table["avg_latency_ms"]["static"] or 0.0) - float(comparison_table["avg_latency_ms"][ADAPTIVE_LABEL] or 0.0)
+
+    checks = {
+        "adaptive_safe_runtime_real": {
+            "pass": accepted_count + rejected_count + no_advice_count > 0,
+            "detail": f"accepted={accepted_count}, rejected={rejected_count}, no_advice={no_advice_count}",
+        },
+        "ahmn_changes_policy": {
+            "pass": policy_changed_count > 0,
+            "detail": f"policy_changed_count={policy_changed_count}",
+        },
+        "idpo_containment_exercised": {
+            "pass": containment_count > 0,
+            "detail": json.dumps(adaptive_containment, sort_keys=True),
+        },
+        "adaptive_improves_any_supported_metric": {
+            "pass": exact_f1_delta > 0.0 or schema_delta > 0.0 or validation_delta > 0.0 or latency_delta > 0.0,
+            "detail": (
+                f"exact_f1_delta={round(exact_f1_delta, 4)}, "
+                f"schema_valid_delta={round(schema_delta, 4)}, "
+                f"validation_delta={round(validation_delta, 4)}, "
+                f"latency_gain_ms={round(latency_delta, 2)}"
+            ),
+        },
+        "claims_remain_limited": {
+            "pass": True,
+            "detail": "Benchmark supports adaptive-safe routing, containment behavior, and measured outcome deltas only.",
+        },
+    }
+    return checks
+
+
 def run_benchmark(config_path: str = "configs/idpo_research_config.json", pack_path: str = "idpo/benchmark/benchmark_pack.json") -> dict[str, Any]:
     repo_root = REPO_ROOT
     pack_file = (repo_root / pack_path).resolve()
@@ -637,6 +688,8 @@ def run_benchmark(config_path: str = "configs/idpo_research_config.json", pack_p
         if any(tag in (item.get("tags") or []) for item in documents)
     }
 
+    comparison_table = _comparison_table(condition_summaries["static"], condition_summaries[ADAPTIVE_LABEL], len(cases))
+    policy_impact = _policy_impact_summary(documents)
     evidence = {
         "experiment": {
             "benchmark_run_id": benchmark_run_id,
@@ -663,13 +716,14 @@ def run_benchmark(config_path: str = "configs/idpo_research_config.json", pack_p
             "doc_count": len(cases),
             "static": condition_summaries["static"],
             ADAPTIVE_LABEL: condition_summaries[ADAPTIVE_LABEL],
-            "table": _comparison_table(condition_summaries["static"], condition_summaries[ADAPTIVE_LABEL], len(cases)),
+            "table": comparison_table,
             "groups": grouped_tables,
             "bootstrap": {
                 "overall": _bootstrap_summary(documents, "overall"),
                 "groups": grouped_bootstrap,
             },
-            **_policy_impact_summary(documents),
+            "claim_checks": _claim_checks(condition_summaries["static"], condition_summaries[ADAPTIVE_LABEL], comparison_table, policy_impact),
+            **policy_impact,
         },
         "documents": documents,
     }

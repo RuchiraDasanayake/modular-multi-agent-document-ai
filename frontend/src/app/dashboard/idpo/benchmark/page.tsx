@@ -146,6 +146,10 @@ function containmentLabel(doc: Record<string, unknown>) {
   return "None";
 }
 
+function claimStatusLabel(value: unknown) {
+  return value === true ? "Supported" : "Not supported";
+}
+
 function renderTable(
   title: string,
   table: Record<string, unknown>,
@@ -253,6 +257,7 @@ export default function BenchmarkPage() {
   const conditions = (evidence?.conditions ?? {}) as Record<string, Record<string, unknown>>;
   const adaptiveCondition = (conditions[adaptiveLabel] ?? conditions.adaptive_safe ?? conditions.adaptive ?? {}) as Record<string, unknown>;
   const staticCondition = (conditions.static ?? {}) as Record<string, unknown>;
+  const claimChecks = (comparison.claim_checks ?? {}) as Record<string, Record<string, unknown>>;
   const groups =
     Object.keys(groupsFromPayload).length > 0
       ? groupsFromPayload
@@ -362,6 +367,30 @@ export default function BenchmarkPage() {
                   Adaptive only counts as better extraction when quality metrics improve, not just routing activity.
                 </p>
               </div>
+            </div>
+          </IdpoCard>
+
+          <IdpoCard>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-white">Claim Checks</h3>
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              {Object.entries(claimChecks).map(([key, item]) => (
+                <div key={key} className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    {key.replace(/_/g, " ")}
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
+                    {claimStatusLabel(item?.pass)}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    {String(item?.detail ?? "-")}
+                  </p>
+                </div>
+              ))}
+              {Object.keys(claimChecks).length === 0 ? (
+                <div className="rounded-xl border border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                  This benchmark bundle does not include claim checks.
+                </div>
+              ) : null}
             </div>
           </IdpoCard>
 
