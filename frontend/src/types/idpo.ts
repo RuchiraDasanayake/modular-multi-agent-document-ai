@@ -57,6 +57,9 @@ export interface RunOverview {
   validationPassRate: number | null;
   p95LatencyMs: number | null;
   estimatedCost: number | null;
+  adviceAcceptedCount?: number;
+  policyChangedCount?: number;
+  directScoredDocCount?: number;
   [key: string]: unknown;
 }
 
@@ -65,11 +68,28 @@ export interface DocumentSummary {
   filename: string;
   docType: string | null;
   vendorCluster: string | null;
+  layoutClusterId?: string | null;
   complexityBin: string | null;
   routeBin: string | null;
+  routeSpecialization?: string | null;
   status: string;
   latencyMs: number | null;
   policyId: string | null;
+  staticPolicyId?: string | null;
+  staticPolicyName?: string | null;
+  staticPolicyReason?: string | null;
+  advisorRecommendationPolicyId?: string | null;
+  adviceSource?: string | null;
+  adviceStatus?: string | null;
+  adviceConfidence?: number | null;
+  retrievalSource?: string | null;
+  fallbackReason?: string | null;
+  adviceAccepted?: boolean | null;
+  policyChanged?: boolean | null;
+  feedbackLogged?: boolean | null;
+  rollbackTriggered?: boolean | null;
+  rollbackReason?: string | null;
+  blockedPolicy?: boolean | null;
   validationIssueCount: number;
   escalated: boolean;
   retriesCount?: number;
@@ -82,7 +102,20 @@ export interface DocumentSummary {
   ocrRerunUsedPages?: number | null;
   fallbackPath?: string | null;
   unresolvedFieldCount?: number | null;
+  deferStatus?: string | null;
+  deferReason?: string | null;
+  schemaCoverage?: number | null;
+  schemaGroundingCoverage?: number | null;
+  schemaValid?: boolean | null;
+  missingRequiredCount?: number | null;
+  hallucinatedFieldCount?: number | null;
   transparencyPath?: string | null;
+  reward?: number | null;
+  rewardType?: string | null;
+  exactPrecision?: number | null;
+  exactRecall?: number | null;
+  exactF1?: number | null;
+  exactWinLossState?: "win" | "match" | "loss" | "unscored" | null;
   [key: string]: unknown;
 }
 
@@ -171,5 +204,25 @@ export interface ShadowComparison {
   shadowQualityProxy: number | null;
   canonicalRetrievalProxy: number | null;
   shadowRetrievalProxy: number | null;
+  [key: string]: unknown;
+}
+
+export interface BenchmarkRunSummary {
+  benchmarkRunId: string;
+  generatedAt: string;
+  docCount: number;
+  packName: string;
+  configPath: string | null;
+  reportPath: string;
+  tablePath: string | null;
+  csvPath: string | null;
+  [key: string]: unknown;
+}
+
+export interface BenchmarkEvidencePayload {
+  experiment: Record<string, unknown>;
+  conditions: Record<string, unknown>;
+  comparison: Record<string, unknown>;
+  documents: Array<Record<string, unknown>>;
   [key: string]: unknown;
 }

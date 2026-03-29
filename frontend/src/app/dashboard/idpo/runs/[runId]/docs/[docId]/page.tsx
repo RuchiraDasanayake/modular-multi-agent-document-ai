@@ -25,6 +25,44 @@ function formatNumber(value: unknown, digits = 2) {
   return num.toFixed(digits);
 }
 
+function adviceOutcomeLabel(metadata: Record<string, unknown>) {
+  const status = String(metadata.adviceStatus ?? "");
+  const fallbackReason = String(metadata.fallbackReason ?? "").trim();
+  const policyChanged = Boolean(metadata.policyChanged);
+  const adviceAccepted = Boolean(metadata.adviceAccepted);
+  switch (status) {
+    case "static":
+      return "static";
+    case "no_advice":
+      return "no advice";
+    case "accepted":
+      return policyChanged ? "accepted / changed" : "accepted / matched";
+    case "rejected":
+      return fallbackReason ? `rejected / ${fallbackReason}` : "rejected";
+    default:
+      if (policyChanged) {
+        return adviceAccepted ? "accepted / changed" : "changed";
+      }
+      if (adviceAccepted) {
+        return "accepted";
+      }
+      return fallbackReason || "matched baseline";
+  }
+}
+
+function containmentLabel(metadata: Record<string, unknown>, safetyStatus: Record<string, unknown>) {
+  if (Boolean(safetyStatus.rollback_triggered)) {
+    return typeof safetyStatus.rollback_reason === "string" ? `rollback / ${safetyStatus.rollback_reason}` : "rollback";
+  }
+  if (Boolean(safetyStatus.blocked_policy)) {
+    return "blocked";
+  }
+  if (typeof metadata.fallbackReason === "string" && metadata.fallbackReason.trim()) {
+    return `fallback / ${metadata.fallbackReason}`;
+  }
+  return "clear";
+}
+
 export default function DocumentDetailPage() {
   const params = useParams<{ runId: string; docId: string }>();
   const runId = decodeURIComponent(params.runId);
@@ -81,6 +119,13 @@ export default function DocumentDetailPage() {
   const metadata = (doc.metadata ?? {}) as Record<string, unknown>;
   const escalation = (doc.escalation ?? {}) as Record<string, unknown>;
   const transparency = (doc.transparency ?? {}) as Record<string, unknown>;
+  const reward = (doc.reward ?? {}) as Record<string, unknown>;
+  const rewardDetails = (reward.details ?? {}) as Record<string, unknown>;
+  const advisorRecommendation = (doc.advisorRecommendation ?? {}) as Record<string, unknown>;
+  const feedbackStatus = (doc.feedbackStatus ?? {}) as Record<string, unknown>;
+  const safetyStatus = (doc.safetyStatus ?? {}) as Record<string, unknown>;
+  const schemaQuality = (doc.schemaQuality ?? {}) as Record<string, unknown>;
+  const fallbackCandidates = Array.isArray(doc.fallbackCandidates) ? (doc.fallbackCandidates as Record<string, unknown>[]) : [];
   const modelRoute = (transparency.model_route ?? {}) as Record<string, unknown>;
   const ocrRoute = (transparency.ocr_route ?? {}) as Record<string, unknown>;
   const fieldResolution = (transparency.field_resolution ?? {}) as Record<string, unknown>;
@@ -93,7 +138,7 @@ export default function DocumentDetailPage() {
         </Link>
         <h1 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">Document {docId}</h1>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-          DAE metadata, field-level confidences, validation errors, recovery history, and provenance timeline.
+          Document-level routing view with AHMN top-1 advice, selected policy, fallback and rollback status, and extraction outcomes.
         </p>
       </section>
 
@@ -118,15 +163,60 @@ export default function DocumentDetailPage() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <IdpoCard>
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Static Baseline</p>
+          <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">{String(metadata.staticPolicyId ?? "-")}</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{String(metadata.staticPolicyReason ?? "-")}</p>
+        </IdpoCard>
+        <IdpoCard>
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Advisor Recommendation</p>
+          <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
+            {String(advisorRecommendation.policy_id ?? "-")}
+          </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Source: {String(metadata.adviceSource ?? "-")} | Status: {String(metadata.adviceStatus ?? "-")}
+          </p>
+        </IdpoCard>
+        <IdpoCard>
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Selected Policy</p>
+          <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">{String(metadata.policyId ?? "-")}</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Confidence: {formatNumber(metadata.adviceConfidence, 2)} | {metadata.policyChanged ? "changed vs static" : "matched static"}
+          </p>
+        </IdpoCard>
+        <IdpoCard>
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Advice Outcome</p>
+          <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
+            {adviceOutcomeLabel(metadata)}
+          </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {metadata.policyChanged
+              ? `static ${String(metadata.staticPolicyId ?? "-")} -> executed ${String(metadata.policyId ?? "-")}`
+              : "no route divergence"}
+          </p>
+        </IdpoCard>
+        <IdpoCard>
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Feedback Status</p>
+          <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">{feedbackStatus.logged ? "logged" : "not logged"}</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{String(feedbackStatus.error ?? "-")}</p>
+        </IdpoCard>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <IdpoCard>
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Fallback / Safety</p>
+          <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
+            {containmentLabel(metadata, safetyStatus)}
+          </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {String(metadata.fallbackReason ?? safetyStatus.rollback_reason ?? "-")}
+          </p>
+        </IdpoCard>
+        <IdpoCard>
           <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Model Route</p>
           <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
             {String(metadata.modelMode ?? modelRoute.model_mode ?? "-")} / {String(metadata.modelUsed ?? modelRoute.model_used ?? "-")}
           </p>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Reason: {String(metadata.modelReason ?? modelRoute.model_reason ?? "-")}</p>
-        </IdpoCard>
-        <IdpoCard>
-          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Fallback Path</p>
-          <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">{String(metadata.fallbackPath ?? modelRoute.fallback_path ?? "-")}</p>
         </IdpoCard>
         <IdpoCard>
           <p className="text-xs uppercase text-slate-500 dark:text-slate-400">OCR Route</p>
@@ -138,9 +228,38 @@ export default function DocumentDetailPage() {
           </p>
         </IdpoCard>
         <IdpoCard>
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Extraction Outcome</p>
+          <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
+            {typeof rewardDetails.f1 === "number" ? `F1 ${formatNumber(rewardDetails.f1, 3)}` : typeof reward.reward === "number" ? `Reward ${formatNumber(reward.reward, 3)}` : "-"}
+          </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Precision {formatNumber(rewardDetails.precision, 3)} / Recall {formatNumber(rewardDetails.recall, 3)}
+          </p>
+        </IdpoCard>
+        <IdpoCard>
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Fallback Candidates</p>
+          <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">{fallbackCandidates.length}</p>
+        </IdpoCard>
+        <IdpoCard>
           <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Unresolved Fields</p>
           <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">
             {String(metadata.unresolvedFieldCount ?? fieldResolution.unresolved_count ?? "-")}
+          </p>
+        </IdpoCard>
+        <IdpoCard>
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Defer / Review</p>
+          <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">
+            {String(metadata.deferStatus ?? safetyStatus.defer_status ?? "not_needed")}
+          </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{String(metadata.deferReason ?? safetyStatus.defer_reason ?? "-")}</p>
+        </IdpoCard>
+        <IdpoCard>
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Schema Quality</p>
+          <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
+            {typeof metadata.schemaCoverage === "number" ? `coverage ${formatNumber(metadata.schemaCoverage, 3)}` : typeof schemaQuality.coverage === "number" ? `coverage ${formatNumber(schemaQuality.coverage, 3)}` : "-"}
+          </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            grounded {typeof metadata.schemaGroundingCoverage === "number" ? formatNumber(metadata.schemaGroundingCoverage, 3) : formatNumber(schemaQuality.groundingCoverage, 3)} | valid {String(metadata.schemaValid ?? schemaQuality.valid ?? "-")}
           </p>
         </IdpoCard>
       </div>
@@ -174,7 +293,7 @@ export default function DocumentDetailPage() {
                       </td>
                       <td className="px-2 py-2 text-slate-700 dark:text-slate-200">{String(item.extraction_method ?? "-")}</td>
                       <td className="px-2 py-2 text-xs text-slate-600 dark:text-slate-300">
-                        span={Array.isArray(evidence.span) ? JSON.stringify(evidence.span) : "-"} page={String(evidence.page ?? "-")}
+                        span={Array.isArray(evidence.span) ? JSON.stringify(evidence.span) : "-"} page={String(evidence.page ?? "-")} bbox={Array.isArray(evidence.bbox) ? JSON.stringify(evidence.bbox) : "-"} source={String((item.metadata as Record<string, unknown> | undefined)?.source ?? "-")}
                       </td>
                     </tr>
                   );

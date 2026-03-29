@@ -5,9 +5,12 @@ from __future__ import annotations
 import concurrent.futures
 import json
 import logging
+import math
 import random
 import threading
 import time
+import urllib.error
+import urllib.request
 import uuid
 from collections import deque
 from dataclasses import dataclass, field
@@ -74,8 +77,12 @@ class PipelineResult:
     policy_id: str
     policy_name: str
     policy_reason: str
+    static_policy_id: str
+    static_policy_name: str
+    static_policy_reason: str
     plan_id: str
     plan_source: str
+    advice_status: str
     plan_budgets: dict[str, object]
     plan_retrieval: dict[str, object]
     plan_token_budget: dict[str, object]
@@ -99,15 +106,33 @@ class PipelineResult:
     escalation_info: dict[str, object] = field(default_factory=dict)
     escalation_status: str = "not_needed"
     advice_source: str = "config"
+    advice_id: str | None = None
+    advice_confidence: float = 0.0
+    retrieval_source: str | None = None
+    rabi_used: bool = False
+    n_neighbors: int | None = None
+    advisor_recommendation: dict[str, object] | None = None
+    fallback_candidates: list[dict[str, object]] = field(default_factory=list)
     ranked_policies: list[dict[str, object]] = field(default_factory=list)
     route_specialization: str | None = None
     fallback_reason: str | None = None
+    advice_accepted: bool = False
+    policy_changed: bool = False
+    blocked_policy: bool = False
+    rollback_triggered: bool = False
+    rollback_reason: str | None = None
+    defer_status: str = "not_needed"
+    defer_reason: str | None = None
+    policy_blocked_count: int = 0
     operator_stack: list[str] = field(default_factory=list)
     dae_signals: dict[str, object] = field(default_factory=dict)
     queue_partition: str = ""
     queue_wait_ms: float = 0.0
     artifacts: dict[str, str] = field(default_factory=dict)
     latency_ms: float = 0.0
+    spent_budget_units: float = 0.0
+    feedback_logged: bool = False
+    feedback_error: str | None = None
     plan_payload: dict[str, object] = field(default_factory=dict)
     shadow_comparisons: list[dict[str, object]] = field(default_factory=list)
 
@@ -134,29 +159,38 @@ class PolicyRollbackMonitor:
     def is_blocked(self, policy_id: str) -> bool:
         return policy_id in self.blocked
 
-    def update(self, policy_id: str, metrics: dict[str, float], baseline_policy_id: str) -> bool:
+    def update(self, policy_id: str, metrics: dict[str, float], baseline_policy_id: str) -> dict[str, object]:
         if not self.config.rollback.enabled:
-            return False
+            return {
+                "blocked": False,
+                "triggered": False,
+                "reason": "disabled",
+                "blocked_count": len(self.blocked),
+            }
         with self._lock:
             items = self.history.setdefault(policy_id, [])
             items.append(metrics)
             window = self.config.rollback.window_size
             if len(items) > window:
                 self.history[policy_id] = items[-window:]
-                items = self.history[policy_id]
-
-            should_block = self._should_block(policy_id, baseline_policy_id)
+            reason = self._block_reason(policy_id, baseline_policy_id)
+            should_block = reason is not None
             if should_block:
                 self.blocked.add(policy_id)
             self.record()
-            return should_block
+            return {
+                "blocked": policy_id in self.blocked,
+                "triggered": should_block,
+                "reason": reason,
+                "blocked_count": len(self.blocked),
+            }
 
-    def _should_block(self, policy_id: str, baseline_policy_id: str) -> bool:
+    def _block_reason(self, policy_id: str, baseline_policy_id: str) -> str | None:
         if policy_id == baseline_policy_id:
-            return False
+            return None
         items = self.history.get(policy_id, [])
         if len(items) < min(5, self.config.rollback.window_size):
-            return False
+            return None
         latencies = [item.get("latency_ms", 0.0) for item in items]
         failures = [item.get("validation_failure", 0.0) for item in items]
         qualities = [item.get("quality_proxy", 0.0) for item in items]
@@ -172,12 +206,12 @@ class PolicyRollbackMonitor:
             baseline_quality = sum(base_qualities) / len(base_qualities)
 
         if latency_p95 > self.config.rollback.latency_p95_ms:
-            return True
+            return "latency_p95_limit"
         if failure_rate > self.config.rollback.validation_failure_rate:
-            return True
+            return "validation_failure_rate"
         if baseline_quality is not None and (baseline_quality - candidate_quality) > self.config.rollback.quality_drop_threshold:
-            return True
-        return False
+            return "quality_drop"
+        return None
 
 def _percentile(values: list[float], percentile: int) -> float:
     if not values:
@@ -367,9 +401,24 @@ class Pipeline:
         policy = route_decision.policy
         plan_source = route_decision.plan_source
         advice_source = route_decision.advice_source
+        advice_status = route_decision.advice_status
+        advice_id = route_decision.advice_id
+        advice_confidence = route_decision.advice_confidence
+        retrieval_source = route_decision.retrieval_source
+        rabi_used = route_decision.rabi_used
+        n_neighbors = route_decision.n_neighbors
+        advisor_recommendation = route_decision.advisor_recommendation
+        fallback_candidates = route_decision.fallback_candidates
         ranked_policies = route_decision.ranked_policies
         route_specialization = route_decision.route_specialization
         fallback_reason = route_decision.fallback_reason
+        static_policy = route_decision.baseline_policy
+        static_policy_reason = route_decision.baseline_policy_reason
+        advice_accepted = route_decision.advice_accepted
+        policy_changed = route_decision.policy_changed
+        blocked_policy = False
+        rollback_triggered = False
+        rollback_reason = None
 
         if self.rollback_monitor.is_blocked(policy.policy_id) and policy.policy_id != self.config.knowledge.default_policy_id:
             fallback = self.policy_store._policy_map.get(self.config.knowledge.default_policy_id, policy)
@@ -385,14 +434,30 @@ class Pipeline:
             plan_source = "rollback"
             advice_source = "rollback"
             fallback_reason = "blocked_policy"
+            blocked_policy = True
+            rollback_reason = "blocked_policy"
 
         plan_payload = json.loads(json.dumps(plan, default=lambda o: o.__dict__))
         plan_payload.update(
             {
-                "ranked_policies": ranked_policies,
+                "advisor_recommendation": advisor_recommendation,
+                "fallback_candidates": fallback_candidates,
+                "ranked_policies_legacy": ranked_policies,
                 "advice_source": advice_source,
+                "advice_status": advice_status,
+                "advice_id": advice_id,
+                "advice_confidence": advice_confidence,
+                "retrieval_source": retrieval_source,
+                "rabi_used": rabi_used,
+                "n_neighbors": n_neighbors,
                 "fallback_reason": fallback_reason,
+                "static_policy_id": static_policy.policy_id,
+                "static_policy_name": static_policy.name,
+                "static_policy_reason": static_policy_reason,
+                "advice_accepted": advice_accepted,
+                "policy_changed": policy_changed,
                 "route_specialization": route_specialization,
+                "blocked_policy": blocked_policy,
                 "operator_stack": [step.operator for step in plan.steps],
             }
         )
@@ -409,8 +474,20 @@ class Pipeline:
             inputs={"doc_id": doc.doc_id, "dae_output": dae_output.__dict__},
             outputs={
                 "source": advice_source,
-                "recommendations": ranked_policies,
+                "advice_status": advice_status,
+                "advisor_recommendation": advisor_recommendation,
+                "fallback_candidates": fallback_candidates,
+                "advice_id": advice_id,
+                "advice_confidence": advice_confidence,
+                "retrieval_source": retrieval_source,
+                "rabi_used": rabi_used,
+                "n_neighbors": n_neighbors,
                 "fallback_reason": fallback_reason,
+                "static_policy_id": static_policy.policy_id,
+                "static_policy_name": static_policy.name,
+                "static_policy_reason": static_policy_reason,
+                "advice_accepted": advice_accepted,
+                "policy_changed": policy_changed,
             },
             parameters={"rationale": plan.rationale},
             artifacts=[],
@@ -426,7 +503,19 @@ class Pipeline:
                 "plan_id": plan.plan_id,
                 "plan_source": plan_source,
                 "advice_source": advice_source,
+                "advice_status": advice_status,
+                "advice_id": advice_id,
+                "advice_confidence": advice_confidence,
+                "retrieval_source": retrieval_source,
+                "rabi_used": rabi_used,
+                "n_neighbors": n_neighbors,
                 "route_specialization": route_specialization,
+                "static_policy_id": static_policy.policy_id,
+                "static_policy_name": static_policy.name,
+                "static_policy_reason": static_policy_reason,
+                "advice_accepted": advice_accepted,
+                "policy_changed": policy_changed,
+                "blocked_policy": blocked_policy,
                 "operator_stack": [step.operator for step in plan.steps],
                 "output_artifacts": [plan_artifact.artifact_id],
             },
@@ -482,7 +571,16 @@ class Pipeline:
         )
 
         primary_metrics = self._quality_metrics(state, latency_ms)
-        self.rollback_monitor.update(policy.policy_id, primary_metrics, self.config.knowledge.default_policy_id)
+        rollback_status = self.rollback_monitor.update(
+            policy.policy_id,
+            primary_metrics,
+            self.config.knowledge.default_policy_id,
+        )
+        rollback_triggered = bool(rollback_status.get("triggered", False))
+        if rollback_status.get("reason"):
+            rollback_reason = str(rollback_status.get("reason"))
+        policy_blocked_count = int(rollback_status.get("blocked_count", len(self.rollback_monitor.blocked)) or 0)
+        blocked_policy = blocked_policy or bool(rollback_status.get("blocked", False))
 
         shadow_comparisons: list[dict[str, object]] = []
         for future in shadow_futures:
@@ -508,6 +606,38 @@ class Pipeline:
             shadow_executor.shutdown(wait=True)
         if shadow_comparisons:
             self._append_shadow_comparisons(shadow_comparisons)
+
+        defer_status = "not_needed"
+        defer_reason = None
+        if state.escalated:
+            defer_status = "requested"
+            defer_reason = str(state.escalation_info.get("reason", "") or state.escalation_status or "validation_issues")
+        elif state.escalation_status in {"budget_blocked", "quota_blocked", "model_unavailable"}:
+            defer_status = "blocked"
+            defer_reason = str(state.escalation_info.get("reason", "") or state.escalation_status)
+
+        gate_result = self._evaluate_policy_gates(policy, reward_details, latency_ms)
+        if gate_result["violations"]:
+            if defer_status == "not_needed":
+                defer_status = "requested"
+            if not defer_reason:
+                defer_reason = "policy_gate_violation"
+            if not fallback_reason:
+                fallback_reason = "policy_gate_violation"
+        reward_details["defer_status"] = defer_status
+        reward_details["policy_gate_violations"] = gate_result["violations"]
+        reward_details["policy_gate_passed"] = not gate_result["violations"]
+
+        feedback_logged, feedback_error = self._log_ahmn_feedback(
+            advice_id=advice_id,
+            selected_policy_id=policy.policy_id,
+            reward_value=reward_value,
+            reward_details=reward_details,
+            latency_ms=latency_ms,
+            state=state,
+            dae_output=dae_output,
+            spent_budget_units=state.spent_budget_units,
+        )
 
         return PipelineResult(
             doc_id=doc.doc_id,
@@ -558,10 +688,29 @@ class Pipeline:
             policy_id=policy.policy_id,
             policy_name=policy.name,
             policy_reason=plan.rationale,
+            static_policy_id=static_policy.policy_id,
+            static_policy_name=static_policy.name,
+            static_policy_reason=static_policy_reason,
+            advice_status=advice_status,
             advice_source=advice_source,
+            advice_id=advice_id,
+            advice_confidence=advice_confidence,
+            retrieval_source=retrieval_source,
+            rabi_used=rabi_used,
+            n_neighbors=n_neighbors,
+            advisor_recommendation=advisor_recommendation,
+            fallback_candidates=fallback_candidates,
             ranked_policies=ranked_policies,
             route_specialization=route_specialization,
             fallback_reason=fallback_reason,
+            advice_accepted=advice_accepted,
+            policy_changed=policy_changed,
+            blocked_policy=blocked_policy,
+            rollback_triggered=rollback_triggered,
+            rollback_reason=rollback_reason,
+            defer_status=defer_status,
+            defer_reason=defer_reason,
+            policy_blocked_count=policy_blocked_count,
             operator_stack=[step.operator for step in plan.steps],
             plan_id=plan.plan_id,
             plan_source=plan.source,
@@ -577,6 +726,9 @@ class Pipeline:
             queue_wait_ms=queue_wait_ms,
             artifacts=artifact_ids,
             latency_ms=latency_ms,
+            spent_budget_units=state.spent_budget_units,
+            feedback_logged=feedback_logged,
+            feedback_error=feedback_error,
             shadow_comparisons=shadow_comparisons,
         )
 
@@ -726,6 +878,98 @@ class Pipeline:
             "quality_proxy": avg_conf,
         }
 
+    def _log_ahmn_feedback(
+        self,
+        advice_id: str | None,
+        selected_policy_id: str,
+        reward_value: float,
+        reward_details: dict[str, object],
+        latency_ms: float,
+        state: ExecutionState,
+        dae_output: DAEOutput,
+        spent_budget_units: float,
+    ) -> tuple[bool, str | None]:
+        if not self.config.ahmn.enabled:
+            return False, None
+        if not advice_id:
+            return False, "missing_advice_id"
+        endpoint = (self.config.ahmn.endpoint or "").strip()
+        if not endpoint:
+            return False, "ahmn_endpoint_missing"
+
+        metrics: dict[str, object] = {
+            "f1_score": float((reward_details or {}).get("f1", reward_value) or reward_value),
+            "cost": round(float(spent_budget_units or 0.0), 4),
+            "processing_time_ms": round(float(latency_ms or 0.0), 2),
+            "success": len(state.validation_issues) == 0,
+            "schema_valid": bool((reward_details or {}).get("schema_valid", False)),
+            "missing_required_count": int((reward_details or {}).get("missing_required_count", 0) or 0),
+            "hallucinated_field_count": int((reward_details or {}).get("hallucinated_field_count", 0) or 0),
+            "grounding_coverage": round(float((reward_details or {}).get("grounding_coverage", 0.0) or 0.0), 4),
+            "defer_status": str((reward_details or {}).get("defer_status", "not_needed")),
+            "direct_scored": "f1" in (reward_details or {}),
+        }
+        if "precision" in reward_details:
+            metrics["precision"] = float(reward_details.get("precision", 0.0) or 0.0)
+        if "recall" in reward_details:
+            metrics["recall"] = float(reward_details.get("recall", 0.0) or 0.0)
+
+        payload = {
+            "advice_id": advice_id,
+            "policy_id_used": selected_policy_id,
+            "metrics": metrics,
+            "document_context": {
+                "doc_type": dae_output.doc_type,
+                "vendor": dae_output.vendor_cluster,
+                "vendor_cluster": dae_output.vendor_cluster,
+                "content_profile": dae_output.content_profile,
+                "route_bin": dae_output.route_bin,
+                "layout_cluster_id": dae_output.layout_cluster_id,
+                "quality_bin": dae_output.quality_bin,
+                "complexity_bin": dae_output.complexity_bin,
+                "quality_features": dae_output.quality_features,
+                "structural_features": dae_output.structural_features,
+            },
+        }
+        log_url = endpoint.rstrip("/") + self.config.ahmn.log_endpoint
+        request = urllib.request.Request(
+            log_url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        timeout = max(self.config.ahmn.timeout_ms, 10) / 1000.0
+        try:
+            with urllib.request.urlopen(request, timeout=timeout):
+                self.ctx.provenance.record(
+                    agent="ahmn_feedback",
+                    version="v1",
+                    inputs={"advice_id": advice_id, "policy_id_used": selected_policy_id},
+                    outputs={"logged": True},
+                    parameters={"log_endpoint": self.config.ahmn.log_endpoint, "metrics": metrics},
+                    artifacts=[],
+                    event_type="AHMNFeedback",
+                )
+                return True, None
+        except urllib.error.HTTPError as exc:
+            error = f"http_{exc.code}"
+        except urllib.error.URLError:
+            error = "unreachable"
+        except TimeoutError:
+            error = "timeout"
+        except Exception:
+            error = "unknown_error"
+
+        self.ctx.provenance.record(
+            agent="ahmn_feedback",
+            version="v1",
+            inputs={"advice_id": advice_id, "policy_id_used": selected_policy_id},
+            outputs={"logged": False, "error": error},
+            parameters={"log_endpoint": self.config.ahmn.log_endpoint, "metrics": metrics},
+            artifacts=[],
+            event_type="AHMNFeedback",
+        )
+        return False, error
+
     def _compute_reward(
         self,
         doc: Document,
@@ -733,6 +977,7 @@ class Pipeline:
         state: ExecutionState,
     ) -> tuple[str, float, dict[str, object]]:
         expected_fields = self._expected_fields_for_reward(plan, state)
+        schema_details = self._schema_quality_from_state(expected_fields, state)
         if expected_fields:
             extracted_expected = {
                 key
@@ -756,6 +1001,7 @@ class Pipeline:
                 "precision": round(precision, 4),
                 "recall": round(recall, 4),
                 "f1": round(f1, 4),
+                **schema_details,
             }
             return "direct_set_based", round(f1, 4), details
 
@@ -781,8 +1027,94 @@ class Pipeline:
             "unresolved_field_penalty": round(unresolved_penalty, 4),
             "escalation_penalty": round(escalation_penalty, 4),
             "unresolved_field_count": unresolved_fields,
+            **schema_details,
         }
         return "proxy", round(proxy_value, 4), details
+
+    def _schema_quality_from_state(
+        self,
+        expected_fields: list[str],
+        state: ExecutionState,
+    ) -> dict[str, object]:
+        target_fields = [str(key).strip() for key in expected_fields if str(key).strip()]
+        if not target_fields:
+            target_fields = sorted(
+                str(key).strip()
+                for key in state.requested_field_status.keys()
+                if str(key).strip()
+            )
+        target_set = set(target_fields)
+        extracted_keys: set[str] = set()
+        extracted_target_keys: set[str] = set()
+        grounded_target_keys: set[str] = set()
+
+        for entity in state.entities:
+            key = str(entity.key).strip()
+            if not key:
+                continue
+            extracted_keys.add(key)
+            if key in target_set:
+                extracted_target_keys.add(key)
+                if self._entity_is_grounded(entity):
+                    grounded_target_keys.add(key)
+
+        for key in target_fields:
+            if self._has_field_value(key, state.requested_field_status, state.entities):
+                extracted_target_keys.add(key)
+
+        required_field_count = len(target_set)
+        extracted_required_count = len(extracted_target_keys)
+        missing_required_count = max(required_field_count - extracted_required_count, 0)
+        hallucinated_field_count = len([key for key in extracted_keys if key not in target_set]) if target_set else 0
+        grounded_field_count = len(grounded_target_keys)
+        coverage = round(extracted_required_count / required_field_count, 4) if required_field_count else 0.0
+        grounding_coverage = round(grounded_field_count / extracted_required_count, 4) if extracted_required_count else 0.0
+        schema_valid = (
+            required_field_count > 0
+            and missing_required_count == 0
+            and hallucinated_field_count == 0
+            and len(state.validation_issues) == 0
+        )
+        return {
+            "required_field_count": required_field_count,
+            "extracted_required_count": extracted_required_count,
+            "missing_required_count": missing_required_count,
+            "hallucinated_field_count": hallucinated_field_count,
+            "grounded_field_count": grounded_field_count,
+            "schema_coverage": coverage,
+            "grounding_coverage": grounding_coverage,
+            "schema_valid": schema_valid,
+        }
+
+    def _entity_is_grounded(self, entity: Entity) -> bool:
+        if entity.page is not None or entity.span is not None:
+            return True
+        bbox = (entity.metadata or {}).get("bbox")
+        return isinstance(bbox, list) and len(bbox) >= 4
+
+    def _evaluate_policy_gates(
+        self,
+        policy,
+        reward_details: dict[str, object],
+        latency_ms: float,
+    ) -> dict[str, object]:
+        metadata = policy.metadata if isinstance(getattr(policy, "metadata", None), dict) else {}
+        violations: list[str] = []
+        if metadata.get("schema_valid_required") and not bool(reward_details.get("schema_valid", False)):
+            violations.append("schema_valid_required")
+        max_missing = metadata.get("max_missing_required")
+        if isinstance(max_missing, (int, float)) and int(reward_details.get("missing_required_count", 0) or 0) > int(max_missing):
+            violations.append("max_missing_required")
+        max_hallucinated = metadata.get("max_hallucinated_fields")
+        if isinstance(max_hallucinated, (int, float)) and int(reward_details.get("hallucinated_field_count", 0) or 0) > int(max_hallucinated):
+            violations.append("max_hallucinated_fields")
+        min_grounding = metadata.get("min_grounding_coverage")
+        if isinstance(min_grounding, (int, float)) and float(reward_details.get("grounding_coverage", 0.0) or 0.0) < float(min_grounding):
+            violations.append("min_grounding_coverage")
+        max_latency = metadata.get("max_latency_ms")
+        if isinstance(max_latency, (int, float)) and float(latency_ms or 0.0) > float(max_latency):
+            violations.append("max_latency_ms")
+        return {"violations": violations}
 
     def _expected_fields_for_reward(self, plan: ExecutionPlan, state: ExecutionState) -> list[str]:
         requested = sorted(key for key in state.requested_field_status.keys() if str(key).strip())

@@ -37,6 +37,50 @@ function formatNumber(value: number | null | undefined, digits = 2) {
   return value.toFixed(digits);
 }
 
+function recommendationLabel(doc: DocumentSummary | null | undefined) {
+  return doc?.advisorRecommendationPolicyId ?? "-";
+}
+
+function adviceOutcomeLabel(doc: DocumentSummary | null | undefined) {
+  if (!doc) {
+    return "-";
+  }
+  switch (doc.adviceStatus) {
+    case "static":
+      return "static";
+    case "no_advice":
+      return "no advice";
+    case "accepted":
+      return doc.policyChanged ? "accepted / changed" : "accepted / matched";
+    case "rejected":
+      return doc.fallbackReason ? `rejected / ${doc.fallbackReason}` : "rejected";
+    default:
+      if (doc.policyChanged) {
+        return doc.adviceAccepted ? "accepted / changed" : "changed";
+      }
+      if (doc.adviceAccepted) {
+        return "accepted";
+      }
+      return doc.fallbackReason ?? "matched baseline";
+  }
+}
+
+function containmentLabel(doc: DocumentSummary | null | undefined) {
+  if (!doc) {
+    return "-";
+  }
+  if (doc.rollbackTriggered) {
+    return doc.rollbackReason ? `rollback / ${doc.rollbackReason}` : "rollback";
+  }
+  if (doc.blockedPolicy) {
+    return "blocked";
+  }
+  if (doc.fallbackReason) {
+    return `fallback / ${doc.fallbackReason}`;
+  }
+  return "clear";
+}
+
 export default function RunDetailPage() {
   const params = useParams<{ runId: string }>();
   const runId = decodeURIComponent(params.runId);
@@ -121,6 +165,19 @@ export default function RunDetailPage() {
   const runTelemetry = (runInfo.telemetry as Record<string, unknown> | undefined) ?? {};
   const selectedMetadata = (selectedDoc?.metadata as Record<string, unknown> | undefined) ?? {};
   const selectedTransparency = (selectedDoc?.transparency as Record<string, unknown> | undefined) ?? {};
+  const selectedAdvisorRecommendation = (selectedDoc?.advisorRecommendation as Record<string, unknown> | undefined) ?? {};
+  const selectedFeedbackStatus = (selectedDoc?.feedbackStatus as Record<string, unknown> | undefined) ?? {};
+  const selectedSafetyStatus = (selectedDoc?.safetyStatus as Record<string, unknown> | undefined) ?? {};
+  const selectedFallbackCandidates = Array.isArray(selectedDoc?.fallbackCandidates) ? (selectedDoc?.fallbackCandidates as Record<string, unknown>[]) : [];
+  const blockedPolicyCount = docs.filter((doc) => doc.blockedPolicy).length;
+  const rollbackDocsCount = docs.filter((doc) => doc.rollbackTriggered).length;
+  const feedbackLoggedCount = docs.filter((doc) => doc.feedbackLogged).length;
+  const fallbackDocsCount = docs.filter((doc) => Boolean(doc.fallbackReason)).length;
+  const deferDocsCount = docs.filter((doc) => doc.deferStatus && doc.deferStatus !== "not_needed").length;
+  const adviceOfferedCount = docs.filter((doc) => Boolean(doc.advisorRecommendationPolicyId)).length;
+  const adviceAcceptedCount = docs.filter((doc) => doc.adviceAccepted).length;
+  const policyChangedCount = docs.filter((doc) => doc.policyChanged).length;
+  const directScoredDocCount = docs.filter((doc) => typeof doc.exactF1 === "number").length;
 
   const retrievalFiles = files.filter(
     (file) =>
@@ -175,10 +232,16 @@ export default function RunDetailPage() {
             </Link>
             <h1 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">Run {runId}</h1>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Canonical and shadow artifacts with provenance, recovery, escalation, and policy safety metrics.
+              Canonical IDPO runtime view with AHMN top-1 advice, selected policy execution, fallback and rollback status, and post-run feedback.
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Link
+              href={`/dashboard/idpo/compare?left=${encodeURIComponent(runId)}`}
+              className="rounded-full border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Compare This Run
+            </Link>
             <StatusBadge value={overview?.run.status ?? "unknown"} />
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200">
               {overview?.run.docCount ?? 0} docs
@@ -245,6 +308,42 @@ export default function RunDetailPage() {
             <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Retries</p>
             <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{overview?.retriesCount ?? 0}</p>
           </IdpoCard>
+          <IdpoCard>
+            <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Rollbacks</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{rollbackDocsCount}</p>
+          </IdpoCard>
+          <IdpoCard>
+            <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Blocked Policies</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{blockedPolicyCount}</p>
+          </IdpoCard>
+          <IdpoCard>
+            <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Advice Accepted</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{adviceAcceptedCount}</p>
+          </IdpoCard>
+          <IdpoCard>
+            <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Advice Offered</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{adviceOfferedCount}</p>
+          </IdpoCard>
+          <IdpoCard>
+            <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Policy Changed</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{policyChangedCount}</p>
+          </IdpoCard>
+          <IdpoCard>
+            <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Direct-Scored Docs</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{directScoredDocCount}</p>
+          </IdpoCard>
+          <IdpoCard>
+            <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Feedback Logged</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{feedbackLoggedCount}</p>
+          </IdpoCard>
+          <IdpoCard>
+            <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Fallbacks</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{fallbackDocsCount}</p>
+          </IdpoCard>
+          <IdpoCard>
+            <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Deferred / Review</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{deferDocsCount}</p>
+          </IdpoCard>
 
           <IdpoCard className="md:col-span-3 xl:col-span-6">
             <h3 className="text-base font-semibold text-slate-900 dark:text-white">Metrics Snapshot</h3>
@@ -266,7 +365,7 @@ export default function RunDetailPage() {
       {activeTab === "Documents" ? (
         <IdpoCard>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1160px] text-sm">
+            <table className="w-full min-w-[1320px] text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
                   <th className="px-2 py-2">Doc ID</th>
@@ -274,12 +373,19 @@ export default function RunDetailPage() {
                   <th className="px-2 py-2">Vendor</th>
                   <th className="px-2 py-2">Complexity</th>
                   <th className="px-2 py-2">Route</th>
-                  <th className="px-2 py-2">Model</th>
+                  <th className="px-2 py-2">Static Policy</th>
+                  <th className="px-2 py-2">Recommended</th>
+                  <th className="px-2 py-2">Selected Policy</th>
+                  <th className="px-2 py-2">Advice</th>
+                  <th className="px-2 py-2">Outcome</th>
+                  <th className="px-2 py-2">Advice Source</th>
                   <th className="px-2 py-2">Fallback</th>
-                  <th className="px-2 py-2">Unresolved</th>
-                  <th className="px-2 py-2">OCR</th>
+                  <th className="px-2 py-2">Safety</th>
+                  <th className="px-2 py-2">Review</th>
+                  <th className="px-2 py-2">Feedback</th>
                   <th className="px-2 py-2">Latency</th>
                   <th className="px-2 py-2">Validation</th>
+                  <th className="px-2 py-2">Schema</th>
                   <th className="px-2 py-2">Escalated</th>
                   <th className="px-2 py-2">Actions</th>
                 </tr>
@@ -292,16 +398,23 @@ export default function RunDetailPage() {
                     <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{doc.vendorCluster ?? "-"}</td>
                     <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{doc.complexityBin ?? "-"}</td>
                     <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{doc.routeBin ?? "-"}</td>
+                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{doc.staticPolicyId ?? "-"}</td>
+                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{recommendationLabel(doc)}</td>
+                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{doc.policyId ?? "-"}</td>
+                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{adviceOutcomeLabel(doc)}</td>
                     <td className="px-2 py-2 text-slate-600 dark:text-slate-300">
-                      {[doc.modelMode ?? "-", doc.modelUsed ?? "-"].join(" / ")}
+                      {typeof doc.exactF1 === "number" ? `F1 ${formatNumber(doc.exactF1, 3)}` : typeof doc.reward === "number" ? `Reward ${formatNumber(doc.reward, 3)}` : "-"}
                     </td>
-                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{doc.fallbackPath ?? "-"}</td>
-                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{doc.unresolvedFieldCount ?? "-"}</td>
-                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">
-                      {doc.ocrEngineUsed ?? "-"} ({formatNumber(doc.ocrAvgConfidence, 2)})
-                    </td>
+                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{doc.adviceSource ?? "-"}</td>
+                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{doc.fallbackReason ?? "-"}</td>
+                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{containmentLabel(doc)}</td>
+                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{doc.deferStatus ?? "-"}</td>
+                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{doc.feedbackLogged ? "logged" : "-"}</td>
                     <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{formatNumber(doc.latencyMs)} ms</td>
                     <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{doc.validationIssueCount}</td>
+                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">
+                      {typeof doc.schemaCoverage === "number" ? `${formatNumber(doc.schemaCoverage, 3)}${doc.schemaValid ? " / valid" : ""}` : "-"}
+                    </td>
                     <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{doc.escalated ? "yes" : "no"}</td>
                     <td className="px-2 py-2">
                       <Link
@@ -347,24 +460,53 @@ export default function RunDetailPage() {
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Model Route</p>
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Advisor Recommendation</p>
                 <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">
-                  {String(selectedMetadata.modelMode ?? "-")} / {String(selectedMetadata.modelUsed ?? "-")}
+                  {String(selectedAdvisorRecommendation.policy_id ?? "-")}
+                </p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Status: {String(selectedMetadata.adviceStatus ?? "-")}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Selected Policy</p>
+                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{String(selectedMetadata.policyId ?? "-")}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Fallback / Safety</p>
+                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">
+                  {String(selectedMetadata.fallbackReason ?? "-")}
+                </p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  {selectedSafetyStatus.rollback_triggered ? "rollback triggered" : selectedSafetyStatus.blocked_policy ? "policy blocked" : "no safety event"}
                 </p>
               </div>
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Fallback Path</p>
-                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{String(selectedMetadata.fallbackPath ?? "-")}</p>
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Feedback Status</p>
+                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{selectedFeedbackStatus.logged ? "logged" : "not logged"}</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{String(selectedFeedbackStatus.error ?? "-")}</p>
               </div>
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">OCR Route</p>
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Defer / Review</p>
+                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{String(selectedMetadata.deferStatus ?? selectedSafetyStatus.defer_status ?? "-")}</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{String(selectedMetadata.deferReason ?? selectedSafetyStatus.defer_reason ?? "-")}</p>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Advice Source</p>
+                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{String(selectedMetadata.adviceSource ?? "-")}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Fallback Candidates</p>
+                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{selectedFallbackCandidates.length}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Schema Quality</p>
                 <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">
-                  {String(selectedMetadata.ocrEngineUsed ?? "-")} ({formatNumber(Number(selectedMetadata.ocrAvgConfidence ?? NaN), 2)})
+                  {typeof selectedMetadata.schemaCoverage === "number" ? formatNumber(selectedMetadata.schemaCoverage, 3) : "-"}
                 </p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Unresolved Fields</p>
-                <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{String(selectedMetadata.unresolvedFieldCount ?? "-")}</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  grounded {typeof selectedMetadata.schemaGroundingCoverage === "number" ? formatNumber(selectedMetadata.schemaGroundingCoverage, 3) : "-"} | valid {String(selectedMetadata.schemaValid ?? "-")}
+                </p>
               </div>
             </div>
           </IdpoCard>

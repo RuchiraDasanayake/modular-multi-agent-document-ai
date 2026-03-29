@@ -37,8 +37,29 @@ interface ResultDocRecord {
   content_profile?: string;
   complexity_bin?: string;
   route_bin?: string;
+  route_specialization?: string;
   latency_ms?: number;
   policy_id?: string;
+  policy_name?: string;
+  static_policy_id?: string;
+  static_policy_name?: string;
+  static_policy_reason?: string;
+  advice_source?: string;
+  advice_status?: string | null;
+  advice_id?: string;
+  advice_confidence?: number;
+  retrieval_source?: string;
+  rabi_used?: boolean;
+  n_neighbors?: number | null;
+  fallback_reason?: string | null;
+  advice_accepted?: boolean;
+  policy_changed?: boolean;
+  advisor_recommendation?: Record<string, unknown> | null;
+  fallback_candidates?: unknown[];
+  blocked_policy?: boolean;
+  rollback_reason?: string | null;
+  feedback_logged?: boolean;
+  feedback_error?: string | null;
   escalated?: boolean;
   validation_issues?: unknown[];
   extracted_fields?: unknown[];
@@ -57,9 +78,19 @@ interface ResultDocRecord {
   ocr_rerun_used_pages?: number;
   fallback_path?: string;
   unresolved_field_count?: number;
+  defer_status?: string | null;
+  defer_reason?: string | null;
+  schema_coverage?: number;
+  schema_grounding_coverage?: number;
+  schema_valid?: boolean;
+  schema_missing_required_count?: number;
+  schema_hallucinated_field_count?: number;
   transparency_path?: string;
   transparency?: Record<string, unknown>;
   llm_diagnostics?: Record<string, unknown>;
+  reward?: number;
+  reward_type?: string;
+  reward_details?: Record<string, unknown>;
 }
 
 interface ProvenanceRaw {
@@ -186,16 +217,37 @@ function computeStatus(primaryPath: string): "ready" | "running" | "failed" | "u
 function mapResultToDocumentSummary(entry: ResultDocRecord): DocumentSummary {
   const docId = String(entry.doc_id ?? "unknown_doc");
   const validationIssueCount = Array.isArray(entry.validation_issues) ? entry.validation_issues.length : 0;
+  const rewardDetails = asRecord(entry.reward_details) ?? {};
   return {
     docId,
     filename: String(entry.filename ?? entry.path ?? docId),
     docType: typeof entry.doc_type === "string" ? entry.doc_type : null,
     vendorCluster: typeof entry.vendor_cluster === "string" ? entry.vendor_cluster : null,
+    layoutClusterId: typeof entry.layout_cluster_id === "string" ? entry.layout_cluster_id : null,
     complexityBin: typeof entry.complexity_bin === "string" ? entry.complexity_bin : null,
     routeBin: typeof entry.route_bin === "string" ? entry.route_bin : null,
+    routeSpecialization: typeof (entry as Record<string, unknown>).route_specialization === "string" ? String((entry as Record<string, unknown>).route_specialization) : null,
     status: "processed",
     latencyMs: asNumber(entry.latency_ms),
     policyId: typeof entry.policy_id === "string" ? entry.policy_id : null,
+    staticPolicyId: typeof (entry as Record<string, unknown>).static_policy_id === "string" ? String((entry as Record<string, unknown>).static_policy_id) : null,
+    staticPolicyName: typeof (entry as Record<string, unknown>).static_policy_name === "string" ? String((entry as Record<string, unknown>).static_policy_name) : null,
+    staticPolicyReason: typeof (entry as Record<string, unknown>).static_policy_reason === "string" ? String((entry as Record<string, unknown>).static_policy_reason) : null,
+    advisorRecommendationPolicyId:
+      typeof asRecord((entry as Record<string, unknown>).advisor_recommendation)?.policy_id === "string"
+        ? String(asRecord((entry as Record<string, unknown>).advisor_recommendation)?.policy_id)
+        : null,
+    adviceSource: typeof entry.advice_source === "string" ? entry.advice_source : null,
+    adviceStatus: typeof (entry as Record<string, unknown>).advice_status === "string" ? String((entry as Record<string, unknown>).advice_status) : null,
+    adviceConfidence: asNumber(entry.advice_confidence),
+    retrievalSource: typeof entry.retrieval_source === "string" ? entry.retrieval_source : null,
+    fallbackReason: typeof entry.fallback_reason === "string" ? entry.fallback_reason : null,
+    adviceAccepted: typeof (entry as Record<string, unknown>).advice_accepted === "boolean" ? Boolean((entry as Record<string, unknown>).advice_accepted) : null,
+    policyChanged: typeof (entry as Record<string, unknown>).policy_changed === "boolean" ? Boolean((entry as Record<string, unknown>).policy_changed) : null,
+    feedbackLogged: typeof entry.feedback_logged === "boolean" ? entry.feedback_logged : null,
+    rollbackTriggered: typeof entry.rollback_triggered === "boolean" ? entry.rollback_triggered : null,
+    rollbackReason: typeof entry.rollback_reason === "string" ? entry.rollback_reason : null,
+    blockedPolicy: typeof entry.blocked_policy === "boolean" ? entry.blocked_policy : null,
     validationIssueCount,
     escalated: Boolean(entry.escalated),
     retriesCount: asNumber(entry.retries_count) ?? 0,
@@ -208,7 +260,19 @@ function mapResultToDocumentSummary(entry: ResultDocRecord): DocumentSummary {
     ocrRerunUsedPages: asNumber(entry.ocr_rerun_used_pages),
     fallbackPath: typeof entry.fallback_path === "string" ? entry.fallback_path : null,
     unresolvedFieldCount: asNumber(entry.unresolved_field_count),
+    deferStatus: typeof (entry as Record<string, unknown>).defer_status === "string" ? String((entry as Record<string, unknown>).defer_status) : null,
+    deferReason: typeof (entry as Record<string, unknown>).defer_reason === "string" ? String((entry as Record<string, unknown>).defer_reason) : null,
+    schemaCoverage: asNumber((entry as Record<string, unknown>).schema_coverage),
+    schemaGroundingCoverage: asNumber((entry as Record<string, unknown>).schema_grounding_coverage),
+    schemaValid: typeof (entry as Record<string, unknown>).schema_valid === "boolean" ? Boolean((entry as Record<string, unknown>).schema_valid) : null,
+    missingRequiredCount: asNumber((entry as Record<string, unknown>).schema_missing_required_count),
+    hallucinatedFieldCount: asNumber((entry as Record<string, unknown>).schema_hallucinated_field_count),
     transparencyPath: typeof entry.transparency_path === "string" ? entry.transparency_path : null,
+    reward: asNumber(entry.reward),
+    rewardType: typeof entry.reward_type === "string" ? entry.reward_type : null,
+    exactPrecision: asNumber(rewardDetails.precision),
+    exactRecall: asNumber(rewardDetails.recall),
+    exactF1: asNumber(rewardDetails.f1),
   };
 }
 
@@ -217,18 +281,31 @@ function mapDocsLayoutToDocumentSummary(primaryPath: string, docId: string): Doc
   const manifest = readJsonFile<Record<string, unknown>>(path.join(docDir, "input", "manifest.json")) ?? {};
   const dae = readJsonFile<Record<string, unknown>>(path.join(docDir, "dae", "output.json")) ?? {};
   const plan = readJsonFile<Record<string, unknown>>(path.join(docDir, "plan", "primary.json")) ?? {};
+  const decisionChain = readJsonFile<Record<string, unknown>>(path.join(docDir, "decision_chain.json")) ?? {};
   const validate = readJsonFile<Record<string, unknown>>(path.join(docDir, "validation", "results.json")) ?? {};
   const transparency = readJsonFile<Record<string, unknown>>(path.join(docDir, "provenance", "transparency.json")) ?? {};
   const fieldResolution = asRecord(transparency.field_resolution) ?? {};
   const modelRoute = asRecord(transparency.model_route) ?? {};
   const ocrRoute = asRecord(transparency.ocr_route) ?? {};
+  const routing = asRecord(transparency.routing) ?? asRecord(decisionChain.policy) ?? {};
+  const advisorRecommendation = asRecord(routing.advisor_recommendation) ?? asRecord(plan.advisor_recommendation) ?? {};
+  const feedbackStatus = asRecord(transparency.feedback_status) ?? asRecord(decisionChain.feedback_status) ?? {};
+  const safetyStatus = asRecord(transparency.safety_status) ?? asRecord(decisionChain.safety_status) ?? {};
   const recoveryAttemptsRaw = readLooseJson(path.join(docDir, "recovery", "attempts.jsonl"));
   const escalationRaw = readLooseJson(path.join(docDir, "recovery", "escalations.jsonl"));
+  const reward = readJsonFile<Record<string, unknown>>(path.join(docDir, "reward.json")) ?? {};
+  const extractionSource = Array.isArray((readJsonFile<Record<string, unknown>>(path.join(docDir, "structuring", "extracted.json")) ?? {}).entities)
+    ? ((readJsonFile<Record<string, unknown>>(path.join(docDir, "structuring", "extracted.json")) ?? {}).entities as unknown[])
+    : [];
   const escalation = mapEscalation(escalationRaw);
+  const rewardDetails = asRecord(reward.reward_details) ?? {};
+  const validationIssues = mapValidationIssues(validate.issues);
+  const fields = extractionSource.map(mapField).filter((item): item is FieldExtraction => item !== null);
+  const schemaQuality = computeSchemaQuality(getExpectedFieldKeys(primaryPath), fields, validationIssues);
 
   const manifestPath = typeof manifest.path === "string" ? path.basename(manifest.path) : "";
   const filename = manifestPath || docId;
-  const validationIssueCount = mapValidationIssues(validate.issues).length;
+  const validationIssueCount = validationIssues.length;
   const retriesCount = mapRecovery(recoveryAttemptsRaw).length;
   const transparencyPath = path.join(docDir, "provenance", "transparency.json");
 
@@ -237,11 +314,28 @@ function mapDocsLayoutToDocumentSummary(primaryPath: string, docId: string): Doc
     filename,
     docType: typeof dae.doc_type === "string" ? dae.doc_type : null,
     vendorCluster: typeof dae.vendor_cluster === "string" ? dae.vendor_cluster : null,
+    layoutClusterId: typeof dae.layout_cluster_id === "string" ? dae.layout_cluster_id : null,
     complexityBin: typeof dae.complexity_bin === "string" ? dae.complexity_bin : null,
     routeBin: typeof dae.route_bin === "string" ? dae.route_bin : null,
+    routeSpecialization: typeof routing.route_specialization === "string" ? routing.route_specialization : null,
     status: "processed",
     latencyMs: asNumber(transparency.latency_ms),
     policyId: typeof plan.policy_id === "string" ? plan.policy_id : null,
+    staticPolicyId: typeof routing.static_policy_id === "string" ? routing.static_policy_id : null,
+    staticPolicyName: typeof routing.static_policy_name === "string" ? routing.static_policy_name : null,
+    staticPolicyReason: typeof routing.static_policy_reason === "string" ? routing.static_policy_reason : null,
+    advisorRecommendationPolicyId: typeof advisorRecommendation.policy_id === "string" ? advisorRecommendation.policy_id : null,
+    adviceSource: typeof routing.advice_source === "string" ? routing.advice_source : null,
+    adviceStatus: typeof routing.advice_status === "string" ? routing.advice_status : null,
+    adviceConfidence: asNumber(routing.advice_confidence),
+    retrievalSource: typeof routing.retrieval_source === "string" ? routing.retrieval_source : null,
+    fallbackReason: typeof routing.fallback_reason === "string" ? routing.fallback_reason : null,
+    adviceAccepted: typeof routing.advice_accepted === "boolean" ? routing.advice_accepted : null,
+    policyChanged: typeof routing.policy_changed === "boolean" ? routing.policy_changed : null,
+    feedbackLogged: typeof feedbackStatus.logged === "boolean" ? feedbackStatus.logged : null,
+    rollbackTriggered: typeof safetyStatus.rollback_triggered === "boolean" ? safetyStatus.rollback_triggered : null,
+    rollbackReason: typeof safetyStatus.rollback_reason === "string" ? safetyStatus.rollback_reason : null,
+    blockedPolicy: typeof safetyStatus.blocked_policy === "boolean" ? safetyStatus.blocked_policy : null,
     validationIssueCount,
     escalated: escalation?.escalated ?? false,
     retriesCount,
@@ -254,7 +348,19 @@ function mapDocsLayoutToDocumentSummary(primaryPath: string, docId: string): Doc
     ocrRerunUsedPages: asNumber(ocrRoute.rerun_used_pages),
     fallbackPath: typeof modelRoute.fallback_path === "string" ? modelRoute.fallback_path : null,
     unresolvedFieldCount: asNumber(fieldResolution.unresolved_count),
+    deferStatus: typeof routing.defer_status === "string" ? routing.defer_status : typeof safetyStatus.defer_status === "string" ? safetyStatus.defer_status : null,
+    deferReason: typeof routing.defer_reason === "string" ? routing.defer_reason : typeof safetyStatus.defer_reason === "string" ? safetyStatus.defer_reason : null,
+    schemaCoverage: schemaQuality.coverage,
+    schemaGroundingCoverage: schemaQuality.groundingCoverage,
+    schemaValid: schemaQuality.valid,
+    missingRequiredCount: schemaQuality.missingRequiredCount,
+    hallucinatedFieldCount: schemaQuality.hallucinatedFieldCount,
     transparencyPath: fs.existsSync(transparencyPath) ? relativeToPrimary(primaryPath, transparencyPath) : null,
+    reward: asNumber(reward.reward),
+    rewardType: typeof reward.reward_type === "string" ? reward.reward_type : null,
+    exactPrecision: asNumber(rewardDetails.precision),
+    exactRecall: asNumber(rewardDetails.recall),
+    exactF1: asNumber(rewardDetails.f1),
   };
 }
 
@@ -274,6 +380,62 @@ function normalizeExtractionMethod(value: unknown): "local_model" | "llm_tool" |
     return value;
   }
   return "unknown";
+}
+
+function getExpectedFieldKeys(primaryPath: string): string[] {
+  const schema = readJsonFile<Record<string, unknown>>(path.join(primaryPath, "fields.json")) ?? {};
+  const fields = Array.isArray(schema.fields) ? schema.fields : [];
+  return fields
+    .map((entry) => (entry && typeof entry === "object" ? String((entry as Record<string, unknown>).key ?? "").trim() : ""))
+    .filter((value) => value.length > 0);
+}
+
+function computeSchemaQuality(
+  expectedKeys: string[],
+  fields: FieldExtraction[],
+  validationIssues: ValidationError[],
+): {
+  coverage: number | null;
+  groundingCoverage: number | null;
+  valid: boolean | null;
+  missingRequiredCount: number | null;
+  hallucinatedFieldCount: number | null;
+} {
+  if (expectedKeys.length === 0) {
+    return {
+      coverage: null,
+      groundingCoverage: null,
+      valid: null,
+      missingRequiredCount: null,
+      hallucinatedFieldCount: null,
+    };
+  }
+
+  const expected = new Set(expectedKeys);
+  const extracted = new Set<string>();
+  let groundedRequiredCount = 0;
+  for (const field of fields) {
+    if (field.value === null || field.value === "") {
+      continue;
+    }
+    extracted.add(field.key);
+    const grounded = field.evidence.page !== null || field.evidence.span !== null || field.evidence.bbox !== null;
+    if (grounded && expected.has(field.key)) {
+      groundedRequiredCount += 1;
+    }
+  }
+
+  const extractedRequiredCount = expectedKeys.filter((key) => extracted.has(key)).length;
+  const missingRequiredCount = Math.max(expectedKeys.length - extractedRequiredCount, 0);
+  const hallucinatedFieldCount = Array.from(extracted).filter((key) => !expected.has(key)).length;
+
+  return {
+    coverage: expectedKeys.length > 0 ? extractedRequiredCount / expectedKeys.length : null,
+    groundingCoverage: extractedRequiredCount > 0 ? groundedRequiredCount / extractedRequiredCount : null,
+    valid: missingRequiredCount === 0 && hallucinatedFieldCount === 0 && validationIssues.length === 0,
+    missingRequiredCount,
+    hallucinatedFieldCount,
+  };
 }
 
 function mapField(entry: unknown): FieldExtraction | null {
@@ -310,7 +472,9 @@ function mapField(entry: unknown): FieldExtraction | null {
         ? (value.evidence_bbox as number[])
         : Array.isArray(value.bbox)
           ? (value.bbox as number[])
-          : null,
+          : Array.isArray((value.metadata as Record<string, unknown> | undefined)?.bbox)
+            ? (((value.metadata as Record<string, unknown>).bbox as unknown[]) as number[])
+            : null,
       page: asNumber(value.page),
     },
     discovered: Boolean(value.discovered),
@@ -668,12 +832,23 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
     const recover = readLooseJson(path.join(docsLayoutDir, "recovery", "attempts.jsonl")) ?? {};
     const escalate = readLooseJson(path.join(docsLayoutDir, "recovery", "escalations.jsonl")) ?? {};
     const route = readJsonFile<Record<string, unknown>>(path.join(docsLayoutDir, "plan", "primary.json")) ?? {};
+    const decisionChain = readJsonFile<Record<string, unknown>>(path.join(docsLayoutDir, "decision_chain.json")) ?? {};
     const guardrails = readJsonFile<Record<string, unknown>>(path.join(docsLayoutDir, "guardrails", "results.json")) ?? {};
     const transparency = readJsonFile<Record<string, unknown>>(path.join(docsLayoutDir, "provenance", "transparency.json")) ?? {};
+    const reward = readJsonFile<Record<string, unknown>>(path.join(docsLayoutDir, "reward.json")) ?? {};
     const llmDiagnostics = asRecord(extract.llm_diagnostics) ?? {};
     const modelRoute = asRecord(transparency.model_route) ?? {};
     const ocrRoute = asRecord(transparency.ocr_route) ?? {};
     const fieldResolution = asRecord(transparency.field_resolution) ?? {};
+    const routing = asRecord(transparency.routing) ?? asRecord(decisionChain.policy) ?? {};
+    const feedbackStatus = asRecord(transparency.feedback_status) ?? asRecord(decisionChain.feedback_status) ?? {};
+    const safetyStatus = asRecord(transparency.safety_status) ?? asRecord(decisionChain.safety_status) ?? {};
+    const advisorRecommendation = asRecord(routing.advisor_recommendation) ?? asRecord(route.advisor_recommendation);
+    const fallbackCandidates = Array.isArray(routing.fallback_candidates)
+      ? routing.fallback_candidates
+      : Array.isArray(route.fallback_candidates)
+        ? route.fallback_candidates
+        : [];
 
     const extractionSource = Array.isArray(extract.entities)
       ? extract.entities
@@ -682,6 +857,7 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
         : [];
     const fields = extractionSource.map(mapField).filter((item): item is FieldExtraction => item !== null);
     const validationIssues = mapValidationIssues(validate.issues);
+    const schemaQuality = computeSchemaQuality(getExpectedFieldKeys(context.primaryPath), fields, validationIssues);
     const recoveryAttempts = mapRecovery(recover);
     const escalation = mapEscalation(escalate);
     const guardrailFindings = mapGuardrails(guardrails);
@@ -699,8 +875,23 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
         layoutClusterId: (dae.layout_cluster_id as string | undefined) ?? null,
         complexityBin: (dae.complexity_bin as string | undefined) ?? null,
         routeBin: (dae.route_bin as string | undefined) ?? null,
+        routeSpecialization: typeof routing.route_specialization === "string" ? routing.route_specialization : null,
         profile: (dae.content_profile as string | undefined) ?? null,
         policyId: (route.policy_id as string | undefined) ?? null,
+        policyName: (route.policy_name as string | undefined) ?? null,
+        staticPolicyId: typeof routing.static_policy_id === "string" ? routing.static_policy_id : null,
+        staticPolicyName: typeof routing.static_policy_name === "string" ? routing.static_policy_name : null,
+        staticPolicyReason: typeof routing.static_policy_reason === "string" ? routing.static_policy_reason : null,
+        adviceSource: typeof routing.advice_source === "string" ? routing.advice_source : null,
+        adviceStatus: typeof routing.advice_status === "string" ? routing.advice_status : null,
+        adviceId: typeof routing.advice_id === "string" ? routing.advice_id : null,
+        adviceConfidence: asNumber(routing.advice_confidence),
+        retrievalSource: typeof routing.retrieval_source === "string" ? routing.retrieval_source : null,
+        rabiUsed: typeof routing.rabi_used === "boolean" ? routing.rabi_used : false,
+        nNeighbors: asNumber(routing.n_neighbors),
+        adviceAccepted: typeof routing.advice_accepted === "boolean" ? routing.advice_accepted : null,
+        policyChanged: typeof routing.policy_changed === "boolean" ? routing.policy_changed : null,
+        fallbackReason: typeof routing.fallback_reason === "string" ? routing.fallback_reason : null,
         latencyMs: asNumber(transparency.latency_ms),
         modelUsed: typeof modelRoute.model_used === "string" ? modelRoute.model_used : null,
         modelMode: typeof modelRoute.model_mode === "string" ? modelRoute.model_mode : null,
@@ -710,6 +901,13 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
           asNumber(fieldResolution.unresolved_count) ??
           asNumber(llmDiagnostics.unresolved_count) ??
           (Array.isArray(extract.unresolved_fields) ? extract.unresolved_fields.length : null),
+        deferStatus: typeof routing.defer_status === "string" ? routing.defer_status : typeof safetyStatus.defer_status === "string" ? safetyStatus.defer_status : null,
+        deferReason: typeof routing.defer_reason === "string" ? routing.defer_reason : typeof safetyStatus.defer_reason === "string" ? safetyStatus.defer_reason : null,
+        schemaCoverage: schemaQuality.coverage,
+        schemaGroundingCoverage: schemaQuality.groundingCoverage,
+        schemaValid: schemaQuality.valid,
+        missingRequiredCount: schemaQuality.missingRequiredCount,
+        hallucinatedFieldCount: schemaQuality.hallucinatedFieldCount,
         ocrEngineUsed: typeof ocrRoute.engine === "string" ? ocrRoute.engine : null,
         ocrAvgConfidence: asNumber(ocrRoute.avg_confidence),
         ocrRerunAttemptedPages: asNumber(ocrRoute.rerun_attempted_pages),
@@ -718,6 +916,10 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
           ? relativeToPrimary(context.primaryPath, path.join(docsLayoutDir, "provenance", "transparency.json"))
           : null,
       },
+      advisorRecommendation,
+      fallbackCandidates,
+      feedbackStatus,
+      safetyStatus,
       fields,
       validationIssues,
       guardrailFindings,
@@ -725,6 +927,12 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
       escalation,
       provenanceEvents,
       transparency,
+      schemaQuality,
+      reward: {
+        reward: asNumber(reward.reward),
+        rewardType: typeof reward.reward_type === "string" ? reward.reward_type : null,
+        details: asRecord(reward.reward_details) ?? {},
+      },
       llmDiagnostics,
       raw: {
         dae,
@@ -735,6 +943,7 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
         route,
         guardrails,
         transparency,
+        decisionChain,
       },
     };
   }
@@ -751,6 +960,17 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
   const guardrails = readJsonDocFile<Record<string, unknown>>(context.primaryPath, "guardrails", docId) ?? {};
   const transparency = asRecord(result?.transparency) ?? {};
   const llmDiagnostics = asRecord(result?.llm_diagnostics) ?? {};
+  const feedbackStatus = asRecord((result as Record<string, unknown> | null)?.feedback_status) ?? {};
+  const safetyStatus = asRecord((result as Record<string, unknown> | null)?.safety_status) ?? {};
+  const advisorRecommendation = asRecord((result as Record<string, unknown> | null)?.advisor_recommendation) ?? {};
+  const fallbackCandidates = Array.isArray((result as Record<string, unknown> | null)?.fallback_candidates)
+    ? (((result as Record<string, unknown>).fallback_candidates as unknown[]) ?? [])
+    : [];
+  const reward = {
+    reward: asNumber(result?.reward),
+    rewardType: typeof result?.reward_type === "string" ? result.reward_type : null,
+    details: asRecord(result?.reward_details) ?? {},
+  };
 
   const extractionSource = Array.isArray(extract.fields)
     ? extract.fields
@@ -761,6 +981,7 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
   const fields = extractionSource.map(mapField).filter((item): item is FieldExtraction => item !== null);
 
   const validationIssues = mapValidationIssues(validate.issues ?? result?.validation_issues);
+  const schemaQuality = computeSchemaQuality(getExpectedFieldKeys(context.primaryPath), fields, validationIssues);
   const recoveryAttempts = mapRecovery(recover);
   const escalation = mapEscalation(escalate ?? result?.escalation_info);
   const guardrailFindings = mapGuardrails(guardrails);
@@ -769,26 +990,52 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
 
   return {
     docId,
-    metadata: {
-      docType: (dae.doc_type as string | undefined) ?? (result?.doc_type ?? null),
-      vendorCluster: (dae.vendor_cluster as string | undefined) ?? (result?.vendor_cluster ?? null),
-      layoutClusterId: (dae.layout_cluster_id as string | undefined) ?? (result?.layout_cluster_id ?? null),
-      complexityBin: (dae.complexity_bin as string | undefined) ?? (result?.complexity_bin ?? null),
-      routeBin: (dae.route_bin as string | undefined) ?? (result?.route_bin ?? null),
-      profile: (dae.content_profile as string | undefined) ?? (result?.content_profile ?? null),
-      policyId: result?.policy_id ?? (route.policy_id as string | undefined) ?? null,
-      latencyMs: result?.latency_ms ?? null,
-      modelUsed: typeof result?.model_used === "string" ? result.model_used : null,
-      modelMode: typeof result?.model_mode === "string" ? result.model_mode : null,
+      metadata: {
+        docType: (dae.doc_type as string | undefined) ?? (result?.doc_type ?? null),
+        vendorCluster: (dae.vendor_cluster as string | undefined) ?? (result?.vendor_cluster ?? null),
+        layoutClusterId: (dae.layout_cluster_id as string | undefined) ?? (result?.layout_cluster_id ?? null),
+        complexityBin: (dae.complexity_bin as string | undefined) ?? (result?.complexity_bin ?? null),
+        routeBin: (dae.route_bin as string | undefined) ?? (result?.route_bin ?? null),
+        routeSpecialization: typeof result?.route_specialization === "string" ? result.route_specialization : null,
+        profile: (dae.content_profile as string | undefined) ?? (result?.content_profile ?? null),
+        policyId: result?.policy_id ?? (route.policy_id as string | undefined) ?? null,
+        policyName: typeof result?.policy_name === "string" ? result.policy_name : null,
+        staticPolicyId: typeof result?.static_policy_id === "string" ? result.static_policy_id : null,
+        staticPolicyName: typeof result?.static_policy_name === "string" ? result.static_policy_name : null,
+        staticPolicyReason: typeof result?.static_policy_reason === "string" ? result.static_policy_reason : null,
+        adviceSource: typeof result?.advice_source === "string" ? result.advice_source : null,
+        adviceStatus: typeof result?.advice_status === "string" ? result.advice_status : null,
+        adviceId: typeof result?.advice_id === "string" ? result.advice_id : null,
+        adviceConfidence: asNumber(result?.advice_confidence),
+        retrievalSource: typeof result?.retrieval_source === "string" ? result.retrieval_source : null,
+        rabiUsed: typeof result?.rabi_used === "boolean" ? result.rabi_used : false,
+        nNeighbors: asNumber(result?.n_neighbors),
+        adviceAccepted: typeof result?.advice_accepted === "boolean" ? result.advice_accepted : null,
+        policyChanged: typeof result?.policy_changed === "boolean" ? result.policy_changed : null,
+        fallbackReason: typeof result?.fallback_reason === "string" ? result.fallback_reason : null,
+        latencyMs: result?.latency_ms ?? null,
+        modelUsed: typeof result?.model_used === "string" ? result.model_used : null,
+        modelMode: typeof result?.model_mode === "string" ? result.model_mode : null,
       modelReason: typeof result?.model_reason === "string" ? result.model_reason : null,
       fallbackPath: typeof result?.fallback_path === "string" ? result.fallback_path : null,
       unresolvedFieldCount: asNumber(result?.unresolved_field_count),
+      deferStatus: typeof result?.defer_status === "string" ? result.defer_status : null,
+      deferReason: typeof result?.defer_reason === "string" ? result.defer_reason : null,
+      schemaCoverage: asNumber((result as Record<string, unknown> | null)?.schema_coverage) ?? schemaQuality.coverage,
+      schemaGroundingCoverage: asNumber((result as Record<string, unknown> | null)?.schema_grounding_coverage) ?? schemaQuality.groundingCoverage,
+      schemaValid: typeof result?.schema_valid === "boolean" ? result.schema_valid : schemaQuality.valid,
+      missingRequiredCount: asNumber((result as Record<string, unknown> | null)?.schema_missing_required_count) ?? schemaQuality.missingRequiredCount,
+      hallucinatedFieldCount: asNumber((result as Record<string, unknown> | null)?.schema_hallucinated_field_count) ?? schemaQuality.hallucinatedFieldCount,
       ocrEngineUsed: typeof result?.ocr_engine_used === "string" ? result.ocr_engine_used : null,
       ocrAvgConfidence: asNumber(result?.ocr_avg_confidence),
       ocrRerunAttemptedPages: asNumber(result?.ocr_rerun_attempted_pages),
       ocrRerunUsedPages: asNumber(result?.ocr_rerun_used_pages),
-      transparencyPath: typeof result?.transparency_path === "string" ? result.transparency_path : null,
-    },
+        transparencyPath: typeof result?.transparency_path === "string" ? result.transparency_path : null,
+      },
+    advisorRecommendation,
+    fallbackCandidates,
+    feedbackStatus,
+    safetyStatus,
     fields,
     validationIssues,
     guardrailFindings,
@@ -796,6 +1043,8 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
     escalation,
     provenanceEvents,
     transparency,
+    schemaQuality,
+    reward,
     llmDiagnostics,
     raw: {
       dae,
@@ -981,6 +1230,9 @@ export function getRunOverview(runId: string): RunOverview {
 
   const rollbackCount = provenance.events.filter((event) => event.eventType.toLowerCase().includes("rollback")).length;
   const escalationsCount = docs.filter((doc) => doc.escalated).length;
+  const adviceAcceptedCount = docs.filter((doc) => doc.adviceAccepted).length;
+  const policyChangedCount = docs.filter((doc) => doc.policyChanged).length;
+  const directScoredDocCount = docs.filter((doc) => typeof doc.exactF1 === "number").length;
 
   const estimatedCost =
     asNumber((metrics.metrics as Record<string, unknown> | undefined)?.estimated_cost) ??
@@ -997,6 +1249,9 @@ export function getRunOverview(runId: string): RunOverview {
     validationPassRate,
     p95LatencyMs: percentile(latencies, 95),
     estimatedCost,
+    adviceAcceptedCount,
+    policyChangedCount,
+    directScoredDocCount,
   };
 }
 

@@ -237,8 +237,14 @@ export interface IDPOEntityDetail {
   value: string;
   confidence: number;
   page?: number | null;
+  span?: string | null;
+  bbox?: [number, number, number, number] | null;
   source: string;
   is_explicit: boolean;
+  confidence_type?: string | null;
+  extraction_method?: string | null;
+  discovered?: boolean;
+  metadata?: Record<string, unknown>;
 }
 
 export interface IDPOValidationIssue {
@@ -253,6 +259,27 @@ export interface IDPOSection {
   confidence: number;
 }
 
+export interface IDPORoutingCandidate {
+  policy_id: string;
+  score?: number;
+  reason?: string;
+  source?: string;
+  [key: string]: unknown;
+}
+
+export interface IDPOFeedbackStatus {
+  logged: boolean;
+  error?: string | null;
+  advice_id?: string | null;
+}
+
+export interface IDPOSafetyStatus {
+  blocked_policy: boolean;
+  rollback_triggered: boolean;
+  rollback_reason?: string | null;
+  policy_blocked_count?: number | null;
+}
+
 export interface IDPODocRecord {
   doc_id: string;
   filename?: string;
@@ -260,11 +287,15 @@ export interface IDPODocRecord {
   category?: string;
   doc_type?: string;
   vendor_cluster?: string;
+  layout_cluster_id?: string;
+  route_bin?: string;
+  route_specialization?: string;
   quality_bin?: string;
   complexity_bin?: string;
   content_profile?: string;
   quality_score?: number;
   complexity_score?: number;
+  analysis_confidence?: number;
   summary?: string;
   status?: string;
   extracted_text?: string;
@@ -286,6 +317,26 @@ export interface IDPODocRecord {
   model_reason?: string;
   policy_id?: string;
   policy_name?: string;
+  advice_source?: string;
+  advice_status?: string | null;
+  advice_id?: string | null;
+  advice_confidence?: number;
+  retrieval_source?: string | null;
+  rabi_used?: boolean;
+  n_neighbors?: number | null;
+  fallback_reason?: string | null;
+  advisor_recommendation?: IDPORoutingCandidate | null;
+  fallback_candidates?: IDPORoutingCandidate[];
+  feedback_status?: IDPOFeedbackStatus;
+  safety_status?: IDPOSafetyStatus;
+  defer_status?: string | null;
+  defer_reason?: string | null;
+  static_policy_id?: string | null;
+  static_policy_name?: string | null;
+  static_policy_reason?: string | null;
+  advice_accepted?: boolean;
+  policy_changed?: boolean;
+  rollback_reason?: string | null;
   plan_id?: string;
   plan_source?: string;
   preprocess_route?: string;
@@ -295,6 +346,14 @@ export interface IDPODocRecord {
   ocr_rerun_used_pages?: number;
   fallback_path?: string;
   unresolved_field_count?: number;
+  schema_coverage?: number | null;
+  schema_grounding_coverage?: number | null;
+  schema_valid?: boolean | null;
+  schema_missing_required_count?: number | null;
+  schema_hallucinated_field_count?: number | null;
+  reward?: number;
+  reward_type?: string;
+  reward_details?: Record<string, unknown>;
   transparency?: Record<string, unknown>;
   transparency_path?: string;
   llm_diagnostics?: Record<string, unknown>;
@@ -318,6 +377,12 @@ export interface AHMNAdvice {
   rabi_used: boolean;
   retrieval_source: string;
   n_neighbors: number | null;
+  selected_policy_id?: string | null;
+  advice_source?: string | null;
+  fallback_reason?: string | null;
+  advisor_recommendation?: IDPORoutingCandidate | null;
+  fallback_candidates?: IDPORoutingCandidate[];
+  safety_status?: IDPOSafetyStatus;
   error: string | null;
 }
 
@@ -377,6 +442,7 @@ export interface AHMNFeedback {
     precision?: number;
     recall?: number;
   };
+  feedback_status?: IDPOFeedbackStatus;
   error: string | null;
 }
 

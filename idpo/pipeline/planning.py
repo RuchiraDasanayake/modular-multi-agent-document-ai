@@ -21,6 +21,7 @@ class RouteDecision:
     baseline_policy_reason: str
     plan_source: str
     advice_source: str
+    advice_status: str
     advisor_recommendation: dict[str, Any] | None
     fallback_candidates: list[dict[str, Any]]
     ranked_policies: list[dict[str, Any]]
@@ -120,6 +121,12 @@ class PlanRouter:
             baseline_policy_reason=baseline_reason,
             plan_source=plan_source,
             advice_source=advice_source,
+            advice_status=_advice_status(
+                policy_mode=policy_mode,
+                advisor_recommendation=advisor_recommendation,
+                selected_policy_id=selected_policy.policy_id,
+                fallback_reason=fallback_reason,
+            ),
             advisor_recommendation=advisor_recommendation,
             fallback_candidates=fallback_candidates,
             ranked_policies=ranked_payloads,
@@ -430,3 +437,21 @@ def _route_specialization(dae_output: DAEOutput) -> str:
     if dae_output.layout_cluster_id == "image_sparse" or image_ratio >= 0.5:
         return "image"
     return "text"
+
+
+def _advice_status(
+    *,
+    policy_mode: str,
+    advisor_recommendation: dict[str, Any] | None,
+    selected_policy_id: str,
+    fallback_reason: str | None,
+) -> str:
+    if policy_mode != "adaptive":
+        return "static"
+    if advisor_recommendation is None:
+        return "no_advice"
+    if fallback_reason:
+        return "rejected"
+    if selected_policy_id == str(advisor_recommendation.get("policy_id") or ""):
+        return "accepted"
+    return "rejected"
