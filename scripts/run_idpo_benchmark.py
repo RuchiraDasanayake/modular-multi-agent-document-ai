@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import shutil
 import sys
@@ -696,6 +697,7 @@ def run_benchmark(config_path: str = "configs/idpo_research_config.json", pack_p
             "pack_name": pack.get("name", "benchmark_pack"),
             "pack_path": str(pack_file),
             "config_path": str(base_config_path),
+            "ahmn_seed_mode": (os.getenv("AHMN_SEED_MODE", "seeded").strip().lower() or "seeded"),
             "condition_configs": {
                 name: {
                     "path": str(path),

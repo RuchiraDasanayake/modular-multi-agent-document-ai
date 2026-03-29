@@ -61,6 +61,7 @@ REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_DB = int(os.getenv("REDIS_DB", "0"))
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
+SEED_MODE = os.getenv("AHMN_SEED_MODE", "seeded").strip().lower() or "seeded"
 
 # ─── Globals ─────────────────────────────────────────────────────────────────
 
@@ -123,6 +124,9 @@ def _user(request: Request) -> dict:
 
 async def _seed_ltm_if_empty() -> None:
     """Seed LTM with initial policy knowledge so AHMN can give informed advice from day one."""
+    if SEED_MODE in {"unseeded", "disabled", "off", "false", "0"}:
+        logger.info("AHMN seed mode '%s' - skipping LTM startup seed", SEED_MODE)
+        return
     async with _db().connection() as conn:
         async with conn.cursor() as cur:
             await cur.execute("SELECT COUNT(*) FROM ltm_validated_policies")
@@ -134,11 +138,11 @@ async def _seed_ltm_if_empty() -> None:
             logger.info("LTM is empty — seeding with %d initial policies", len(LTM_SEEDS))
             for seed in LTM_SEEDS:
                 context_str = _embedding_service.create_context_string(
-                    seed["doc_type"], None
+                    seed["doc_type"],
+                    None,
+                    seed.get("content_profile"),
+                    seed.get("extra_context"),
                 )
-                # Add content_profile to context string for better semantic differentiation
-                if seed.get("content_profile"):
-                    context_str += f". Content profile: {seed['content_profile']}"
                 vector = _embedding_service.generate_embedding(context_str)
                 context_hash = hashlib.sha256(f"{context_str}:{seed['policy_id']}".encode()).hexdigest()
 
@@ -193,7 +197,7 @@ async def lifespan(_app: FastAPI):
     _scheduler = AHMNScheduler(pool=_pool, embedding_service=_embedding_service)
     _scheduler.start()
 
-    logger.info("AHMN service started — Postgres + Redis + Scheduler connected")
+    logger.info("AHMN service started — Postgres + Redis + Scheduler connected (seed_mode=%s)", SEED_MODE)
     yield
 
     if _scheduler:

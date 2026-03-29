@@ -33,6 +33,7 @@ foreach ($p in $ports) {
 }
 
 $python = Join-Path $root ".venv\Scripts\python.exe"
+$ahmnSeedMode = if ($env:AHMN_SEED_MODE) { $env:AHMN_SEED_MODE } else { "seeded" }
 
 function Start-ServiceProcess {
   param(
@@ -63,7 +64,7 @@ function Start-ServiceProcess {
 
 $procs = @()
 $procs += Start-ServiceProcess -Name "ahmn" -WorkDir $root -InnerCommand `
-  "`$env:POSTGRES_URI='postgresql://user:password@localhost:5432/ahmn_db'; `$env:REDIS_HOST='localhost'; `$env:REDIS_PORT='6379'; `$env:REDIS_DB='0'; `$env:REDIS_PASSWORD='docai_redis_secret'; & '$python' scripts/run_uvicorn_win.py --app ahmn_core.main:app --host 127.0.0.1 --port 8001"
+  "`$env:POSTGRES_URI='postgresql://user:password@localhost:5432/ahmn_db'; `$env:REDIS_HOST='localhost'; `$env:REDIS_PORT='6379'; `$env:REDIS_DB='0'; `$env:REDIS_PASSWORD='docai_redis_secret'; `$env:AHMN_SEED_MODE='$ahmnSeedMode'; & '$python' scripts/run_uvicorn_win.py --app ahmn_core.main:app --host 127.0.0.1 --port 8001"
 
 $procs += Start-ServiceProcess -Name "guardrails" -WorkDir $root -InnerCommand `
   "`$env:POSTGRES_URI='postgresql://user:password@localhost:5432/ahmn_db'; & '$python' scripts/run_uvicorn_win.py --app guardrails.main:app --host 127.0.0.1 --port 8002"
