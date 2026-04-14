@@ -105,11 +105,11 @@ LTM_SEEDS = [
     {
         "doc_type": "text_document",
         "content_profile": "text-heavy",
-        "policy_id": "scanned_text",
-        "policy_data": {"doc_type": "text_document", "content_profile": "text-heavy", "action": "text_extraction", "origin": "seed"},
-        "alpha": 5.0,
-        "beta": 4.0,
-        "confidence": 0.56,
+        "policy_id": "fast_local_text",
+        "policy_data": {"doc_type": "text_document", "content_profile": "text-heavy", "action": "fast_text_extraction", "origin": "seed"},
+        "alpha": 7.0,
+        "beta": 3.0,
+        "confidence": 0.71,
     },
     # Clinical summary → forms (structured extraction)
     {
@@ -125,8 +125,8 @@ LTM_SEEDS = [
     {
         "doc_type": "unknown",
         "content_profile": "unknown",
-        "policy_id": "default",
-        "policy_data": {"doc_type": "unknown", "content_profile": "unknown", "action": "default_processing", "origin": "seed"},
+        "policy_id": "unknown_vendor_safe",
+        "policy_data": {"doc_type": "unknown", "content_profile": "unknown", "action": "safe_unknown_processing", "origin": "seed"},
         "alpha": 4.0,
         "beta": 4.0,
         "confidence": 0.50,
@@ -140,5 +140,23 @@ LTM_SEEDS = [
         "alpha": 6.0,
         "beta": 4.0,
         "confidence": 0.60,
+    },
+    {
+        "doc_type": "invoice",
+        "content_profile": "table-heavy",
+        "policy_id": "noisy_ocr_rescue",
+        "policy_data": {"doc_type": "invoice", "content_profile": "table-heavy", "action": "noisy_invoice_rescue", "origin": "seed"},
+        "alpha": 5.0,
+        "beta": 4.0,
+        "confidence": 0.58,
+    },
+    {
+        "doc_type": "contract",
+        "content_profile": "mixed",
+        "policy_id": "long_document_chunked",
+        "policy_data": {"doc_type": "contract", "content_profile": "mixed", "action": "long_document_chunked", "origin": "seed"},
+        "alpha": 6.0,
+        "beta": 3.0,
+        "confidence": 0.69,
     },
 ]

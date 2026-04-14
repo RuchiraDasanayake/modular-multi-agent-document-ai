@@ -17,6 +17,12 @@ class OutcomeMetrics(BaseModel):
     success: bool
     precision: float | None = None
     recall: float | None = None
+    schema_valid: bool | None = None
+    missing_required_count: int | None = None
+    hallucinated_field_count: int | None = None
+    grounding_coverage: float | None = None
+    defer_status: str | None = None
+    direct_scored: bool | None = None
 
 class LogRequest(BaseModel):
     advice_id: UUID

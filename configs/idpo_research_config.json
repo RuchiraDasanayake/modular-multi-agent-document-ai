@@ -97,14 +97,10 @@
     "escalation_quota_per_minute": 10
   },
   "shadow": {
-    "enabled": true,
-    "sample_rate": 1.0,
-    "candidate_policy_ids": [
-      "forms",
-      "table_heavy",
-      "default"
-    ],
-    "max_policies_per_doc": 2,
+    "enabled": false,
+    "sample_rate": 0.0,
+    "candidate_policy_ids": [],
+    "max_policies_per_doc": 1,
     "comparison_file": "comparisons.json"
   },
   "rollback": {
@@ -117,7 +113,7 @@
     "min_validation_pass_delta": 0.1
   },
   "queue": {
-    "enabled": true,
+    "enabled": false,
     "max_workers": 4,
     "per_partition_concurrency": 1,
     "partition_keys": [
@@ -127,13 +123,14 @@
     "fairness_enabled": true
   },
   "ahmn": {
-    "enabled": false,
+    "enabled": true,
+    "policy_mode": "adaptive",
     "mode": "http",
     "objective": "balanced",
     "timeout_ms": 500,
     "endpoint": "http://localhost:8001",
     "advice_endpoint": "/advice",
-    "log_endpoint": "/log",
+    "log_endpoint": "/advice/log",
     "direct_import": null,
     "policy_override_id": null,
     "action_overrides": {}

@@ -4,6 +4,7 @@
   "cases": [
     {
       "case_id": "invoice_basic",
+      "tags": ["table", "clean"],
       "path": "idpo/benchmark/data/invoice_basic.txt",
       "fields": {
         "invoice_number": "Invoice identifier",
@@ -18,6 +19,7 @@
     },
     {
       "case_id": "receipt_basic",
+      "tags": ["table", "clean"],
       "path": "idpo/benchmark/data/receipt_basic.txt",
       "fields": {
         "receipt_number": "Receipt identifier",
@@ -32,6 +34,7 @@
     },
     {
       "case_id": "po_basic",
+      "tags": ["table", "clean"],
       "path": "idpo/benchmark/data/po_basic.txt",
       "fields": {
         "po_number": "Purchase order number",
@@ -46,6 +49,7 @@
     },
     {
       "case_id": "ocr_receipt_scan",
+      "tags": ["table", "scanned", "noisy_ocr"],
       "path": "idpo/benchmark/data/ocr_receipt_scan.json",
       "fields": {
         "receipt_number": "Receipt identifier",
@@ -60,6 +64,7 @@
     },
     {
       "case_id": "table_invoice_dense",
+      "tags": ["table", "dense_layout"],
       "path": "idpo/benchmark/data/table_invoice_dense.json",
       "fields": {
         "invoice_number": "Invoice identifier",
@@ -74,6 +79,7 @@
     },
     {
       "case_id": "form_claim_dense",
+      "tags": ["form", "dense_layout"],
       "path": "idpo/benchmark/data/form_claim_dense.json",
       "fields": {
         "claim_number": "Claim number",
@@ -88,6 +94,7 @@
     },
     {
       "case_id": "noisy_low_quality_invoice",
+      "tags": ["table", "noisy_ocr", "scanned"],
       "path": "idpo/benchmark/data/noisy_low_quality_invoice.json",
       "fields": {
         "invoice_number": "Invoice identifier",
@@ -98,6 +105,57 @@
         "invoice_number": "INV-9045",
         "total_amount": "904.50",
         "due_date": "2026-04-01"
+      }
+    },
+    {
+      "case_id": "scanned_text_letter",
+      "tags": ["scanned", "text", "clean"],
+      "path": "idpo/benchmark/data/scanned_text_letter.txt",
+      "fields": {
+        "letter_id": "Letter identifier",
+        "document_date": "Document date",
+        "sender_name": "Sender name",
+        "reference_code": "Reference code"
+      },
+      "expected": {
+        "letter_id": "LTR-2026-44",
+        "document_date": "2026-03-11",
+        "sender_name": "Apex Compliance Office",
+        "reference_code": "REF-7781"
+      }
+    },
+    {
+      "case_id": "mixed_agreement",
+      "tags": ["mixed", "form", "table", "dense_layout"],
+      "path": "idpo/benchmark/data/mixed_agreement.txt",
+      "fields": {
+        "agreement_id": "Agreement identifier",
+        "effective_date": "Effective date",
+        "party_a": "First party",
+        "party_b": "Second party",
+        "total_value": "Total value"
+      },
+      "expected": {
+        "agreement_id": "AGR-2048",
+        "effective_date": "2026-02-15",
+        "party_a": "Northwind Systems",
+        "party_b": "Blue River Logistics",
+        "total_value": "125000.00"
+      }
+    },
+    {
+      "case_id": "unknown_vendor_notice",
+      "tags": ["text", "clean", "unknown_fallback"],
+      "path": "idpo/benchmark/data/unknown_vendor_notice.txt",
+      "fields": {
+        "notice_id": "Notice identifier",
+        "issue_date": "Notice issue date",
+        "contact_name": "Primary contact"
+      },
+      "expected": {
+        "notice_id": "NTC-3007",
+        "issue_date": "2026-03-19",
+        "contact_name": "Central Operations Desk"
       }
     }
   ]

@@ -184,6 +184,8 @@ class DocumentAnalysisAgent(Agent):
     def _profile(self, table_ratio: float, form_ratio: float, image_ratio: float, avg_len: float) -> str:
         if image_ratio > 0.6:
             return "image-heavy"
+        if table_ratio > 0.08 and form_ratio > 0.12:
+            return "mixed"
         if table_ratio > 0.15:
             return "table-heavy"
         if form_ratio > 0.25:
@@ -197,6 +199,8 @@ class DocumentAnalysisAgent(Agent):
             return "table_document"
         if content_profile == "form-centric":
             return "form_document"
+        if content_profile == "mixed":
+            return "mixed_document"
         return "text_document"
 
     def _vendor_cluster(self, doc: Document) -> str:
@@ -252,6 +256,7 @@ class DocumentAnalysisAgent(Agent):
             "text_density": round(float(signals.get("text_density", 0.0)), 4),
             "image_ratio": round(float(signals.get("image_ratio", 0.0)), 4),
             "dpi_est": round(float(signals.get("dpi_est", 0.0)), 2),
+            "ocr_noise_ratio": round(float(self._ocr_noise_ratio(doc)), 4),
         }
 
     def _structural_features(
@@ -265,19 +270,38 @@ class DocumentAnalysisAgent(Agent):
         text = "\n".join(page.text for page in doc.pages if page.text)
         lines = [line.strip() for line in text.splitlines() if line.strip()]
         heading_density = 0.0
+        kv_density = 0.0
+        numeric_density = 0.0
+        line_length_cv = 0.0
         if lines:
             heading_lines = 0
+            kv_lines = 0
+            numeric_chars = 0
+            line_lengths = [len(line) for line in lines]
             for line in lines:
                 words = len(line.split())
                 if words <= 6 and line == line.upper():
                     heading_lines += 1
+                if ":" in line and len(line.split(":", 1)[0].split()) <= 6:
+                    kv_lines += 1
+                numeric_chars += sum(1 for ch in line if ch.isdigit())
             heading_density = heading_lines / len(lines)
+            kv_density = kv_lines / len(lines)
+            total_chars = sum(line_lengths)
+            numeric_density = numeric_chars / max(total_chars, 1)
+            if len(line_lengths) > 1:
+                mean_length = statistics.mean(line_lengths)
+                if mean_length > 0:
+                    line_length_cv = statistics.pstdev(line_lengths) / mean_length
         return {
             "table_ratio": round(float(table_ratio), 4),
             "form_ratio": round(float(form_ratio), 4),
             "page_count": float(page_count),
             "avg_line_length": round(float(avg_len), 4),
             "heading_density": round(float(heading_density), 4),
+            "kv_density": round(float(kv_density), 4),
+            "numeric_density": round(float(numeric_density), 4),
+            "line_length_cv": round(float(line_length_cv), 4),
         }
 
     def _route_bin(
@@ -305,6 +329,8 @@ class DocumentAnalysisAgent(Agent):
     def _layout_cluster_id(self, content_profile: str, structural_features: dict[str, float]) -> str:
         table_ratio = structural_features.get("table_ratio", 0.0)
         form_ratio = structural_features.get("form_ratio", 0.0)
+        if content_profile == "mixed":
+            return "mixed_dense"
         if content_profile == "table-heavy" or table_ratio >= 0.2:
             return "table_dense"
         if content_profile == "form-centric" or form_ratio >= 0.25:
@@ -326,3 +352,22 @@ class DocumentAnalysisAgent(Agent):
         sparse_penalty = 0.05 if structural_features.get("page_count", 0.0) <= 0 else 0.0
         confidence = quality_score - blur_penalty - skew_penalty - complexity_penalty - sparse_penalty
         return round(max(0.05, min(confidence, 0.99)), 4)
+
+    def _ocr_noise_ratio(self, doc: Document) -> float:
+        text = "\n".join(page.text for page in doc.pages if page.text)
+        if not text:
+            return 1.0
+        suspicious = 0
+        for token in text.split():
+            stripped = token.strip()
+            if not stripped:
+                continue
+            alpha = sum(1 for ch in stripped if ch.isalpha())
+            digit = sum(1 for ch in stripped if ch.isdigit())
+            punct = sum(1 for ch in stripped if not ch.isalnum())
+            if punct >= max(alpha + digit, 1):
+                suspicious += 1
+            elif len(stripped) >= 6 and alpha > 0 and digit > 0 and (alpha + digit) == len(stripped):
+                suspicious += 1
+        total_tokens = max(len(text.split()), 1)
+        return min(suspicious / total_tokens, 1.0)

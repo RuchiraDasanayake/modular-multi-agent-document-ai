@@ -30,7 +30,7 @@ Everything else in IDPO should be treated as internal support code for those ent
    - `structural_features`
 3. Selects a policy through one config-gated planner path:
    - `ahmn.policy_mode = "static"` keeps local deterministic routing
-   - `ahmn.policy_mode = "adaptive"` uses `PolicyAdvisor` and falls back deterministically when needed
+   - `ahmn.policy_mode = "adaptive"` uses `PolicyAdvisor` to consume fixed AHMN top-1 advice and falls back deterministically when needed
 4. Executes preprocessing, extraction, validation, recovery, escalation, chunking, and indexing.
 5. Writes run artifacts under `IDPO_DATA_DIR` instead of under the source tree.
 
@@ -59,12 +59,33 @@ idpo migrate-storage --root .
 
 `process-inbox` is the preferred operational path because it creates the full run layout, metrics, and per-document artifacts.
 
-## Benchmark
-
-Use the fixed benchmark runner for paper-safe static vs adaptive evidence:
+For the paper-facing adaptive path, use:
 
 ```bash
-python scripts/run_idpo_benchmark.py --config configs/config.json
+idpo process-inbox --root . --config configs/idpo_research_config.json
+```
+
+## AHMN Seed Control
+
+For cleaner adaptive evaluations, treat seeded and unseeded AHMN runs separately:
+
+```bash
+# Seeded AHMN memory
+python scripts/reset_and_seed_db.py
+
+# Unseeded AHMN memory
+python scripts/reset_and_seed_db.py --no-seed
+set AHMN_SEED_MODE=unseeded
+```
+
+The AHMN service now exposes its active startup seed mode through `/health`.
+
+## Benchmark
+
+Use the fixed benchmark runner for paper-safe `static` vs `adaptive_safe` evidence:
+
+```bash
+python scripts/run_idpo_benchmark.py --config configs/idpo_research_config.json
 ```
 
 Benchmark reports are written to:
@@ -88,8 +109,10 @@ Per-document runtime artifacts now include:
 
 The supported paper-facing evidence in the runtime is:
 - DAE-driven routing signals from the live analysis step
-- config-gated `static` vs `adaptive` policy routing
-- explicit reward, recovery, and escalation traces in run artifacts
+- config-gated `static` vs `adaptive_safe` policy routing
+- AHMN top-1 advice telemetry and post-execution feedback logging in run artifacts
+- explicit separation between AHMN advisor output and deterministic IDPO fallback candidates
+- explicit reward, recovery, escalation, and rollback traces in run artifacts
 - one canonical benchmark artifact: `paper_evidence.json`
 
 Claims beyond those artifacts should still be treated as future work or secondary evidence.

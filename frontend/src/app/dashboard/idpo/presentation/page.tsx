@@ -7,11 +7,12 @@ import type { RunOverview, RunSummary } from "@/types/idpo";
 
 const steps = [
   "Upload",
-  "Run",
-  "Show Answer",
-  "Show Evidence",
-  "Show Provenance",
-  "Show Shadow Compare",
+  "Run static",
+  "Run adaptive_safe",
+  "Show routing",
+  "Show evidence",
+  "Show provenance",
+  "Show benchmark",
 ];
 
 export default function PresentationModePage() {
@@ -46,10 +47,10 @@ export default function PresentationModePage() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">PP1 Demo Flow</p>
-        <h1 className="mt-2 text-4xl font-semibold text-slate-900 dark:text-white">Presentation Mode</h1>
+        <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">System Demo Flow</p>
+        <h1 className="mt-2 text-4xl font-semibold text-slate-900 dark:text-white">Reviewer Walkthrough</h1>
         <p className="mt-3 text-lg text-slate-600 dark:text-slate-300">
-          Guided walkthrough for Upload, Run, Answer with citations, Evidence, Provenance timeline, and Shadow comparison.
+          Guided walkthrough for the live IDPO path inside the full system: fixed AHMN top-1 advice, safe IDPO execution, visible fallback and rollback, and benchmark evidence.
         </p>
       </section>
 
@@ -70,7 +71,12 @@ export default function PresentationModePage() {
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">Select Run for Demo</h2>
+          <div>
+            <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">Select Run for Demo</h2>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+              Use this page to jump into the current runtime, comparison, and benchmark evidence without leaving the main app.
+            </p>
+          </div>
           <div className="flex items-center gap-2">
             <label className="text-sm text-slate-600 dark:text-slate-300">Run</label>
             <select
@@ -117,7 +123,7 @@ export default function PresentationModePage() {
             href="/dashboard/idpo"
             className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
           >
-            Back to Runner
+            Open IDPO Runner
           </Link>
           {selectedRunId ? (
             <Link
@@ -127,6 +133,20 @@ export default function PresentationModePage() {
               Open Run Detail
             </Link>
           ) : null}
+          {selectedRunId ? (
+            <Link
+              href={`/dashboard/idpo/compare?left=${encodeURIComponent(selectedRunId)}`}
+              className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Open Compare View
+            </Link>
+          ) : null}
+          <Link
+            href="/dashboard/idpo/benchmark"
+            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Open Benchmark Results
+          </Link>
         </div>
       </section>
     </div>

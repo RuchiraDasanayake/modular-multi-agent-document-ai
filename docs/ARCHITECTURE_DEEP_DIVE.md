@@ -34,7 +34,7 @@ The canonical processing path inside IDPO is:
    - `analysis_confidence`
 3. Planning selects a policy and builds an execution plan:
    - `ahmn.policy_mode = "static"` uses deterministic local routing
-   - `ahmn.policy_mode = "adaptive"` uses `PolicyAdvisor` and deterministic fallback
+   - `ahmn.policy_mode = "adaptive"` uses `PolicyAdvisor`, records AHMN top-1 advice telemetry, and logs post-execution feedback to AHMN
    - shadow candidates remain shadow-only and are excluded from canonical routing
 4. Execution runs the active operator stack:
    - OCR / deskew / denoise / table extraction when needed
@@ -53,6 +53,9 @@ Per-document evidence files:
 - `decision_chain.json`
 - `reward.json`
 - `recovery_trace.json`
+
+For the canonical paper-facing adaptive path, use `configs/idpo_research_config.json` with `process-inbox` or `scripts/run_idpo_benchmark.py`.
+The paper-facing comparison is `static` vs `adaptive_safe`, where IDPO applies safety and fallback logic around fixed AHMN top-1 advice.
 
 Run-level evidence files:
 - `metrics.json`

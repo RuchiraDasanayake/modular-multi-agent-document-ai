@@ -53,6 +53,7 @@ class ExecutionState:
     stage_signals: list[StageSignal] = field(default_factory=list)
     artifacts: dict[str, str] = field(default_factory=dict)
     last_artifact_id: str | None = None
+    spent_budget_units: float = 0.0
 
 class BudgetTracker:
     def __init__(self, max_cost_units: float) -> None:
@@ -157,6 +158,7 @@ class PlanExecutor:
             if executed:
                 budget.spend(step.budget_units)
 
+        state.spent_budget_units = budget.spent
         return state
 
     def _run_preprocess(self, step, state: ExecutionState, ctx: AgentContext) -> None:

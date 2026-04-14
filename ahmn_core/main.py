@@ -52,6 +52,26 @@ logging.basicConfig(
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
 )
 
+
+def _blended_reward(metrics: OutcomeMetrics) -> float:
+    if metrics.direct_scored and metrics.precision is not None and metrics.recall is not None:
+        base = float(metrics.f1_score)
+    else:
+        base = float(metrics.f1_score)
+    reward = base
+    if metrics.schema_valid:
+        reward += 0.08
+    reward -= min(float(metrics.missing_required_count or 0) * 0.05, 0.2)
+    reward -= min(float(metrics.hallucinated_field_count or 0) * 0.05, 0.2)
+    reward += min(float(metrics.grounding_coverage or 0.0) * 0.08, 0.08)
+    if metrics.defer_status == "requested":
+        reward -= 0.12
+    elif metrics.defer_status == "blocked":
+        reward -= 0.18
+    latency_penalty = max(float(metrics.processing_time_ms or 0.0) - 2500.0, 0.0)
+    reward -= min(latency_penalty / 10000.0, 0.08)
+    return max(0.0, min(1.0, reward))
+
 # ─── Configuration ───────────────────────────────────────────────────────────
 
 POSTGRES_URI = os.getenv(
@@ -235,7 +255,7 @@ app.add_middleware(
 @app.get("/health")
 async def health():
     """Deep health check — verifies DB pool and Redis connectivity."""
-    checks: dict[str, str] = {"service": "ahmn"}
+    checks: dict[str, str] = {"service": "ahmn", "seed_mode": SEED_MODE}
     try:
         if _pool:
             async with _pool.connection() as conn:
@@ -301,14 +321,14 @@ async def get_advice(context: DocumentContext, request: Request):
     explore = (request.query_params.get("explore", "false").lower() == "true")
 
     context_str = _embedding_service.create_context_string(
-        context.doc_type, context.vendor
+        context.doc_type,
+        context.vendor,
+        context.content_profile,
+        context.extra_context,
     )
-    # Include content_profile for better semantic matching
-    if context.content_profile:
-        context_str += f". Content profile: {context.content_profile}"
     vector = _embedding_service.generate_embedding(context_str)
 
-    policy_id = "default_policy"
+    policy_id = "default"
     policy_data: dict = {"action": "standard_processing"}
     confidence = 0.3
     rabi_used = False
@@ -430,10 +450,9 @@ async def log_outcome(req: LogRequest, request: Request):
     ctx_str = _embedding_service.create_context_string(
         context_dict.get("doc_type", "unknown"),
         context_dict.get("vendor"),
+        context_dict.get("content_profile"),
+        context_dict.get("extra_context") if isinstance(context_dict.get("extra_context"), dict) else context_dict,
     )
-    content_profile = context_dict.get("content_profile")
-    if content_profile:
-        ctx_str += f". Content profile: {content_profile}"
 
     actual_policy_hash = hashlib.sha256(
         f"{ctx_str}:{req.policy_id_used}".encode()
@@ -442,7 +461,7 @@ async def log_outcome(req: LogRequest, request: Request):
     if not source_hash:
         source_hash = actual_policy_hash
 
-    reward = max(0.0, min(1.0, req.metrics.f1_score))
+    reward = _blended_reward(req.metrics)
 
     context_key = (
         f"{context_dict.get('doc_type', 'unknown')}:"
@@ -509,7 +528,7 @@ async def log_outcome(req: LogRequest, request: Request):
 
             # 4. INLINE PROMOTION: If reward is decent and no existing entry matches,
             #    create a new LTM entry so AHMN learns this context→policy mapping
-            if not updated and reward >= 0.4 and req.policy_id_used != "default_policy":
+            if not updated and reward >= 0.4 and req.policy_id_used != "default":
                 vector = _embedding_service.generate_embedding(ctx_str)
                 initial_alpha = 1.0 + reward * 3.0   # Scale prior by reward quality
                 initial_beta = 1.0 + (1.0 - reward) * 3.0
@@ -537,7 +556,8 @@ async def log_outcome(req: LogRequest, request: Request):
                         ),
                         json.dumps(
                             {
-                                "f1_score": reward,
+                                "f1_score": req.metrics.f1_score,
+                                "blended_reward": reward,
                                 "source": "inline",
                                 "document_context": {
                                     "doc_type": context_dict.get("doc_type", "unknown"),
@@ -599,10 +619,9 @@ async def log_feedback(req: FeedbackRequest):
                     ctx_str = _embedding_service.create_context_string(
                         document_context.get("doc_type", "unknown"),
                         document_context.get("vendor"),
+                        document_context.get("content_profile"),
+                        document_context.get("extra_context") if isinstance(document_context.get("extra_context"), dict) else document_context,
                     )
-                    cp = document_context.get("content_profile")
-                    if cp:
-                        ctx_str += f". Content profile: {cp}"
                     context_hash = hashlib.sha256(
                         f"{ctx_str}:{policy_id_used}".encode()
                     ).hexdigest()
