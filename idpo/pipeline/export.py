@@ -10,7 +10,7 @@ from typing import Any, Iterable, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from idpo.core.types import Document
-    from idpo.pipeline.orchestrator import PipelineResult
+    from idpo.pipeline.results import PipelineResult
 
 def export_structured_results(results: list[PipelineResult], output_path: str) -> dict[str, Any]:
     path = Path(output_path)

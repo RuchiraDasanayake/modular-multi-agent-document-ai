@@ -11,7 +11,8 @@ from idpo.agents.answering import AnsweringAgent
 from idpo.agents.retrieval_agent import RetrievalAgent
 from idpo.core.metrics import cer, f1_for_sets, ndcg, wer
 from idpo.core.types import Document
-from idpo.pipeline.orchestrator import Pipeline, PipelineResult
+from idpo.pipeline.orchestrator import Pipeline
+from idpo.pipeline.results import PipelineResult
 
 def evaluate_documents(docs: list[Document], pipeline: Pipeline, run_dir: str) -> dict[str, Any]:
     started = time.time()

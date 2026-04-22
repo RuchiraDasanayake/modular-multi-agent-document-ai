@@ -1,0 +1,194 @@
+{
+  "name": "idpo_starter_pack_v1",
+  "description": "Starter dataset assembled from existing repo assets for regression testing, OCR-path validation, and pilot processing.",
+  "splits": [
+    {
+      "split": "benchmark_labeled",
+      "label_status": "labeled",
+      "intended_use": "Exact regression checks and static vs adaptive benchmark comparisons."
+    },
+    {
+      "split": "synthetic_demo_unlabeled",
+      "label_status": "unlabeled",
+      "intended_use": "UI demos and schema/route sanity checks."
+    },
+    {
+      "split": "pilot_real_unlabeled",
+      "label_status": "unlabeled",
+      "intended_use": "Real PDF pilot processing, OCR-path validation, and manual review queue creation."
+    }
+  ],
+  "items": [
+    {
+      "id": "invoice_basic",
+      "split": "benchmark_labeled",
+      "source_path": "idpo/benchmark/data/invoice_basic.txt",
+      "format": "txt",
+      "tags": ["clean", "invoice", "table"],
+      "expected_fields": ["invoice_number", "total_amount", "due_date"]
+    },
+    {
+      "id": "receipt_basic",
+      "split": "benchmark_labeled",
+      "source_path": "idpo/benchmark/data/receipt_basic.txt",
+      "format": "txt",
+      "tags": ["clean", "receipt", "table"],
+      "expected_fields": ["receipt_number", "total_amount", "purchase_date"]
+    },
+    {
+      "id": "po_basic",
+      "split": "benchmark_labeled",
+      "source_path": "idpo/benchmark/data/po_basic.txt",
+      "format": "txt",
+      "tags": ["clean", "purchase_order", "table"],
+      "expected_fields": ["po_number", "supplier_name", "total_amount"]
+    },
+    {
+      "id": "ocr_receipt_scan",
+      "split": "benchmark_labeled",
+      "source_path": "idpo/benchmark/data/ocr_receipt_scan.json",
+      "format": "json",
+      "tags": ["receipt", "scanned", "noisy_ocr"],
+      "expected_fields": ["receipt_number", "total_amount", "purchase_date"]
+    },
+    {
+      "id": "table_invoice_dense",
+      "split": "benchmark_labeled",
+      "source_path": "idpo/benchmark/data/table_invoice_dense.json",
+      "format": "json",
+      "tags": ["invoice", "dense_layout", "table"],
+      "expected_fields": ["invoice_number", "supplier_name", "total_amount"]
+    },
+    {
+      "id": "form_claim_dense",
+      "split": "benchmark_labeled",
+      "source_path": "idpo/benchmark/data/form_claim_dense.json",
+      "format": "json",
+      "tags": ["claim", "dense_layout", "form"],
+      "expected_fields": ["claim_number", "member_id", "service_date"]
+    },
+    {
+      "id": "noisy_low_quality_invoice",
+      "split": "benchmark_labeled",
+      "source_path": "idpo/benchmark/data/noisy_low_quality_invoice.json",
+      "format": "json",
+      "tags": ["invoice", "scanned", "noisy_ocr"],
+      "expected_fields": ["invoice_number", "total_amount", "due_date"]
+    },
+    {
+      "id": "scanned_text_letter",
+      "split": "benchmark_labeled",
+      "source_path": "idpo/benchmark/data/scanned_text_letter.txt",
+      "format": "txt",
+      "tags": ["text", "scanned", "letter"],
+      "expected_fields": ["letter_id", "document_date", "sender_name", "reference_code"]
+    },
+    {
+      "id": "mixed_agreement",
+      "split": "benchmark_labeled",
+      "source_path": "idpo/benchmark/data/mixed_agreement.txt",
+      "format": "txt",
+      "tags": ["mixed", "dense_layout", "agreement"],
+      "expected_fields": ["agreement_id", "effective_date", "party_a", "party_b", "total_value"]
+    },
+    {
+      "id": "unknown_vendor_notice",
+      "split": "benchmark_labeled",
+      "source_path": "idpo/benchmark/data/unknown_vendor_notice.txt",
+      "format": "txt",
+      "tags": ["text", "fallback", "notice"],
+      "expected_fields": ["notice_id", "issue_date", "contact_name"]
+    },
+    {
+      "id": "demo_clean_text",
+      "split": "synthetic_demo_unlabeled",
+      "source_path": "demo_docs/demo_clean_text.json",
+      "format": "json",
+      "tags": ["demo", "clean", "synthetic"]
+    },
+    {
+      "id": "demo_image_invoice",
+      "split": "synthetic_demo_unlabeled",
+      "source_path": "demo_docs/demo_image_invoice.json",
+      "format": "json",
+      "tags": ["demo", "invoice", "synthetic", "image_like"]
+    },
+    {
+      "id": "demo_table_statement",
+      "split": "synthetic_demo_unlabeled",
+      "source_path": "demo_docs/demo_table_statement.json",
+      "format": "json",
+      "tags": ["demo", "statement", "synthetic", "table"]
+    },
+    {
+      "id": "allegiant_pdf",
+      "split": "pilot_real_unlabeled",
+      "source_path": "inputs/inbox/allegiant_20221210_014_46140a9611114ac0bb0edb65d360c7fc.pdf",
+      "format": "pdf",
+      "tags": ["real", "pilot", "travel_receipt"]
+    },
+    {
+      "id": "amtrak_pdf",
+      "split": "pilot_real_unlabeled",
+      "source_path": "inputs/inbox/amtrak_20221016_25329217ff154db29896873beacfad51.pdf",
+      "format": "pdf",
+      "tags": ["real", "pilot", "travel_receipt"]
+    },
+    {
+      "id": "chickfila_pdf",
+      "split": "pilot_real_unlabeled",
+      "source_path": "inputs/inbox/chickfila_20221016_005_02e45ec20f9545c19f5eb96774a406ab.pdf",
+      "format": "pdf",
+      "tags": ["real", "pilot", "receipt"]
+    },
+    {
+      "id": "chris_1_pdf",
+      "split": "pilot_real_unlabeled",
+      "source_path": "inputs/inbox/chris_20221008_9421dc4a2a4047daaf09aad9f0c4fced.pdf",
+      "format": "pdf",
+      "tags": ["real", "pilot", "receipt"]
+    },
+    {
+      "id": "chris_2_pdf",
+      "split": "pilot_real_unlabeled",
+      "source_path": "inputs/inbox/chris_20221016_012_8d94a4343d4049829eec1a51d3fa4996.pdf",
+      "format": "pdf",
+      "tags": ["real", "pilot", "receipt"]
+    },
+    {
+      "id": "dennys_pdf",
+      "split": "pilot_real_unlabeled",
+      "source_path": "inputs/inbox/dennys_20221210_002_97c8ed719f664058a0860bef1f3a321f.pdf",
+      "format": "pdf",
+      "tags": ["real", "pilot", "receipt"]
+    },
+    {
+      "id": "fiveguys_pdf",
+      "split": "pilot_real_unlabeled",
+      "source_path": "inputs/inbox/fiveguys_20221016_011_3d0ed5bbd0bc464fad7453935dba8417.pdf",
+      "format": "pdf",
+      "tags": ["real", "pilot", "receipt"]
+    },
+    {
+      "id": "giordanos_pdf",
+      "split": "pilot_real_unlabeled",
+      "source_path": "inputs/inbox/giordanos_20221016_015_8dcb052508cb487fb88af27d99046340.pdf",
+      "format": "pdf",
+      "tags": ["real", "pilot", "receipt"]
+    },
+    {
+      "id": "giordano_pdf",
+      "split": "pilot_real_unlabeled",
+      "source_path": "inputs/inbox/giordano_20221210_003_1ede2ef536704c5fb9d1f59b6073c228.pdf",
+      "format": "pdf",
+      "tags": ["real", "pilot", "receipt"]
+    },
+    {
+      "id": "wynnsw_pdf",
+      "split": "pilot_real_unlabeled",
+      "source_path": "inputs/inbox/wynnsw_20221210_011_5c7e51bdffe14dfdb1a00154276675d6.pdf",
+      "format": "pdf",
+      "tags": ["real", "pilot", "receipt"]
+    }
+  ]
+}

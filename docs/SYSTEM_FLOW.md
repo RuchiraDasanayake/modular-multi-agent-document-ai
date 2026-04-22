@@ -187,6 +187,14 @@ ahmn_feedback = log_ahmn_feedback(advice, doc_records, guardrail_results, time_m
 
 ## F1 Score Computation
 
+The runtime now has two distinct score classes:
+
+- `runtime reward`: the existing immediate quality/proxy score written during execution and logged through `POST /advice/log`
+- `reviewed exact score`: a later field-level reviewed score written to `docs/<doc_id>/review/results.json`
+
+The reviewed exact score is computed over requested fields only using field-level `TP/FP/FN`.
+When reviewed feedback exists, the job/document UI should surface that reviewed exact precision/recall/F1 ahead of the runtime proxy.
+
 The F1 score is a **proxy metric** computed by IDPO and sent to AHMN as the bandit reward signal. It blends extraction quality indicators since ground-truth labels aren't available at inference time.
 
 ### Formula
@@ -755,7 +763,8 @@ XAI runs on CPU (no GPU required) with DistilBERT, which is lightweight but stil
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `POST /advice` | POST | Thompson Sampling policy recommendation |
-| `POST /advice/log` | POST | Log outcome metrics (the LEARNING endpoint) |
+| `POST /advice/log` | POST | Log runtime outcome metrics (the immediate learning endpoint) |
+| `POST /advice/review` | POST | Log reviewed exact extraction metrics after AI or human validation |
 | `POST /advice/feedback` | POST | Forward human correction |
 | `GET /dashboard/stats` | GET | Aggregate counts (outcomes, LTM, experiments, users) |
 | `GET /dashboard/memory/stm` | GET | Active Redis entries with TTL |

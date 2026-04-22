@@ -46,6 +46,36 @@
         "idpo.cli",
         "--help"
       ]
+    },
+    {
+      "id": "gateway",
+      "kind": "http",
+      "url": "http://127.0.0.1:8000/health",
+      "timeoutMs": 3000
+    },
+    {
+      "id": "ahmn",
+      "kind": "http",
+      "url": "http://127.0.0.1:8001/health",
+      "timeoutMs": 3000
+    },
+    {
+      "id": "guardrails",
+      "kind": "http",
+      "url": "http://127.0.0.1:8002/health",
+      "timeoutMs": 3000
+    },
+    {
+      "id": "xai-hitl",
+      "kind": "http",
+      "url": "http://127.0.0.1:8003/health",
+      "timeoutMs": 3000
+    },
+    {
+      "id": "idpo-ui",
+      "kind": "http",
+      "url": "http://127.0.0.1:8004/health",
+      "timeoutMs": 3000
     }
   ]
 }

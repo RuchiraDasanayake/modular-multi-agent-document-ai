@@ -1,10 +1,24 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { loadRunnerConfig, getCommandConfig } from "@/server/config";
-import { createJob, appendJobLog, setJobFailed, setJobRunning, setJobSuccess, updateJob } from "@/server/jobs";
+import type { DocumentSummary, JobDocumentRecord, JobExecutionMode, JobFieldConfig, JobRunMode, JobStatus } from "@/types/idpo";
+import {
+  addDocumentsToJob,
+  appendJobLog,
+  createWorkspaceJob,
+  getJobOrThrow,
+  mutateJob,
+  setJobFailed,
+  setJobRunning,
+  setJobSuccess,
+  updateJob,
+} from "@/server/jobs";
+import { findNewestRunIdAfter, getRunDocument, getRunOverview } from "@/server/artifacts";
 import { ensurePathInside, resolvePathForDisplay, resolvePrimaryRunPath, resolveRunRoot } from "@/server/paths";
-import { findNewestRunIdAfter } from "@/server/artifacts";
+import { ensureJobEffectivePolicyStore } from "@/server/policies";
+import { buildJobOverlay, collectJobReviewLearningStats, readReviewArtifact, summarizeReviewState } from "@/server/review";
 
 interface StartRunRequest {
   commandId?: string;
@@ -40,6 +54,19 @@ interface UploadManifestFile {
   name: string;
   size: number;
   storedAs: string;
+}
+
+interface StartJobRunsRequest {
+  jobId: string;
+  selectedFileIds: string[];
+  mode: JobExecutionMode;
+  jobName?: string;
+  fieldConfigCurrent?: JobFieldConfig[];
+  settings: StartRunRequest["settings"];
+}
+
+function nowIso(): string {
+  return new Date().toISOString();
 }
 
 function validateUpload(file: File, allowedExtensions: string[], maxUploadMb: number): void {
@@ -274,6 +301,12 @@ function prepareRuntimeConfig(baseConfigPath: string, jobId: string, settings: S
   }
 
   const finalConfig = patchConfig(baseConfig, settings);
+  const knowledge = ((finalConfig.knowledge as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
+  knowledge.policy_store_path = ensureJobEffectivePolicyStore(jobId);
+  if (typeof knowledge.default_policy_id !== "string" || !knowledge.default_policy_id.trim()) {
+    knowledge.default_policy_id = "default";
+  }
+  finalConfig.knowledge = knowledge;
   const runtimeConfigPath = path.join(loadRunnerConfig().jobsDir, `${jobId}_runtime_config.json`);
   fs.writeFileSync(runtimeConfigPath, JSON.stringify(finalConfig, null, 2), "utf-8");
   return runtimeConfigPath;
@@ -343,6 +376,613 @@ function parseRunInfoFromLog(line: string): { runId: string | null; runPath: str
   return { runId, runPath };
 }
 
+function normalizeFieldKey(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, "_");
+}
+
+function fieldSnapshotToCustomFields(fieldSnapshot: JobFieldConfig[]): NonNullable<StartRunRequest["settings"]["customFields"]> {
+  return fieldSnapshot.map((field) => ({
+    key: normalizeFieldKey(field.name),
+    description: field.description,
+  }));
+}
+
+function writeJobOverlayIfEligible(jobId: string, fieldSnapshot: JobFieldConfig[]): string | null {
+  const job = getJobOrThrow(jobId);
+  const overlay = buildJobOverlay(job, fieldSnapshot);
+  if (overlay.entries.length === 0) {
+    return null;
+  }
+  fs.writeFileSync(
+    overlay.path,
+    JSON.stringify(
+      {
+        job_id: jobId,
+        generated_at: nowIso(),
+        entries: overlay.entries,
+      },
+      null,
+      2,
+    ),
+    "utf-8",
+  );
+  return overlay.path;
+}
+
+function jobModeToAdaptiveMode(mode: JobRunMode): "static" | "adaptive_safe" {
+  return mode === "strict" ? "static" : "adaptive_safe";
+}
+
+function summarizeJobProfile(documents: DocumentSummary[]): string {
+  if (documents.length === 0) {
+    return "awaiting_run";
+  }
+  const buckets = new Map<string, number>();
+  for (const doc of documents) {
+    const key = doc.routeBin || doc.docType || doc.vendorCluster || "mixed_batch";
+    buckets.set(key, (buckets.get(key) ?? 0) + 1);
+  }
+  return [...buckets.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ?? "mixed_batch";
+}
+
+function buildAhmnSummary(job: JobStatus, documents: DocumentSummary[]) {
+  const documentsWithAdvice = documents.filter(
+    (doc) => (doc.adviceStatus && !["static", "no_advice"].includes(doc.adviceStatus)) || doc.adviceAccepted || doc.policyChanged,
+  ).length;
+  const documentsLoggedBack = documents.filter((doc) => Boolean(doc.feedbackLogged)).length;
+  const adviceInfluencedCount = documents.filter((doc) => Boolean(doc.policyChanged) || Boolean(doc.adviceAccepted)).length;
+  const memoryMatched = documents.some(
+    (doc) => typeof doc.retrievalSource === "string" && doc.retrievalSource.length > 0 && doc.retrievalSource !== "unknown",
+  );
+  const reviewStats = collectJobReviewLearningStats(job, job.fieldConfigCurrent ?? []);
+  return {
+    jobProfile: summarizeJobProfile(documents),
+    memoryMatched,
+    documentsWithAdvice,
+    documentsLoggedBack,
+    adviceInfluencedCount,
+    reviewedDocumentCount: reviewStats.reviewedDocumentCount,
+    reviewedHumanCount: reviewStats.reviewedHumanCount,
+    reviewedAiCount: reviewStats.reviewedAiCount,
+    reviewedFeedbackLoggedCount: reviewStats.reviewedFeedbackLoggedCount,
+    reviewedFeedbackPendingCount: reviewStats.reviewedFeedbackPendingCount,
+    jobOverlayPolicies: reviewStats.overlayEntryCount,
+    jobOverlayReady: reviewStats.overlayReady,
+    adaptationSummary:
+      documents.length === 0
+        ? "No completed runs yet."
+        : `${adviceInfluencedCount} document(s) changed or matched adaptive advice; ${documentsLoggedBack} runtime feedback event(s), ${reviewStats.reviewedFeedbackLoggedCount} reviewed learning event(s), overlay ${reviewStats.overlayReady ? "ready" : "not ready"}.`,
+  };
+}
+
+function buildFieldValuesFromDetail(detail: Record<string, unknown>): Record<string, string> {
+  const values: Record<string, string> = {};
+  const fields = Array.isArray(detail.fields) ? detail.fields : [];
+  for (const field of fields) {
+    if (!field || typeof field !== "object") {
+      continue;
+    }
+    const entry = field as Record<string, unknown>;
+    const key = typeof entry.key === "string" ? entry.key : "";
+    if (!key) {
+      continue;
+    }
+    const metadata = entry.metadata && typeof entry.metadata === "object" ? (entry.metadata as Record<string, unknown>) : {};
+    const label = typeof metadata.label === "string" && metadata.label.trim() ? metadata.label.trim() : key;
+    const rawValue = entry.value;
+    const textValue =
+      typeof rawValue === "string"
+        ? rawValue
+        : typeof rawValue === "number" || typeof rawValue === "boolean"
+          ? String(rawValue)
+          : "";
+    values[key] = textValue;
+    values[label] = textValue;
+  }
+  return values;
+}
+
+function buildReviewState(detail: Record<string, unknown>): string {
+  const validationIssues = Array.isArray(detail.validationIssues) ? detail.validationIssues : [];
+  if (validationIssues.length > 0) {
+    return `${validationIssues.length} issue(s)`;
+  }
+  const metadata = detail.metadata && typeof detail.metadata === "object" ? (detail.metadata as Record<string, unknown>) : {};
+  if (typeof metadata.deferStatus === "string" && metadata.deferStatus !== "not_needed") {
+    return metadata.deferStatus;
+  }
+  if (typeof metadata.fallbackReason === "string" && metadata.fallbackReason.trim()) {
+    return "fallback";
+  }
+  return "clear";
+}
+
+function matchesJobDocument(summary: DocumentSummary, document: JobDocumentRecord): boolean {
+  const filename = summary.filename || "";
+  return (
+    filename === document.storedName ||
+    filename === document.fileName ||
+    filename.startsWith(`${document.fileId}__`) ||
+    filename.endsWith(`__${sanitizeFilename(document.fileName)}`)
+  );
+}
+
+function createExecutionUploadDir(): string {
+  const config = loadRunnerConfig();
+  const folderName = `jobrun_${new Date().toISOString().replace(/[:.]/g, "-")}_${Math.random().toString(36).slice(2, 8)}`;
+  const uploadDir = path.join(config.uploadsDir, folderName);
+  fs.mkdirSync(uploadDir, { recursive: true });
+  return uploadDir;
+}
+
+function copyJobDocumentsToUploadDir(job: JobStatus, selectedDocs: JobDocumentRecord[], uploadDir: string): UploadManifestFile[] {
+  const sourceRoot = job.uploadsPath || "";
+  if (!sourceRoot || !fs.existsSync(sourceRoot)) {
+    throw new Error("Job upload directory not found");
+  }
+
+  const manifestFiles: UploadManifestFile[] = [];
+  for (const document of selectedDocs) {
+    const source = path.join(sourceRoot, document.storedName);
+    if (!fs.existsSync(source)) {
+      throw new Error(`Missing job file '${document.fileName}'`);
+    }
+    const target = path.join(uploadDir, document.storedName);
+    fs.copyFileSync(source, target);
+    manifestFiles.push({
+      name: document.fileName,
+      size: document.size,
+      storedAs: document.storedName,
+    });
+  }
+  return manifestFiles;
+}
+
+async function executeRunnerCommand(
+  jobId: string,
+  commandId: string | undefined,
+  settings: StartRunRequest["settings"],
+  uploadDir: string,
+): Promise<{ runId: string | null; runPath: string | null }> {
+  const commandConfig = getCommandConfig(commandId);
+  const startedAtMs = Date.now();
+  const baseConfigPath = resolveConfigPathFromSettings(settings);
+  const runtimeConfigPath = prepareRuntimeConfig(baseConfigPath, jobId, settings);
+
+  updateJob(jobId, {
+    commandId: commandConfig.id,
+    logs: [
+      `Input directory: ${resolvePathForDisplay(uploadDir)}`,
+      `Runtime config: ${resolvePathForDisplay(runtimeConfigPath)}`,
+      `Executing: ${commandConfig.program} ${buildCommandArgs(commandConfig.args, {
+        input_dir: uploadDir,
+        config_path: runtimeConfigPath,
+        workspace_root: loadRunnerConfig().workspaceRoot,
+      }).join(" ")}`,
+      ...getJobOrThrow(jobId).logs,
+    ],
+  });
+
+  maybeInstallLocalModel(jobId, settings);
+
+  const placeholders = {
+    input_dir: uploadDir,
+    config_path: runtimeConfigPath,
+    workspace_root: loadRunnerConfig().workspaceRoot,
+  };
+  const args = buildCommandArgs(commandConfig.args, placeholders);
+  const overlayPath = writeJobOverlayIfEligible(
+    jobId,
+    (settings.customFields ?? []).map((field) => ({
+      name: field.key,
+      description: field.description,
+    })),
+  );
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(commandConfig.program, args, {
+      cwd: commandConfig.cwd,
+      env: {
+        ...process.env,
+        ...commandConfig.env,
+        IDPO_EXECUTION_SURFACE: "frontend_job_runner",
+        IDPO_JOB_ID: jobId,
+        ...(overlayPath ? { IDPO_JOB_OVERLAY_PATH: overlayPath } : {}),
+        ...(settings.apiKeys?.openai?.trim()
+          ? {
+              OPENAI_API_KEY: settings.apiKeys.openai.trim(),
+            }
+          : {}),
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    });
+
+    let discoveredRunId: string | null = null;
+    let discoveredRunPath: string | null = null;
+
+    const handleChunk = (chunk: Buffer, stream: "stdout" | "stderr") => {
+      const text = chunk.toString("utf-8");
+      const lines = text.split(/\r?\n/).filter(Boolean);
+      for (const line of lines) {
+        appendJobLog(jobId, `[${stream}] ${line}`);
+        const parsed = parseRunInfoFromLog(line);
+        if (parsed.runId) {
+          discoveredRunId = parsed.runId;
+        }
+        if (parsed.runPath) {
+          discoveredRunPath = parsed.runPath;
+        }
+      }
+    };
+
+    child.stdout.on("data", (chunk) => handleChunk(chunk as Buffer, "stdout"));
+    child.stderr.on("data", (chunk) => handleChunk(chunk as Buffer, "stderr"));
+
+    child.on("error", (error) => {
+      appendJobLog(jobId, `[runner] process error: ${error.message}`);
+      reject(error);
+    });
+
+    child.on("close", (code) => {
+      if (code !== 0) {
+        const message = `Command failed with exit code ${code ?? "unknown"}`;
+        appendJobLog(jobId, `[runner] ${message}`);
+        reject(new Error(message));
+        return;
+      }
+
+      let resolvedRunId = discoveredRunId;
+      if (!resolvedRunId) {
+        resolvedRunId = findNewestRunIdAfter(startedAtMs);
+      }
+      const resolvedRunPath = discoveredRunPath ?? (resolvedRunId ? path.join(loadRunnerConfig().runsDir, resolvedRunId) : null);
+      appendJobLog(jobId, `[runner] completed successfully`);
+      if (resolvedRunId) {
+        appendJobLog(jobId, `[runner] resolved runId=${resolvedRunId}`);
+      }
+      resolve({ runId: resolvedRunId, runPath: resolvedRunPath });
+    });
+  });
+}
+
+function appendRunOutcome(
+  document: JobDocumentRecord,
+  outcome: JobDocumentRecord["outcomes"][number],
+  nextStatus: JobDocumentRecord["status"],
+) {
+  const existing = document.outcomes.filter(
+    (item) => !(item.runId === outcome.runId && item.mode === outcome.mode),
+  );
+  document.outcomes = [...existing, outcome];
+  document.latestRunId = outcome.runId;
+  document.latestDocId = outcome.docId;
+  document.latestRoute = outcome.route;
+  document.latestPolicy = outcome.policy;
+  document.errorSummary = outcome.errorSummary;
+  document.reviewState = outcome.reviewState;
+  document.reviewStatus = outcome.reviewStatus ?? null;
+  document.reviewSource = outcome.reviewSource ?? null;
+  document.status = nextStatus;
+  document.updatedAt = nowIso();
+}
+
+function finalizeSelectedDocuments(
+  job: JobStatus,
+  selectedFileIds: string[],
+  modes: JobRunMode[],
+  runIdsByMode: Partial<Record<JobRunMode, string>>,
+) {
+  const selectedSet = new Set(selectedFileIds);
+  const requiredModes = new Set(modes);
+  for (const document of job.documents ?? []) {
+    if (!selectedSet.has(document.fileId)) {
+      continue;
+    }
+    const relevantOutcomes = document.outcomes.filter(
+      (outcome) => requiredModes.has(outcome.mode) && runIdsByMode[outcome.mode] === outcome.runId,
+    );
+    const processedModes = new Set(relevantOutcomes.filter((outcome) => outcome.status === "processed").map((outcome) => outcome.mode));
+    document.status = processedModes.size === requiredModes.size ? "processed" : "failed";
+    document.updatedAt = nowIso();
+  }
+}
+
+async function foldRunIntoJob(
+  jobId: string,
+  jobRunId: string,
+  selectedFileIds: string[],
+  runMode: JobRunMode,
+  runId: string,
+  runPath: string | null,
+  remainingModesAfterCurrent: number,
+) {
+  const overview = getRunOverview(runId);
+  const summaries = [...overview.documents];
+  const matchedIds = new Set<string>();
+  mutateJob(jobId, (job) => {
+    const docMap = new Map((job.documents ?? []).map((document) => [document.fileId, document]));
+
+    for (const fileId of selectedFileIds) {
+      const document = docMap.get(fileId);
+      if (!document) {
+        continue;
+      }
+
+      const matchIndex = summaries.findIndex((summary) => !matchedIds.has(summary.docId) && matchesJobDocument(summary, document));
+      if (matchIndex >= 0) {
+        const summary = summaries[matchIndex];
+        matchedIds.add(summary.docId);
+        const detail = getRunDocument(runId, summary.docId);
+        const reviewArtifact = readReviewArtifact(runId, summary.docId);
+        appendRunOutcome(
+          document,
+          {
+            runId,
+            mode: runMode,
+            docId: summary.docId,
+            status: "processed",
+            route: summary.routeBin ?? null,
+            policy: summary.policyId ?? null,
+            errorSummary: null,
+            reviewState: reviewArtifact ? summarizeReviewState(reviewArtifact) : buildReviewState(detail),
+            reviewStatus: reviewArtifact?.reviewStatus ?? "unreviewed",
+            reviewSource: reviewArtifact?.reviewSource ?? null,
+            fieldValues: buildFieldValuesFromDetail(detail),
+            adviceInfluenced: Boolean(summary.policyChanged) || Boolean(summary.adviceAccepted),
+            feedbackLogged: Boolean(summary.feedbackLogged),
+            fallbackReason: summary.fallbackReason ?? null,
+            exactPrecision: reviewArtifact?.metrics.precision ?? null,
+            exactRecall: reviewArtifact?.metrics.recall ?? null,
+            exactF1: reviewArtifact?.metrics.f1 ?? null,
+          },
+          remainingModesAfterCurrent > 0 ? "processing" : "processed",
+        );
+        continue;
+      }
+
+      appendRunOutcome(
+        document,
+        {
+          runId,
+          mode: runMode,
+          docId: null,
+          status: "failed",
+          route: null,
+          policy: null,
+          errorSummary: "No result returned for this file.",
+          reviewState: "failed",
+          reviewStatus: "unreviewed",
+          reviewSource: null,
+          fieldValues: {},
+          adviceInfluenced: false,
+          feedbackLogged: false,
+          fallbackReason: null,
+          exactPrecision: null,
+          exactRecall: null,
+          exactF1: null,
+        },
+        remainingModesAfterCurrent > 0 ? "processing" : "failed",
+      );
+    }
+
+    const runRecord = (job.runs ?? []).find((run) => run.jobRunId === jobRunId);
+    if (runRecord) {
+      runRecord.runId = runId;
+      runRecord.runPath = runPath;
+      runRecord.status = "success";
+      runRecord.endedAt = nowIso();
+      runRecord.processedCount = overview.documents.length;
+      runRecord.failedCount = Math.max(selectedFileIds.length - overview.documents.length, 0);
+      runRecord.adviceDocumentCount = overview.documents.filter(
+        (doc) => (doc.adviceStatus && !["static", "no_advice"].includes(doc.adviceStatus)) || doc.adviceAccepted || doc.policyChanged,
+      ).length;
+      runRecord.loggedFeedbackCount = overview.documents.filter((doc) => Boolean(doc.feedbackLogged)).length;
+    }
+
+    job.ahmnSummary = buildAhmnSummary(job, overview.documents);
+    job.runId = runId;
+    job.runPath = runPath;
+    job.latestRunId = runId;
+    job.endedAt = nowIso();
+    return job;
+  });
+}
+
+function markRunFailed(jobId: string, jobRunId: string, selectedFileIds: string[], runMode: JobRunMode, error: string, remainingModesAfterCurrent: number) {
+  mutateJob(jobId, (job) => {
+    const runRecord = (job.runs ?? []).find((run) => run.jobRunId === jobRunId);
+    if (runRecord) {
+      runRecord.status = "failed";
+      runRecord.error = error;
+      runRecord.endedAt = nowIso();
+    }
+    const selectedSet = new Set(selectedFileIds);
+    for (const document of job.documents ?? []) {
+      if (!selectedSet.has(document.fileId)) {
+        continue;
+      }
+      appendRunOutcome(
+        document,
+        {
+          runId: jobRunId,
+          mode: runMode,
+          docId: null,
+          status: "failed",
+          route: null,
+          policy: null,
+          errorSummary: error,
+          reviewState: "failed",
+          reviewStatus: "unreviewed",
+          reviewSource: null,
+          fieldValues: {},
+          adviceInfluenced: false,
+          feedbackLogged: false,
+          fallbackReason: null,
+          exactPrecision: null,
+          exactRecall: null,
+          exactF1: null,
+        },
+        remainingModesAfterCurrent > 0 ? "processing" : "failed",
+      );
+    }
+    return job;
+  });
+}
+
+async function runSingleJobMode(
+  jobId: string,
+  jobRunId: string,
+  runMode: JobRunMode,
+  selectedFileIds: string[],
+  fieldSnapshot: JobFieldConfig[],
+  settings: StartRunRequest["settings"],
+  commandId?: string,
+  remainingModesAfterCurrent = 0,
+): Promise<string | null> {
+  const job = getJobOrThrow(jobId);
+  const selectedDocs = (job.documents ?? []).filter((document) => selectedFileIds.includes(document.fileId));
+  if (selectedDocs.length === 0) {
+    throw new Error("No selected job documents found");
+  }
+
+  mutateJob(jobId, (current) => {
+    current.status = "running";
+    current.error = undefined;
+    const runRecord = (current.runs ?? []).find((run) => run.jobRunId === jobRunId);
+    if (runRecord) {
+      runRecord.status = "running";
+      runRecord.startedAt = nowIso();
+    }
+    return current;
+  });
+
+  const uploadDir = createExecutionUploadDir();
+  copyJobDocumentsToUploadDir(job, selectedDocs, uploadDir);
+
+  const runSettings: StartRunRequest["settings"] = {
+    ...settings,
+    adaptiveMode: jobModeToAdaptiveMode(runMode),
+    customFields: fieldSnapshotToCustomFields(fieldSnapshot),
+  };
+
+  try {
+    const { runId, runPath } = await executeRunnerCommand(jobId, commandId ?? job.commandId, runSettings, uploadDir);
+    if (!runId) {
+      throw new Error("Run completed without a run id");
+    }
+    await foldRunIntoJob(
+      jobId,
+      jobRunId,
+      selectedFileIds,
+      runMode,
+      runId,
+      runPath ? resolvePathForDisplay(runPath) : null,
+      remainingModesAfterCurrent,
+    );
+    return runId;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Job run failed";
+    markRunFailed(jobId, jobRunId, selectedFileIds, runMode, message, remainingModesAfterCurrent);
+    return null;
+  }
+}
+
+export async function startJobRuns(payload: StartJobRunsRequest): Promise<JobStatus> {
+  const currentJob = getJobOrThrow(payload.jobId);
+  const selectedFileIds = Array.from(new Set(payload.selectedFileIds)).filter((fileId) =>
+    (currentJob.documents ?? []).some((document) => document.fileId === fileId),
+  );
+  if (selectedFileIds.length === 0) {
+    throw new Error("Select at least one document");
+  }
+
+  const fieldSnapshot = payload.fieldConfigCurrent && payload.fieldConfigCurrent.length > 0
+    ? payload.fieldConfigCurrent
+    : (currentJob.fieldConfigCurrent ?? []);
+  const modes: JobRunMode[] = payload.mode === "both" ? ["adaptive", "strict"] : [payload.mode];
+  const queuedRuns = modes.map((mode) => ({
+    jobRunId: randomUUID().replace(/-/g, ""),
+    runId: null,
+    mode,
+    status: "queued" as const,
+    createdAt: nowIso(),
+    fieldSnapshot,
+    selectedFileIds,
+    runPath: null,
+    error: null,
+  }));
+
+  const queuedJob = mutateJob(payload.jobId, (job) => {
+    job.jobName = payload.jobName?.trim() ?? job.jobName ?? "";
+    job.mode = payload.mode;
+    job.fieldConfigCurrent = fieldSnapshot;
+    job.settings = {
+      ...job.settings,
+      ...redactSettings(payload.settings),
+    };
+    job.status = "queued";
+    job.error = undefined;
+    job.endedAt = undefined;
+    job.runs = [...(job.runs ?? []), ...queuedRuns];
+    const selectedSet = new Set(selectedFileIds);
+    for (const document of job.documents ?? []) {
+      document.selected = selectedSet.has(document.fileId);
+      if (!selectedSet.has(document.fileId)) {
+        continue;
+      }
+      document.status = "processing";
+      document.errorSummary = null;
+      document.reviewState = null;
+      document.reviewStatus = "unreviewed";
+      document.reviewSource = null;
+      document.updatedAt = nowIso();
+    }
+    return job;
+  });
+
+  void (async () => {
+    const runIdsByMode: Partial<Record<JobRunMode, string>> = {};
+    for (let index = 0; index < queuedRuns.length; index += 1) {
+      const queuedRun = queuedRuns[index];
+      const remainingModes = queuedRuns.length - index - 1;
+      const runId = await runSingleJobMode(
+        payload.jobId,
+        queuedRun.jobRunId,
+        queuedRun.mode,
+        selectedFileIds,
+        fieldSnapshot,
+        payload.settings,
+        currentJob.commandId,
+        remainingModes,
+      );
+      if (runId) {
+        runIdsByMode[queuedRun.mode] = runId;
+      }
+    }
+
+    mutateJob(payload.jobId, (job) => {
+      finalizeSelectedDocuments(job, selectedFileIds, modes, runIdsByMode);
+      const counts = (job.documents ?? []).reduce(
+        (summary, document) => {
+          if (selectedFileIds.includes(document.fileId)) {
+            summary.anyFailed = summary.anyFailed || document.status === "failed";
+            summary.anyProcessed = summary.anyProcessed || document.status === "processed";
+          }
+          return summary;
+        },
+        { anyFailed: false, anyProcessed: false },
+      );
+      job.status = counts.anyFailed ? "failed" : "success";
+      job.endedAt = nowIso();
+      job.error = counts.anyFailed ? "One or more documents failed." : undefined;
+      return job;
+    });
+  })();
+
+  return queuedJob;
+}
+
 export async function startRunJob(payload: StartRunRequest) {
   const hasFiles = Array.isArray(payload.files) && payload.files.length > 0;
   if (!hasFiles && !payload.sourceRunId) {
@@ -350,109 +990,90 @@ export async function startRunJob(payload: StartRunRequest) {
   }
 
   const commandConfig = getCommandConfig(payload.commandId);
-  const { uploadDir, manifestFiles: uploadedFiles } = hasFiles
-    ? await saveUploads(payload.files)
-    : await saveUploads([]);
-  const replayFiles = payload.sourceRunId ? copySourceRunInputs(payload.sourceRunId, uploadDir) : [];
-  const manifestFiles = [...uploadedFiles, ...replayFiles];
-
-  if (manifestFiles.length === 0) {
-    throw new Error("No input artifacts found for run start");
+  const mode: JobExecutionMode =
+    payload.settings.adaptiveMode === "static" ? "strict" : "adaptive";
+  const fieldConfigCurrent: JobFieldConfig[] = [];
+  if (Array.isArray(payload.settings.customFields)) {
+    for (const field of payload.settings.customFields) {
+      const key = field.key?.trim();
+      if (!key) {
+        continue;
+      }
+      fieldConfigCurrent.push({
+        name: key,
+        description: field.description?.trim() || undefined,
+      });
+    }
   }
 
-  const job = createJob(commandConfig.id, redactSettings(payload.settings), resolvePathForDisplay(uploadDir));
-  const startedAtMs = Date.now();
+  let job = createWorkspaceJob({
+    mode,
+    fieldConfigCurrent,
+    settings: redactSettings(payload.settings),
+  });
 
-  const baseConfigPath = resolveConfigPathFromSettings(payload.settings);
-  const runtimeConfigPath = prepareRuntimeConfig(baseConfigPath, job.jobId, payload.settings);
-
-  updateJob(job.jobId, {
+  job = updateJob(job.jobId, {
+    commandId: commandConfig.id,
     logs: [
-      `Queued ${manifestFiles.length} file(s)`,
-      `Input directory: ${resolvePathForDisplay(uploadDir)}`,
-      payload.sourceRunId ? `Source run replay: ${payload.sourceRunId}` : "Source run replay: none",
-      `Runtime config: ${resolvePathForDisplay(runtimeConfigPath)}`,
+      `Source run replay: ${payload.sourceRunId ?? "none"}`,
+      ...job.logs,
     ],
   });
 
-  maybeInstallLocalModel(job.jobId, payload.settings);
+  if (hasFiles) {
+    job = await addDocumentsToJob(job.jobId, payload.files);
+  }
 
-  const placeholders = {
-    input_dir: uploadDir,
-    config_path: runtimeConfigPath,
-    workspace_root: loadRunnerConfig().workspaceRoot,
-  };
-
-  const args = buildCommandArgs(commandConfig.args, placeholders);
-
-  setJobRunning(job.jobId);
-
-  const child = spawn(commandConfig.program, args, {
-    cwd: commandConfig.cwd,
-    env: {
-      ...process.env,
-      ...commandConfig.env,
-      IDPO_EXECUTION_SURFACE: "frontend_job_runner",
-      IDPO_JOB_ID: job.jobId,
-      ...(payload.settings.apiKeys?.openai?.trim()
-        ? {
-            OPENAI_API_KEY: payload.settings.apiKeys.openai.trim(),
+  if (payload.sourceRunId) {
+    const replayFiles = copySourceRunInputs(payload.sourceRunId, job.uploadsPath ?? "");
+    if (replayFiles.length > 0) {
+      job = mutateJob(job.jobId, (current) => {
+        const documents = [...(current.documents ?? [])];
+        for (const file of replayFiles) {
+          const fileId = randomUUID().replace(/-/g, "");
+          const currentTarget = path.join(current.uploadsPath ?? "", file.storedAs);
+          const renamedStoredName = `${fileId}__${sanitizeFilename(file.name)}`;
+          const renamedTarget = path.join(current.uploadsPath ?? "", renamedStoredName);
+          if (currentTarget !== renamedTarget && fs.existsSync(currentTarget)) {
+            fs.renameSync(currentTarget, renamedTarget);
           }
-        : {}),
-    },
-    stdio: ["ignore", "pipe", "pipe"],
-    windowsHide: true,
+          documents.push({
+            fileId,
+            fileName: file.name,
+            storedName: renamedStoredName,
+            size: file.size,
+            selected: true,
+            status: "loaded",
+            errorSummary: null,
+            reviewState: null,
+            reviewStatus: "unreviewed",
+            reviewSource: null,
+            latestRoute: null,
+            latestPolicy: null,
+            latestRunId: null,
+            latestDocId: null,
+            createdAt: nowIso(),
+            updatedAt: nowIso(),
+            outcomes: [],
+          });
+        }
+        current.documents = documents;
+        return current;
+      });
+    }
+  }
+
+  if ((job.documents ?? []).length === 0) {
+    throw new Error("No input artifacts found for run start");
+  }
+
+  job = await startJobRuns({
+    jobId: job.jobId,
+    selectedFileIds: (job.documents ?? []).map((document) => document.fileId),
+    mode,
+    fieldConfigCurrent,
+    settings: payload.settings,
   });
 
-  let discoveredRunId: string | null = null;
-  let discoveredRunPath: string | null = null;
-
-  const handleChunk = (chunk: Buffer, stream: "stdout" | "stderr") => {
-    const text = chunk.toString("utf-8");
-    const lines = text.split(/\r?\n/).filter(Boolean);
-    for (const line of lines) {
-      appendJobLog(job.jobId, `[${stream}] ${line}`);
-      const parsed = parseRunInfoFromLog(line);
-      if (parsed.runId) {
-        discoveredRunId = parsed.runId;
-      }
-      if (parsed.runPath) {
-        discoveredRunPath = parsed.runPath;
-      }
-    }
-  };
-
-  child.stdout.on("data", (chunk) => handleChunk(chunk as Buffer, "stdout"));
-  child.stderr.on("data", (chunk) => handleChunk(chunk as Buffer, "stderr"));
-
-  child.on("error", (error) => {
-    appendJobLog(job.jobId, `[runner] process error: ${error.message}`);
-    setJobFailed(job.jobId, error.message);
-  });
-
-  child.on("close", (code) => {
-    if (code !== 0) {
-      const message = `Command failed with exit code ${code ?? "unknown"}`;
-      appendJobLog(job.jobId, `[runner] ${message}`);
-      setJobFailed(job.jobId, message);
-      return;
-    }
-
-    let resolvedRunId = discoveredRunId;
-    if (!resolvedRunId) {
-      resolvedRunId = findNewestRunIdAfter(startedAtMs);
-    }
-
-    const resolvedRunPath = discoveredRunPath ?? (resolvedRunId ? path.join(loadRunnerConfig().runsDir, resolvedRunId) : null);
-
-    appendJobLog(job.jobId, `[runner] completed successfully`);
-    if (resolvedRunId) {
-      appendJobLog(job.jobId, `[runner] resolved runId=${resolvedRunId}`);
-    }
-    setJobSuccess(job.jobId, resolvedRunId, resolvedRunPath ? resolvePathForDisplay(resolvedRunPath) : null);
-  });
-
-  return updateJob(job.jobId, {
-    logs: [`Executing: ${commandConfig.program} ${args.join(" ")}`, ...job.logs],
-  });
+  return job;
 }

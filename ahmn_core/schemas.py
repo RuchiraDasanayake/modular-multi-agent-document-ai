@@ -1,8 +1,9 @@
 """Pydantic schemas for the AHMN memory service API."""
 
-from pydantic import BaseModel, Field
 from typing import Any, Literal
 from uuid import UUID
+
+from pydantic import BaseModel, Field
 
 class DocumentContext(BaseModel):
     doc_type: str
@@ -41,6 +42,23 @@ class FeedbackRequest(BaseModel):
         default=None,
         description="Original reviewer verdict: correct, incorrect, partially_correct, needs_more_context",
     )
+
+
+class ReviewFeedbackRequest(BaseModel):
+    advice_id: UUID
+    policy_id_used: str
+    document_context: dict[str, Any]
+    review_source: Literal["ai", "human"]
+    review_weight: float = Field(gt=0.0)
+    tp: int = Field(ge=0)
+    fp: int = Field(ge=0)
+    fn: int = Field(ge=0)
+    precision: float = Field(ge=0.0, le=1.0)
+    recall: float = Field(ge=0.0, le=1.0)
+    f1: float = Field(ge=0.0, le=1.0)
+    field_state_counts: dict[str, int] = Field(default_factory=dict)
+    job_id: str | None = None
+    overlay_key: str | None = None
 
 class PolicyResponse(BaseModel):
     advice_id: UUID

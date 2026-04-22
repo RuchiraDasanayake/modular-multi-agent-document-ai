@@ -7,7 +7,7 @@ import pytest
 from uuid import uuid4
 
 from ahmn_core.schemas import (
-    DocumentContext, OutcomeMetrics, PolicyResponse, LogRequest, FeedbackRequest,
+    DocumentContext, OutcomeMetrics, PolicyResponse, LogRequest, FeedbackRequest, ReviewFeedbackRequest,
 )
 from ahmn_core.services.embedding import EmbeddingService
 
@@ -44,6 +44,24 @@ class TestSchemas:
 
         fr = FeedbackRequest(advice_id=uuid4(), human_corrected=True)
         assert fr.human_corrected is True
+
+    def test_review_feedback_schema(self):
+        review = ReviewFeedbackRequest(
+            advice_id=uuid4(),
+            policy_id_used="ocr_tesseract",
+            document_context={"doc_type": "invoice", "vendor": "acme", "content_profile": "table-heavy"},
+            review_source="human",
+            review_weight=1.0,
+            tp=4,
+            fp=1,
+            fn=1,
+            precision=0.8,
+            recall=0.8,
+            f1=0.8,
+            field_state_counts={"correct": 4, "wrong_value": 1},
+        )
+        assert review.review_source == "human"
+        assert review.field_state_counts["correct"] == 4
 
 # ── Embeddings ────────────────────────────────────────────────────
 

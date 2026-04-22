@@ -14,6 +14,7 @@ import type {
   ValidationError,
 } from "@/types/idpo";
 import { listRunDirectories, resolvePathForDisplay, resolvePrimaryRunPath, resolveRunFilePath, resolveRunRoot } from "@/server/paths";
+import { readReviewArtifact } from "@/server/review";
 import { asNumber, average, percentile, readJsonFile, readJsonLines, readTextFile, toIsoString } from "@/server/utils";
 
 interface RunContext {
@@ -64,6 +65,7 @@ interface ResultDocRecord {
   validation_issues?: unknown[];
   extracted_fields?: unknown[];
   field_details?: Record<string, unknown>;
+  preprocess_route?: unknown;
   shadow_comparisons?: unknown[];
   escalation_info?: Record<string, unknown>;
   rollback_triggered?: boolean;
@@ -135,6 +137,16 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     return null;
   }
   return value as Record<string, unknown>;
+}
+
+function asStringArray(value: unknown): string[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  const items = value
+    .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+    .filter((entry) => entry.length > 0);
+  return items.length > 0 ? items : [];
 }
 
 function relativeToPrimary(primaryPath: string, filePath: string): string {
@@ -273,10 +285,12 @@ function mapResultToDocumentSummary(entry: ResultDocRecord): DocumentSummary {
     exactPrecision: asNumber(rewardDetails.precision),
     exactRecall: asNumber(rewardDetails.recall),
     exactF1: asNumber(rewardDetails.f1),
+    reviewStatus: "unreviewed",
+    reviewSource: null,
   };
 }
 
-function mapDocsLayoutToDocumentSummary(primaryPath: string, docId: string): DocumentSummary {
+function mapDocsLayoutToDocumentSummary(runId: string, primaryPath: string, docId: string): DocumentSummary {
   const docDir = path.join(primaryPath, "docs", docId);
   const manifest = readJsonFile<Record<string, unknown>>(path.join(docDir, "input", "manifest.json")) ?? {};
   const dae = readJsonFile<Record<string, unknown>>(path.join(docDir, "dae", "output.json")) ?? {};
@@ -299,6 +313,7 @@ function mapDocsLayoutToDocumentSummary(primaryPath: string, docId: string): Doc
     : [];
   const escalation = mapEscalation(escalationRaw);
   const rewardDetails = asRecord(reward.reward_details) ?? {};
+  const review = readReviewArtifact(runId, docId);
   const validationIssues = mapValidationIssues(validate.issues);
   const fields = extractionSource.map(mapField).filter((item): item is FieldExtraction => item !== null);
   const schemaQuality = computeSchemaQuality(getExpectedFieldKeys(primaryPath), fields, validationIssues);
@@ -358,9 +373,11 @@ function mapDocsLayoutToDocumentSummary(primaryPath: string, docId: string): Doc
     transparencyPath: fs.existsSync(transparencyPath) ? relativeToPrimary(primaryPath, transparencyPath) : null,
     reward: asNumber(reward.reward),
     rewardType: typeof reward.reward_type === "string" ? reward.reward_type : null,
-    exactPrecision: asNumber(rewardDetails.precision),
-    exactRecall: asNumber(rewardDetails.recall),
-    exactF1: asNumber(rewardDetails.f1),
+    exactPrecision: review?.metrics.precision ?? asNumber(rewardDetails.precision),
+    exactRecall: review?.metrics.recall ?? asNumber(rewardDetails.recall),
+    exactF1: review?.metrics.f1 ?? asNumber(rewardDetails.f1),
+    reviewStatus: review?.reviewStatus ?? "unreviewed",
+    reviewSource: review?.reviewSource ?? null,
   };
 }
 
@@ -415,7 +432,7 @@ function computeSchemaQuality(
   const extracted = new Set<string>();
   let groundedRequiredCount = 0;
   for (const field of fields) {
-    if (field.value === null || field.value === "") {
+    if (field.value === null || field.value === "" || String(field.value).trim().toUpperCase() === "N/A") {
       continue;
     }
     extracted.add(field.key);
@@ -793,7 +810,7 @@ export function getRunDocuments(runId: string): DocumentSummary[] {
 
   const docsLayoutIds = listDocsLayoutIds(context.primaryPath);
   if (docsLayoutIds.length > 0) {
-    return docsLayoutIds.map((docId) => mapDocsLayoutToDocumentSummary(context.primaryPath, docId));
+    return docsLayoutIds.map((docId) => mapDocsLayoutToDocumentSummary(runId, context.primaryPath, docId));
   }
 
   const extractDir = path.join(context.primaryPath, "extract");
@@ -824,6 +841,7 @@ export function getRunDocuments(runId: string): DocumentSummary[] {
 
 export function getRunDocument(runId: string, docId: string): Record<string, unknown> {
   const context = buildRunContext(runId);
+  const review = readReviewArtifact(runId, docId);
   const docsLayoutDir = path.join(context.primaryPath, "docs", docId);
   if (fs.existsSync(docsLayoutDir) && fs.statSync(docsLayoutDir).isDirectory()) {
     const dae = readJsonFile<Record<string, unknown>>(path.join(docsLayoutDir, "dae", "output.json")) ?? {};
@@ -839,6 +857,7 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
     const llmDiagnostics = asRecord(extract.llm_diagnostics) ?? {};
     const modelRoute = asRecord(transparency.model_route) ?? {};
     const ocrRoute = asRecord(transparency.ocr_route) ?? {};
+    const preprocessMeta = asRecord(transparency.preprocessing) ?? {};
     const fieldResolution = asRecord(transparency.field_resolution) ?? {};
     const routing = asRecord(transparency.routing) ?? asRecord(decisionChain.policy) ?? {};
     const feedbackStatus = asRecord(transparency.feedback_status) ?? asRecord(decisionChain.feedback_status) ?? {};
@@ -897,6 +916,11 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
         modelMode: typeof modelRoute.model_mode === "string" ? modelRoute.model_mode : null,
         modelReason: typeof modelRoute.model_reason === "string" ? modelRoute.model_reason : null,
         fallbackPath: typeof modelRoute.fallback_path === "string" ? modelRoute.fallback_path : null,
+        preprocessRoute:
+          asStringArray(preprocessMeta.route) ??
+          asStringArray((extract as Record<string, unknown>).preprocess_route) ??
+          asStringArray((route as Record<string, unknown>).preprocess_route) ??
+          [],
         unresolvedFieldCount:
           asNumber(fieldResolution.unresolved_count) ??
           asNumber(llmDiagnostics.unresolved_count) ??
@@ -915,6 +939,9 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
         transparencyPath: fs.existsSync(path.join(docsLayoutDir, "provenance", "transparency.json"))
           ? relativeToPrimary(context.primaryPath, path.join(docsLayoutDir, "provenance", "transparency.json"))
           : null,
+        exactPrecision: review?.metrics.precision ?? asNumber((asRecord(reward.reward_details) ?? {}).precision),
+        exactRecall: review?.metrics.recall ?? asNumber((asRecord(reward.reward_details) ?? {}).recall),
+        exactF1: review?.metrics.f1 ?? asNumber((asRecord(reward.reward_details) ?? {}).f1),
       },
       advisorRecommendation,
       fallbackCandidates,
@@ -933,6 +960,7 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
         rewardType: typeof reward.reward_type === "string" ? reward.reward_type : null,
         details: asRecord(reward.reward_details) ?? {},
       },
+      review,
       llmDiagnostics,
       raw: {
         dae,
@@ -1016,21 +1044,25 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
         latencyMs: result?.latency_ms ?? null,
         modelUsed: typeof result?.model_used === "string" ? result.model_used : null,
         modelMode: typeof result?.model_mode === "string" ? result.model_mode : null,
-      modelReason: typeof result?.model_reason === "string" ? result.model_reason : null,
-      fallbackPath: typeof result?.fallback_path === "string" ? result.fallback_path : null,
-      unresolvedFieldCount: asNumber(result?.unresolved_field_count),
-      deferStatus: typeof result?.defer_status === "string" ? result.defer_status : null,
-      deferReason: typeof result?.defer_reason === "string" ? result.defer_reason : null,
-      schemaCoverage: asNumber((result as Record<string, unknown> | null)?.schema_coverage) ?? schemaQuality.coverage,
-      schemaGroundingCoverage: asNumber((result as Record<string, unknown> | null)?.schema_grounding_coverage) ?? schemaQuality.groundingCoverage,
-      schemaValid: typeof result?.schema_valid === "boolean" ? result.schema_valid : schemaQuality.valid,
-      missingRequiredCount: asNumber((result as Record<string, unknown> | null)?.schema_missing_required_count) ?? schemaQuality.missingRequiredCount,
-      hallucinatedFieldCount: asNumber((result as Record<string, unknown> | null)?.schema_hallucinated_field_count) ?? schemaQuality.hallucinatedFieldCount,
-      ocrEngineUsed: typeof result?.ocr_engine_used === "string" ? result.ocr_engine_used : null,
-      ocrAvgConfidence: asNumber(result?.ocr_avg_confidence),
-      ocrRerunAttemptedPages: asNumber(result?.ocr_rerun_attempted_pages),
-      ocrRerunUsedPages: asNumber(result?.ocr_rerun_used_pages),
+        modelReason: typeof result?.model_reason === "string" ? result.model_reason : null,
+        fallbackPath: typeof result?.fallback_path === "string" ? result.fallback_path : null,
+        preprocessRoute: asStringArray(result?.preprocess_route) ?? [],
+        unresolvedFieldCount: asNumber(result?.unresolved_field_count),
+        deferStatus: typeof result?.defer_status === "string" ? result.defer_status : null,
+        deferReason: typeof result?.defer_reason === "string" ? result.defer_reason : null,
+        schemaCoverage: asNumber((result as Record<string, unknown> | null)?.schema_coverage) ?? schemaQuality.coverage,
+        schemaGroundingCoverage: asNumber((result as Record<string, unknown> | null)?.schema_grounding_coverage) ?? schemaQuality.groundingCoverage,
+        schemaValid: typeof result?.schema_valid === "boolean" ? result.schema_valid : schemaQuality.valid,
+        missingRequiredCount: asNumber((result as Record<string, unknown> | null)?.schema_missing_required_count) ?? schemaQuality.missingRequiredCount,
+        hallucinatedFieldCount: asNumber((result as Record<string, unknown> | null)?.schema_hallucinated_field_count) ?? schemaQuality.hallucinatedFieldCount,
+        ocrEngineUsed: typeof result?.ocr_engine_used === "string" ? result.ocr_engine_used : null,
+        ocrAvgConfidence: asNumber(result?.ocr_avg_confidence),
+        ocrRerunAttemptedPages: asNumber(result?.ocr_rerun_attempted_pages),
+        ocrRerunUsedPages: asNumber(result?.ocr_rerun_used_pages),
         transparencyPath: typeof result?.transparency_path === "string" ? result.transparency_path : null,
+        exactPrecision: review?.metrics.precision ?? asNumber((asRecord(result?.reward_details) ?? {}).precision),
+        exactRecall: review?.metrics.recall ?? asNumber((asRecord(result?.reward_details) ?? {}).recall),
+        exactF1: review?.metrics.f1 ?? asNumber((asRecord(result?.reward_details) ?? {}).f1),
       },
     advisorRecommendation,
     fallbackCandidates,
@@ -1045,6 +1077,7 @@ export function getRunDocument(runId: string, docId: string): Record<string, unk
     transparency,
     schemaQuality,
     reward,
+    review,
     llmDiagnostics,
     raw: {
       dae,

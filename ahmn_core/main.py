@@ -31,6 +31,7 @@ from .schemas import (
     OutcomeMetrics,
     LogRequest,
     FeedbackRequest,
+    ReviewFeedbackRequest,
 )
 from .seeds import LTM_SEEDS
 from .services.embedding import EmbeddingService
@@ -71,6 +72,22 @@ def _blended_reward(metrics: OutcomeMetrics) -> float:
     latency_penalty = max(float(metrics.processing_time_ms or 0.0) - 2500.0, 0.0)
     reward -= min(latency_penalty / 10000.0, 0.08)
     return max(0.0, min(1.0, reward))
+
+
+def _build_context_string(document_context: dict[str, Any]) -> str:
+    return _embedding_service.create_context_string(
+        document_context.get("doc_type", "unknown"),
+        document_context.get("vendor"),
+        document_context.get("content_profile"),
+        document_context.get("extra_context")
+        if isinstance(document_context.get("extra_context"), dict)
+        else document_context,
+    )
+
+
+def _context_hash_for(policy_id: str, document_context: dict[str, Any]) -> str:
+    ctx_str = _build_context_string(document_context)
+    return hashlib.sha256(f"{ctx_str}:{policy_id}".encode()).hexdigest()
 
 # ─── Configuration ───────────────────────────────────────────────────────────
 
@@ -447,16 +464,8 @@ async def log_outcome(req: LogRequest, request: Request):
         context_dict = stm_context
 
     # Build a proper context hash for the ACTUAL policy used (not what was recommended)
-    ctx_str = _embedding_service.create_context_string(
-        context_dict.get("doc_type", "unknown"),
-        context_dict.get("vendor"),
-        context_dict.get("content_profile"),
-        context_dict.get("extra_context") if isinstance(context_dict.get("extra_context"), dict) else context_dict,
-    )
-
-    actual_policy_hash = hashlib.sha256(
-        f"{ctx_str}:{req.policy_id_used}".encode()
-    ).hexdigest()
+    ctx_str = _build_context_string(context_dict)
+    actual_policy_hash = _context_hash_for(req.policy_id_used, context_dict)
 
     if not source_hash:
         source_hash = actual_policy_hash
@@ -590,11 +599,10 @@ async def log_outcome(req: LogRequest, request: Request):
 
 @app.post("/advice/feedback")
 async def log_feedback(req: FeedbackRequest):
-    """Record human-corrected flag and adjust LTM policy β (failure count)."""
+    """Record human-corrected flag and adjust LTM policy evidence."""
     ltm_adjusted = False
     async with _db().connection() as conn:
         async with conn.cursor() as cur:
-            # 1. Mark MTM outcome and retrieve the policy + context used
             await cur.execute(
                 "UPDATE mtm_outcomes SET human_corrected = %s WHERE advice_id = %s "
                 "RETURNING policy_id_used, document_context",
@@ -604,39 +612,133 @@ async def log_feedback(req: FeedbackRequest):
 
             if row:
                 policy_id_used, document_context = row
+                feedback_type = req.feedback_type or ("incorrect" if req.human_corrected else "correct")
+                alpha_reward = 0.0
+                beta_penalty = 0.0
+                if feedback_type == "incorrect":
+                    beta_penalty = 2.0
+                elif feedback_type == "partially_correct":
+                    alpha_reward = 0.5
+                    beta_penalty = 0.5
+                elif feedback_type == "correct":
+                    alpha_reward = 1.0
 
-                # 2. Graduated β penalty based on feedback_type
-                ft = req.feedback_type or ("incorrect" if req.human_corrected else "correct")
-                if ft == "incorrect":
-                    beta_penalty = 2.0  # Strong signal: policy was wrong
-                elif ft == "partially_correct":
-                    beta_penalty = 0.5  # Mild signal: policy was partly right
-                else:  # "correct" / "needs_more_context" — no penalty
-                    beta_penalty = 0.0
-
-                # 3. Apply penalty to matching LTM entry
-                if beta_penalty > 0 and isinstance(document_context, dict):
-                    ctx_str = _embedding_service.create_context_string(
-                        document_context.get("doc_type", "unknown"),
-                        document_context.get("vendor"),
-                        document_context.get("content_profile"),
-                        document_context.get("extra_context") if isinstance(document_context.get("extra_context"), dict) else document_context,
-                    )
-                    context_hash = hashlib.sha256(
-                        f"{ctx_str}:{policy_id_used}".encode()
-                    ).hexdigest()
-
+                if (alpha_reward > 0 or beta_penalty > 0) and isinstance(document_context, dict):
+                    context_hash = _context_hash_for(policy_id_used, document_context)
                     await cur.execute(
                         """UPDATE ltm_validated_policies
-                           SET beta = beta + %s
+                           SET alpha = alpha + %s,
+                               beta = beta + %s
                            WHERE context_hash = %s AND policy_id = %s
                            RETURNING id""",
-                        (beta_penalty, context_hash, policy_id_used),
+                        (alpha_reward, beta_penalty, context_hash, policy_id_used),
                     )
                     ltm_adjusted = await cur.fetchone() is not None
 
             await conn.commit()
     return {"status": "feedback_recorded", "ltm_adjusted": ltm_adjusted}
+
+
+@app.post("/advice/review")
+async def log_review_feedback(req: ReviewFeedbackRequest):
+    """Record reviewed extraction quality and update the matching LTM arm."""
+    context_hash = _context_hash_for(req.policy_id_used, req.document_context)
+    alpha_delta = float(req.review_weight) * float(req.f1)
+    beta_delta = float(req.review_weight) * (1.0 - float(req.f1))
+    metrics_payload = {
+        "source": "review_feedback",
+        "review_source": req.review_source,
+        "review_weight": req.review_weight,
+        "tp": req.tp,
+        "fp": req.fp,
+        "fn": req.fn,
+        "precision": req.precision,
+        "recall": req.recall,
+        "f1_score": req.f1,
+        "field_state_counts": req.field_state_counts,
+        "job_id": req.job_id,
+        "overlay_key": req.overlay_key,
+    }
+
+    updated = False
+    promoted = False
+    async with _db().connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                """INSERT INTO mtm_outcomes
+                   (advice_id, policy_id_used, document_context, outcome_metrics)
+                   VALUES (%s, %s, %s::jsonb, %s::jsonb)""",
+                (
+                    req.advice_id,
+                    req.policy_id_used,
+                    json.dumps(req.document_context),
+                    json.dumps(metrics_payload),
+                ),
+            )
+
+            await cur.execute(
+                """UPDATE ltm_validated_policies
+                   SET alpha = alpha + %s,
+                       beta = beta + %s,
+                       validation_metrics = %s::jsonb,
+                       confidence_score = LEAST(1.0, confidence_score + 0.03),
+                       last_promoted_at = NOW()
+                   WHERE context_hash = %s AND policy_id = %s
+                   RETURNING id""",
+                (
+                    alpha_delta,
+                    beta_delta,
+                    json.dumps(metrics_payload),
+                    context_hash,
+                    req.policy_id_used,
+                ),
+            )
+            updated = await cur.fetchone() is not None
+
+            if not updated and req.policy_id_used != "default":
+                vector = _embedding_service.generate_embedding(_build_context_string(req.document_context))
+                await cur.execute(
+                    """INSERT INTO ltm_validated_policies
+                       (context_hash, context_embedding, policy_id, policy_data,
+                        validation_metrics, alpha, beta, confidence_score, last_promoted_at)
+                       VALUES (%s, %s::vector, %s, %s::jsonb, %s::jsonb, %s, %s, 0.55, NOW())
+                       ON CONFLICT (context_hash) DO UPDATE SET
+                           alpha = ltm_validated_policies.alpha + %s,
+                           beta = ltm_validated_policies.beta + %s,
+                           validation_metrics = %s::jsonb,
+                           last_promoted_at = NOW()""",
+                    (
+                        context_hash,
+                        vector,
+                        req.policy_id_used,
+                        json.dumps(
+                            {
+                                "action": req.policy_id_used,
+                                "origin": "review_feedback",
+                                "doc_type": req.document_context.get("doc_type", "unknown"),
+                                "vendor": req.document_context.get("vendor"),
+                                "content_profile": req.document_context.get("content_profile"),
+                            }
+                        ),
+                        json.dumps(metrics_payload),
+                        1.0 + alpha_delta,
+                        1.0 + beta_delta,
+                        alpha_delta,
+                        beta_delta,
+                        json.dumps(metrics_payload),
+                    ),
+                )
+                promoted = True
+
+            await conn.commit()
+
+    return {
+        "status": "review_recorded",
+        "updated_existing_ltm": updated,
+        "promoted_to_ltm": promoted,
+        "alpha_delta": round(alpha_delta, 4),
+        "beta_delta": round(beta_delta, 4),
+    }
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # DASHBOARD ROUTES

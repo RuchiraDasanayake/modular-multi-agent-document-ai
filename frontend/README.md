@@ -54,28 +54,30 @@ npm run dev
 ```
 
 Open:
-- `http://localhost:3000/dashboard/idpo`
+- `http://localhost:3000/dashboard/idpo/jobs`
 
 ## 4) Run Flow
 
-1. Open `Dashboard > Doc Processing` (`/dashboard/idpo`).
-2. Upload documents in **New Run Wizard**.
-3. Adjust config and extraction settings if needed.
-4. Start a job, watch live logs, and wait for the run id to resolve.
-5. Open run detail page and show:
-   - overview cards
-   - document extraction
-   - validation
-   - recovery/escalation
-   - provenance timeline export
-6. Open `Presentation Mode` (`/dashboard/idpo/presentation`) to inspect saved runs.
+1. Open `Dashboard > Doc Processing` (`/dashboard/idpo/jobs`).
+2. Create a job.
+3. Upload documents into the job queue.
+4. Configure extraction fields and select `adaptive`, `strict`, or `both`.
+5. Process selected documents and watch queue state move through `loaded -> processing -> processed / failed`.
+6. Inspect structured results in the job detail page.
+7. Open atomic document detail when deeper inspection is needed.
 
 ## 5) API Endpoints (Runner + Artifacts)
 
 - `GET /api/system/status`
 - `GET /api/runs`
 - `POST /api/runs/start`
+- `GET /api/jobs`
+- `POST /api/jobs`
 - `GET /api/jobs/:jobId`
+- `PATCH /api/jobs/:jobId`
+- `POST /api/jobs/:jobId/documents`
+- `POST /api/jobs/:jobId/runs`
+- `GET /api/jobs/:jobId/docs/:docId`
 - `GET /api/runs/:runId/summary`
 - `GET /api/runs/:runId/files`
 - `GET /api/runs/:runId/file?path=...`
@@ -84,6 +86,10 @@ Open:
 - `GET /api/runs/:runId/provenance`
 - `GET /api/runs/:runId/metrics`
 - `GET /api/runs/:runId/shadow`
+
+`/api/system/status` now reports both:
+- local runner CLI readiness
+- live HTTP health for `gateway`, `ahmn`, `guardrails`, `xai-hitl`, and `idpo-ui`
 
 ## 6) Security Controls
 
@@ -109,4 +115,24 @@ Run build validation:
 ```bash
 npm run build
 ```
+
+## 9) Public Demo Deployment
+
+The currently supported public demo path is not Vercel-only and not a frontend-only container.
+
+Use the single-host deployment model documented in:
+
+- [docs/PUBLIC_DEMO_DEPLOYMENT.md](../docs/PUBLIC_DEMO_DEPLOYMENT.md)
+
+That model keeps the frontend runner on the same host as:
+
+- the repo checkout
+- Python and `idpo.cli`
+- Ollama
+- the writable `IDPO_DATA_DIR`
+
+For host-only secrets such as `OPENAI_API_KEY`, use:
+
+- `.local/public-demo.env.ps1`
+- template: `scripts/public-demo.env.ps1.example`
 

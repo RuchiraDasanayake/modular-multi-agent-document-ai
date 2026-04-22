@@ -20,7 +20,7 @@ import type {
 } from "@/types";
 import type { JobStatus } from "@/types/idpo";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = "";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from idpo.core.types import Chunk, Document, Entity, Page, Section, StageSignal, ValidationIssue
-from idpo.pipeline.orchestrator import PipelineResult
+from idpo.pipeline.results import PipelineResult
 
 def page_to_dict(page: Page) -> dict[str, Any]:
     return {

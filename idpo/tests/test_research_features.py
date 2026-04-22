@@ -23,6 +23,7 @@ import idpo.pipeline.inbox as inbox_module
 import scripts.run_idpo_benchmark as benchmark_module
 from idpo.pipeline.policy_safety import PolicySafetyMonitor
 from idpo.pipeline.planning import PlanRouter
+from idpo.pipeline.reward import _has_field_value
 from scripts.run_idpo_benchmark import run_benchmark
 from idpo.core.storage import repo_root
 
@@ -280,6 +281,65 @@ def test_plan_router_uses_adaptive_fallback_and_static_mode(tmp_path: Path) -> N
     assert static.policy.policy_id == "default"
     assert static.advice_source == "static"
     assert static.fallback_reason == "baseline_blocked"
+
+
+def test_reward_treats_na_requested_values_as_missing() -> None:
+    assert _has_field_value(
+        "invoice_id",
+        {"invoice_id": {"status": "missing", "value": "N/A"}},
+        [],
+    ) is False
+
+
+def test_plan_router_prefers_job_overlay_before_adaptive_advice(tmp_path: Path, monkeypatch) -> None:
+    policy_path = tmp_path / "policies.json"
+    policy_path.write_text(
+        json.dumps(
+            {
+                "default_policy_id": "default",
+                "policies": [
+                    {"policy_id": "default", "name": "Default", "conditions": {}, "actions": {}},
+                    {"policy_id": "overlay_policy", "name": "Overlay", "conditions": {}, "actions": {}},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    overlay_path = tmp_path / "job_overlay.json"
+    overlay_path.write_text(
+        json.dumps(
+            {
+                "entries": [
+                    {
+                        "overlay_key": "acme|table_document|table-heavy|4f53cda18c2baa0c",
+                        "policy_id": "overlay_policy",
+                        "mean_reviewed_f1": 0.91,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("IDPO_JOB_OVERLAY_PATH", str(overlay_path))
+
+    config = PipelineConfig()
+    config.ahmn.policy_mode = "adaptive"
+    store = PolicyStore(str(policy_path), default_policy_id="default")
+    router = PlanRouter(config, store)
+    dae = DAEOutput(
+        doc_id="d1",
+        doc_type="table_document",
+        vendor_cluster="acme",
+        quality_bin="B",
+        complexity_bin="2",
+        content_profile="table-heavy",
+        quality_score=0.7,
+        complexity_score=0.8,
+    )
+    decision = router.route(dae, SystemConstraints(max_cost_units=5, max_latency_ms=2000))
+    assert decision.policy.policy_id == "overlay_policy"
+    assert decision.plan_source == "job_overlay"
+    assert decision.advice_source == "job_overlay"
 
 
 def test_budget_manager_blocks_escalation_when_budget_exceeded() -> None:

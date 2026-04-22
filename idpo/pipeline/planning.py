@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import os
 import time
 import uuid
 from dataclasses import dataclass
@@ -55,6 +58,50 @@ class PlanRouter:
         route_specialization = _route_specialization(dae_output)
 
         baseline_policy, baseline_reason = self.policy_store.select_policy(dae_output, doc)
+        overlay_entry = _load_job_overlay_entry(self.config, dae_output)
+        if overlay_entry:
+            overlay_policy = self.policy_store._policy_map.get(str(overlay_entry.get("policy_id") or ""))
+            if overlay_policy and overlay_policy.policy_id not in blocked:
+                overlay_score = float(overlay_entry.get("mean_reviewed_f1", 0.0) or 0.0)
+                overlay_payload = {
+                    "policy_id": overlay_policy.policy_id,
+                    "score": round(overlay_score, 4),
+                    "reason": "job_local_reviewed_overlay",
+                    "source": "job_overlay",
+                    "action_overrides": {},
+                    "rag_hints": {"overlay_key": overlay_entry.get("overlay_key")},
+                    "field_templates": {},
+                }
+                plan = build_plan(
+                    config=self.config,
+                    dae_output=dae_output,
+                    policy=overlay_policy,
+                    system_constraints=system_constraints,
+                    action_overrides={},
+                    source="job_overlay",
+                    rationale="job_local_reviewed_overlay",
+                )
+                return RouteDecision(
+                    plan=plan,
+                    policy=overlay_policy,
+                    baseline_policy=baseline_policy,
+                    baseline_policy_reason=baseline_reason,
+                    plan_source="job_overlay",
+                    advice_source="job_overlay",
+                    advice_status="accepted",
+                    advisor_recommendation=overlay_payload,
+                    fallback_candidates=[],
+                    ranked_policies=[overlay_payload],
+                    advice_id=None,
+                    advice_confidence=overlay_score,
+                    retrieval_source="JOB",
+                    rabi_used=False,
+                    n_neighbors=None,
+                    fallback_reason=None,
+                    route_specialization=route_specialization,
+                    advice_accepted=True,
+                    policy_changed=overlay_policy.policy_id != baseline_policy.policy_id,
+                )
         policy_mode = str(self.config.ahmn.policy_mode or "static").strip().lower()
 
         advice_source = "static"
@@ -455,3 +502,50 @@ def _advice_status(
     if selected_policy_id == str(advisor_recommendation.get("policy_id") or ""):
         return "accepted"
     return "rejected"
+
+
+def _load_job_overlay_entry(config: PipelineConfig, dae_output: DAEOutput) -> dict[str, Any] | None:
+    overlay_path = str(os.getenv("IDPO_JOB_OVERLAY_PATH", "") or "").strip()
+    if not overlay_path:
+        return None
+    try:
+        with open(overlay_path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except Exception:
+        return None
+
+    entries = payload.get("entries")
+    if not isinstance(entries, list):
+        return None
+    field_set_hash = _field_set_hash(config)
+    overlay_key = _overlay_key(dae_output, field_set_hash)
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if str(entry.get("overlay_key") or "") != overlay_key:
+            continue
+        return entry
+    return None
+
+
+def _field_set_hash(config: PipelineConfig) -> str:
+    requested = sorted(
+        {
+            str(key).strip().lower()
+            for key in (config.structuring.requested_fields or [])
+            if str(key).strip()
+        }
+    )
+    payload = json.dumps(requested, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def _overlay_key(dae_output: DAEOutput, field_set_hash: str) -> str:
+    return "|".join(
+        [
+            str(dae_output.vendor_cluster or "unknown").strip().lower() or "unknown",
+            str(dae_output.doc_type or "unknown").strip().lower() or "unknown",
+            str(dae_output.content_profile or "unknown").strip().lower() or "unknown",
+            field_set_hash,
+        ]
+    )

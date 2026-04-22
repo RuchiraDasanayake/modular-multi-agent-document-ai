@@ -1,12 +1,104 @@
 /**
- * IDPO runner API types (frontend local runner endpoints under /api/*).
+ * IDPO runner API and job workspace types (frontend local runner endpoints under /api/*).
  */
 
-export type JobState = "queued" | "running" | "success" | "failed";
+export type JobState = "draft" | "queued" | "running" | "success" | "failed";
+export type JobQueueStatus = "loaded" | "processing" | "processed" | "failed";
+export type JobExecutionMode = "adaptive" | "strict" | "both";
+export type JobRunMode = "adaptive" | "strict";
+export type ReviewStatus = "unreviewed" | "ai_validated" | "human_reviewed";
+export type ReviewSource = "ai" | "human";
+
+export interface JobFieldConfig {
+  name: string;
+  description?: string;
+}
+
+export interface JobDocumentRunOutcome {
+  runId: string;
+  mode: JobRunMode;
+  docId: string | null;
+  status: JobQueueStatus;
+  route: string | null;
+  policy: string | null;
+  errorSummary: string | null;
+  reviewState: string | null;
+  reviewStatus?: ReviewStatus | null;
+  reviewSource?: ReviewSource | null;
+  fieldValues: Record<string, string>;
+  adviceInfluenced: boolean;
+  feedbackLogged: boolean;
+  fallbackReason?: string | null;
+  exactPrecision?: number | null;
+  exactRecall?: number | null;
+  exactF1?: number | null;
+}
+
+export interface JobDocumentRecord {
+  fileId: string;
+  fileName: string;
+  storedName: string;
+  size: number;
+  selected: boolean;
+  status: JobQueueStatus;
+  errorSummary: string | null;
+  reviewState: string | null;
+  reviewStatus?: ReviewStatus | null;
+  reviewSource?: ReviewSource | null;
+  latestRoute: string | null;
+  latestPolicy: string | null;
+  latestRunId: string | null;
+  latestDocId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  outcomes: JobDocumentRunOutcome[];
+}
+
+export interface JobRunRecord {
+  jobRunId: string;
+  runId: string | null;
+  mode: JobRunMode;
+  status: JobState;
+  createdAt: string;
+  startedAt?: string;
+  endedAt?: string;
+  fieldSnapshot: JobFieldConfig[];
+  selectedFileIds: string[];
+  runPath?: string | null;
+  error?: string | null;
+  processedCount?: number;
+  failedCount?: number;
+  adviceDocumentCount?: number;
+  loggedFeedbackCount?: number;
+}
+
+export interface JobAHMNSummary {
+  jobProfile: string;
+  memoryMatched: boolean;
+  documentsWithAdvice: number;
+  documentsLoggedBack: number;
+  adviceInfluencedCount: number;
+  reviewedDocumentCount: number;
+  reviewedHumanCount: number;
+  reviewedAiCount: number;
+  reviewedFeedbackLoggedCount: number;
+  reviewedFeedbackPendingCount: number;
+  jobOverlayPolicies: number;
+  jobOverlayReady: boolean;
+  adaptationSummary: string;
+}
+
+export interface JobCounts {
+  loadedCount: number;
+  processingCount: number;
+  processedCount: number;
+  failedCount: number;
+}
 
 export interface JobStatus {
   jobId: string;
   status: JobState;
+  createdAt: string;
   startedAt: string;
   endedAt?: string;
   commandId: string;
@@ -14,6 +106,14 @@ export interface JobStatus {
   runPath: string | null;
   logs: string[];
   settings: Record<string, unknown>;
+  jobName?: string;
+  mode?: JobExecutionMode;
+  fieldConfigCurrent?: JobFieldConfig[];
+  documents?: JobDocumentRecord[];
+  runs?: JobRunRecord[];
+  ahmnSummary?: JobAHMNSummary;
+  counts?: JobCounts;
+  latestRunId?: string | null;
   uploadsPath?: string | null;
   error?: string;
   [key: string]: unknown;
@@ -115,6 +215,8 @@ export interface DocumentSummary {
   exactPrecision?: number | null;
   exactRecall?: number | null;
   exactF1?: number | null;
+  reviewStatus?: ReviewStatus | null;
+  reviewSource?: ReviewSource | null;
   exactWinLossState?: "win" | "match" | "loss" | "unscored" | null;
   [key: string]: unknown;
 }

@@ -34,6 +34,14 @@ const nextConfig = {
         source: "/api/guardrails/:path*",
         destination: `${serverApiUrl}/api/guardrails/:path*`,
       },
+      {
+        source: "/api/idpo/:path*",
+        destination: `${serverApiUrl}/api/idpo/:path*`,
+      },
+      {
+        source: "/api/services/:path*",
+        destination: `${serverApiUrl}/api/services/:path*`,
+      },
     ];
   },
 };
