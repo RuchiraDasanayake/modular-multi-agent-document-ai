@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:server": "node --import tsx --test src/server/review-flow.test.ts src/server/policies.test.ts"
+    "test:server": "node --import tsx --test src/server/review-flow.test.ts src/server/policies.test.ts src/server/review-contract.test.ts"
   },
   "dependencies": {
     "clsx": "^2.1.0",

@@ -78,6 +78,59 @@ class StructuringConfig:
     field_descriptions: dict[str, str] = field(default_factory=dict)
     allow_generic_kv: bool = True
     heading_max_words: int = 6
+    # Canonical expected field schema per doc_type, used by the reward function
+    # to avoid circularity (policy-independent evaluation target). Empty dict falls
+    # back to policy.explicit_entities for backward compatibility.
+    canonical_fields_by_doc_type: dict[str, list[str]] = field(default_factory=lambda: {
+        "invoice": [
+            "invoice_number", "total_amount", "subtotal", "tax",
+            "date", "vendor_name", "customer_name", "due_date",
+        ],
+        "receipt": [
+            "total_amount", "subtotal", "tax", "date",
+            "vendor_name", "payment_method",
+        ],
+        "form_document": [
+            "record_id", "document_date", "customer_name", "total_amount",
+        ],
+        "contract": [
+            "title", "date", "parties", "effective_date", "total_value",
+        ],
+        "agreement": [
+            "title", "date", "parties", "effective_date", "total_value",
+        ],
+        "financial_statement": [
+            "total_amount", "subtotal", "tax", "date",
+            "invoice_number", "vendor_name",
+        ],
+        "ledger": [
+            "total_amount", "subtotal", "date", "invoice_number",
+        ],
+        "table_document": [
+            "total_amount", "subtotal", "tax", "date",
+        ],
+        "scanned_document": [
+            "title", "author", "date", "summary",
+        ],
+        "report": [
+            "title", "author", "date", "summary",
+        ],
+        "article": [
+            "title", "author", "date", "summary",
+        ],
+        "letter": [
+            "title", "date", "summary",
+        ],
+        "manual": [
+            "title", "date", "summary",
+        ],
+        "specification": [
+            "title", "date", "summary",
+        ],
+        "mixed_document": [
+            "title", "date", "parties", "total_value",
+        ],
+    })
 
 @dataclass
 class EscalationConfig:
@@ -204,6 +257,16 @@ class LLMConfig:
     prefer_targeted_context: bool = True
     strict_json_output: bool = True
     cloud_retry_without_json_mode: bool = True
+    # Local (Ollama) generation controls.
+    # temperature=0 + format=json => deterministic structured output on phi3/llama3.
+    local_temperature: float = 0.0
+    local_format_json: bool = True
+    local_num_predict: int = 1024
+    local_top_p: float = 0.9
+    # Persist raw prompt and raw model response in the document artifact for
+    # monitoring and re-audit. Turn off only if payloads contain sensitive data
+    # that must never land on disk.
+    persist_raw_llm_io: bool = True
     refine_field_descriptions: bool = True
     description_refinement_model: str = ""
     description_refinement_max_tokens: int = 400

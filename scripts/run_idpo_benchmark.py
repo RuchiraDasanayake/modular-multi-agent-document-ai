@@ -128,7 +128,7 @@ def _condition_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     schema_valid_count = 0
     advice_accepted_count = 0
     policy_changed_count = 0
-    direct_scored_doc_count = 0
+    exact_scored_doc_count = 0
     for item in results:
         doc = item["doc"]
         operator_counts.update(str(op).strip() for op in doc.get("operator_stack", []) or [])
@@ -163,8 +163,9 @@ def _condition_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
             advice_accepted_count += 1
         if doc.get("policy_changed"):
             policy_changed_count += 1
-        if str(doc.get("reward_type", "")).strip() == "direct_set_based":
-            direct_scored_doc_count += 1
+        exact = item.get("exact_metrics", {})
+        if isinstance(exact, dict) and any(key in exact for key in ("tp", "fp", "fn", "f1", "precision", "recall")):
+            exact_scored_doc_count += 1
         if doc.get("schema_coverage") is not None:
             try:
                 schema_coverages.append(float(doc.get("schema_coverage", 0.0) or 0.0))
@@ -177,7 +178,6 @@ def _condition_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                 pass
         if bool(doc.get("schema_valid", False)):
             schema_valid_count += 1
-        exact = item.get("exact_metrics", {})
         exact_tp += int(exact.get("tp", 0) or 0)
         exact_fp += int(exact.get("fp", 0) or 0)
         exact_fn += int(exact.get("fn", 0) or 0)
@@ -218,7 +218,7 @@ def _condition_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "schema_valid_rate": round(schema_valid_count / doc_count, 4) if doc_count else 0.0,
         "advice_accepted_count": advice_accepted_count,
         "policy_changed_count": policy_changed_count,
-        "direct_scored_doc_count": direct_scored_doc_count,
+        "exact_scored_doc_count": exact_scored_doc_count,
         "exact_field_metrics": exact_metrics,
     }
     return summary
@@ -339,9 +339,9 @@ def _comparison_table(static_summary: dict[str, Any], adaptive_summary: dict[str
             "static": static_summary.get("policy_changed_count", 0),
             ADAPTIVE_LABEL: adaptive_summary.get("policy_changed_count", 0),
         },
-        "direct_scored_doc_count": {
-            "static": static_summary.get("direct_scored_doc_count", 0),
-            ADAPTIVE_LABEL: adaptive_summary.get("direct_scored_doc_count", 0),
+        "exact_scored_doc_count": {
+            "static": static_summary.get("exact_scored_doc_count", 0),
+            ADAPTIVE_LABEL: adaptive_summary.get("exact_scored_doc_count", 0),
         },
     }
 
@@ -407,8 +407,8 @@ def _bootstrap_summary(documents: list[dict[str, Any]], label: str) -> dict[str,
 def _compare_case_outcome(static_doc: dict[str, Any], adaptive_doc: dict[str, Any], static_item: dict[str, Any], adaptive_item: dict[str, Any]) -> dict[str, Any]:
     static_exact = float((static_item.get("exact_metrics") or {}).get("f1", 0.0) or 0.0)
     adaptive_exact = float((adaptive_item.get("exact_metrics") or {}).get("f1", 0.0) or 0.0)
-    has_direct = str(static_doc.get("reward_type", "")).strip() == "direct_set_based" or str(adaptive_doc.get("reward_type", "")).strip() == "direct_set_based"
-    if has_direct:
+    has_exact = bool(static_item.get("exact_metrics")) or bool(adaptive_item.get("exact_metrics"))
+    if has_exact:
         if adaptive_exact > static_exact + 1e-6:
             exact_state = "win"
         elif adaptive_exact < static_exact - 1e-6:
@@ -442,7 +442,7 @@ def _compare_case_outcome(static_doc: dict[str, Any], adaptive_doc: dict[str, An
     return {
         "exact_win_loss_state": exact_state,
         "structural_win_loss_state": structural_state,
-        "direct_scored": has_direct,
+        "exact_scored": has_exact,
     }
 
 
@@ -450,7 +450,7 @@ def _policy_impact_summary(documents: list[dict[str, Any]]) -> dict[str, Any]:
     impact = {
         "policy_changed_count": 0,
         "advice_accepted_count": 0,
-        "direct_scored_doc_count": 0,
+        "exact_scored_doc_count": 0,
         "exact_win_count": 0,
         "exact_match_count": 0,
         "exact_loss_count": 0,
@@ -472,9 +472,9 @@ def _policy_impact_summary(documents: list[dict[str, Any]]) -> dict[str, Any]:
             impact["exact_loss_count"] += 1
         elif state == "match":
             impact["exact_match_count"] += 1
-            impact["direct_scored_doc_count"] += 1
+            impact["exact_scored_doc_count"] += 1
         if state in {"win", "loss"}:
-            impact["direct_scored_doc_count"] += 1
+            impact["exact_scored_doc_count"] += 1
         structural_state = str(deltas.get("structural_win_loss_state", "match"))
         if structural_state == "win":
             impact["structural_win_count"] += 1
@@ -747,7 +747,7 @@ def _table_markdown(evidence: dict[str, Any]) -> str:
         "| --- | ---: | ---: |",
         f"| Doc Count | {table['doc_count']} | {table['doc_count']} |",
         f"| Avg Latency (ms) | {table['avg_latency_ms']['static']} | {table['avg_latency_ms'][ADAPTIVE_LABEL]} |",
-        f"| Avg Reward | {table['avg_reward']['static']} | {table['avg_reward'][ADAPTIVE_LABEL]} |",
+        f"| Avg Runtime Proxy Reward | {table['avg_reward']['static']} | {table['avg_reward'][ADAPTIVE_LABEL]} |",
         f"| Exact Precision | {table['exact_precision']['static']} | {table['exact_precision'][ADAPTIVE_LABEL]} |",
         f"| Exact Recall | {table['exact_recall']['static']} | {table['exact_recall'][ADAPTIVE_LABEL]} |",
         f"| Exact F1 | {table['exact_f1']['static']} | {table['exact_f1'][ADAPTIVE_LABEL]} |",
@@ -759,7 +759,7 @@ def _table_markdown(evidence: dict[str, Any]) -> str:
         f"| Feedback Logged | {table['feedback_logged_count']['static']} | {table['feedback_logged_count'][ADAPTIVE_LABEL]} |",
         f"| Advice Accepted Count | {table['advice_accepted_count']['static']} | {table['advice_accepted_count'][ADAPTIVE_LABEL]} |",
         f"| Policy Changed Count | {table['policy_changed_count']['static']} | {table['policy_changed_count'][ADAPTIVE_LABEL]} |",
-        f"| Direct-Scored Doc Count | {table['direct_scored_doc_count']['static']} | {table['direct_scored_doc_count'][ADAPTIVE_LABEL]} |",
+        f"| Exact-Scored Doc Count | {table['exact_scored_doc_count']['static']} | {table['exact_scored_doc_count'][ADAPTIVE_LABEL]} |",
         f"| Avg Schema Coverage | {table['avg_schema_coverage']['static']} | {table['avg_schema_coverage'][ADAPTIVE_LABEL]} |",
         f"| Avg Grounding Coverage | {table['avg_schema_grounding_coverage']['static']} | {table['avg_schema_grounding_coverage'][ADAPTIVE_LABEL]} |",
         f"| Schema Valid Rate | {table['schema_valid_rate']['static']} | {table['schema_valid_rate'][ADAPTIVE_LABEL]} |",
@@ -791,7 +791,7 @@ def _table_csv(evidence: dict[str, Any]) -> str:
         f"metric,static,{ADAPTIVE_LABEL}",
         f"doc_count,{table['doc_count']},{table['doc_count']}",
         f"avg_latency_ms,{table['avg_latency_ms']['static']},{table['avg_latency_ms'][ADAPTIVE_LABEL]}",
-        f"avg_reward,{table['avg_reward']['static']},{table['avg_reward'][ADAPTIVE_LABEL]}",
+        f"avg_runtime_proxy_reward,{table['avg_reward']['static']},{table['avg_reward'][ADAPTIVE_LABEL]}",
         f"exact_precision,{table['exact_precision']['static']},{table['exact_precision'][ADAPTIVE_LABEL]}",
         f"exact_recall,{table['exact_recall']['static']},{table['exact_recall'][ADAPTIVE_LABEL]}",
         f"exact_f1,{table['exact_f1']['static']},{table['exact_f1'][ADAPTIVE_LABEL]}",
@@ -803,7 +803,7 @@ def _table_csv(evidence: dict[str, Any]) -> str:
         f"feedback_logged_count,{table['feedback_logged_count']['static']},{table['feedback_logged_count'][ADAPTIVE_LABEL]}",
         f"advice_accepted_count,{table['advice_accepted_count']['static']},{table['advice_accepted_count'][ADAPTIVE_LABEL]}",
         f"policy_changed_count,{table['policy_changed_count']['static']},{table['policy_changed_count'][ADAPTIVE_LABEL]}",
-        f"direct_scored_doc_count,{table['direct_scored_doc_count']['static']},{table['direct_scored_doc_count'][ADAPTIVE_LABEL]}",
+        f"exact_scored_doc_count,{table['exact_scored_doc_count']['static']},{table['exact_scored_doc_count'][ADAPTIVE_LABEL]}",
         f"avg_schema_coverage,{table['avg_schema_coverage']['static']},{table['avg_schema_coverage'][ADAPTIVE_LABEL]}",
         f"avg_schema_grounding_coverage,{table['avg_schema_grounding_coverage']['static']},{table['avg_schema_grounding_coverage'][ADAPTIVE_LABEL]}",
         f"schema_valid_rate,{table['schema_valid_rate']['static']},{table['schema_valid_rate'][ADAPTIVE_LABEL]}",

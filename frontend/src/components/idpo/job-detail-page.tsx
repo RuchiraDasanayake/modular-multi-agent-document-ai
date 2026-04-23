@@ -13,6 +13,7 @@ import type {
   JobFieldConfig,
   JobRunMode,
   JobStatus,
+  JobValidationContextManualInput,
 } from "@/types/idpo";
 
 const CONFIG_PATH = "configs/idpo_research_config.json";
@@ -36,6 +37,31 @@ function normalizeFieldKey(value: string): string {
 function getOutcome(document: JobDocumentRecord, mode: JobRunMode): JobDocumentRunOutcome | null {
   const matches = document.outcomes.filter((outcome) => outcome.mode === mode);
   return matches.length > 0 ? matches[matches.length - 1] ?? null : null;
+}
+
+function formatDuration(ms: number | null): string {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) {
+    return "-";
+  }
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  }
+  return `${seconds}s`;
+}
+
+function parseTimestamp(value: string | undefined | null): number | null {
+  if (!value) {
+    return null;
+  }
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? null : time;
 }
 
 function getOutcomeFieldValue(outcome: JobDocumentRunOutcome | null, field: JobFieldConfig): string {
@@ -62,6 +88,21 @@ function formatReviewState(reviewState: string | null | undefined): string {
     return "NA";
   }
   return reviewState.replace(/\s*\|\s*/g, " | ");
+}
+
+function formatList(values: string[] | undefined): string {
+  return values && values.length > 0 ? values.join(", ") : "-";
+}
+
+function listToTextarea(value: string[] | undefined): string {
+  return value && value.length > 0 ? value.join("\n") : "";
+}
+
+function textareaToList(value: string): string[] {
+  return value
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function hasActiveRun(job: JobStatus | null): boolean {
@@ -92,8 +133,16 @@ export function JobDetailPage() {
   const [maxCostPerDoc, setMaxCostPerDoc] = useState("");
   const [escalationEnabled, setEscalationEnabled] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showReviewContext, setShowReviewContext] = useState(false);
+  const [reviewContextDraft, setReviewContextDraft] = useState({
+    jobPurpose: "",
+    knownVendors: "",
+    fieldClarifications: "",
+    validationNotes: "",
+  });
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   async function loadJob(activeJobId = jobId, preserveLoading = false) {
     try {
@@ -131,6 +180,16 @@ export function JobDetailPage() {
   }, [job]);
 
   useEffect(() => {
+    const manual = job?.reviewContext?.manualInput ?? {};
+    setReviewContextDraft({
+      jobPurpose: manual.jobPurpose ?? "",
+      knownVendors: listToTextarea(manual.knownVendors),
+      fieldClarifications: listToTextarea(manual.fieldClarifications),
+      validationNotes: listToTextarea(manual.validationNotes),
+    });
+  }, [job?.reviewContext]);
+
+  useEffect(() => {
     if (!hasActiveRun(job)) {
       return undefined;
     }
@@ -140,6 +199,14 @@ export function JobDetailPage() {
     }, 2000);
     return () => window.clearInterval(timer);
   }, [job, jobId]);
+
+  useEffect(() => {
+    if (!hasActiveRun(job)) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [job]);
 
   const documents = job?.documents ?? [];
   const runs = job?.runs ?? [];
@@ -327,7 +394,7 @@ export function JobDetailPage() {
       return;
     }
     if (selectedDocuments.some((document) => document.status !== "processed")) {
-      setError("AI validation only accepts processed documents.");
+      setError("Auto review only accepts processed documents.");
       return;
     }
     setSaving(true);
@@ -339,7 +406,26 @@ export function JobDetailPage() {
       setJob(response.job);
       setError("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to validate selected documents");
+      setError(err instanceof Error ? err.message : "Failed to auto review selected documents");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveReviewContext() {
+    const payload: JobValidationContextManualInput = {
+      jobPurpose: reviewContextDraft.jobPurpose.trim() || undefined,
+      knownVendors: textareaToList(reviewContextDraft.knownVendors),
+      fieldClarifications: textareaToList(reviewContextDraft.fieldClarifications),
+      validationNotes: textareaToList(reviewContextDraft.validationNotes),
+    };
+    setSaving(true);
+    try {
+      const updated = await idpoApi.updateJob(jobId, { reviewContextManualInput: payload });
+      setJob(updated);
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update review context");
     } finally {
       setSaving(false);
     }
@@ -358,9 +444,58 @@ export function JobDetailPage() {
   }
 
   const activeResultMode = job.mode === "both" ? resultMode : resultModeForJob(job.mode ?? mode);
-  const totalDocuments = documents.length;
-  const pendingDocuments = queueSummary.loaded + queueSummary.processing;
-  const reviewedDocuments = job.ahmnSummary?.reviewedDocumentCount ?? 0;
+  const activeRunFileIds = new Set(activeRun?.selectedFileIds ?? []);
+  const trackerDocuments = activeRun ? documents.filter((document) => activeRunFileIds.has(document.fileId)) : documents;
+  const trackerSummaryCounts = trackerDocuments.reduce(
+    (summary, document) => {
+      summary[document.status] += 1;
+      return summary;
+    },
+    { loaded: 0, processing: 0, processed: 0, failed: 0 },
+  );
+  const totalDocuments = trackerDocuments.length;
+  const completedDocuments = trackerSummaryCounts.processed + trackerSummaryCounts.failed;
+  const pendingDocuments = Math.max(0, totalDocuments - completedDocuments);
+  const reviewedDocuments = trackerDocuments.filter(
+    (document) => document.reviewStatus != null && document.reviewStatus !== "unreviewed",
+  ).length;
+  const completionRatio = totalDocuments > 0 ? completedDocuments / totalDocuments : 0;
+  const progressBarWidth = totalDocuments > 0 ? Math.max(8, Math.round(completionRatio * 100)) : 0;
+  const processingDocuments = trackerDocuments.filter((document) => document.status === "processing");
+  const latestDocumentActivityMs = trackerDocuments.reduce<number | null>((latest, document) => {
+    const updated = parseTimestamp(document.updatedAt);
+    if (updated == null) {
+      return latest;
+    }
+    return latest == null ? updated : Math.max(latest, updated);
+  }, null);
+  const activeRunStartedMs = parseTimestamp(activeRun?.startedAt ?? activeRun?.createdAt ?? job.startedAt);
+  const lastActivityMs =
+    latestDocumentActivityMs == null
+      ? activeRunStartedMs
+      : activeRunStartedMs == null
+        ? latestDocumentActivityMs
+      : Math.max(latestDocumentActivityMs, activeRunStartedMs);
+  const runElapsedMs = activeRunStartedMs != null ? Math.max(0, nowMs - activeRunStartedMs) : null;
+  const activityAgeMs = hasActiveRun(job) && lastActivityMs != null ? Math.max(0, nowMs - lastActivityMs) : null;
+  const trackerSummary =
+    totalDocuments === 0
+      ? "No documents yet"
+      : hasActiveRun(job)
+        ? `${completedDocuments}/${totalDocuments} done, ${processingDocuments.length} processing`
+        : `${completedDocuments}/${totalDocuments} finished`;
+  const trackerDetail =
+    totalDocuments === 0
+      ? "Upload documents to start a run."
+      : hasActiveRun(job)
+        ? activityAgeMs != null
+          ? `Last update ${formatDuration(activityAgeMs)} ago.`
+          : "Waiting for the first processing update."
+        : trackerSummaryCounts.failed > 0
+          ? `${trackerSummaryCounts.failed} document(s) failed in the last run.`
+          : "No active run right now.";
+  const displayJobName = jobName.trim() || job.jobName?.trim() || "New job";
+  const reviewContext = job.reviewContext ?? null;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -375,7 +510,10 @@ export function JobDetailPage() {
                 Back to jobs
               </Link>
               <div className="mt-3 flex flex-wrap items-center gap-3">
-                <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Job {job.jobId}</h1>
+                <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">{displayJobName}</h1>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-mono text-slate-600 dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-300">
+                  {job.jobId}
+                </span>
                 <StatusBadge value={job.status} />
               </div>
               <p className="mt-2 max-w-4xl text-sm text-slate-600 dark:text-slate-300">
@@ -390,6 +528,13 @@ export function JobDetailPage() {
               >
                 Policy workspace
               </Link>
+              <button
+                type="button"
+                onClick={() => setShowReviewContext(true)}
+                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Review context
+              </button>
               <input
                 ref={uploadRef}
                 type="file"
@@ -427,7 +572,7 @@ export function JobDetailPage() {
                 disabled={saving || selectedDocuments.length === 0 || selectedDocuments.some((document) => document.status !== "processed")}
                 className="rounded-xl border border-emerald-300 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-700/40 dark:text-emerald-300 dark:hover:bg-emerald-900/20"
               >
-                Validate with AI
+                Auto review
               </button>
               <button
                 type="button"
@@ -448,6 +593,12 @@ export function JobDetailPage() {
                   value={jobName}
                   onChange={(event) => setJobName(event.target.value)}
                   onBlur={() => void handleBlurJobName()}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.currentTarget.blur();
+                    }
+                  }}
+                  placeholder="Give this job a clear name"
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                 />
               </label>
@@ -512,7 +663,7 @@ export function JobDetailPage() {
                 <div>
                   <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Progress</p>
                   <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">
-                    {queueSummary.processed}/{totalDocuments || 0}
+                    {completedDocuments}/{totalDocuments || 0}
                   </p>
                   <dl className="mt-3 space-y-1 text-sm">
                     <div className="flex items-center justify-between gap-3">
@@ -543,6 +694,84 @@ export function JobDetailPage() {
                       <dd className="text-slate-900 dark:text-white">{fieldConfig.length}</dd>
                     </div>
                   </dl>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-white/80 p-4 dark:border-slate-800 dark:bg-slate-900/70">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Processing</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                      <p className="text-lg font-semibold text-slate-900 dark:text-white">
+                        {trackerSummary}
+                      </p>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{trackerDetail}</p>
+                  </div>
+                  <div className="grid min-w-[240px] gap-2 text-sm sm:grid-cols-2">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/40">
+                      <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Elapsed</div>
+                      <div className="mt-1 font-medium text-slate-900 dark:text-white">{formatDuration(runElapsedMs)}</div>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/40">
+                      <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Last activity</div>
+                      <div className="mt-1 font-medium text-slate-900 dark:text-white">
+                        {lastActivityMs != null ? `${formatDuration(Math.max(0, nowMs - lastActivityMs))} ago` : "-"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <div className="h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-sky-500 to-emerald-500 transition-[width] duration-500"
+                      style={{ width: `${progressBarWidth}%` }}
+                    />
+                  </div>
+                  <div className="mt-3 grid gap-2 text-xs text-slate-500 dark:text-slate-400 sm:grid-cols-4">
+                    <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-950/40">
+                      <span>Loaded</span>
+                      <span className="font-medium text-slate-700 dark:text-slate-200">{queueSummary.loaded}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg bg-amber-50 px-3 py-2 dark:bg-amber-900/10">
+                      <span>Processing</span>
+                      <span className="font-medium text-amber-700 dark:text-amber-300">{queueSummary.processing}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2 dark:bg-emerald-900/10">
+                      <span>Processed</span>
+                      <span className="font-medium text-emerald-700 dark:text-emerald-300">{queueSummary.processed}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg bg-rose-50 px-3 py-2 dark:bg-rose-900/10">
+                      <span>Failed</span>
+                      <span className="font-medium text-rose-700 dark:text-rose-300">{queueSummary.failed}</span>
+                    </div>
+                  </div>
+                  {processingDocuments.length > 0 ? (
+                    <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/40">
+                      <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Documents in progress</div>
+                      <div className="mt-2 space-y-2">
+                        {processingDocuments.map((document, index) => (
+                          <div
+                            key={document.fileId}
+                            className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-sm dark:bg-slate-900"
+                          >
+                            <div className="min-w-0">
+                              <p className="font-medium text-slate-900 dark:text-white">
+                                {index + 1}/{processingDocuments.length} document: {document.fileName}
+                              </p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                                {document.updatedAt ? `Last update ${formatDate(document.updatedAt)}` : "Processing"}
+                              </p>
+                            </div>
+                            <span className="text-xs font-medium text-amber-700 dark:text-amber-300">Processing</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                        Live stage names are not stored yet, so this view shows the real queue position only.
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -975,12 +1204,7 @@ export function JobDetailPage() {
                   <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{run.failedCount ?? 0}</td>
                   <td className="px-2 py-2">
                     {run.runId ? (
-                      <Link
-                        href={`/dashboard/idpo/runs/${encodeURIComponent(run.runId)}`}
-                        className="text-xs font-medium text-cyan-700 hover:text-cyan-800 dark:text-cyan-300 dark:hover:text-cyan-200"
-                      >
-                        Open run
-                      </Link>
+                      <span className="text-xs font-mono text-slate-500 dark:text-slate-400">{run.runId.slice(0, 8)}</span>
                     ) : (
                       <span className="text-xs text-slate-500 dark:text-slate-400">Pending</span>
                     )}
@@ -994,6 +1218,239 @@ export function JobDetailPage() {
           ) : null}
         </div>
       </IdpoCard>
+
+      {showReviewContext ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/60 px-4 py-8">
+          <div className="max-h-[88vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Review context</h2>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                  Structured job context used to guide auto review and enrich extraction field prompts.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowReviewContext(false)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Close
+              </button>
+            </div>
+
+            {reviewContext ? (
+              <div className="mt-6 space-y-6">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <IdpoCard className="p-4">
+                    <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Job purpose</div>
+                    <div className="mt-2 text-sm font-medium text-slate-900 dark:text-white">
+                      {reviewContext.current.summary.jobPurpose}
+                    </div>
+                  </IdpoCard>
+                  <IdpoCard className="p-4">
+                    <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Current version</div>
+                    <div className="mt-2 text-sm font-medium text-slate-900 dark:text-white">
+                      v{reviewContext.current.versionNumber} updated {formatDate(reviewContext.current.updatedAt)}
+                    </div>
+                    <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                      Trigger: {reviewContext.current.source.replace(/_/g, " ")}
+                    </div>
+                  </IdpoCard>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <IdpoCard className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Operator knowledge</h3>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                          Add stable job knowledge here. Reviewed failures and corrections stay automatic.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void saveReviewContext()}
+                        disabled={saving}
+                        className="rounded-xl bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Save context
+                      </button>
+                    </div>
+                    <div className="mt-4 grid gap-4">
+                      <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
+                        <span className="font-medium text-slate-900 dark:text-white">Job purpose</span>
+                        <input
+                          value={reviewContextDraft.jobPurpose}
+                          onChange={(event) => setReviewContextDraft((current) => ({ ...current, jobPurpose: event.target.value }))}
+                          className="rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                          placeholder="What are we trying to extract and validate in this job?"
+                        />
+                      </label>
+                      <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
+                        <span className="font-medium text-slate-900 dark:text-white">Known vendors</span>
+                        <textarea
+                          value={reviewContextDraft.knownVendors}
+                          onChange={(event) => setReviewContextDraft((current) => ({ ...current, knownVendors: event.target.value }))}
+                          rows={3}
+                          className="rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                          placeholder="One per line. Example: acme"
+                        />
+                      </label>
+                      <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
+                        <span className="font-medium text-slate-900 dark:text-white">Field clarifications</span>
+                        <textarea
+                          value={reviewContextDraft.fieldClarifications}
+                          onChange={(event) => setReviewContextDraft((current) => ({ ...current, fieldClarifications: event.target.value }))}
+                          rows={4}
+                          className="rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                          placeholder="One per line. Example: Approval code is usually stamped near the provider signature."
+                        />
+                      </label>
+                      <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
+                        <span className="font-medium text-slate-900 dark:text-white">Validation notes</span>
+                        <textarea
+                          value={reviewContextDraft.validationNotes}
+                          onChange={(event) => setReviewContextDraft((current) => ({ ...current, validationNotes: event.target.value }))}
+                          rows={4}
+                          className="rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                          placeholder="One per line. Example: If total amount is blank, treat it as missing instead of zero."
+                        />
+                      </label>
+                    </div>
+                  </IdpoCard>
+
+                  <IdpoCard className="p-4">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Context summary</h3>
+                    <dl className="mt-4 space-y-3 text-sm">
+                      <div>
+                        <dt className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Known vendors</dt>
+                        <dd className="mt-1 text-slate-700 dark:text-slate-200">{formatList(reviewContext.current.summary.knownVendors)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Field clarifications</dt>
+                        <dd className="mt-1 text-slate-700 dark:text-slate-200">{formatList(reviewContext.current.summary.fieldClarifications)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Recurring failures</dt>
+                        <dd className="mt-1 text-slate-700 dark:text-slate-200">{formatList(reviewContext.current.summary.recurringFailurePatterns)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Reviewed corrections</dt>
+                        <dd className="mt-1 text-slate-700 dark:text-slate-200">{formatList(reviewContext.current.summary.reviewedCorrectionPatterns)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Validation notes</dt>
+                        <dd className="mt-1 text-slate-700 dark:text-slate-200">{formatList(reviewContext.current.summary.validationNotes)}</dd>
+                      </div>
+                    </dl>
+                  </IdpoCard>
+
+                  <div className="space-y-4 lg:col-span-2">
+                    <IdpoCard className="p-4">
+                      <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Auto-review prompt preview</h3>
+                      <pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-200">
+                        {reviewContext.current.promptPreview.autoReview}
+                      </pre>
+                    </IdpoCard>
+                    <IdpoCard className="p-4">
+                      <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Extraction prompt preview</h3>
+                      <pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-200">
+                        {reviewContext.current.promptPreview.extraction}
+                      </pre>
+                    </IdpoCard>
+                  </div>
+                </div>
+
+                <IdpoCard className="p-4">
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Previous versions</h3>
+                  {reviewContext.history.length > 0 ? (
+                    <div className="mt-4 space-y-3">
+                      {reviewContext.history.map((entry) => (
+                        <div key={`${entry.versionNumber}-${entry.updatedAt}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm dark:border-slate-800 dark:bg-slate-950/40">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="font-medium text-slate-900 dark:text-white">
+                              v{entry.versionNumber} · {formatDate(entry.updatedAt)}
+                            </div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">{entry.source.replace(/_/g, " ")}</div>
+                          </div>
+                          <div className="mt-2 text-xs text-slate-600 dark:text-slate-300">{formatList(entry.changes)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">No previous versions yet.</p>
+                  )}
+                </IdpoCard>
+              </div>
+            ) : (
+              <div className="mt-6 space-y-4">
+                <IdpoCard className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Operator knowledge</h3>
+                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                        You can seed job knowledge before the first review lands.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void saveReviewContext()}
+                      disabled={saving}
+                      className="rounded-xl bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Save context
+                    </button>
+                  </div>
+                  <div className="mt-4 grid gap-4">
+                    <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span className="font-medium text-slate-900 dark:text-white">Job purpose</span>
+                      <input
+                        value={reviewContextDraft.jobPurpose}
+                        onChange={(event) => setReviewContextDraft((current) => ({ ...current, jobPurpose: event.target.value }))}
+                        className="rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                        placeholder="What are we trying to extract and validate in this job?"
+                      />
+                    </label>
+                    <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span className="font-medium text-slate-900 dark:text-white">Known vendors</span>
+                      <textarea
+                        value={reviewContextDraft.knownVendors}
+                        onChange={(event) => setReviewContextDraft((current) => ({ ...current, knownVendors: event.target.value }))}
+                        rows={3}
+                        className="rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                        placeholder="One per line. Example: acme"
+                      />
+                    </label>
+                    <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span className="font-medium text-slate-900 dark:text-white">Field clarifications</span>
+                      <textarea
+                        value={reviewContextDraft.fieldClarifications}
+                        onChange={(event) => setReviewContextDraft((current) => ({ ...current, fieldClarifications: event.target.value }))}
+                        rows={4}
+                        className="rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                        placeholder="One per line."
+                      />
+                    </label>
+                    <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span className="font-medium text-slate-900 dark:text-white">Validation notes</span>
+                      <textarea
+                        value={reviewContextDraft.validationNotes}
+                        onChange={(event) => setReviewContextDraft((current) => ({ ...current, validationNotes: event.target.value }))}
+                        rows={4}
+                        className="rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                        placeholder="One per line."
+                      />
+                    </label>
+                  </div>
+                </IdpoCard>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300">
+                  No review context yet. It appears after auto review or human review writes the first reviewed result.
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

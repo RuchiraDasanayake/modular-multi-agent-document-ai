@@ -135,7 +135,10 @@ def parse_entities_response(response: str, model_name: str, source: str) -> list
         return []
     parsed = parse_json_payload(cleaned)
     if parsed is None:
-        return []
+        salvaged_items = _salvage_entity_items(cleaned)
+        if not salvaged_items:
+            return []
+        parsed = {"entities": salvaged_items}
 
     if isinstance(parsed, dict) and "entities" not in parsed:
         items = [
@@ -161,6 +164,16 @@ def parse_entities_response(response: str, model_name: str, source: str) -> list
             continue
         key = normalize_key(str(item.get("key", "")).strip())
         value = clean_candidate_value(str(item.get("value", "")))
+        if (not key or not value) and isinstance(item, dict):
+            fallback_fields = [
+                (normalize_key(str(raw_key).strip()), raw_value)
+                for raw_key, raw_value in item.items()
+                if str(raw_key).strip().lower() not in {"key", "value", "confidence"}
+                and isinstance(raw_value, (str, int, float, bool))
+            ]
+            if len(fallback_fields) == 1:
+                key, raw_value = fallback_fields[0]
+                value = clean_candidate_value(str(raw_value))
         if not key or not value or value.lower() in MISSING_VALUE_MARKERS:
             continue
         try:
@@ -203,6 +216,50 @@ def parse_json_payload(cleaned: str) -> object | None:
         except Exception:
             return None
     return None
+
+
+def _salvage_entity_items(cleaned: str) -> list[dict[str, object]]:
+    array_start = cleaned.find("[")
+    if array_start == -1:
+        return []
+    items: list[dict[str, object]] = []
+    depth = 0
+    obj_start = -1
+    in_string = False
+    escaped = False
+    for index, ch in enumerate(cleaned[array_start:], start=array_start):
+        if escaped:
+            escaped = False
+            continue
+        if ch == "\\" and in_string:
+            escaped = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == "{":
+            if depth == 0:
+                obj_start = index
+            depth += 1
+        elif ch == "}":
+            if depth == 0:
+                continue
+            depth -= 1
+            if depth == 0 and obj_start != -1:
+                candidate = cleaned[obj_start : index + 1]
+                try:
+                    parsed = json.loads(candidate)
+                except Exception:
+                    obj_start = -1
+                    continue
+                if isinstance(parsed, dict):
+                    items.append(parsed)
+                obj_start = -1
+        elif ch == "]" and depth == 0:
+            break
+    return items
 
 
 def _closest_explicit_key(

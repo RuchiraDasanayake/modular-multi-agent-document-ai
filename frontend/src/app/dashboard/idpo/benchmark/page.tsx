@@ -157,10 +157,11 @@ function renderTable(
 ) {
   const rows = [
     ["Avg Latency (ms)", "avg_latency_ms"],
+    ["Avg Runtime Proxy Reward", "avg_reward"],
     ["Exact Precision", "exact_precision"],
     ["Exact Recall", "exact_recall"],
     ["Exact F1", "exact_f1"],
-    ["Direct-Scored Doc Count", "direct_scored_doc_count"],
+    ["Exact-Scored Doc Count", "exact_scored_doc_count"],
     ["Validation Pass Rate", "validation_pass_rate"],
     ["Recovery Rate", "recovery_rate"],
     ["Escalation Rate", "escalation_rate"],
@@ -424,7 +425,7 @@ export default function BenchmarkPage() {
                 {String(comparison.exact_win_count ?? 0)} / {String(comparison.exact_match_count ?? 0)} / {String(comparison.exact_loss_count ?? 0)}
               </p>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                direct-scored docs {String(comparison.direct_scored_doc_count ?? 0)}
+                exact-scored docs {String(comparison.exact_scored_doc_count ?? 0)}
               </p>
             </IdpoCard>
             <IdpoCard>
@@ -481,7 +482,7 @@ export default function BenchmarkPage() {
                       {
                         advice_accepted_count: adaptiveCondition.advice_accepted_count ?? 0,
                         policy_changed_count: adaptiveCondition.policy_changed_count ?? 0,
-                        direct_scored_doc_count: adaptiveCondition.direct_scored_doc_count ?? 0,
+                        exact_scored_doc_count: adaptiveCondition.exact_scored_doc_count ?? 0,
                         retrieval_source_counts: adaptiveCondition.retrieval_source_counts ?? {},
                       },
                       null,
@@ -604,16 +605,9 @@ export default function BenchmarkPage() {
                         </td>
                         <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{String(adaptiveDoc.defer_status ?? "-")}</td>
                         <td className="px-2 py-2">
-                          {adaptiveRunId && adaptiveDocId ? (
-                            <Link
-                              href={`/dashboard/idpo/runs/${encodeURIComponent(adaptiveRunId)}/docs/${encodeURIComponent(adaptiveDocId)}`}
-                              className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
-                            >
-                              Open Adaptive Doc
-                            </Link>
-                          ) : (
-                            <span className="text-xs text-slate-400 dark:text-slate-500">No linked run</span>
-                          )}
+                          <span className="font-mono text-xs text-slate-500 dark:text-slate-400">
+                            {adaptiveDocId ? adaptiveDocId.slice(0, 8) : "—"}
+                          </span>
                         </td>
                       </tr>
                     );

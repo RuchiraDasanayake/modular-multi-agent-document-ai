@@ -8,6 +8,48 @@ export type JobExecutionMode = "adaptive" | "strict" | "both";
 export type JobRunMode = "adaptive" | "strict";
 export type ReviewStatus = "unreviewed" | "ai_validated" | "human_reviewed";
 export type ReviewSource = "ai" | "human";
+export type ReviewStage = "local" | "cloud";
+export type JobValidationContextSource = "auto_review" | "human_review" | "system" | "operator";
+
+export interface JobValidationPromptPreview {
+  autoReview: string;
+  extraction: string;
+}
+
+export interface JobValidationContextSummary {
+  jobPurpose: string;
+  knownVendors: string[];
+  fieldClarifications: string[];
+  recurringFailurePatterns: string[];
+  reviewedCorrectionPatterns: string[];
+  validationNotes: string[];
+}
+
+export interface JobValidationContextManualInput {
+  jobPurpose?: string;
+  knownVendors?: string[];
+  fieldClarifications?: string[];
+  validationNotes?: string[];
+}
+
+export interface JobValidationContextVersion {
+  versionNumber: number;
+  updatedAt: string;
+  source: JobValidationContextSource;
+  changes: string[];
+  summary: JobValidationContextSummary;
+  promptPreview: JobValidationPromptPreview;
+}
+
+export interface JobValidationContextArtifact {
+  version: 1;
+  jobId: string;
+  updatedAt: string;
+  currentVersionNumber: number;
+  manualInput: JobValidationContextManualInput;
+  current: JobValidationContextVersion;
+  history: JobValidationContextVersion[];
+}
 
 export interface JobFieldConfig {
   name: string;
@@ -25,6 +67,8 @@ export interface JobDocumentRunOutcome {
   reviewState: string | null;
   reviewStatus?: ReviewStatus | null;
   reviewSource?: ReviewSource | null;
+  reviewStage?: ReviewStage | null;
+  reviewConfidence?: number | null;
   fieldValues: Record<string, string>;
   adviceInfluenced: boolean;
   feedbackLogged: boolean;
@@ -45,6 +89,8 @@ export interface JobDocumentRecord {
   reviewState: string | null;
   reviewStatus?: ReviewStatus | null;
   reviewSource?: ReviewSource | null;
+  reviewStage?: ReviewStage | null;
+  reviewConfidence?: number | null;
   latestRoute: string | null;
   latestPolicy: string | null;
   latestRunId: string | null;
@@ -115,6 +161,7 @@ export interface JobStatus {
   counts?: JobCounts;
   latestRunId?: string | null;
   uploadsPath?: string | null;
+  reviewContext?: JobValidationContextArtifact | null;
   error?: string;
   [key: string]: unknown;
 }

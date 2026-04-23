@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiError } from "@/server/api/response";
-import { createJobCustomPolicy, listJobPolicies } from "@/server/policies";
+import { createJobCustomPolicy, listJobPolicies, setJobPolicyRuntimeEnabled } from "@/server/policies";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,7 +38,7 @@ export async function POST(request: Request, { params }: Params) {
     const policyId = typeof payload.policyId === "string" ? payload.policyId : "";
     const name = typeof payload.name === "string" ? payload.name : "";
     const executionProfile =
-      payload.executionProfile === "fast_local" || payload.executionProfile === "balanced" || payload.executionProfile === "heavy_cloud"
+      payload.executionProfile === "fast_local" || payload.executionProfile === "balanced" || payload.executionProfile === "cloud_extension"
         ? payload.executionProfile
         : "balanced";
 
@@ -52,7 +52,12 @@ export async function POST(request: Request, { params }: Params) {
     const created = createJobCustomPolicy(jobId, {
       policyId,
       name,
+      basePolicyId: typeof payload.basePolicyId === "string" ? payload.basePolicyId : null,
       executionProfile,
+      executionSettings:
+        payload.executionSettings && typeof payload.executionSettings === "object" && !Array.isArray(payload.executionSettings)
+          ? (payload.executionSettings as Record<string, unknown>)
+          : null,
       instructions: typeof payload.instructions === "string" ? payload.instructions : null,
       routeBins: parseStringArray(payload.routeBins),
       contentProfiles: parseStringArray(payload.contentProfiles),
@@ -64,6 +69,31 @@ export async function POST(request: Request, { params }: Params) {
     return NextResponse.json(
       {
         created,
+        workspace: listJobPolicies(jobId),
+      },
+      { headers: NO_STORE_HEADERS },
+    );
+  } catch (error) {
+    return apiError(error, 400);
+  }
+}
+
+export async function PATCH(request: Request, { params }: Params) {
+  try {
+    const { jobId } = await params;
+    const payload = (await request.json()) as Record<string, unknown>;
+    const policyId = typeof payload.policyId === "string" ? payload.policyId : "";
+    if (!policyId.trim()) {
+      throw new Error("policyId is required");
+    }
+    if (typeof payload.enabled !== "boolean") {
+      throw new Error("enabled must be a boolean");
+    }
+
+    const updated = setJobPolicyRuntimeEnabled(jobId, policyId, payload.enabled);
+    return NextResponse.json(
+      {
+        updated,
         workspace: listJobPolicies(jobId),
       },
       { headers: NO_STORE_HEADERS },

@@ -1,48 +1,38 @@
-{
-    "deployment_mode":  "single_host_public_demo",
-    "frontend_origin":  "https://telephony-packet-memphis-tablet.trycloudflare.com",
-    "api_origin":  "https://mens-inside-intro-decor.trycloudflare.com",
-    "local_env_path":  "E:\\Research Project\\Code\\IDPO\\.local\\public-demo.env.ps1",
-    "frontend_host":  "0.0.0.0",
-    "gateway_host":  "0.0.0.0",
-    "service_host":  "127.0.0.1",
-    "started_at":  "2026-04-22T09:56:49.5959985+05:30",
-    "services":  [
-                     {
-                         "name":  "ahmn",
-                         "pid":  10488,
-                         "out":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\ahmn.out.log",
-                         "err":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\ahmn.err.log"
-                     },
-                     {
-                         "name":  "guardrails",
-                         "pid":  24204,
-                         "out":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\guardrails.out.log",
-                         "err":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\guardrails.err.log"
-                     },
-                     {
-                         "name":  "xai_hitl",
-                         "pid":  15348,
-                         "out":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\xai_hitl.out.log",
-                         "err":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\xai_hitl.err.log"
-                     },
-                     {
-                         "name":  "idpo",
-                         "pid":  2220,
-                         "out":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\idpo.out.log",
-                         "err":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\idpo.err.log"
-                     },
-                     {
-                         "name":  "gateway",
-                         "pid":  25516,
-                         "out":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\gateway.out.log",
-                         "err":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\gateway.err.log"
-                     },
-                     {
-                         "name":  "frontend",
-                         "pid":  16976,
-                         "out":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\frontend.out.log",
-                         "err":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\frontend.err.log"
-                     }
-                 ]
-}
+[
+    {
+        "name":  "ahmn",
+        "pid":  22020,
+        "out":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\ahmn.out.log",
+        "err":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\ahmn.err.log"
+    },
+    {
+        "name":  "guardrails",
+        "pid":  35300,
+        "out":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\guardrails.out.log",
+        "err":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\guardrails.err.log"
+    },
+    {
+        "name":  "xai_hitl",
+        "pid":  7600,
+        "out":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\xai_hitl.out.log",
+        "err":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\xai_hitl.err.log"
+    },
+    {
+        "name":  "idpo",
+        "pid":  41256,
+        "out":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\idpo.out.log",
+        "err":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\idpo.err.log"
+    },
+    {
+        "name":  "gateway",
+        "pid":  35608,
+        "out":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\gateway.out.log",
+        "err":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\gateway.err.log"
+    },
+    {
+        "name":  "frontend",
+        "pid":  26656,
+        "out":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\frontend.out.log",
+        "err":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\frontend.err.log"
+    }
+]

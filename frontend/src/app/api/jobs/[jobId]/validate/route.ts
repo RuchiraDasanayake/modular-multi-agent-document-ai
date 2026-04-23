@@ -5,11 +5,14 @@ import { apiError } from "@/server/api/response";
 import {
   applyReviewToJobDocument,
   attachReviewFeedbackResult,
+  buildRequestedReviewRows,
   buildReviewArtifact,
   collectJobReviewLearningStats,
   postReviewedFeedback,
   writeReviewArtifact,
 } from "@/server/review";
+import { autoReviewDocument } from "@/server/auto-review";
+import { refreshJobValidationContext } from "@/server/review-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,7 +39,7 @@ export async function POST(request: Request, { params }: Params) {
       throw new Error("No selected documents found");
     }
     if (selectedDocuments.some((document) => document.status !== "processed")) {
-      throw new Error("AI validation only accepts processed documents");
+      throw new Error("Auto review only accepts processed documents");
     }
 
     const artifacts: Array<{
@@ -52,6 +55,13 @@ export async function POST(request: Request, { params }: Params) {
         throw new Error(`Document ${document.fileName} has no processed run output to validate`);
       }
       const detail = getRunDocument(outcome.runId, outcome.docId);
+      const autoReview = await autoReviewDocument({
+        job,
+        runId: outcome.runId,
+        docId: outcome.docId,
+        detail,
+        fieldConfig: job.fieldConfigCurrent ?? [],
+      });
       const artifact = buildReviewArtifact({
         jobId,
         runId: outcome.runId,
@@ -59,6 +69,9 @@ export async function POST(request: Request, { params }: Params) {
         detail,
         fieldConfig: job.fieldConfigCurrent ?? [],
         reviewSource: "ai",
+        fields: autoReview.fields.length > 0 ? autoReview.fields : buildRequestedReviewRows(detail, job.fieldConfigCurrent ?? []),
+        reviewerStage: autoReview.reviewStage,
+        reviewerConfidence: autoReview.reviewConfidence,
       });
       const feedbackResult = await postReviewedFeedback(artifact);
       const reviewedArtifact = attachReviewFeedbackResult(artifact, feedbackResult);
@@ -75,6 +88,7 @@ export async function POST(request: Request, { params }: Params) {
         applyReviewToJobDocument(document, item.artifact, item.runId, item.mode);
       }
       const reviewStats = collectJobReviewLearningStats(current, current.fieldConfigCurrent ?? []);
+      current.reviewContext = refreshJobValidationContext(current, current.fieldConfigCurrent ?? [], "auto_review");
       if (current.ahmnSummary) {
         current.ahmnSummary.reviewedDocumentCount = reviewStats.reviewedDocumentCount;
         current.ahmnSummary.reviewedHumanCount = reviewStats.reviewedHumanCount;

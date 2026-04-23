@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import type { JobDocumentRecord, JobFieldConfig, JobStatus } from "@/types/idpo";
+import type { JobDocumentRecord, JobFieldConfig, JobStatus, ReviewStage } from "@/types/idpo";
 import { loadRunnerConfig } from "@/server/config";
 import { resolvePrimaryRunPath, resolveRunRoot } from "@/server/paths";
 import { asNumber, readJsonFile } from "@/server/utils";
@@ -49,6 +49,8 @@ export interface ReviewArtifact {
   reviewStatus: ReviewStatus;
   reviewSource: ReviewSource;
   reviewWeight: number;
+  reviewerStage: ReviewStage | null;
+  reviewerConfidence: number | null;
   reviewedAt: string;
   fieldSetHash: string;
   overlayKey: string;
@@ -279,6 +281,8 @@ export function buildReviewArtifact(input: {
   fieldConfig: JobFieldConfig[];
   reviewSource: ReviewSource;
   fields?: ReviewFieldResult[];
+  reviewerStage?: ReviewStage | null;
+  reviewerConfidence?: number | null;
 }): ReviewArtifact {
   const rows = (input.fields ?? buildRequestedReviewRows(input.detail, input.fieldConfig)).map((field) => ({
     ...field,
@@ -296,6 +300,8 @@ export function buildReviewArtifact(input: {
     reviewStatus: input.reviewSource === "human" ? "human_reviewed" : "ai_validated",
     reviewSource: input.reviewSource,
     reviewWeight: input.reviewSource === "human" ? 1.0 : 0.35,
+    reviewerStage: input.reviewerStage ?? null,
+    reviewerConfidence: typeof input.reviewerConfidence === "number" ? Number(input.reviewerConfidence.toFixed(4)) : null,
     reviewedAt: new Date().toISOString(),
     fieldSetHash,
     overlayKey: buildOverlayKey({
@@ -383,6 +389,8 @@ export function applyReviewToJobDocument(
   document.reviewState = summarizeReviewState(artifact);
   document.reviewStatus = artifact.reviewStatus;
   document.reviewSource = artifact.reviewSource;
+  document.reviewStage = artifact.reviewerStage;
+  document.reviewConfidence = artifact.reviewerConfidence;
   document.updatedAt = new Date().toISOString();
   for (const outcome of document.outcomes) {
     if (outcome.runId !== runId) {
@@ -394,6 +402,8 @@ export function applyReviewToJobDocument(
     outcome.reviewState = summarizeReviewState(artifact);
     outcome.reviewStatus = artifact.reviewStatus;
     outcome.reviewSource = artifact.reviewSource;
+    outcome.reviewStage = artifact.reviewerStage;
+    outcome.reviewConfidence = artifact.reviewerConfidence;
     outcome.exactPrecision = artifact.metrics.precision;
     outcome.exactRecall = artifact.metrics.recall;
     outcome.exactF1 = artifact.metrics.f1;

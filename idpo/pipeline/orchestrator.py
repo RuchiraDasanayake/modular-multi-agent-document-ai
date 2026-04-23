@@ -390,7 +390,7 @@ class Pipeline:
             "raw": raw_artifact.artifact_id,
             "plan": plan_artifact.artifact_id,
         }
-        reward_type, reward_value, reward_details = compute_reward(doc, plan, state)
+        reward_type, reward_value, reward_details = compute_reward(doc, plan, state, dae_output, self.config)
         self.ctx.provenance.record(
             agent="reward",
             version="v1",

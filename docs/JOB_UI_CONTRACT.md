@@ -179,7 +179,8 @@ Rules:
 3. for `processed` documents, requested fields show structured extracted values
 4. for `failed` documents, requested fields show `NA` and the failure stays visible in the queue table
 5. this table exists to show the actual extraction outcome, not subsystem metadata
-6. processed documents should support bulk `Validate with AI` and per-document human review without leaving the job/document flow
+6. processed documents should support bulk `Auto review` and per-document human review without leaving the job/document flow
+7. exact document `F1` should only exist after a review artifact is written
 
 If the job mode is `both`, keep results mode-specific and unambiguous.
 
@@ -220,8 +221,9 @@ It should show:
 
 - the effective policy bank available to the job
 - which policies are defaults versus job-scoped custom policies
-- a policy leaderboard using reviewed job-local evidence
-- a policy table with processed count, reviewed count, reviewed F1, and promotion or demotion state
+- a policy leaderboard using human-reviewed job-local evidence as the canonical score
+- a policy table with processed count, human-reviewed count, human-reviewed `F1`, optional auto-review advisory score, and promotion or demotion state
+- a small job review-context view showing the current structured context, operator-added job knowledge, and rendered prompt previews
 - a way to add job-scoped custom policies
 
 Rules:
@@ -231,6 +233,8 @@ Rules:
 3. the queue table policy column should link into this policy workspace or a policy drilldown
 4. the policy drilldown must show where that policy was used inside the job
 5. this workspace exists to clarify routing behavior, not to become a second orchestration dashboard
+6. policy learning views should keep `TS`, `RABI`, decay, and drift signals here, not in the queue or document view
+7. operator-added job knowledge should act as a structured overlay on top of reviewed evidence, not replace reviewed evidence
 
 ### 6. XAI And HITL Support
 

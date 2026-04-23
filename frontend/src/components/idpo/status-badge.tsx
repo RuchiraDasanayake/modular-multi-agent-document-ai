@@ -26,6 +26,7 @@ const tone: Record<string, string> = {
 
 export function StatusBadge({ value }: StatusBadgeProps) {
   const key = value.toLowerCase();
+  const label = key === "ai_validated" ? "auto reviewed" : value.replace(/_/g, " ");
   return (
     <span
       className={clsx(
@@ -33,7 +34,7 @@ export function StatusBadge({ value }: StatusBadgeProps) {
         tone[key] ?? tone.unknown,
       )}
     >
-      {value.replace(/_/g, " ")}
+      {label}
     </span>
   );
 }

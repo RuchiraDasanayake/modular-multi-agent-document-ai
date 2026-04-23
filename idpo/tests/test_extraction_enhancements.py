@@ -4,6 +4,8 @@ import types
 from pathlib import Path
 
 from idpo.agents.base import AgentContext
+from idpo.agents.extraction_prompts import build_extraction_input, build_prompt
+from idpo.agents.extraction_providers import sanitize_provider_error
 from idpo.agents.llm_extraction import LLMExtractionAgent
 from idpo.core.artifacts import ArtifactStore
 from idpo.core.config import PipelineConfig
@@ -196,13 +198,70 @@ def test_openai_schema_limits_keys_to_requested_fields() -> None:
     assert key_schema["enum"] == ["invoice_number", "total_amount"]
 
 
+def test_provider_error_sanitization_redacts_credentials() -> None:
+    message = "Error code: 401 - Incorrect API key provided: sk-proj-1234567890abcdefghijklmnopqrstuvwxyz"
+    assert sanitize_provider_error(message) == "authentication_failed"
+
+
+def test_parser_accepts_single_field_objects_inside_entities_list() -> None:
+    agent = LLMExtractionAgent()
+    parsed = agent._parse_entities_response(  # noqa: SLF001
+        '{"entities":[{"person_name_in_document":"AVOTEKCE STUDIES","confidence":0.95}]}',
+        model_name="phi3:mini",
+        source="llm_local",
+    )
+    assert len(parsed) == 1
+    assert parsed[0].key == "person_name_in_document"
+    assert parsed[0].value == "AVOTEKCE STUDIES"
+
+
+def test_parser_salvages_valid_entities_before_truncated_tail() -> None:
+    agent = LLMExtractionAgent()
+    parsed = agent._parse_entities_response(  # noqa: SLF001
+        (
+            '{"entities":['
+            '{"key":"location","value":"CHICAGO","confidence":0.9},'
+            '{"key0000000000000000000"'
+        ),
+        model_name="phi3:mini",
+        source="llm_local",
+    )
+
+    assert len(parsed) == 1
+    assert parsed[0].key == "location"
+    assert parsed[0].value == "CHICAGO"
+
+
+def test_numeric_only_name_like_value_is_rejected(tmp_path: Path) -> None:
+    config = PipelineConfig()
+    config.llm.use_extraction = False
+    agent = LLMExtractionAgent()
+    ctx = _ctx(tmp_path, config)
+
+    result = agent.run(
+        {
+            "document": _doc("Total Sample 724\n"),
+            "explicit_entities": ["person_name_in_document"],
+            "field_descriptions": {
+                "person_name_in_document": "The individual's name as it appears in the text.",
+            },
+        },
+        ctx,
+    )
+
+    keys = {entity.key for entity in result.artifacts["entities"]}
+    assert "person_name_in_document" not in keys
+    assert result.artifacts["requested_field_status"]["person_name_in_document"]["status"] == "missing"
+
+
 def test_description_refinement_falls_back_to_base_descriptions(tmp_path: Path, monkeypatch) -> None:
     config = PipelineConfig()
     config.llm.refine_field_descriptions = True
-    config.llm.openai_api_key = ""
+    config.llm.provider = "ollama"
+    config.llm.local_model = "phi3:mini"
     ctx = _ctx(tmp_path, config)
     agent = LLMExtractionAgent()
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr("idpo.agents.llm_extraction.ollama_generate", lambda *_args, **_kwargs: None)
 
     refined, meta = agent._refine_field_descriptions(  # noqa: SLF001
         ["invoice_number", "customer_name"],
@@ -212,7 +271,155 @@ def test_description_refinement_falls_back_to_base_descriptions(tmp_path: Path, 
 
     assert refined["invoice_number"] == "invoice id"
     assert refined["customer_name"] == "customer name"
-    assert meta["attempted"] is False
+    assert meta["attempted"] is True
+    assert meta["error"] == "empty_or_unavailable"
+
+
+def test_description_refinement_uses_local_model(tmp_path: Path, monkeypatch) -> None:
+    config = PipelineConfig()
+    config.llm.refine_field_descriptions = True
+    config.llm.provider = "ollama"
+    config.llm.local_model = "phi3:mini"
+    config.llm.description_refinement_model = "phi3:mini"
+    ctx = _ctx(tmp_path, config)
+    agent = LLMExtractionAgent()
+
+    monkeypatch.setattr(
+        "idpo.agents.llm_extraction.ollama_generate",
+        lambda *_args, **_kwargs: '{"invoice_number":"invoice number, invoice #, billing reference"}',
+    )
+
+    refined, meta = agent._refine_field_descriptions(  # noqa: SLF001
+        ["invoice_number"],
+        {"invoice_number": "invoice id"},
+        ctx,
+    )
+
+    assert meta["attempted"] is True
+    assert meta["succeeded"] is True
+    assert meta["model"] == "phi3:mini"
+    assert "invoice #" in refined["invoice_number"]
+
+
+def test_build_prompt_forbids_placeholders_and_allows_light_ocr_normalization(tmp_path: Path) -> None:
+    ctx = _ctx(tmp_path)
+
+    prompt = build_prompt(
+        "Pield@ Date MEEK CF MARC 25, 1974",
+        ["person_name_in_document", "location"],
+        ctx,
+        {
+            "person_name_in_document": "person name in document",
+            "location": "Geographical place or setting described in the document",
+        },
+    )
+
+    assert "Do not return empty strings, N/A, unknown, or placeholder values." in prompt
+    assert "you may correct obvious OCR mistakes only when the intended text is unambiguous" in prompt
+
+
+def test_build_extraction_input_prefers_targeted_context_for_small_docs(tmp_path: Path) -> None:
+    config = PipelineConfig()
+    config.llm.context_window_lines = 0
+    ctx = _ctx(tmp_path, config)
+    doc = _doc(
+        "Header line\n"
+        "Noise one\n"
+        "Noise one more\n"
+        "Noise one extra\n"
+        "Location: Chicago\n"
+        "Noise two\n"
+        "Noise two more\n"
+        "Noise two extra\n"
+        "Brand Description: Menthol Smokers\n"
+        "Noise three\n"
+        "Noise three more\n"
+        "Noise three extra\n"
+    )
+
+    selected, meta = build_extraction_input(
+        doc,
+        ["location", "brand_description"],
+        {
+            "location": "Geographical place or setting described in the document",
+            "brand_description": "Characteristics and details about the brand as presented in the document",
+        },
+        ctx,
+    )
+
+    assert meta["strategy"] == "targeted_only"
+    assert "[p1] Location: Chicago" in selected
+    assert "[p1] Brand Description: Menthol Smokers" in selected
+
+
+def test_description_refinement_prefers_explicit_local_refinement_model(tmp_path: Path, monkeypatch) -> None:
+    config = PipelineConfig()
+    config.llm.refine_field_descriptions = True
+    config.llm.provider = "ollama"
+    config.llm.local_model = "phi3:mini"
+    config.llm.description_refinement_model = "llama3.2:3b"
+    ctx = _ctx(tmp_path, config)
+    agent = LLMExtractionAgent()
+    seen_payloads: list[dict[str, object]] = []
+
+    def fake_ollama(_base_url, payload, _timeout):  # noqa: ANN001
+        seen_payloads.append(payload)
+        return '{"invoice_number":"invoice number, invoice #, billing reference"}'
+
+    monkeypatch.setattr("idpo.agents.llm_extraction.ollama_generate", fake_ollama)
+
+    refined, meta = agent._refine_field_descriptions(  # noqa: SLF001
+        ["invoice_number"],
+        {"invoice_number": "invoice id"},
+        ctx,
+    )
+
+    assert meta["model"] == "llama3.2:3b"
+    assert seen_payloads[0]["model"] == "llama3.2:3b"
+    assert "invoice #" in refined["invoice_number"]
+
+
+def test_local_mode_does_not_call_cloud_when_cloud_fallback_is_disabled(tmp_path: Path) -> None:
+    config = PipelineConfig()
+    config.llm.use_extraction = True
+    config.llm.allow_cloud_fallback = False
+    config.validation.min_confidence = 0.7
+
+    agent = LLMExtractionAgent()
+    ctx = _ctx(tmp_path, config)
+    cloud_called = False
+
+    def fake_local(self, doc, explicit_keys, model_name, context, field_descriptions=None):  # noqa: ANN001
+        return [
+            Entity(
+                key="invoice_number",
+                value="INV-LOW",
+                confidence=0.40,
+                metadata={"explicit": True, "source": "llm_local"},
+            )
+        ]
+
+    def fake_cloud(self, doc, explicit_keys, model_name, context, field_descriptions=None):  # noqa: ANN001
+        nonlocal cloud_called
+        cloud_called = True
+        return []
+
+    agent._llm_extract = types.MethodType(fake_local, agent)
+    agent._cloud_extract = types.MethodType(fake_cloud, agent)
+
+    result = agent.run(
+        {
+            "document": _doc("messy unstructured text without stable labels"),
+            "model": ModelDecision(mode="local", model_name="phi3:mini", reason="test"),
+            "explicit_entities": ["invoice_number", "customer_name"],
+        },
+        ctx,
+    )
+
+    diagnostics = result.artifacts["llm_diagnostics"]
+    assert cloud_called is False
+    assert diagnostics["cloud_attempted"] is False
+    assert diagnostics["cloud_failure_reason"] == "cloud_fallback_disabled"
 
 
 def test_explicit_field_jobs_suppress_generic_spillover(tmp_path: Path) -> None:

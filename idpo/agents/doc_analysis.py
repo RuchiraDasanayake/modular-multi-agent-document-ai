@@ -369,5 +369,7 @@ class DocumentAnalysisAgent(Agent):
                 suspicious += 1
             elif len(stripped) >= 6 and alpha > 0 and digit > 0 and (alpha + digit) == len(stripped):
                 suspicious += 1
+            elif len(stripped) >= 8 and alpha >= 5 and punct >= 2:
+                suspicious += 1
         total_tokens = max(len(text.split()), 1)
         return min(suspicious / total_tokens, 1.0)

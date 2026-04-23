@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 
@@ -19,6 +20,21 @@ try:
 except Exception:
     ANTHROPIC_AVAILABLE = False
 
+_API_KEY_RE = re.compile(r"\b(?:sk|rk|api[_-]?key)[-_a-zA-Z0-9]{8,}\b", re.IGNORECASE)
+_BEARER_RE = re.compile(r"(bearer\s+)[^\s'\"}]+", re.IGNORECASE)
+
+
+def sanitize_provider_error(error: object) -> str:
+    text = str(error or "").strip()
+    if not text:
+        return "provider_error"
+    lowered = text.lower()
+    if "incorrect api key" in lowered or "invalid api key" in lowered or "authentication" in lowered or "401" in lowered:
+        return "authentication_failed"
+    redacted = _API_KEY_RE.sub("[redacted]", text)
+    redacted = _BEARER_RE.sub(r"\1[redacted]", redacted)
+    return redacted[:220]
+
 
 def normalize_openai_base_url(base_url: str) -> str:
     if not base_url:
@@ -32,6 +48,7 @@ def normalize_openai_base_url(base_url: str) -> str:
 
 
 def ollama_generate(base_url: str, payload: dict[str, object], timeout_s: int) -> str | None:
+    """Thin Ollama /api/generate wrapper. Returns raw response string or None."""
     url = base_url.rstrip("/") + "/api/generate"
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
@@ -45,6 +62,60 @@ def ollama_generate(base_url: str, payload: dict[str, object], timeout_s: int) -
         return parsed.get("response")
     except Exception:
         return None
+
+
+def ollama_generate_detailed(
+    base_url: str,
+    payload: dict[str, object],
+    timeout_s: int,
+) -> tuple[str | None, dict[str, object]]:
+    """Ollama wrapper that also returns timing, token counts, and error info.
+
+    Ollama returns a JSON body with fields like:
+      response, eval_count, prompt_eval_count, eval_duration, total_duration,
+      load_duration, done_reason. We surface these as meta for monitoring.
+    """
+    meta: dict[str, object] = {"endpoint": "ollama.generate"}
+    url = base_url.rstrip("/") + "/api/generate"
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            body = resp.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        meta["error"] = f"http_{exc.code}"
+        return None, meta
+    except urllib.error.URLError as exc:
+        meta["error"] = f"unreachable:{str(exc.reason)[:120]}"
+        return None, meta
+    except TimeoutError:
+        meta["error"] = "timeout"
+        return None, meta
+    except Exception as exc:
+        meta["error"] = f"unknown:{str(exc)[:120]}"
+        return None, meta
+
+    try:
+        parsed = json.loads(body)
+    except Exception:
+        meta["error"] = "bad_json_body"
+        return None, meta
+
+    response = parsed.get("response")
+    # Ollama token counts are measured in tokens, not chars.
+    meta.update({
+        "prompt_tokens": int(parsed.get("prompt_eval_count", 0) or 0),
+        "completion_tokens": int(parsed.get("eval_count", 0) or 0),
+        "total_tokens": int(parsed.get("prompt_eval_count", 0) or 0)
+        + int(parsed.get("eval_count", 0) or 0),
+        # Ollama durations are nanoseconds; convert to ms for UI.
+        "load_duration_ms": round(int(parsed.get("load_duration", 0) or 0) / 1e6, 2),
+        "prompt_eval_duration_ms": round(int(parsed.get("prompt_eval_duration", 0) or 0) / 1e6, 2),
+        "eval_duration_ms": round(int(parsed.get("eval_duration", 0) or 0) / 1e6, 2),
+        "total_duration_ms": round(int(parsed.get("total_duration", 0) or 0) / 1e6, 2),
+        "done_reason": str(parsed.get("done_reason") or ""),
+    })
+    return response, meta
 
 
 def openai_chat_completion(
@@ -99,10 +170,10 @@ def openai_chat_completion(
             try:
                 response = client.chat.completions.create(**kwargs)
             except Exception as retry_exc:
-                meta["error"] = str(retry_exc)[:220]
+                meta["error"] = sanitize_provider_error(retry_exc)
                 return "", meta
         else:
-            meta["error"] = str(exc)[:220]
+            meta["error"] = sanitize_provider_error(exc)
             return "", meta
 
     content = response.choices[0].message.content if response.choices else ""
@@ -147,7 +218,7 @@ def anthropic_messages_completion(
             messages=[{"role": "user", "content": prompt}],
         )
     except Exception as exc:
-        meta["error"] = str(exc)[:220]
+        meta["error"] = sanitize_provider_error(exc)
         return "", meta
 
     content = response.content[0].text if response.content else ""

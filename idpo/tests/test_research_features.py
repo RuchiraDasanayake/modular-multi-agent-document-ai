@@ -102,6 +102,34 @@ def test_dae_emits_mixed_profile_when_form_and_table_signals_coexist(tmp_path: P
     assert output.layout_cluster_id == "mixed_dense"
 
 
+def test_dae_ocr_noise_ratio_captures_noisy_ocr_tokens(tmp_path: Path) -> None:
+    agent = DocumentAnalysisAgent()
+    ctx = _ctx(tmp_path)
+    doc = Document(
+        doc_id="doc-noisy",
+        source="scanned",
+        path="doc-noisy.txt",
+        pages=[
+            Page(
+                number=1,
+                text=(
+                    "Location _QHICAGO, DALLIAS/TORT_WORTH, INDIANAPOLIS, 105 ANGELES\n"
+                    "Sample Description MAIN AMD PENAL MErMOL SMOXTERS\n"
+                    "Exe ROVEO PECALL __Covnamrrs\n"
+                    "Date Sent 4/19/74\n"
+                    "TWiI-Tes3T\n"
+                ),
+                raw_text="",
+                image_path="scan.png",
+            )
+        ],
+    )
+
+    output = agent.run({"document": doc}, ctx).artifacts["dae_output"]
+
+    assert output.quality_features["ocr_noise_ratio"] >= 0.12
+
+
 def test_policy_advisor_ranked_fallback(tmp_path: Path) -> None:
     policy_path = tmp_path / "policies.json"
     policy_path.write_text(
@@ -416,7 +444,7 @@ def test_pipeline_emits_reward_and_trace_fields(tmp_path: Path) -> None:
         pages=[Page(number=1, text="Invoice Number: INV-55\nTotal Amount: 10.00\nDate: 01/01/2026\n")],
     )
     result = pipeline.process_documents([doc])[0]
-    assert result.reward_type == "proxy"
+    assert result.reward_type == "canonical_union"
     assert isinstance(result.reward_details, dict)
     assert result.recovery_log is not None
     assert result.escalation_status in {"not_needed", "attempted", "budget_blocked", "quota_blocked", "model_unavailable"}
@@ -490,8 +518,11 @@ def test_pipeline_posts_ahmn_feedback_after_execution(tmp_path: Path, monkeypatc
     )
     result = pipeline.process_documents([doc])[0]
 
-    assert len(requests) == 2
-    advice_request, log_request = requests
+    ahmn_requests = [item for item in requests if str(item[0]).startswith("http://ahmn/")]
+    assert len([item for item in ahmn_requests if item[0] == "http://ahmn/advice"]) == 1
+    assert len([item for item in ahmn_requests if item[0] == "http://ahmn/advice/log"]) == 1
+    advice_request = next(item for item in ahmn_requests if item[0] == "http://ahmn/advice")
+    log_request = next(item for item in ahmn_requests if item[0] == "http://ahmn/advice/log")
     assert advice_request[0] == "http://ahmn/advice"
     assert log_request[0] == "http://ahmn/advice/log"
     assert log_request[1]["policy_id_used"] == "table_heavy"
@@ -499,6 +530,8 @@ def test_pipeline_posts_ahmn_feedback_after_execution(tmp_path: Path, monkeypatc
     assert log_request[1]["document_context"]["vendor_cluster"] == "acme"
     assert "quality_features" in log_request[1]["document_context"]
     assert "structural_features" in log_request[1]["document_context"]
+    assert log_request[1]["metrics"]["direct_scored"] is True
+    assert isinstance(log_request[1]["metrics"]["f1_score"], float)
     assert result.feedback_logged is True
     assert result.feedback_error is None
     assert result.advice_id
@@ -523,7 +556,7 @@ def test_process_inbox_writes_decision_chain_and_reward_artifacts(tmp_path: Path
         ],
     )
     doc = result["doc_records"][0]
-    assert doc["reward_type"] == "direct_set_based"
+    assert doc["reward_type"] == "canonical_union"
     assert Path(doc["decision_chain_path"]).exists()
     assert Path(doc["reward_path"]).exists()
     assert Path(doc["recovery_trace_path"]).exists()
@@ -636,7 +669,7 @@ def test_benchmark_generates_paper_evidence(tmp_path: Path, monkeypatch) -> None
             "policy_id": "table_heavy" if adaptive else "default",
             "latency_ms": 12.0 if adaptive else 10.0,
             "reward": 0.95 if adaptive else 0.9,
-            "reward_type": "direct_set_based",
+            "reward_type": "canonical_union",
             "reward_details": {"f1": 0.95 if adaptive else 0.9, "precision": 1.0, "recall": 0.9},
             "validation_issue_count": 0,
             "recovered_fields_count": 0,
@@ -683,6 +716,8 @@ def test_benchmark_generates_paper_evidence(tmp_path: Path, monkeypatch) -> None
     assert payload["experiment"]["condition_configs"][benchmark_module.ADAPTIVE_LABEL]["policy_mode"] == benchmark_module.ADAPTIVE_LABEL
     assert payload["experiment"]["condition_configs"][benchmark_module.ADAPTIVE_LABEL]["runtime_policy_mode"] == "adaptive"
     assert "exact_f1" in payload["comparison"]["table"]
+    assert "exact_scored_doc_count" in payload["comparison"]["table"]
+    assert "direct_scored_doc_count" not in payload["comparison"]["table"]
     assert "advice_source_counts" in payload["comparison"]["table"]
     assert "rollback_count" in payload["comparison"]["table"]
     assert "avg_schema_coverage" in payload["comparison"]["table"]
@@ -725,7 +760,7 @@ def test_benchmark_fails_when_adaptive_feedback_is_missing(tmp_path: Path, monke
             "policy_id": "table_heavy" if adaptive else "default",
             "latency_ms": 10.0,
             "reward": 0.9,
-            "reward_type": "direct_set_based",
+            "reward_type": "canonical_union",
             "reward_details": {"f1": 0.9},
             "validation_issue_count": 0,
             "recovered_fields_count": 0,
@@ -762,6 +797,7 @@ def test_benchmark_fails_when_adaptive_feedback_is_missing(tmp_path: Path, monke
 def test_research_config_and_policy_store_align_with_ahmn_ids() -> None:
     config_payload = json.loads((repo_root() / "configs" / "idpo_research_config.json").read_text(encoding="utf-8"))
     policy_payload = json.loads((repo_root() / "configs" / "policy_store_research.json").read_text(encoding="utf-8"))
+    extension_payload = json.loads((repo_root() / "configs" / "policy_store_cloud_extensions.json").read_text(encoding="utf-8"))
     assert config_payload["ahmn"]["enabled"] is True
     assert config_payload["ahmn"]["policy_mode"] == "adaptive"
     assert config_payload["ahmn"]["advice_endpoint"] == "/advice"
@@ -771,14 +807,33 @@ def test_research_config_and_policy_store_align_with_ahmn_ids() -> None:
     assert {item["policy_id"] for item in policy_payload["policies"]} == {
         "unknown_vendor_safe",
         "forms",
+        "forms_rescue_local",
         "noisy_ocr_rescue",
+        "noisy_ocr_precision_local",
         "scanned_text",
         "long_document_chunked",
         "table_heavy",
+        "table_dense_local",
         "mixed_content",
         "fast_local_text",
         "default",
     }
+    assert all(
+        item.get("actions", {}).get("extraction", {}).get("model_tier") == "local"
+        for item in policy_payload["policies"]
+    )
+    assert extension_payload["enabled_by_default"] is False
+    assert {item["policy_id"] for item in extension_payload["policies"]} == {
+        "forms_cloud",
+        "noisy_ocr_rescue_cloud",
+        "long_document_chunked_cloud",
+        "table_heavy_cloud",
+        "mixed_content_cloud",
+    }
+    assert all(
+        item.get("actions", {}).get("extraction", {}).get("model_tier") == "cloud"
+        for item in extension_payload["policies"]
+    )
 
 
 def test_research_policy_condition_keys_match_live_dae_outputs(tmp_path: Path) -> None:

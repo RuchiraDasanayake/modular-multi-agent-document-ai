@@ -47,6 +47,12 @@ The runtime should:
 4. run preprocessing, extraction, validation, recovery, escalation, and chunking
 5. write stable run artifacts under `IDPO_DATA_DIR`
 
+The canonical runtime is local-first:
+
+- the active policy bank loaded by default is local-only
+- automatic cloud fallback is disabled by default
+- optional paid cloud policies may exist in separate extension config, but they are not part of the default runtime contract
+
 ## Canonical Outputs
 
 Every successful run should produce a stable run directory under:

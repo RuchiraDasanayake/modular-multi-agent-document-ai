@@ -2,11 +2,28 @@
 
 This module keeps reward scoring and policy threshold evaluation out of the main
 orchestrator so the document runtime path stays easier to follow and test.
+
+Reward design (non-circular evaluation target):
+  - The set of fields used to compute F1 is the UNION of:
+      (a) canonical fields for the detected doc_type (policy-independent), and
+      (b) policy-declared explicit_entities (policy-specific, if non-empty).
+  - A policy cannot shrink the denominator by omitting canonical fields, so it
+    cannot game the reward by asking for fewer fields.
+  - A policy that explicitly requests additional fields is held to that larger
+    target (principle of responsibility).
+  - TP requires a populated field value (see _has_field_value). Grounding is
+    captured separately in schema_details.grounding_coverage.
+  - If no canonical schema is configured for the doc_type AND the policy does
+    not declare explicit_entities, the reward falls back to the proxy branch
+    below (validation + recovery + confidence).
 """
 
 from __future__ import annotations
 
-from idpo.core.types import Document, Entity, ExecutionPlan
+from typing import Optional
+
+from idpo.core.config import PipelineConfig
+from idpo.core.types import DAEOutput, Document, Entity, ExecutionPlan
 from idpo.pipeline.executor import ExecutionState
 
 
@@ -14,8 +31,13 @@ def compute_reward(
     doc: Document,
     plan: ExecutionPlan,
     state: ExecutionState,
+    dae_output: Optional[DAEOutput] = None,
+    config: Optional[PipelineConfig] = None,
 ) -> tuple[str, float, dict[str, object]]:
-    expected_fields = _expected_fields_for_reward(plan, state)
+    canonical_fields = _canonical_fields_for_doc(dae_output, config)
+    policy_fields = _policy_declared_fields(plan, state)
+    # Union — policy cannot shrink the evaluation target below the canonical set.
+    expected_fields = sorted(set(canonical_fields) | set(policy_fields))
     schema_details = _schema_quality_from_state(expected_fields, state)
     if expected_fields:
         extracted_expected = {
@@ -23,16 +45,25 @@ def compute_reward(
             for key in expected_fields
             if _has_field_value(key, state.requested_field_status, state.entities)
         }
-        all_extracted_keys = {entity.key for entity in state.entities}
+        # Only count entities whose value is concrete; placeholder/empty
+        # extractions must not inflate the false-positive denominator.
+        all_extracted_keys = {
+            entity.key
+            for entity in state.entities
+            if _is_concrete_value(str(entity.value), entity.key)
+        }
         tp = len(extracted_expected)
         fn = max(len(expected_fields) - tp, 0)
         fp = len([key for key in all_extracted_keys if key not in expected_fields])
         precision = tp / (tp + fp) if (tp + fp) else 0.0
         recall = tp / (tp + fn) if (tp + fn) else 0.0
         f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
+        reward_type = "canonical_union" if canonical_fields else "policy_declared"
         details = {
             "doc_id": doc.doc_id,
             "expected_fields": expected_fields,
+            "canonical_fields": canonical_fields,
+            "policy_fields": policy_fields,
             "extracted_field_count": len(all_extracted_keys),
             "true_positive_count": tp,
             "false_positive_count": fp,
@@ -42,7 +73,7 @@ def compute_reward(
             "f1": round(f1, 4),
             **schema_details,
         }
-        return "direct_set_based", round(f1, 4), details
+        return reward_type, round(f1, 4), details
 
     validation_component = 1.0 if not state.validation_issues else 0.0
     unresolved_fields = len({issue.field for issue in state.validation_issues})
@@ -122,6 +153,10 @@ def _schema_quality_from_state(
         key = str(entity.key).strip()
         if not key:
             continue
+        # Only count entities whose value passes the strict concrete-value
+        # check — empty/placeholder/type-violating values are not real extractions.
+        if not _is_concrete_value(str(entity.value), key):
+            continue
         extracted_keys.add(key)
         if key in target_set:
             extracted_target_keys.add(key)
@@ -164,7 +199,8 @@ def _entity_is_grounded(entity: Entity) -> bool:
     return isinstance(bbox, list) and len(bbox) >= 4
 
 
-def _expected_fields_for_reward(plan: ExecutionPlan, state: ExecutionState) -> list[str]:
+def _policy_declared_fields(plan: ExecutionPlan, state: ExecutionState) -> list[str]:
+    """Fields that the active policy explicitly declared it would extract."""
     requested = sorted(key for key in state.requested_field_status.keys() if str(key).strip())
     if requested and state.explicit_source in {"plan", "policy", "rules"}:
         return requested
@@ -178,6 +214,30 @@ def _expected_fields_for_reward(plan: ExecutionPlan, state: ExecutionState) -> l
     return []
 
 
+def _canonical_fields_for_doc(
+    dae_output: Optional[DAEOutput],
+    config: Optional[PipelineConfig],
+) -> list[str]:
+    """Canonical expected fields for the detected doc_type.
+
+    Policy-independent: breaks the circularity where the reward measures
+    whether the policy found the fields the same policy asked for.
+    """
+    if dae_output is None or config is None:
+        return []
+    registry = getattr(config.structuring, "canonical_fields_by_doc_type", None) or {}
+    doc_type = str(getattr(dae_output, "doc_type", "") or "").strip().lower()
+    if not doc_type:
+        return []
+    fields = registry.get(doc_type) or registry.get(doc_type.replace(" ", "_")) or []
+    return [str(item).strip() for item in fields if str(item).strip()]
+
+
+# Kept as a thin shim in case external callers import the old name.
+def _expected_fields_for_reward(plan: ExecutionPlan, state: ExecutionState) -> list[str]:
+    return _policy_declared_fields(plan, state)
+
+
 def _has_field_value(
     key: str,
     requested_field_status: dict[str, dict[str, object]],
@@ -186,12 +246,61 @@ def _has_field_value(
     status = requested_field_status.get(key) or {}
     value = str(status.get("value", "") or "").strip()
     if value:
-        return _is_concrete_value(value)
+        return _is_concrete_value(value, key)
     if "status" in status:
         return False
-    return any(entity.key == key and str(entity.value).strip() for entity in entities)
+    return any(
+        entity.key == key and _is_concrete_value(str(entity.value), key)
+        for entity in entities
+    )
 
 
-def _is_concrete_value(value: str) -> bool:
+# Placeholders that should never count as a real extraction.
+_PLACEHOLDER_TOKENS = frozenset({
+    "", "-", "--", "—", "?", "??", "???", "N/A", "NA", "NONE",
+    "NULL", "NIL", "TBD", "TBA", "UNKNOWN", "UNSPECIFIED", "NOT SPECIFIED",
+    "NOT APPLICABLE", "NOT AVAILABLE", "NOT FOUND", "MISSING", "EMPTY",
+    "PENDING", "PLACEHOLDER", "XXX", "XXXX", "...", ".",
+})
+
+# Coarse field-type inference from field names for lightweight format validation.
+_MONEY_KEYS = {"total_amount", "subtotal", "tax", "total_value", "amount", "price"}
+_DATE_KEYS = {"date", "document_date", "effective_date", "due_date", "invoice_date"}
+_ID_KEYS = {"invoice_number", "record_id", "reference", "receipt_number"}
+
+
+def _is_concrete_value(value: str, key: str | None = None) -> bool:
+    """Decide whether a raw extraction counts as a real field value.
+
+    Rejects empty strings, placeholder tokens, and values that obviously
+    violate the field's expected type. This keeps the F1 TP count honest:
+    extracting "unknown" for total_amount must not be treated as success.
+    """
     text = str(value or "").strip()
-    return bool(text) and text.upper() not in {"N/A", "NA"}
+    if not text:
+        return False
+    normalized = text.upper()
+    # Strip surrounding punctuation for placeholder check (e.g. "(N/A)" -> "N/A")
+    stripped = normalized.strip("()[]{}\"'`,.:;")
+    if stripped in _PLACEHOLDER_TOKENS:
+        return False
+    # Single-char tokens are never a legitimate extraction for a named field.
+    if len(text) < 2:
+        return False
+
+    if key:
+        normalized_key = str(key).strip().lower()
+        if normalized_key in _MONEY_KEYS:
+            # Require at least one digit for monetary amounts.
+            if not any(ch.isdigit() for ch in text):
+                return False
+        elif normalized_key in _DATE_KEYS:
+            # Require at least one digit for dates.
+            if not any(ch.isdigit() for ch in text):
+                return False
+        elif normalized_key in _ID_KEYS:
+            # IDs must contain at least one alphanumeric character.
+            if not any(ch.isalnum() for ch in text):
+                return False
+
+    return True

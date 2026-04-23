@@ -25,7 +25,6 @@ import {
     Crown,
     Zap,
     X,
-    History,
     BarChart3,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -44,7 +43,6 @@ const USER_NAV: NavItem[] = [
     { href: "/dashboard/idpo", label: "Doc Extraction", Icon: FileText, badge: "Core", color: "brand" },
     { href: "/dashboard/idpo/benchmark", label: "Benchmark Results", Icon: BarChart3, color: "cyan" },
     { href: "/dashboard/idpo/presentation", label: "Run Walkthrough", Icon: Blocks, color: "cyan" },
-    { href: "/dashboard/history", label: "Processing History", Icon: History, color: "cyan" },
     { href: "/dashboard/xai", label: "AI Q&A", Icon: MessageSquare, color: "violet" },
     { href: "/dashboard/guardrails", label: "Quality Checks", Icon: ShieldCheck, color: "emerald" },
     { href: "/dashboard/hitl", label: "Expert Review", Icon: UserCheck, color: "amber" },

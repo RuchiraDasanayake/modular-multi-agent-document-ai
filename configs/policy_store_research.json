@@ -67,7 +67,13 @@
         "max_missing_required": 2,
         "max_hallucinated_fields": 1,
         "min_grounding_coverage": 0.4,
-        "max_latency_ms": 2500
+        "max_latency_ms": 2500,
+        "family": "unknown vendor intake",
+        "variant": "local",
+        "when_used": "Use first for unseen vendors or sparse context where the system needs a safe broad pass.",
+        "why": "Keeps extraction conservative while still trying OCR and table hints for unfamiliar layouts.",
+        "tradeoff": "Safe but less specialized. It may miss hard fields that need a more targeted family.",
+        "cost_profile": "low cost, broad coverage"
       }
     },
     {
@@ -114,7 +120,7 @@
             "tax",
             "due_date"
           ],
-          "model_tier": "cloud",
+          "model_tier": "local",
           "ruleset": "research_table"
         },
         "recovery": {
@@ -140,7 +146,95 @@
       },
       "metadata": {
         "owner": "idpo-research",
-        "regime": "table_precision"
+        "regime": "table_precision",
+        "family": "table extraction",
+        "variant": "balanced-local",
+        "when_used": "Use first for table-heavy documents where layout is the main challenge but local extraction may still succeed.",
+        "why": "Pairs table extraction, stronger retrieval, and a table-oriented ruleset before paying cloud cost.",
+        "tradeoff": "Cheap first pass, but weak local extraction can miss fields buried in dense tables.",
+        "cost_profile": "low cost first pass",
+        "sibling_policy_id": "table_dense_local"
+      }
+    },
+    {
+      "policy_id": "table_dense_local",
+      "name": "Table Dense Local Policy",
+      "conditions": {
+        "content_profile": [
+          "table-heavy"
+        ],
+        "route_bin": [
+          "standard",
+          "heavy"
+        ]
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 3,
+            "psm": 6,
+            "alt_psm": [
+              4,
+              6,
+              11
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "aggressive"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "invoice_number",
+            "supplier_name",
+            "total_amount",
+            "subtotal",
+            "tax",
+            "due_date"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_table_dense_local"
+        },
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "chunking": {
+          "chunk_size": 220,
+          "chunk_overlap": 32,
+          "max_chunks": 180
+        },
+        "retrieval": {
+          "dense_k": 14,
+          "sparse_k": 18,
+          "final_k": 14,
+          "mmr_lambda": 0.82,
+          "metadata_boost": 0.24
+        },
+        "token_budget": {
+          "max_tokens": 1850,
+          "reserved_tokens": 240,
+          "strategy": "simple"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "table_precision_dense_local",
+        "family": "table extraction",
+        "variant": "dense-local",
+        "when_used": "Use when table-heavy documents have dense rows, weak separators, or repeated local misses on compact tables.",
+        "why": "Smaller chunks, extra OCR attempts, and heavier retrieval help anchor fields that are crowded into dense tables.",
+        "tradeoff": "More local latency and retrieval cost than the balanced table policy.",
+        "cost_profile": "moderate local cost",
+        "sibling_policy_id": "table_heavy"
       }
     },
     {
@@ -186,7 +280,7 @@
           "field_descriptions": {
             "approval_code": "Approval code required by form review workflows."
           },
-          "model_tier": "cloud",
+          "model_tier": "local",
           "ruleset": "research_forms"
         },
         "recovery": {
@@ -203,7 +297,97 @@
       },
       "metadata": {
         "owner": "idpo-research",
-        "regime": "form_validation"
+        "regime": "form_validation",
+        "family": "form extraction",
+        "variant": "balanced-local",
+        "when_used": "Use first for form-centric documents where key-value structure is strong enough for local extraction.",
+        "why": "Targets form fields directly and keeps the first run local so reviewed evidence decides if stronger extraction is needed.",
+        "tradeoff": "Cheaper than cloud, but brittle when handwriting, stamps, or dense forms reduce local accuracy.",
+        "cost_profile": "low cost first pass",
+        "sibling_policy_id": "forms_rescue_local"
+      }
+    },
+    {
+      "policy_id": "forms_rescue_local",
+      "name": "Forms Rescue Local Policy",
+      "conditions": {
+        "content_profile": [
+          "form-centric"
+        ]
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 4,
+            "psm": 6,
+            "alt_psm": [
+              4,
+              6,
+              11,
+              12
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "aggressive"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "claim_number",
+            "member_id",
+            "service_date",
+            "approval_code",
+            "total_amount"
+          ],
+          "field_descriptions": {
+            "approval_code": "Approval code required by form review workflows."
+          },
+          "model_tier": "local",
+          "ruleset": "research_forms_rescue_local"
+        },
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "escalation": {
+          "tier": "tier2"
+        },
+        "chunking": {
+          "chunk_size": 280,
+          "chunk_overlap": 40,
+          "max_chunks": 160
+        },
+        "retrieval": {
+          "dense_k": 12,
+          "sparse_k": 14,
+          "final_k": 12,
+          "mmr_lambda": 0.74,
+          "metadata_boost": 0.16
+        },
+        "token_budget": {
+          "max_tokens": 1750,
+          "reserved_tokens": 220,
+          "strategy": "simple"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "form_validation_rescue_local",
+        "family": "form extraction",
+        "variant": "rescue-local",
+        "when_used": "Use when form-centric documents stay local-only but need stronger OCR and retrieval after reviewed misses.",
+        "why": "Adds extra OCR passes and retrieval support for hard forms without leaving the free local path.",
+        "tradeoff": "Slower than the balanced form policy and more likely to over-process easy forms.",
+        "cost_profile": "moderate local cost",
+        "sibling_policy_id": "forms"
       }
     },
     {
@@ -247,7 +431,7 @@
             "reference_code",
             "total_amount"
           ],
-          "model_tier": "cloud",
+          "model_tier": "local",
           "ruleset": "research_noisy_ocr_rescue"
         },
         "recovery": {
@@ -273,7 +457,99 @@
         "max_missing_required": 1,
         "max_hallucinated_fields": 0,
         "min_grounding_coverage": 0.5,
-        "max_latency_ms": 3200
+        "max_latency_ms": 3200,
+        "family": "ocr rescue",
+        "variant": "recall-local",
+        "when_used": "Use first when OCR noise is high and the system should try stronger cleanup before moving to cloud.",
+        "why": "Extra OCR passes, aggressive denoise, and recovery logic attack recognition noise directly.",
+        "tradeoff": "Helps damaged scans, but local extraction can still fail after OCR cleanup on very degraded pages.",
+        "cost_profile": "moderate local cost",
+        "sibling_policy_id": "noisy_ocr_precision_local"
+      }
+    },
+    {
+      "policy_id": "noisy_ocr_precision_local",
+      "name": "Noisy OCR Precision Local Policy",
+      "conditions": {
+        "quality_bin": [
+          "C"
+        ],
+        "quality_features.ocr_noise_ratio": {
+          "min": 0.12
+        }
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 4,
+            "psm": 6,
+            "alt_psm": [
+              3,
+              4,
+              6,
+              11,
+              12
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "standard"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "record_id",
+            "document_date",
+            "reference_code",
+            "total_amount"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_noisy_ocr_precision_local"
+        },
+        "recovery": {
+          "strategy": "regex"
+        },
+        "chunking": {
+          "chunk_size": 240,
+          "chunk_overlap": 36,
+          "max_chunks": 96
+        },
+        "retrieval": {
+          "dense_k": 10,
+          "sparse_k": 18,
+          "final_k": 10,
+          "mmr_lambda": 0.7,
+          "metadata_boost": 0.22
+        },
+        "token_budget": {
+          "max_tokens": 1550,
+          "reserved_tokens": 200,
+          "strategy": "simple"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "noisy_ocr_precision_local",
+        "schema_valid_required": true,
+        "max_missing_required": 2,
+        "max_hallucinated_fields": 0,
+        "min_grounding_coverage": 0.6,
+        "max_latency_ms": 3400,
+        "family": "ocr rescue",
+        "variant": "precision-local",
+        "when_used": "Use when noisy OCR contexts need a more conservative local path after aggressive rescue produces wrong values or hallucinations.",
+        "why": "Prefers conservative recovery, tighter chunks, and more alternate OCR layouts to improve precision on degraded pages.",
+        "tradeoff": "May miss fields that the recall-oriented noisy OCR policy would recover.",
+        "cost_profile": "moderate local cost",
+        "sibling_policy_id": "noisy_ocr_rescue"
       }
     },
     {
@@ -341,7 +617,13 @@
       },
       "metadata": {
         "owner": "idpo-research",
-        "regime": "ocr_text"
+        "regime": "ocr_text",
+        "family": "scanned text",
+        "variant": "local",
+        "when_used": "Use for scanned or image-heavy text documents where OCR is required but the structure is mostly linear text.",
+        "why": "Optimizes OCR and chunking for text-heavy scans without over-weighting table logic.",
+        "tradeoff": "Strong on text scans, weaker on dense tables or forms mixed into the same document.",
+        "cost_profile": "moderate local cost"
       }
     },
     {
@@ -390,7 +672,7 @@
             "reference_code",
             "total_value"
           ],
-          "model_tier": "cloud",
+          "model_tier": "local",
           "ruleset": "research_long_document_chunked"
         },
         "recovery": {
@@ -421,7 +703,13 @@
         "max_missing_required": 1,
         "max_hallucinated_fields": 1,
         "min_grounding_coverage": 0.55,
-        "max_latency_ms": 4200
+        "max_latency_ms": 4200,
+        "family": "long document",
+        "variant": "local",
+        "when_used": "Use first for long heavy-route documents where chunking and retrieval matter more than immediate cloud usage.",
+        "why": "Uses larger chunks and stronger retrieval to preserve document context before trying a stronger model.",
+        "tradeoff": "Good context coverage, but local extraction can still miss fields spread across many long sections.",
+        "cost_profile": "moderate local cost"
       }
     },
     {
@@ -463,7 +751,7 @@
             "party_b",
             "total_value"
           ],
-          "model_tier": "cloud",
+          "model_tier": "local",
           "ruleset": "research_mixed"
         },
         "recovery": {
@@ -484,7 +772,13 @@
       },
       "metadata": {
         "owner": "idpo-research",
-        "regime": "balanced_multisection"
+        "regime": "balanced_multisection",
+        "family": "mixed content",
+        "variant": "local",
+        "when_used": "Use first for documents that mix tables, narrative, and forms without one dominant layout pattern.",
+        "why": "Balances preprocessing, retrieval, and extraction for mixed layouts while keeping the first attempt local.",
+        "tradeoff": "General-purpose but not strongest for any one structure. A later optional paid extension can add a stronger cloud path if needed.",
+        "cost_profile": "moderate local cost"
       }
     },
     {
@@ -562,7 +856,13 @@
         "max_missing_required": 2,
         "max_hallucinated_fields": 0,
         "min_grounding_coverage": 0.45,
-        "max_latency_ms": 1400
+        "max_latency_ms": 1400,
+        "family": "fast text",
+        "variant": "local",
+        "when_used": "Use for clean text-heavy documents where speed matters more than heavy preprocessing.",
+        "why": "Minimizes preprocessing and retrieval cost for straightforward text extraction.",
+        "tradeoff": "Fastest path, but weak when OCR noise, tables, or long context become important.",
+        "cost_profile": "lowest cost"
       }
     },
     {
@@ -623,7 +923,13 @@
       },
       "metadata": {
         "owner": "idpo-research",
-        "regime": "safe_default"
+        "regime": "safe_default",
+        "family": "safe default",
+        "variant": "local",
+        "when_used": "Use when nothing else matches well enough and the system still needs a conservative extraction attempt.",
+        "why": "Provides a broad local-first baseline with light retrieval and no family-specific assumptions.",
+        "tradeoff": "Safe but generic. It is a starting point, not the strongest policy for specialized documents.",
+        "cost_profile": "low cost baseline"
       }
     }
   ]

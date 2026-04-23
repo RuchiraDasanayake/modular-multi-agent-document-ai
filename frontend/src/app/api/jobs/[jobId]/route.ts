@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { getJob, mutateJob } from "@/server/jobs";
 import { apiError } from "@/server/api/response";
-import type { JobExecutionMode, JobFieldConfig } from "@/types/idpo";
+import { syncActiveJobProgress } from "@/server/runner";
+import { readJobValidationContext, updateJobValidationContextManualInput } from "@/server/review-context";
+import type { JobExecutionMode, JobFieldConfig, JobValidationContextManualInput } from "@/types/idpo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,9 +19,17 @@ interface Params {
 export async function GET(_: Request, { params }: Params) {
   try {
     const { jobId } = await params;
-    const job = getJob(jobId);
+    const baseJob = getJob(jobId);
+    const job =
+      baseJob && (baseJob.status === "queued" || baseJob.status === "running")
+        ? syncActiveJobProgress(jobId)
+        : baseJob;
     if (!job) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    }
+    const reviewContext = readJobValidationContext(jobId);
+    if (reviewContext) {
+      job.reviewContext = reviewContext;
     }
     return NextResponse.json(job, { headers: NO_STORE_HEADERS });
   } catch (error) {
@@ -53,11 +63,34 @@ function parseFieldConfig(value: unknown): JobFieldConfig[] | undefined {
   return fields;
 }
 
+function parseManualStringList(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseReviewContextManualInput(value: unknown): JobValidationContextManualInput | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  return {
+    jobPurpose: typeof record.jobPurpose === "string" ? record.jobPurpose.trim() || undefined : undefined,
+    knownVendors: parseManualStringList(record.knownVendors),
+    fieldClarifications: parseManualStringList(record.fieldClarifications),
+    validationNotes: parseManualStringList(record.validationNotes),
+  };
+}
+
 export async function PATCH(request: Request, { params }: Params) {
   try {
     const { jobId } = await params;
     const payload = (await request.json()) as Record<string, unknown>;
-    const updated = mutateJob(jobId, (job) => {
+    let updated = mutateJob(jobId, (job) => {
       if (typeof payload.jobName === "string") {
         job.jobName = payload.jobName.trim();
       }
@@ -79,6 +112,19 @@ export async function PATCH(request: Request, { params }: Params) {
       }
       return job;
     });
+    const reviewContextManualInput = parseReviewContextManualInput(payload.reviewContextManualInput);
+    if (reviewContextManualInput) {
+      updated.reviewContext = updateJobValidationContextManualInput(
+        updated,
+        updated.fieldConfigCurrent ?? [],
+        reviewContextManualInput,
+      );
+    } else {
+      const reviewContext = readJobValidationContext(jobId);
+      if (reviewContext) {
+        updated.reviewContext = reviewContext;
+      }
+    }
     return NextResponse.json(updated);
   } catch (error) {
     return apiError(error, 400);

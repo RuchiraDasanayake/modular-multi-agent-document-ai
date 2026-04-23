@@ -14,6 +14,10 @@ import time
 from collections import Counter
 
 from idpo.agents.base import Agent, AgentContext
+from idpo.agents.extraction_descriptions import (
+    normalize_field_descriptions as normalize_extraction_field_descriptions,
+    refine_field_descriptions as refine_extraction_field_descriptions,
+)
 from idpo.agents.extraction_parsing import (
     canonicalize_entities,
     clean_candidate_value,
@@ -44,15 +48,17 @@ from idpo.agents.extraction_rules import (
     tokenize,
 )
 from idpo.agents.extraction_providers import (
-    OPENAI_AVAILABLE,
     anthropic_messages_completion,
     ollama_generate,
+    ollama_generate_detailed,
     openai_chat_completion,
 )
 from idpo.core.contracts import AgentMessage
 from idpo.core.types import AgentResult, Document, Entity, ExtractionPolicy, ModelDecision, StageSignal
 
-_RE_BULLET_PREFIX = re.compile(r"^[\-\*•◦●○▪■□]+")
+_RE_BULLET_PREFIX = re.compile(r"^(?:[-*]|\u2022|\u25E6|\u25CF|\u25CB|\u25AA|\u25A0|\u25A1)+")
+_NAME_LIKE_KEY_RE = re.compile(r"(?:^|_)(?:name|author|person|party|customer|vendor|title)(?:$|_)")
+_ALPHA_RE = re.compile(r"[A-Za-z]{2,}")
 
 class LLMExtractionAgent(Agent):
     name = "llm_extraction"
@@ -100,6 +106,7 @@ class LLMExtractionAgent(Agent):
             explicit_keys,
             normalized_descriptions,
         )
+        explicit_entities = self._filter_implausible_entities(explicit_entities)
         llm_diagnostics = self._initial_llm_diagnostics(model, description_refinement)
         llm_entities = self._extract_llm_entities(
             doc,
@@ -125,6 +132,7 @@ class LLMExtractionAgent(Agent):
                 normalized_descriptions,
             )
         )
+        explicit_entities = self._filter_implausible_entities(explicit_entities)
         explicit_entities = self._filter_to_explicit_keys(explicit_entities, explicit_key_set)
         default_entities = self._dedupe_entities(generic_entities)
         suppressed_defaults = 0
@@ -539,15 +547,10 @@ class LLMExtractionAgent(Agent):
         return inferred, "inferred"
 
     def _normalize_field_descriptions(self, field_descriptions: object) -> dict[str, str]:
-        if not isinstance(field_descriptions, dict):
-            return {}
-        normalized: dict[str, str] = {}
-        for raw_key, raw_value in field_descriptions.items():
-            key = self._normalize_key(str(raw_key))
-            if not key:
-                continue
-            normalized[key] = str(raw_value or "").strip()
-        return normalized
+        return normalize_extraction_field_descriptions(
+            field_descriptions,
+            normalize_key=self._normalize_key,
+        )
 
     def _refine_field_descriptions(
         self,
@@ -555,114 +558,15 @@ class LLMExtractionAgent(Agent):
         field_descriptions: dict[str, str],
         ctx: AgentContext,
     ) -> tuple[dict[str, str], dict[str, object]]:
-        meta: dict[str, object] = {
-            "enabled": bool(ctx.config.llm.refine_field_descriptions),
-            "attempted": False,
-            "succeeded": False,
-            "cache_hit": False,
-            "model": None,
-            "error": None,
-            "input_fields": 0,
-        }
-        if not explicit_keys:
-            return field_descriptions, meta
-
-        max_fields = max(1, int(ctx.config.llm.description_refinement_max_fields))
-        selected_keys = [self._normalize_key(key) for key in explicit_keys if self._normalize_key(key)][:max_fields]
-        if not selected_keys:
-            return field_descriptions, meta
-
-        base_map: dict[str, str] = {}
-        for key in selected_keys:
-            seed = (field_descriptions.get(key) or key.replace("_", " ")).strip()
-            if seed:
-                base_map[key] = seed
-        meta["input_fields"] = len(base_map)
-        if not base_map:
-            return field_descriptions, meta
-        if not ctx.config.llm.refine_field_descriptions:
-            merged = dict(field_descriptions)
-            merged.update(base_map)
-            return merged, meta
-
-        if ctx.config.llm.cloud_provider != "openai":
-            meta["error"] = "refinement_requires_openai"
-            merged = dict(field_descriptions)
-            merged.update(base_map)
-            return merged, meta
-        if not OPENAI_AVAILABLE:
-            meta["error"] = "openai_sdk_unavailable"
-            merged = dict(field_descriptions)
-            merged.update(base_map)
-            return merged, meta
-
-        api_key = os.getenv("OPENAI_API_KEY") or ctx.config.llm.openai_api_key
-        key_value = (api_key or "").strip().lower()
-        if not key_value or key_value.startswith("${") or key_value in {"sk-placeholder", "sk-", "changeme"}:
-            meta["error"] = "missing_openai_key"
-            merged = dict(field_descriptions)
-            merged.update(base_map)
-            return merged, meta
-
-        model_name = (ctx.config.llm.description_refinement_model or ctx.config.llm.cloud_model).strip()
-        meta["model"] = model_name
-        cache_key = f"{model_name}|{json.dumps(base_map, sort_keys=True)}"
-        cached = self._description_refinement_cache.get(cache_key)
-        if cached:
-            merged = dict(field_descriptions)
-            merged.update(cached)
-            meta["cache_hit"] = True
-            meta["succeeded"] = True
-            return merged, meta
-
-        meta["attempted"] = True
-        prompt = (
-            "Refine field descriptions for document extraction.\n"
-            "Return a JSON object mapping each key to one concise extraction description.\n"
-            "Each description should be 8-20 words and include synonyms/format hints.\n"
-            "Do not add new keys.\n\n"
-            f"Input map:\n{json.dumps(base_map, ensure_ascii=False)}"
+        return refine_extraction_field_descriptions(
+            explicit_keys,
+            field_descriptions,
+            ctx,
+            normalize_key=self._normalize_key,
+            parse_json_payload=self._parse_json_payload,
+            cache=self._description_refinement_cache,
+            generate=ollama_generate,
         )
-        try:
-            content, call_meta = openai_chat_completion(
-                model_name=model_name,
-                prompt=prompt,
-                api_key=api_key,
-                base_url=ctx.config.llm.openai_api_url,
-                timeout_s=ctx.config.llm.cloud_timeout_s,
-                temperature=ctx.config.llm.description_refinement_temperature,
-                max_tokens=ctx.config.llm.description_refinement_max_tokens,
-                response_format={"type": "json_object"},
-                retry_without_json_mode=False,
-            )
-            if call_meta.get("error"):
-                meta["error"] = str(call_meta["error"])
-                merged = dict(field_descriptions)
-                merged.update(base_map)
-                return merged, meta
-            parsed = self._parse_json_payload(content or "")
-            refined: dict[str, str] = {}
-            if isinstance(parsed, dict):
-                container = parsed.get("descriptions", parsed)
-                if isinstance(container, dict):
-                    for key in selected_keys:
-                        value = container.get(key)
-                        if isinstance(value, str) and value.strip():
-                            refined[key] = value.strip()
-            merged = dict(field_descriptions)
-            merged.update(base_map)
-            merged.update(refined)
-            if refined:
-                self._description_refinement_cache[cache_key] = dict(refined)
-                meta["succeeded"] = True
-            else:
-                meta["error"] = "empty_refinement_output"
-            return merged, meta
-        except Exception as exc:
-            meta["error"] = str(exc)[:220]
-            merged = dict(field_descriptions)
-            merged.update(base_map)
-            return merged, meta
 
     def _extract_explicit(
         self,
@@ -860,6 +764,23 @@ class LLMExtractionAgent(Agent):
     def _normalize_key(self, raw: str) -> str:
         return normalize_key(raw)
 
+    def _filter_implausible_entities(self, entities: list[Entity]) -> list[Entity]:
+        filtered: list[Entity] = []
+        for entity in entities:
+            if self._is_plausible_for_key(entity.key, str(entity.value or "")):
+                filtered.append(entity)
+        return filtered
+
+    def _is_plausible_for_key(self, key: str, value: str) -> bool:
+        normalized_key = self._normalize_key(key)
+        cleaned_value = clean_candidate_value(value)
+        if not cleaned_value:
+            return False
+        if _NAME_LIKE_KEY_RE.search(normalized_key):
+            if not _ALPHA_RE.search(cleaned_value):
+                return False
+        return True
+
     def _span_for_line(self, page_text: str, line: str, value: str) -> tuple[int, int] | None:
         return span_for_line(page_text, line, value)
 
@@ -963,35 +884,77 @@ class LLMExtractionAgent(Agent):
         started = time.time()
         text, context_meta = build_extraction_input(doc, explicit_keys, field_descriptions or {}, ctx)
         if not text.strip():
-            return [], {"provider": "ollama", "model": model_name, "error": "empty_document", "latency_ms": 0.0}
+            return [], {
+                "provider": "ollama",
+                "model": model_name,
+                "error": "empty_document",
+                "latency_ms": 0.0,
+            }
         prompt = build_prompt(text, explicit_keys, ctx, field_descriptions or {})
-        payload = {
+
+        # Build Ollama payload with deterministic JSON output.
+        # format=json constrains phi3/llama3/mistral to emit valid JSON only,
+        # which dramatically improves parse rate vs free-form completion.
+        llm_cfg = ctx.config.llm
+        options: dict[str, object] = {
+            "temperature": float(getattr(llm_cfg, "local_temperature", 0.0)),
+            "top_p": float(getattr(llm_cfg, "local_top_p", 0.9)),
+            "num_predict": int(getattr(llm_cfg, "local_num_predict", 1024)),
+        }
+        payload: dict[str, object] = {
             "model": model_name,
             "prompt": prompt,
             "stream": False,
+            "options": options,
         }
-        response = ollama_generate(
-            ctx.config.llm.base_url,
+        if bool(getattr(llm_cfg, "local_format_json", True)):
+            payload["format"] = "json"
+
+        response, call_meta = ollama_generate_detailed(
+            llm_cfg.base_url,
             payload,
-            ctx.config.llm.timeout_s,
+            llm_cfg.timeout_s,
         )
-        meta = {
+        latency_ms = (time.time() - started) * 1000
+        persist_raw = bool(getattr(llm_cfg, "persist_raw_llm_io", True))
+
+        meta: dict[str, object] = {
             "provider": "ollama",
             "model": model_name,
             "prompt_chars": len(prompt),
             "requested_fields": len(explicit_keys),
-            "latency_ms": (time.time() - started) * 1000,
+            "latency_ms": round(latency_ms, 2),
             "success": False,
             "entity_count": 0,
             "prompt_version": "extraction_v2",
             "context": context_meta,
+            "request": {
+                "format": "json" if payload.get("format") == "json" else "text",
+                "options": options,
+                "endpoint": "ollama.generate",
+                "base_url": llm_cfg.base_url,
+            },
+            # Ollama token counts, durations, and error fields (if any).
+            **call_meta,
         }
+        if persist_raw:
+            meta["raw_prompt"] = prompt
+            meta["raw_response"] = response or ""
+
         if not response:
-            meta["error"] = "empty_or_unavailable"
+            meta.setdefault("error", "empty_or_unavailable")
             return [], meta
+
         entities = self._parse_entities_response(response, model_name, source="llm_local")
         meta["success"] = bool(entities)
         meta["entity_count"] = len(entities)
+        if not entities:
+            # Parsed nothing from a non-empty response — keep the raw text even
+            # if persist_raw is off, because this is the case where we most
+            # need to debug what the model actually said.
+            if not persist_raw:
+                meta["raw_response_preview"] = (response or "")[:1000]
+            meta.setdefault("parse_failed", True)
         return entities, meta
 
     def _cloud_extract(
@@ -1032,6 +995,8 @@ class LLMExtractionAgent(Agent):
             return [], meta
         prompt = build_prompt(text, explicit_keys, ctx, field_descriptions or {})
         meta["prompt_chars"] = len(prompt)
+        if bool(getattr(ctx.config.llm, "persist_raw_llm_io", True)):
+            meta["raw_prompt"] = prompt
         provider = ctx.config.llm.cloud_provider
         if provider == "openai":
             content, call_meta = openai_chat_completion(
@@ -1058,6 +1023,10 @@ class LLMExtractionAgent(Agent):
             completion_tokens = int(meta.get("completion_tokens", 0) or 0)
             total_tokens = int(meta.get("total_tokens", prompt_tokens + completion_tokens) or 0)
             entities = self._parse_entities_response(content or "", model_name, source="llm_cloud")
+            if bool(getattr(ctx.config.llm, "persist_raw_llm_io", True)):
+                meta["raw_response"] = content or ""
+            elif content and not entities:
+                meta["raw_response_preview"] = content[:1000]
             meta.update(
                 {
                     "prompt_tokens": prompt_tokens,
@@ -1085,6 +1054,10 @@ class LLMExtractionAgent(Agent):
                 meta["latency_ms"] = (time.time() - started) * 1000
                 return [], meta
             entities = self._parse_entities_response(content or "", model_name, source="llm_cloud")
+            if bool(getattr(ctx.config.llm, "persist_raw_llm_io", True)):
+                meta["raw_response"] = content or ""
+            elif content and not entities:
+                meta["raw_response_preview"] = content[:1000]
             input_tokens = int(meta.get("prompt_tokens", 0) or 0)
             output_tokens = int(meta.get("completion_tokens", 0) or 0)
             meta.update(
@@ -1163,4 +1136,3 @@ class LLMExtractionAgent(Agent):
 
     def _parse_json_payload(self, cleaned: str) -> object | None:
         return parse_json_payload(cleaned)
-

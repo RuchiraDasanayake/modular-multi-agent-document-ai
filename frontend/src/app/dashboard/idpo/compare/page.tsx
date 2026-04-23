@@ -114,14 +114,40 @@ export default function CompareRunsPage() {
   const metricCards = [
     {
       label: "Validation Pass",
+      hint: "Fraction of documents whose extraction passed all validation checks (schema + consistency).",
       left: leftOverview?.validationPassRate !== null && leftOverview?.validationPassRate !== undefined ? `${(leftOverview.validationPassRate * 100).toFixed(1)}%` : "-",
       right: rightOverview?.validationPassRate !== null && rightOverview?.validationPassRate !== undefined ? `${(rightOverview.validationPassRate * 100).toFixed(1)}%` : "-",
     },
-    { label: "P95 Latency", left: `${formatNumber(leftOverview?.p95LatencyMs)} ms`, right: `${formatNumber(rightOverview?.p95LatencyMs)} ms` },
-    { label: "Advice Accepted", left: String(leftOverview?.adviceAcceptedCount ?? "-"), right: String(rightOverview?.adviceAcceptedCount ?? "-") },
-    { label: "Policy Changed", left: String(leftOverview?.policyChangedCount ?? "-"), right: String(rightOverview?.policyChangedCount ?? "-") },
-    { label: "Rollbacks", left: String(leftOverview?.rollbackCount ?? "-"), right: String(rightOverview?.rollbackCount ?? "-") },
-    { label: "Direct-Scored Docs", left: String(leftOverview?.directScoredDocCount ?? "-"), right: String(rightOverview?.directScoredDocCount ?? "-") },
+    {
+      label: "P95 Latency",
+      hint: "95th-percentile end-to-end processing time per document, in milliseconds.",
+      left: `${formatNumber(leftOverview?.p95LatencyMs)} ms`,
+      right: `${formatNumber(rightOverview?.p95LatencyMs)} ms`,
+    },
+    {
+      label: "Advice Accepted",
+      hint: "Documents where AHMN returned a recommendation and IDPO executed it (not blocked, not replaced by fallback).",
+      left: String(leftOverview?.adviceAcceptedCount ?? "-"),
+      right: String(rightOverview?.adviceAcceptedCount ?? "-"),
+    },
+    {
+      label: "Policy Changed",
+      hint: "Documents where the policy actually executed differs from the static baseline (i.e. adaptive advice shifted the choice).",
+      left: String(leftOverview?.policyChangedCount ?? "-"),
+      right: String(rightOverview?.policyChangedCount ?? "-"),
+    },
+    {
+      label: "Rollbacks",
+      hint: "Documents where the rollback monitor blocked or reverted a policy due to latency/failure regression vs. the rolling window.",
+      left: String(leftOverview?.rollbackCount ?? "-"),
+      right: String(rightOverview?.rollbackCount ?? "-"),
+    },
+    {
+      label: "Reviewed-F1 Docs",
+      hint: "Documents with a human-reviewed F1 score (ground-truth comparison). Other documents only have the proxy reward.",
+      left: String(leftOverview?.directScoredDocCount ?? "-"),
+      right: String(rightOverview?.directScoredDocCount ?? "-"),
+    },
   ];
 
   const qualityLabel = (doc: DocumentSummary | null) => {
@@ -129,10 +155,12 @@ export default function CompareRunsPage() {
       return "-";
     }
     if (typeof doc.exactF1 === "number") {
-      return `F1 ${formatNumber(doc.exactF1, 3)}`;
+      // Exact F1: precision/recall against reviewer-provided ground truth.
+      return `F1 ${formatNumber(doc.exactF1, 3)} (reviewed)`;
     }
     if (typeof doc.reward === "number") {
-      return `Reward ${formatNumber(doc.reward, 3)}`;
+      // Proxy reward: canonical doc-type field coverage + grounding + hallucination penalty.
+      return `Reward ${formatNumber(doc.reward, 3)} (proxy)`;
     }
     return "-";
   };
@@ -209,9 +237,12 @@ export default function CompareRunsPage() {
           <div className="grid gap-4 md:grid-cols-4">
             {metricCards.map((metric) => (
               <IdpoCard key={metric.label}>
-                <p className="text-xs uppercase text-slate-500 dark:text-slate-400">{metric.label}</p>
+                <p className="text-xs uppercase text-slate-500 dark:text-slate-400" title={metric.hint}>
+                  {metric.label}
+                </p>
                 <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">L: {metric.left}</p>
                 <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">R: {metric.right}</p>
+                <p className="mt-2 text-[11px] leading-snug text-slate-500 dark:text-slate-400">{metric.hint}</p>
               </IdpoCard>
             ))}
           </div>
@@ -274,26 +305,7 @@ export default function CompareRunsPage() {
                       <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{right?.deferStatus ?? "-"}</td>
                       <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{left?.feedbackLogged ? "logged" : "-"}</td>
                       <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{right?.feedbackLogged ? "logged" : "-"}</td>
-                      <td className="px-2 py-2">
-                        <div className="flex gap-2">
-                          {left ? (
-                            <Link
-                              href={`/dashboard/idpo/runs/${encodeURIComponent(leftOverview.run.runId)}/docs/${encodeURIComponent(docId)}`}
-                              className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
-                            >
-                              Left
-                            </Link>
-                          ) : null}
-                          {right ? (
-                            <Link
-                              href={`/dashboard/idpo/runs/${encodeURIComponent(rightOverview.run.runId)}/docs/${encodeURIComponent(docId)}`}
-                              className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
-                            >
-                              Right
-                            </Link>
-                          ) : null}
-                        </div>
-                      </td>
+                      <td className="px-2 py-2 text-xs text-slate-400 dark:text-slate-500">-</td>
                     </tr>
                   ))}
                 </tbody>

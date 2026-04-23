@@ -101,11 +101,13 @@ class OcrAgent(Agent):
                     ocr_text, page_used, page_failure, ocr_meta = self._ocr_image(page, settings, engine_name=str(engine))
                 used_image_ocr = used_image_ocr or page_used
                 initial_conf = self._safe_confidence(ocr_meta.get("ocr_confidence"))
+                initial_noise_ratio = self._ocr_noise_ratio(ocr_text)
+                rerun_reason = self._ocr_rerun_reason(ocr_text, initial_conf, ctx)
                 if (
                     page_used
                     and not page_failure
                     and ocr_text
-                    and initial_conf < float(ctx.config.preprocessing.ocr_min_confidence)
+                    and rerun_reason is not None
                     and int(ctx.config.preprocessing.ocr_max_reruns_per_page) > 0
                 ):
                     rerun_attempted_pages += 1
@@ -121,9 +123,13 @@ class OcrAgent(Agent):
                         ocr_meta = dict(retry_meta)
                         page_failure = None
                         rerun_used_pages += 1
+                    ocr_meta["ocr_rerun_reason"] = rerun_reason
+                    ocr_meta["ocr_noise_ratio"] = initial_noise_ratio
                     ocr_meta["ocr_rerun_attempted"] = True
                     ocr_meta["ocr_rerun_used"] = bool(retry_text and retry_score > current_score + rerun_min_gain)
                 else:
+                    ocr_meta["ocr_rerun_reason"] = rerun_reason
+                    ocr_meta["ocr_noise_ratio"] = initial_noise_ratio
                     ocr_meta["ocr_rerun_attempted"] = False
                     ocr_meta["ocr_rerun_used"] = False
                 if page_failure and failure_reason is None:
@@ -178,6 +184,8 @@ class OcrAgent(Agent):
                         "ocr_rotation_applied": ocr_meta.get("ocr_rotation_applied", 0),
                         "ocr_rerun_attempted": ocr_meta.get("ocr_rerun_attempted", False),
                         "ocr_rerun_used": ocr_meta.get("ocr_rerun_used", False),
+                        "ocr_rerun_reason": ocr_meta.get("ocr_rerun_reason"),
+                        "ocr_noise_ratio": ocr_meta.get("ocr_noise_ratio"),
                         "ocr_dpi": dpi,
                         "ocr_engine_used": ocr_meta.get("ocr_engine_used", engine),
                     },
@@ -687,6 +695,34 @@ class OcrAgent(Agent):
         text_quality = self._score_text(text)
         conf_quality = max(0.0, min(ocr_confidence, 100.0)) / 100.0
         return (text_quality * 0.65) + (conf_quality * 0.35)
+
+    def _ocr_rerun_reason(self, text: str, ocr_confidence: float, ctx: AgentContext) -> str | None:
+        if ocr_confidence < float(ctx.config.preprocessing.ocr_min_confidence):
+            return "low_confidence"
+        if self._ocr_noise_ratio(text) >= 0.12:
+            return "noisy_text"
+        return None
+
+    def _ocr_noise_ratio(self, text: str) -> float:
+        if not text:
+            return 1.0
+        suspicious = 0
+        tokens = text.split()
+        for token in tokens:
+            stripped = token.strip()
+            if not stripped:
+                continue
+            alpha = sum(1 for ch in stripped if ch.isalpha())
+            digit = sum(1 for ch in stripped if ch.isdigit())
+            punct = sum(1 for ch in stripped if not ch.isalnum())
+            if punct >= max(alpha + digit, 1):
+                suspicious += 1
+            elif len(stripped) >= 6 and alpha > 0 and digit > 0 and (alpha + digit) == len(stripped):
+                suspicious += 1
+            elif len(stripped) >= 8 and alpha >= 5 and punct >= 2:
+                suspicious += 1
+        total_tokens = max(len(tokens), 1)
+        return min(suspicious / total_tokens, 1.0)
 
     def _apply_orientation_correction(self, img, pytesseract, lang: str) -> tuple[object, int]:
         rotation = self._detect_rotation_degrees(img, pytesseract, lang)

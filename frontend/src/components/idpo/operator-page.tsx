@@ -331,9 +331,13 @@ export function SettingsPanel({
             onChange={(event) => setAdaptiveMode(event.target.value as "static" | "adaptive_safe")}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
           >
-            <option value="adaptive_safe">Adaptive</option>
-            <option value="static">Strict</option>
+            <option value="adaptive_safe">Adaptive (AHMN policy advice)</option>
+            <option value="static">Static (local policy store only)</option>
           </select>
+          <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+            Adaptive asks AHMN for a policy recommendation per document; falls back to the static baseline if AHMN is unreachable, times out, or recommends a blocked policy.
+            Static picks a policy from the local policy store by matching the document&rsquo;s doc_type and content_profile.
+          </span>
         </label>
 
         <button
@@ -538,11 +542,19 @@ export function ResultsSection({
 
       {hasSupportSignals ? (
         <IdpoCard>
-          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
-            <span className="font-medium text-slate-900 dark:text-white">Adaptive support</span>
-            <span>AHMN advice: {supportSummary.ahmnAdviceCount}</span>
-            <span>XAI explanations: {supportSummary.xaiExplanationCount}</span>
-            <span>HITL feedback: {supportSummary.hitlFeedbackCount}</span>
+          <div className="space-y-1 text-sm text-slate-600 dark:text-slate-300">
+            <div className="font-medium text-slate-900 dark:text-white">Adaptive run telemetry</div>
+            <div className="flex flex-wrap items-center gap-4">
+              <span title="Documents where AHMN returned a policy recommendation (accepted, rejected, or changed vs. static baseline).">
+                AHMN advice returned: {supportSummary.ahmnAdviceCount}
+              </span>
+              <span title="Documents with an XAI explanation artifact (cross-attention + LIME attributions over extracted fields).">
+                XAI explanations produced: {supportSummary.xaiExplanationCount}
+              </span>
+              <span title="Documents with reviewer feedback logged to AHMN (/advice/feedback or /advice/review).">
+                HITL feedback logged: {supportSummary.hitlFeedbackCount}
+              </span>
+            </div>
           </div>
         </IdpoCard>
       ) : null}

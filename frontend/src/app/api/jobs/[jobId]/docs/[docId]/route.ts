@@ -12,6 +12,7 @@ import {
   readReviewArtifact,
   writeReviewArtifact,
 } from "@/server/review";
+import { refreshJobValidationContext } from "@/server/review-context";
 import type { ReviewFieldResult } from "@/server/review";
 
 export const runtime = "nodejs";
@@ -173,6 +174,7 @@ export async function POST(request: Request, { params }: Params) {
         applyReviewToJobDocument(currentDocument, reviewedArtifact, runId, mode);
       }
       const reviewStats = collectJobReviewLearningStats(current, current.fieldConfigCurrent ?? []);
+      current.reviewContext = refreshJobValidationContext(current, current.fieldConfigCurrent ?? [], "human_review");
       if (current.ahmnSummary) {
         current.ahmnSummary.reviewedDocumentCount = reviewStats.reviewedDocumentCount;
         current.ahmnSummary.reviewedHumanCount = reviewStats.reviewedHumanCount;

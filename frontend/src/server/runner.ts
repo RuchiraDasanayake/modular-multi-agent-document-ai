@@ -18,6 +18,7 @@ import {
 import { findNewestRunIdAfter, getRunDocument, getRunOverview } from "@/server/artifacts";
 import { ensurePathInside, resolvePathForDisplay, resolvePrimaryRunPath, resolveRunRoot } from "@/server/paths";
 import { ensureJobEffectivePolicyStore } from "@/server/policies";
+import { readJobValidationContext } from "@/server/review-context";
 import { buildJobOverlay, collectJobReviewLearningStats, readReviewArtifact, summarizeReviewState } from "@/server/review";
 
 interface StartRunRequest {
@@ -176,7 +177,29 @@ function resolveConfigPathFromSettings(settings: StartRunRequest["settings"]): s
   return ensurePathInside(config.workspaceRoot, candidate);
 }
 
-function patchConfig(baseConfig: Record<string, unknown>, settings: StartRunRequest["settings"]): Record<string, unknown> {
+function reviewContextNotesForField(jobId: string, fieldKey: string): string[] {
+  const context = readJobValidationContext(jobId);
+  if (!context) {
+    return [];
+  }
+  const normalizedField = fieldKey.trim().toLowerCase();
+  const sections = [
+    ...context.current.summary.fieldClarifications,
+    ...context.current.summary.reviewedCorrectionPatterns,
+    ...context.current.summary.recurringFailurePatterns,
+  ];
+  return sections.filter((entry) => entry.toLowerCase().includes(normalizedField)).slice(0, 3);
+}
+
+function mergeFieldDescription(baseDescription: string | undefined, reviewNotes: string[]): string | undefined {
+  const parts = [baseDescription?.trim() ?? "", ...reviewNotes.map((note) => note.trim())].filter(Boolean);
+  if (parts.length === 0) {
+    return undefined;
+  }
+  return parts.join(" ");
+}
+
+function patchConfig(baseConfig: Record<string, unknown>, settings: StartRunRequest["settings"], jobId: string): Record<string, unknown> {
   const updated = structuredClone(baseConfig);
 
   if (settings.adaptiveMode) {
@@ -276,8 +299,9 @@ function patchConfig(baseConfig: Record<string, unknown>, settings: StartRunRequ
         label,
         pattern,
       });
-      if (field.description?.trim()) {
-        descriptions[key] = field.description.trim();
+      const mergedDescription = mergeFieldDescription(field.description, reviewContextNotesForField(jobId, key));
+      if (mergedDescription) {
+        descriptions[key] = mergedDescription;
       }
     }
 
@@ -300,7 +324,7 @@ function prepareRuntimeConfig(baseConfigPath: string, jobId: string, settings: S
     }
   }
 
-  const finalConfig = patchConfig(baseConfig, settings);
+  const finalConfig = patchConfig(baseConfig, settings, jobId);
   const knowledge = ((finalConfig.knowledge as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
   knowledge.policy_store_path = ensureJobEffectivePolicyStore(jobId);
   if (typeof knowledge.default_policy_id !== "string" || !knowledge.default_policy_id.trim()) {
@@ -665,6 +689,220 @@ function appendRunOutcome(
   document.reviewSource = outcome.reviewSource ?? null;
   document.status = nextStatus;
   document.updatedAt = nowIso();
+}
+
+function sameFieldValues(
+  left: Record<string, string>,
+  right: Record<string, string>,
+): boolean {
+  const leftEntries = Object.entries(left).sort(([a], [b]) => a.localeCompare(b));
+  const rightEntries = Object.entries(right).sort(([a], [b]) => a.localeCompare(b));
+  if (leftEntries.length !== rightEntries.length) {
+    return false;
+  }
+  return leftEntries.every(([key, value], index) => {
+    const [rightKey, rightValue] = rightEntries[index] ?? [];
+    return key === rightKey && value === rightValue;
+  });
+}
+
+function outcomeMatches(
+  current: JobDocumentRecord["outcomes"][number] | null,
+  next: JobDocumentRecord["outcomes"][number],
+  nextStatus: JobDocumentRecord["status"],
+  document: JobDocumentRecord,
+): boolean {
+  if (!current) {
+    return false;
+  }
+  return (
+    current.docId === next.docId &&
+    current.status === next.status &&
+    current.route === next.route &&
+    current.policy === next.policy &&
+    current.errorSummary === next.errorSummary &&
+    current.reviewState === next.reviewState &&
+    current.reviewStatus === next.reviewStatus &&
+    current.reviewSource === next.reviewSource &&
+    current.adviceInfluenced === next.adviceInfluenced &&
+    current.feedbackLogged === next.feedbackLogged &&
+    current.fallbackReason === next.fallbackReason &&
+    current.exactPrecision === next.exactPrecision &&
+    current.exactRecall === next.exactRecall &&
+    current.exactF1 === next.exactF1 &&
+    sameFieldValues(current.fieldValues, next.fieldValues) &&
+    document.status === nextStatus
+  );
+}
+
+function resolveActiveRunId(run: NonNullable<JobStatus["runs"]>[number]): { runId: string | null; runPath: string | null } {
+  if (run.runId) {
+    return { runId: run.runId, runPath: run.runPath ?? resolvePathForDisplay(path.join(loadRunnerConfig().runsDir, run.runId)) };
+  }
+  const startedAtMs = Date.parse(run.startedAt ?? run.createdAt ?? "");
+  if (Number.isNaN(startedAtMs)) {
+    return { runId: null, runPath: null };
+  }
+  const discoveredRunId = findNewestRunIdAfter(startedAtMs);
+  if (!discoveredRunId) {
+    return { runId: null, runPath: null };
+  }
+  return {
+    runId: discoveredRunId,
+    runPath: resolvePathForDisplay(path.join(loadRunnerConfig().runsDir, discoveredRunId)),
+  };
+}
+
+function expectedRunDocId(document: JobDocumentRecord): string {
+  return path.parse(document.storedName).name;
+}
+
+function hasCompletedRunArtifacts(runId: string, docId: string): boolean {
+  const resolved = resolveRunRoot(runId);
+  const primaryPath = resolvePrimaryRunPath(resolved.rootPath);
+  const docDir = path.join(primaryPath, "docs", docId);
+  if (!fs.existsSync(docDir)) {
+    return false;
+  }
+  const completionMarkers = [
+    path.join(docDir, "decision_chain.json"),
+    path.join(docDir, "reward.json"),
+    path.join(docDir, "provenance", "transparency.json"),
+  ];
+  return completionMarkers.some((candidate) => fs.existsSync(candidate));
+}
+
+function isPlaceholderOutcome(outcome: JobDocumentRecord["outcomes"][number]): boolean {
+  return (
+    outcome.status === "processed" &&
+    outcome.policy == null &&
+    outcome.route == null &&
+    outcome.errorSummary == null &&
+    Object.keys(outcome.fieldValues).length === 0
+  );
+}
+
+function nextDocumentStatusForRun(job: JobStatus, document: JobDocumentRecord, jobRunId: string): JobDocumentRecord["status"] {
+  const hasOtherPendingRuns = (job.runs ?? []).some(
+    (run) =>
+      run.jobRunId !== jobRunId &&
+      (run.status === "queued" || run.status === "running") &&
+      run.selectedFileIds.includes(document.fileId),
+  );
+  return hasOtherPendingRuns ? "processing" : "processed";
+}
+
+export function syncActiveJobProgress(jobId: string): JobStatus {
+  const current = getJobOrThrow(jobId);
+  const activeRuns = (current.runs ?? []).filter((run) => (run.status === "queued" || run.status === "running"));
+  if (activeRuns.length === 0) {
+    return current;
+  }
+
+  let changed = false;
+  const synced = mutateJob(jobId, (job) => {
+    for (const run of job.runs ?? []) {
+      if (run.status !== "queued" && run.status !== "running") {
+        continue;
+      }
+
+      const resolved = resolveActiveRunId(run);
+      if (!resolved.runId) {
+        continue;
+      }
+      if (!run.runId) {
+        run.runId = resolved.runId;
+        run.runPath = resolved.runPath;
+        run.status = "running";
+        changed = true;
+      }
+
+      let completedCount = 0;
+
+      for (const fileId of run.selectedFileIds) {
+        const document = (job.documents ?? []).find((item) => item.fileId === fileId);
+        if (!document) {
+          continue;
+        }
+
+        const docId = expectedRunDocId(document);
+        const existing = document.outcomes.find((item) => item.runId === resolved.runId && item.mode === run.mode) ?? null;
+        if (!hasCompletedRunArtifacts(resolved.runId, docId)) {
+          if (existing && isPlaceholderOutcome(existing)) {
+            document.outcomes = document.outcomes.filter((item) => !(item.runId === resolved.runId && item.mode === run.mode));
+            document.status = "processing";
+            document.latestRunId = existing.runId === document.latestRunId ? null : document.latestRunId;
+            document.latestDocId = existing.docId === document.latestDocId ? null : document.latestDocId;
+            document.latestRoute = existing.route === document.latestRoute ? null : document.latestRoute;
+            document.latestPolicy = existing.policy === document.latestPolicy ? null : document.latestPolicy;
+            changed = true;
+          }
+          continue;
+        }
+        completedCount += 1;
+
+        let outcome: JobDocumentRecord["outcomes"][number];
+        try {
+          const detail = getRunDocument(resolved.runId, docId);
+          const reviewArtifact = readReviewArtifact(resolved.runId, docId);
+          const metadata =
+            detail.metadata && typeof detail.metadata === "object" ? (detail.metadata as Record<string, unknown>) : {};
+          outcome = {
+            runId: resolved.runId,
+            mode: run.mode,
+            docId,
+            status: "processed",
+            route: typeof metadata.routeBin === "string" ? metadata.routeBin : null,
+            policy: typeof metadata.policyId === "string" ? metadata.policyId : null,
+            errorSummary: null,
+            reviewState: reviewArtifact ? summarizeReviewState(reviewArtifact) : buildReviewState(detail),
+            reviewStatus: reviewArtifact?.reviewStatus ?? "unreviewed",
+            reviewSource: reviewArtifact?.reviewSource ?? null,
+            fieldValues: buildFieldValuesFromDetail(detail),
+            adviceInfluenced: Boolean(metadata.policyChanged) || Boolean(metadata.adviceAccepted),
+            feedbackLogged: Boolean(detail.feedbackStatus && typeof detail.feedbackStatus === "object" && (detail.feedbackStatus as Record<string, unknown>).logged),
+            fallbackReason: typeof metadata.fallbackReason === "string" ? metadata.fallbackReason : null,
+            exactPrecision: reviewArtifact?.metrics.precision ?? null,
+            exactRecall: reviewArtifact?.metrics.recall ?? null,
+            exactF1: reviewArtifact?.metrics.f1 ?? null,
+          };
+        } catch {
+          outcome = {
+            runId: resolved.runId,
+            mode: run.mode,
+            docId,
+            status: "processed",
+            route: null,
+            policy: null,
+            errorSummary: null,
+            reviewState: "clear",
+            reviewStatus: "unreviewed",
+            reviewSource: null,
+            fieldValues: {},
+            adviceInfluenced: false,
+            feedbackLogged: false,
+            fallbackReason: null,
+            exactPrecision: null,
+            exactRecall: null,
+            exactF1: null,
+          };
+        }
+
+        const nextStatus = nextDocumentStatusForRun(job, document, run.jobRunId);
+        if (outcomeMatches(existing, outcome, nextStatus, document)) {
+          continue;
+        }
+
+        appendRunOutcome(document, outcome, nextStatus);
+        changed = true;
+      }
+      run.processedCount = completedCount;
+      run.failedCount = Math.max(run.selectedFileIds.length - completedCount, 0);
+    }
+    return job;
+  });
+
+  return changed ? synced : current;
 }
 
 function finalizeSelectedDocuments(

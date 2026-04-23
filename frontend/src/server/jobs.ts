@@ -14,9 +14,25 @@ import type {
 import { loadRunnerConfig } from "@/server/config";
 
 const inMemoryJobs = new Map<string, JobStatus>();
+const JOB_FILE_PATTERN = /^[a-f0-9]{32}\.json$/i;
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function defaultJobName(createdAt?: string): string {
+  const timestamp = typeof createdAt === "string" ? createdAt : nowIso();
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return "New job";
+  }
+  const stamp = new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+  return `Job ${stamp}`;
 }
 
 function emptyAhmnSummary(): JobAHMNSummary {
@@ -176,6 +192,8 @@ function normalizeDocuments(value: unknown): JobDocumentRecord[] {
               ? record.reviewStatus
               : null,
           reviewSource: record.reviewSource === "ai" || record.reviewSource === "human" ? record.reviewSource : null,
+          reviewStage: record.reviewStage === "local" || record.reviewStage === "cloud" ? record.reviewStage : null,
+          reviewConfidence: typeof record.reviewConfidence === "number" ? record.reviewConfidence : null,
           fieldValues:
             record.fieldValues && typeof record.fieldValues === "object" && !Array.isArray(record.fieldValues)
               ? (record.fieldValues as Record<string, string>)
@@ -203,6 +221,8 @@ function normalizeDocuments(value: unknown): JobDocumentRecord[] {
           ? entry.reviewStatus
           : null,
       reviewSource: entry.reviewSource === "ai" || entry.reviewSource === "human" ? entry.reviewSource : null,
+      reviewStage: entry.reviewStage === "local" || entry.reviewStage === "cloud" ? entry.reviewStage : null,
+      reviewConfidence: typeof entry.reviewConfidence === "number" ? entry.reviewConfidence : null,
       latestRoute: typeof entry.latestRoute === "string" ? entry.latestRoute : null,
       latestPolicy: typeof entry.latestPolicy === "string" ? entry.latestPolicy : null,
       latestRunId: typeof entry.latestRunId === "string" ? entry.latestRunId : null,
@@ -290,7 +310,10 @@ function normalizeJob(job: JobStatus): JobStatus {
     runPath: typeof job.runPath === "string" ? job.runPath : null,
     logs: Array.isArray(job.logs) ? job.logs.filter((line): line is string => typeof line === "string") : [],
     settings: job.settings && typeof job.settings === "object" ? job.settings : {},
-    jobName: typeof job.jobName === "string" ? job.jobName : "",
+    jobName:
+      typeof job.jobName === "string" && job.jobName.trim()
+        ? job.jobName.trim()
+        : defaultJobName(createdAt),
     mode: job.mode === "adaptive" || job.mode === "strict" || job.mode === "both" ? job.mode : "adaptive",
     fieldConfigCurrent: normalizeFieldConfig(job.fieldConfigCurrent),
     documents,
@@ -354,7 +377,7 @@ export function createWorkspaceJob(
     runPath: null,
     logs: [],
     settings: options?.settings ?? {},
-    jobName: options?.jobName?.trim() ?? "",
+    jobName: options?.jobName?.trim() || defaultJobName(createdAt),
     mode: options?.mode ?? "adaptive",
     fieldConfigCurrent: options?.fieldConfigCurrent ?? [],
     documents: [],
@@ -492,7 +515,7 @@ export function listJobs(limit = 50): JobStatus[] {
   const config = loadRunnerConfig();
   const files = fs
     .readdirSync(config.jobsDir, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".json") && !entry.name.endsWith("_runtime_config.json"))
+    .filter((entry) => entry.isFile() && JOB_FILE_PATTERN.test(entry.name))
     .map((entry) => path.join(config.jobsDir, entry.name))
     .sort((a, b) => {
       const aStat = fs.statSync(a);

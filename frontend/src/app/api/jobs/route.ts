@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createWorkspaceJob, listJobs } from "@/server/jobs";
 import { apiError } from "@/server/api/response";
+import { syncActiveJobProgress } from "@/server/runner";
+import { readJobValidationContext } from "@/server/review-context";
 import type { JobExecutionMode, JobFieldConfig } from "@/types/idpo";
 
 export const runtime = "nodejs";
@@ -38,7 +40,15 @@ function parseFieldConfig(value: unknown): JobFieldConfig[] {
 
 export async function GET() {
   try {
-    const jobs = listJobs(100);
+    const jobs = listJobs(100).map((job) =>
+      job.status === "queued" || job.status === "running" ? syncActiveJobProgress(job.jobId) : job,
+    );
+    for (const job of jobs) {
+      const reviewContext = readJobValidationContext(job.jobId);
+      if (reviewContext) {
+        job.reviewContext = reviewContext;
+      }
+    }
     return NextResponse.json({ jobs }, { headers: NO_STORE_HEADERS });
   } catch (error) {
     return apiError(error, 500);

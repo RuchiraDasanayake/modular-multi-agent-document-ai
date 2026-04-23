@@ -97,7 +97,7 @@ function titleCase(value: string): string {
 }
 
 type EvidenceTarget = "fields" | "review" | "notes" | null;
-type InspectorTab = "fields" | "review" | "notes" | "log";
+type InspectorTab = "fields" | "review" | "notes" | "log" | "llm";
 
 function normalizeFieldKey(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, "_");
@@ -351,6 +351,266 @@ function collectFieldEvidenceFacts(field: FieldExtraction | null): string[] {
   return facts;
 }
 
+function asRecordArray(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+}
+
+function formatAuditValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value.trim() || "-";
+  }
+  if (typeof value === "boolean") {
+    return value ? "yes" : "no";
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      return "-";
+    }
+    return Number.isInteger(value) ? String(value) : value.toFixed(2);
+  }
+  if (Array.isArray(value)) {
+    const flattened = value.map((entry) => formatAuditValue(entry)).filter((entry) => entry !== "-");
+    return flattened.length > 0 ? flattened.join(", ") : "-";
+  }
+  if (value && typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return "[object]";
+    }
+  }
+  return "-";
+}
+
+function collectAuditFacts(
+  call: Record<string, unknown>,
+): Array<{ label: string; value: string }> {
+  const request = asRecord(call.request) ?? {};
+  const context = asRecord(call.context) ?? {};
+  const facts: Array<{ label: string; value: string }> = [];
+
+  const pushFact = (label: string, value: unknown) => {
+    const formatted = formatAuditValue(value);
+    if (formatted === "-") {
+      return;
+    }
+    facts.push({ label, value: formatted });
+  };
+
+  pushFact("Provider", call.provider);
+  pushFact("Model", call.model);
+  pushFact("Endpoint", call.endpoint ?? request.endpoint);
+  pushFact("Format", request.format);
+  pushFact("Latency", typeof call.latency_ms === "number" ? `${formatAuditValue(call.latency_ms)} ms` : null);
+  pushFact("Prompt tokens", call.prompt_tokens);
+  pushFact("Completion tokens", call.completion_tokens);
+  pushFact("Total tokens", call.total_tokens);
+  pushFact("Prompt chars", call.prompt_chars);
+  pushFact("Requested fields", call.requested_fields);
+  pushFact("Returned fields", call.entity_count);
+  pushFact("Done reason", call.done_reason);
+  pushFact("Error", sanitizeUiErrorText(call.error));
+  pushFact("Parse failed", call.parse_failed);
+  pushFact("Context", context.strategy);
+  pushFact("Truncated", context.truncated);
+  pushFact("Temperature", request.temperature);
+  pushFact("Top p", request.top_p);
+  pushFact("Num predict", request.num_predict);
+  pushFact("Max tokens", request.max_tokens);
+  pushFact("Strict JSON", request.strict_json_output);
+
+  return facts;
+}
+
+function formatPercentValue(value: unknown): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "-";
+  }
+  const percent = value > 1 ? value : value * 100;
+  return `${percent.toFixed(1)}%`;
+}
+
+function formatScoreValue(value: unknown): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "-";
+  }
+  return value.toFixed(2);
+}
+
+function sanitizeUiErrorText(value: unknown): string {
+  if (typeof value !== "string") {
+    return formatAuditValue(value);
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "-";
+  }
+  if (/incorrect api key|invalid api key|authentication|401/i.test(trimmed)) {
+    return "authentication_failed";
+  }
+  return trimmed.replace(/\b(?:sk|rk|api[_-]?key)[-_a-zA-Z0-9]{8,}\b/gi, "[redacted]");
+}
+
+function describeExtractionSource(source: string): string {
+  switch (source) {
+    case "llm_local":
+      return "local model";
+    case "llm_cloud":
+      return "cloud model";
+    case "generic_kv":
+      return "Generic KV";
+    case "smart_heuristic":
+      return "smart heuristic";
+    case "schema_regex":
+      return "schema regex";
+    case "label_anchor":
+      return "label anchor";
+    case "label_anchor_next_line":
+      return "next-line label anchor";
+    case "schema_match":
+      return "schema match";
+    case "rule_based":
+      return "rules";
+    case "none":
+      return "no model";
+    default:
+      return titleCase(source);
+  }
+}
+
+function deriveFinalExtractionSummary(
+  fields: FieldExtraction[],
+  metadata: Record<string, unknown>,
+  llmDiagnostics: Record<string, unknown>,
+): {
+  finalModel: string;
+  finalSource: string;
+  summary: string;
+} {
+  const fieldModels = [...new Set(
+    fields
+      .map((field) => (typeof field.metadata?.model === "string" ? field.metadata.model.trim() : ""))
+      .filter((value) => value.length > 0),
+  )];
+  const fieldSources = [...new Set(
+    fields
+      .map((field) => (typeof field.metadata?.source === "string" ? field.metadata.source.trim() : ""))
+      .filter((value) => value.length > 0),
+  )];
+
+  const plannedModel = typeof metadata.modelUsed === "string" ? metadata.modelUsed.trim() : "";
+  const plannedMode = typeof metadata.modelMode === "string" ? metadata.modelMode.trim() : "";
+  const localSucceeded = llmDiagnostics.local_succeeded === true;
+  const localAttempted = llmDiagnostics.local_attempted === true;
+  const cloudAttempted = llmDiagnostics.cloud_attempted === true;
+  const cloudSucceeded = llmDiagnostics.cloud_succeeded === true;
+  const singleFieldSource = fieldSources.length === 1 ? fieldSources[0] : "";
+  const singleFieldSourceLabel = singleFieldSource ? describeExtractionSource(singleFieldSource) : "";
+  const finalUsesPlannedLlmSource =
+    (plannedMode === "local" && fieldSources.includes("llm_local")) ||
+    (plannedMode === "cloud" && fieldSources.includes("llm_cloud"));
+
+  const finalModel =
+    fieldModels.length === 1
+      ? fieldModels[0]
+      : fieldModels.length > 1
+        ? "Mixed models"
+        : singleFieldSource && !fieldSources.some((source) => source.startsWith("llm_"))
+          ? singleFieldSourceLabel
+          : plannedModel || "-";
+  const finalSource =
+    fieldSources.length === 1
+      ? singleFieldSourceLabel
+      : fieldSources.length > 1
+        ? "mixed sources"
+        : plannedMode
+          ? `${plannedMode} route`
+          : "-";
+
+  let summary = "No final extraction source was recorded.";
+  if (fieldModels.length === 1) {
+    summary =
+      plannedModel && plannedModel !== fieldModels[0]
+        ? `Planned ${plannedModel}; final value came from ${fieldModels[0]}.`
+        : `Final value came from ${fieldModels[0]}.`;
+  } else if (fieldSources.length > 1) {
+    summary = "Final fields came from mixed extraction sources.";
+  } else if (singleFieldSourceLabel && !finalUsesPlannedLlmSource) {
+    summary =
+      plannedModel && plannedModel.length > 0
+        ? `Planned ${plannedModel}; final fields came from ${singleFieldSourceLabel}.`
+        : `Final fields came from ${singleFieldSourceLabel}.`;
+  } else if (plannedModel) {
+    summary = `Final extraction followed the planned ${plannedModel} route.`;
+  }
+
+  if (cloudAttempted && !cloudSucceeded && localSucceeded && fieldSources.includes("llm_local")) {
+    summary += " Cloud retries failed and were not used.";
+  } else if (cloudSucceeded && fieldSources.includes("llm_cloud")) {
+    summary += " Cloud fallback supplied the final value.";
+  } else if (localAttempted && !localSucceeded && singleFieldSourceLabel && !fieldSources.includes("llm_local")) {
+    summary += ` The local model failed, so the final fields came from ${singleFieldSourceLabel}.`;
+  }
+
+  return { finalModel, finalSource, summary };
+}
+
+function deriveFallbackSummary(
+  llmDiagnostics: Record<string, unknown>,
+  fallbackKeys: string[],
+  finalSummary: { finalModel: string; finalSource: string },
+): { title: string; detail: string } {
+  const cloudAttempted = llmDiagnostics.cloud_attempted === true;
+  const cloudSucceeded = llmDiagnostics.cloud_succeeded === true;
+  const localSucceeded = llmDiagnostics.local_succeeded === true;
+  const flagshipAttempted = llmDiagnostics.flagship_attempted === true;
+  const localAttempted = llmDiagnostics.local_attempted === true;
+  const finalSource = finalSummary.finalSource.toLowerCase();
+
+  if (!cloudAttempted && !flagshipAttempted) {
+    if (localAttempted && !localSucceeded && finalSource !== "-" && finalSource !== "local route") {
+      return {
+        title: "Built-in fallback used",
+        detail: `The local model failed, so the final result came from ${finalSummary.finalSource}.`,
+      };
+    }
+    return {
+      title: "No fallback needed",
+      detail: "The initial extraction path was enough.",
+    };
+  }
+  if (cloudSucceeded) {
+    return {
+      title: "Cloud fallback used",
+      detail:
+        fallbackKeys.length > 0
+          ? `Retried fields: ${fallbackKeys.join(", ")}.`
+          : "A cloud retry supplied the final extraction.",
+    };
+  }
+  if (localSucceeded && cloudAttempted) {
+    return {
+      title: "Recovered on the local model",
+      detail:
+        fallbackKeys.length > 0
+          ? `Retried fields: ${fallbackKeys.join(", ")}. Final result stayed on ${finalSummary.finalModel}.`
+          : `Final result stayed on ${finalSummary.finalModel}.`,
+    };
+  }
+  return {
+    title: "Fallback attempted",
+    detail:
+      fallbackKeys.length > 0
+        ? `Retried fields: ${fallbackKeys.join(", ")}.`
+        : "Retries were attempted, but no clear final fallback source was recorded.",
+  };
+}
+
 export function JobDocumentPage() {
   const params = useParams<{ jobId: string; docId: string }>();
   const searchParams = useSearchParams();
@@ -469,6 +729,7 @@ export function JobDocumentPage() {
   const xai = (support.xai ?? {}) as Record<string, unknown>;
   const hitl = (support.hitl ?? {}) as Record<string, unknown>;
   const detail = (payload?.detail ?? {}) as Record<string, unknown>;
+  const llmDiagnostics = asRecord(detail.llmDiagnostics) ?? {};
   const detailedFields = (Array.isArray(detail.fields) ? detail.fields : []) as FieldExtraction[];
   const metadata = (detail.metadata ?? {}) as Record<string, unknown>;
   const validationIssues = Array.isArray(detail.validationIssues) ? detail.validationIssues : [];
@@ -546,6 +807,34 @@ export function JobDocumentPage() {
       return field ? selectedIssueFields.includes(normalizeFieldKey(field)) : false;
     });
   }, [selectedEvent, selectedIssueFields, validationIssues]);
+
+  const localCall = asRecord(llmDiagnostics.local_call);
+  const cloudCalls = asRecordArray(llmDiagnostics.cloud_calls);
+  const cloudUsage = asRecord(llmDiagnostics.cloud_usage) ?? {};
+  const fallbackKeys = asStringArray(llmDiagnostics.fallback_keys);
+  const llmCallSections = [
+    ...(localCall ? [{ title: "Local attempt", value: localCall }] : []),
+    ...cloudCalls.map((call, index) => ({
+      title:
+        typeof llmDiagnostics.flagship_model === "string" &&
+        llmDiagnostics.flagship_model === call.model
+          ? "Flagship retry"
+          : index === 0
+            ? "Cloud attempt"
+            : `Cloud retry ${index + 1}`,
+      value: call,
+    })),
+  ];
+  const finalExtraction = deriveFinalExtractionSummary(detailedFields, metadata, llmDiagnostics);
+  const fallbackSummary = deriveFallbackSummary(llmDiagnostics, fallbackKeys, finalExtraction);
+  const reviewSource = typeof review?.reviewSource === "string" ? review.reviewSource : null;
+  const reviewIsAi = reviewSource === "ai";
+  const reviewSourceLabel =
+    reviewIsAi
+      ? `auto review${typeof review?.reviewerConfidence === "number" ? ` / ${formatPercentValue(review.reviewerConfidence)}` : ""}`
+      : reviewSource === "human"
+        ? "human review"
+        : "-";
 
   useEffect(() => {
     if (!focusedSection) {
@@ -649,7 +938,7 @@ export function JobDocumentPage() {
       await reloadDocument();
       setError("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to validate document");
+      setError(err instanceof Error ? err.message : "Failed to auto review document");
     } finally {
       setSavingReview(false);
     }
@@ -1117,11 +1406,146 @@ export function JobDocumentPage() {
     </div>
   );
 
+  const llmSection = (
+    <div className="space-y-4">
+      <IdpoCard>
+        <h2 className="text-base font-semibold text-slate-900 dark:text-white">LLM extraction</h2>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+          Simple audit view for what the extraction model did, whether it fell back, and the exact prompt/response when
+          persisted.
+        </p>
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{finalExtraction.summary}</p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/40">
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Routing</div>
+            <div className="mt-1 font-medium text-slate-900 dark:text-white">{formatAuditValue(llmDiagnostics.strategy)}</div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/40">
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Planned mode</div>
+            <div className="mt-1 font-medium text-slate-900 dark:text-white">{formatAuditValue(llmDiagnostics.requested_mode)}</div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/40">
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Retried fields</div>
+            <div className="mt-1 font-medium text-slate-900 dark:text-white">
+              {fallbackKeys.length > 0 ? fallbackKeys.join(", ") : "none"}
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/40">
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Local attempt</div>
+            <div className="mt-1 font-medium text-slate-900 dark:text-white">
+              {llmDiagnostics.local_attempted === true
+                ? llmDiagnostics.local_succeeded === true
+                  ? "succeeded"
+                  : `failed${typeof llmDiagnostics.local_failure_reason === "string" ? ` - ${llmDiagnostics.local_failure_reason}` : ""}`
+                : "not used"}
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/40">
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Cloud attempt</div>
+            <div className="mt-1 font-medium text-slate-900 dark:text-white">
+              {llmDiagnostics.cloud_attempted === true
+                ? llmDiagnostics.cloud_succeeded === true
+                  ? "succeeded"
+                  : `failed${typeof llmDiagnostics.cloud_failure_reason === "string" ? ` - ${llmDiagnostics.cloud_failure_reason}` : ""}`
+                : "not used"}
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/40">
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Cloud usage</div>
+            <div className="mt-1 font-medium text-slate-900 dark:text-white">
+              {typeof cloudUsage.total_tokens === "number" && cloudUsage.total_tokens > 0
+                ? `${formatAuditValue(cloudUsage.total_tokens)} tokens`
+                : "none"}
+            </div>
+            {typeof cloudUsage.estimated_cost_usd === "number" && cloudUsage.estimated_cost_usd > 0 ? (
+              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                ${cloudUsage.estimated_cost_usd.toFixed(4)}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </IdpoCard>
+
+      {llmCallSections.length === 0 ? (
+        <IdpoCard>
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            No LLM extraction call was recorded for this document. This usually means extraction stayed on rules and
+            heuristics, or no diagnostics were persisted for this run.
+          </p>
+        </IdpoCard>
+      ) : (
+        llmCallSections.map((section) => {
+          const call = section.value;
+          const rawPrompt = typeof call.raw_prompt === "string" ? call.raw_prompt.trim() : "";
+          const rawResponse =
+            typeof call.raw_response === "string"
+              ? call.raw_response.trim()
+              : typeof call.raw_response_preview === "string"
+                ? call.raw_response_preview.trim()
+                : "";
+          const facts = collectAuditFacts(call);
+
+          return (
+            <IdpoCard key={section.title}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{section.title}</h3>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    {formatAuditValue(call.model)} / {formatAuditValue(call.provider)}
+                  </p>
+                </div>
+                {typeof call.success === "boolean" ? (
+                  <StatusBadge value={call.success ? "succeeded" : "failed"} />
+                ) : null}
+              </div>
+
+              {facts.length > 0 ? (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {facts.map((fact) => (
+                    <div
+                      key={`${section.title}_${fact.label}`}
+                      className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/40"
+                    >
+                      <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{fact.label}</div>
+                      <div className="mt-1 font-medium text-slate-900 dark:text-white">{fact.value}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              {rawPrompt ? (
+                <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-800 dark:bg-slate-950/40">
+                  <summary className="cursor-pointer text-sm font-medium text-slate-900 dark:text-white">Prompt</summary>
+                  <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs text-slate-700 dark:text-slate-200">
+                    {rawPrompt}
+                  </pre>
+                </details>
+              ) : null}
+
+              {rawResponse ? (
+                <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-800 dark:bg-slate-950/40">
+                  <summary className="cursor-pointer text-sm font-medium text-slate-900 dark:text-white">
+                    Response
+                    {typeof call.raw_response_preview === "string" && !("raw_response" in call) ? " preview" : ""}
+                  </summary>
+                  <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs text-slate-700 dark:text-slate-200">
+                    {rawResponse}
+                  </pre>
+                </details>
+              ) : null}
+            </IdpoCard>
+          );
+        })
+      )}
+    </div>
+  );
+
   const inspectorSections: Record<InspectorTab, ReactNode> = {
     fields: extractedFieldsCard,
     review: reviewSection,
     notes: notesSection,
     log: logSection,
+    llm: llmSection,
   };
 
   const inspectorPanel = (
@@ -1131,7 +1555,7 @@ export function JobDocumentPage() {
           <div>
             <h2 className="text-base font-semibold text-slate-900 dark:text-white">Inspector</h2>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Switch between extracted evidence, review findings, execution notes, and the document log.
+              Switch between extracted evidence, review findings, execution notes, the document log, and the LLM audit.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1140,6 +1564,7 @@ export function JobDocumentPage() {
               ["review", "Review"],
               ["notes", "Notes"],
               ["log", "Log"],
+              ["llm", "LLM"],
             ].map(([value, label]) => (
               <button
                 key={value}
@@ -1229,8 +1654,9 @@ export function JobDocumentPage() {
           </p>
         </IdpoCard>
         <IdpoCard>
-          <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Failure</p>
-          <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">{formatValue(payload.errorSummary)}</p>
+          <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Final source</p>
+          <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">{finalExtraction.finalModel}</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{finalExtraction.finalSource}</p>
         </IdpoCard>
       </section>
 
@@ -1239,8 +1665,7 @@ export function JobDocumentPage() {
           <div>
             <h2 className="text-base font-semibold text-slate-900 dark:text-white">Execution path</h2>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              This shows the actual path the document took: selected policy, preprocessing, OCR, model route, and
-              fallback or escalation.
+              Planned route and final extraction outcome, without mixing them together.
             </p>
           </div>
           {policyHref ? (
@@ -1254,7 +1679,7 @@ export function JobDocumentPage() {
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm dark:border-slate-800 dark:bg-slate-950/40">
-            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Policy routing</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Policy decision</div>
             <div className="mt-2 font-medium text-slate-900 dark:text-white">{selectedPolicyId || "No policy recorded"}</div>
             <div className="mt-2 space-y-1 text-slate-600 dark:text-slate-300">
               <p>Route bin: {formatValue(metadata.routeBin ?? payload.latestRoute)}</p>
@@ -1270,37 +1695,41 @@ export function JobDocumentPage() {
             </div>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm dark:border-slate-800 dark:bg-slate-950/40">
-            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Preprocessing and OCR</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">OCR and preprocessing</div>
             <div className="mt-2 font-medium text-slate-900 dark:text-white">
-              {preprocessRoute.length > 0 ? preprocessRoute.join(" -> ") : "No explicit preprocessing route recorded"}
+              {preprocessRoute.length > 0 ? preprocessRoute.join(" -> ") : "No extra preprocessing recorded"}
             </div>
             <div className="mt-2 space-y-1 text-slate-600 dark:text-slate-300">
               <p>OCR engine: {formatValue(metadata.ocrEngineUsed)}</p>
-              <p>OCR confidence: {formatMetric(metadata.ocrAvgConfidence)}</p>
+              <p>OCR confidence: {formatPercentValue(metadata.ocrAvgConfidence)}</p>
               <p>OCR rerun pages: {formatMetric(metadata.ocrRerunUsedPages)}</p>
             </div>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm dark:border-slate-800 dark:bg-slate-950/40">
-            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Extraction model</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Extraction outcome</div>
             <div className="mt-2 font-medium text-slate-900 dark:text-white">
-              {formatValue(metadata.modelUsed)}
+              {finalExtraction.finalModel}
             </div>
             <div className="mt-2 space-y-1 text-slate-600 dark:text-slate-300">
-              <p>Mode: {formatValue(metadata.modelMode)}</p>
-              <p>Reason: {formatValue(metadata.modelReason)}</p>
+              <p>Planned route: {formatValue(metadata.modelUsed)} / {formatValue(metadata.modelMode)}</p>
+              <p>Final source: {finalExtraction.finalSource}</p>
               <p>Unresolved fields: {formatMetric(metadata.unresolvedFieldCount)}</p>
             </div>
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{finalExtraction.summary}</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm dark:border-slate-800 dark:bg-slate-950/40">
-            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Fallback and escalation</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Fallback handling</div>
             <div className="mt-2 font-medium text-slate-900 dark:text-white">
-              {formatValue(metadata.fallbackPath ?? (payload.outcome as Record<string, unknown> | undefined)?.fallbackReason)}
+              {fallbackSummary.title}
             </div>
             <div className="mt-2 space-y-1 text-slate-600 dark:text-slate-300">
+              <p>Planned fallback path: {formatValue(metadata.fallbackPath)}</p>
               <p>Escalated: {formatValue(escalation.escalated)}</p>
               <p>Target model: {escalationTarget ?? "-"}</p>
-              <p>Reason: {escalationReason ?? formatValue(metadata.deferReason)}</p>
             </div>
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+              {fallbackSummary.detail || escalationReason || formatValue(metadata.deferReason)}
+            </p>
           </div>
         </div>
       </IdpoCard>
@@ -1308,9 +1737,11 @@ export function JobDocumentPage() {
       <IdpoCard>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white">Exact review</h2>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white">Review</h2>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Use AI validation for a weak prefill, then save human review to produce the exact field-level score.
+              {reviewIsAi
+                ? "Auto review is provisional. Save human review when you want the document score to count as authoritative."
+                : "Human review is authoritative for policy ranking. Auto review is only a prefill step."}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1320,7 +1751,7 @@ export function JobDocumentPage() {
               disabled={savingReview}
               className="rounded-lg border border-emerald-300 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-60 dark:border-emerald-700/40 dark:text-emerald-300 dark:hover:bg-emerald-900/20"
             >
-              Run AI validation
+              Run auto review
             </button>
             <button
               type="button"
@@ -1332,27 +1763,41 @@ export function JobDocumentPage() {
             </button>
           </div>
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-5">
+        <div className="mt-4 grid gap-3 md:grid-cols-6">
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/40">
             <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Status</div>
-            <div className="mt-1 font-medium text-slate-900 dark:text-white">{formatValue(review?.reviewStatus)}</div>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/40">
-            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Precision</div>
             <div className="mt-1 font-medium text-slate-900 dark:text-white">
-              {formatValue((review?.metrics as Record<string, unknown> | undefined)?.precision ?? metadata.exactPrecision)}
+              {formatValue(review?.reviewStatus ?? payload.reviewState)}
             </div>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/40">
-            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Recall</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Scored by</div>
             <div className="mt-1 font-medium text-slate-900 dark:text-white">
-              {formatValue((review?.metrics as Record<string, unknown> | undefined)?.recall ?? metadata.exactRecall)}
+              {reviewSourceLabel}
             </div>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/40">
-            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">F1</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              {reviewIsAi ? "Precision (AI)" : "Precision"}
+            </div>
             <div className="mt-1 font-medium text-slate-900 dark:text-white">
-              {formatValue((review?.metrics as Record<string, unknown> | undefined)?.f1 ?? metadata.exactF1)}
+              {formatScoreValue((review?.metrics as Record<string, unknown> | undefined)?.precision)}
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/40">
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              {reviewIsAi ? "Recall (AI)" : "Recall"}
+            </div>
+            <div className="mt-1 font-medium text-slate-900 dark:text-white">
+              {formatScoreValue((review?.metrics as Record<string, unknown> | undefined)?.recall)}
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/40">
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              {reviewIsAi ? "F1 (AI)" : "F1"}
+            </div>
+            <div className="mt-1 font-medium text-slate-900 dark:text-white">
+              {formatScoreValue((review?.metrics as Record<string, unknown> | undefined)?.f1)}
             </div>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/40">

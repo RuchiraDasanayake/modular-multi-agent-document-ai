@@ -51,8 +51,8 @@ def build_prompt(
         "1. Return ONLY valid JSON with top-level key 'entities' as a list.\n"
         "2. Each entity object must be exactly: {\"key\": \"<requested_key>\", \"value\": \"<exact_span>\", \"confidence\": <0.0-1.0>}.\n"
         "3. Use ONLY requested key names; never invent keys.\n"
-        "4. If a field is not found, omit it (no hallucinated values).\n"
-        "5. Prefer exact spans from the text. Keep original formatting for amounts, IDs, and dates.\n"
+        "4. If a field is not found, omit it entirely. Do not return empty strings, N/A, unknown, or placeholder values.\n"
+        "5. Prefer exact spans from the text. Keep original formatting for amounts, IDs, and dates. For names, locations, and descriptive text, you may correct obvious OCR mistakes only when the intended text is unambiguous.\n"
         "6. Confidence: 0.9+ exact evidence, 0.6-0.8 probable, <0.6 weak.\n"
         "7. No markdown, no explanations, no extra keys.\n\n"
         "8. At most one entity per key; keep the best supported value.\n\n"
@@ -93,6 +93,28 @@ def build_extraction_input(
         return "", meta
 
     max_chars = max(2000, int(ctx.config.llm.prompt_max_chars))
+    targeted = ""
+    if ctx.config.llm.prefer_targeted_context:
+        targeted = _targeted_context(
+            doc,
+            explicit_keys,
+            field_descriptions,
+            window_lines=max(0, int(ctx.config.llm.context_window_lines)),
+        )
+        if targeted:
+            targeted_lines = len([line for line in targeted.splitlines() if line.strip()])
+            meta["targeted_context_chars"] = len(targeted)
+            meta["targeted_context_lines"] = targeted_lines
+            if len(full_text) <= max_chars and len(targeted) <= int(len(full_text) * 0.85):
+                meta.update(
+                    {
+                        "strategy": "targeted_only",
+                        "selected_chars": len(targeted),
+                        "truncated": len(targeted) < len(full_text),
+                    }
+                )
+                return targeted, meta
+
     if len(full_text) <= max_chars:
         meta.update({"strategy": "full", "selected_chars": len(full_text)})
         return full_text, meta
@@ -107,16 +129,7 @@ def build_extraction_input(
         )
         return truncated, meta
 
-    targeted = _targeted_context(
-        doc,
-        explicit_keys,
-        field_descriptions,
-        window_lines=max(0, int(ctx.config.llm.context_window_lines)),
-    )
     if targeted:
-        targeted_lines = len([line for line in targeted.splitlines() if line.strip()])
-        meta["targeted_context_chars"] = len(targeted)
-        meta["targeted_context_lines"] = targeted_lines
         if len(targeted) >= int(max_chars * 0.8):
             truncated = _smart_truncate(targeted, max_chars)
             meta.update(

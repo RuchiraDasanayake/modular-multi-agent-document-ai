@@ -8,23 +8,34 @@ Mathematical Foundation:
 ━━━━━━━━━━━━━━━━━━━━━━━━━
 
 The key insight is to SEPARATE noise from drift:
-- Noise (σ²): Inherent variance in Bernoulli rewards
-- Drift (Δ): Actual change in underlying mean
+- Noise (σ²): Inherent variance in Bernoulli rewards (within-window variance)
+- Drift (Δ): Actual change in underlying mean (between-window shift)
 
-Optimal Forgetting Rate Derivation:
-───────────────────────────────────
-In non-stationary bandits, we face a bias-variance tradeoff:
-- Small γ: Low variance (more data) but high bias (stale data)
-- Large γ: Low bias (fresh data) but high variance (less data)
+Forgetting Rate via Concentration Bounds:
+─────────────────────────────────────────
+We want γ to produce an effective window n_eff = 1/γ short enough that a
+drift of magnitude Δ is separable from noise, but long enough that the
+estimator remains stable. Hoeffding concentration on Bernoulli rewards
+gives confidence radius r(n, t) = √(ln(t) / n) at level 1/t.
 
-Under bounded drift |θ(t) - θ(t-1)| ≤ Δ, the optimal γ* minimizes:
-    Total Error = Bias² + Variance
-                = (Δ/γ)² + σ²/(t·γ)
+Setting r(n_eff, t) ≤ Δ so that drift Δ is just detectable against noise
+after n_eff fresh samples gives:
+    √(ln(t) · γ) ≤ Δ
+    γ ≤ Δ² / ln(t)
 
-Taking derivative and setting to zero:
-    γ* ≈ √(Δ² / ln(t))  [Simplified, robust form]
+We take the boundary case (the largest forgetting that remains detectable)
+and use the root form for numerical stability:
+    γ* = √(Δ² / ln(t))   [concentration-matched forgetting]
 
-Where Δ is estimated from mean shift between windows.
+Interpretation: γ* is the forgetting rate at which the shortest effective
+window still rejects "no drift" at confidence 1 - 1/t. Larger drift → more
+aggressive forgetting. More observed samples → lower γ* (we can afford a
+longer effective window because detection is easier).
+
+Critical design choice: γ* uses the drift magnitude Δ only. Noise variance
+σ² is measured separately and does NOT contribute to γ*. This is what
+distinguishes DAAF from simple variance-based forgetting schedules which
+react to noise as if it were drift.
 
 Author: AHMN Research Team
 """
