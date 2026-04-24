@@ -51,7 +51,7 @@ The **IDPO pipeline is domain-agnostic** — it classifies documents by structur
 | Format              | Extensions                                       | Text Extraction                                   |
 | ------------------- | ------------------------------------------------ | ------------------------------------------------- |
 | **PDF**             | `.pdf`                                           | PyPDF text extraction; falls back to scanned mode |
-| **Images**          | `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, `.bmp` | OCR via Tesseract (mock OCR in demo mode)         |
+| **Images**          | `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, `.bmp` | OCR via PaddleOCR first, with Tesseract fallback  |
 | **Plain Text**      | `.txt`                                           | Direct text ingestion                             |
 | **Structured JSON** | `.json`                                          | Multi-page document objects with metadata         |
 
@@ -417,7 +417,7 @@ idpo export-provenance --run-dir ../idpo-data/runs/demo --out ../idpo-data/runs/
 ### Optional Extras
 
 ```bash
-# Scanned document OCR (requires Tesseract binary on PATH)
+# Scanned document OCR (PaddleOCR first; Tesseract fallback still supported)
 python -m pip install -e ".[ocr]"
 
 # Excel export (multi-sheet entities.xlsx; falls back to CSV otherwise)

@@ -21,7 +21,7 @@
     ]
   },
   "preprocessing": {
-    "ocr_engine": "tesseract",
+    "ocr_engine": "paddle",
     "ocr_version": "v1",
     "ocr_lang": "eng",
     "ocr_psm": 6,

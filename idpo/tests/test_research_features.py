@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -17,10 +18,12 @@ from idpo.core.policy_store import PolicyStore
 from idpo.core.provenance import ProvenanceRecorder
 from idpo.core.types import DAEOutput, Document, Entity, Page, SystemConstraints, ValidationIssue
 from idpo.pipeline.orchestrator import Pipeline
-from idpo.pipeline.policy_advisor import PolicyAdvisor
+from idpo.pipeline.policy_advisor import PolicyAdvice, PolicyAdvisor, PolicyRecommendation
 from idpo.pipeline.inbox import process_inbox
 import idpo.pipeline.inbox as inbox_module
+import idpo.pipeline.feedback as feedback_module
 import scripts.run_idpo_benchmark as benchmark_module
+from idpo.pipeline.feedback import log_ahmn_feedback
 from idpo.pipeline.policy_safety import PolicySafetyMonitor
 from idpo.pipeline.planning import PlanRouter
 from idpo.pipeline.reward import _has_field_value
@@ -128,6 +131,93 @@ def test_dae_ocr_noise_ratio_captures_noisy_ocr_tokens(tmp_path: Path) -> None:
     output = agent.run({"document": doc}, ctx).artifacts["dae_output"]
 
     assert output.quality_features["ocr_noise_ratio"] >= 0.12
+
+
+def test_dae_receipt_like_scan_selects_receipt_fast_policy(tmp_path: Path) -> None:
+    agent = DocumentAnalysisAgent()
+    ctx = _ctx(tmp_path)
+    config = PipelineConfig()
+    config.knowledge.policy_store_path = str(repo_root() / "configs" / "policy_store_research.json")
+    config.ahmn.policy_mode = "static"
+    store = PolicyStore(config.knowledge.policy_store_path, default_policy_id="default")
+    router = PlanRouter(config, store)
+    doc = Document(
+        doc_id="receipt-fast",
+        source="scanned",
+        path="receipt-fast.png",
+        pages=[
+            Page(
+                number=1,
+                image_path="scan.png",
+                text=(
+                    "STORE 88\n"
+                    "ITEM A 2.50\n"
+                    "ITEM B 3.50\n"
+                    "SUBTOTAL 6.00\n"
+                    "TAX 0.60\n"
+                    "TOTAL 6.60\n"
+                    "CASH 10.00\n"
+                    "CHANGE 3.40\n"
+                ),
+            )
+        ],
+    )
+
+    dae = agent.run({"document": doc}, ctx).artifacts["dae_output"]
+    selected, reason = store.select_policy(dae, doc)
+    decision = router.route(dae, SystemConstraints(max_cost_units=5, max_latency_ms=2000), doc_metadata=doc.metadata, doc=doc)
+
+    assert dae.doc_type == "scanned_document"
+    assert dae.content_profile == "text-light"
+    assert dae.route_bin == "light"
+    assert dae.quality_features["ocr_noise_ratio"] <= 0.18
+    assert selected.policy_id == "receipt_fast_local"
+    assert reason == "match"
+    assert decision.route_specialization == "receipt"
+    assert decision.policy.policy_id == "receipt_fast_local"
+
+
+def test_dae_noisy_receipt_like_scan_selects_receipt_rescue_policy(tmp_path: Path) -> None:
+    agent = DocumentAnalysisAgent()
+    ctx = _ctx(tmp_path)
+    config = PipelineConfig()
+    config.knowledge.policy_store_path = str(repo_root() / "configs" / "policy_store_research.json")
+    config.ahmn.policy_mode = "static"
+    store = PolicyStore(config.knowledge.policy_store_path, default_policy_id="default")
+    router = PlanRouter(config, store)
+    doc = Document(
+        doc_id="receipt-rescue",
+        source="scanned",
+        path="receipt-rescue.png",
+        pages=[
+            Page(
+                number=1,
+                image_path="scan.png",
+                text=(
+                    "STORE@@88\n"
+                    "ITEMA 2.50\n"
+                    "ITEMB 3.50\n"
+                    "SUBT0TAL.. 6,00\n"
+                    "TAX?? 0,6O\n"
+                    "TOTAL## 6,6O\n"
+                    "CASH 10,O0\n"
+                    "CH4NGE 3,4O\n"
+                ),
+            )
+        ],
+    )
+
+    dae = agent.run({"document": doc}, ctx).artifacts["dae_output"]
+    selected, reason = store.select_policy(dae, doc)
+    decision = router.route(dae, SystemConstraints(max_cost_units=5, max_latency_ms=2000), doc_metadata=doc.metadata, doc=doc)
+
+    assert dae.doc_type == "scanned_document"
+    assert dae.content_profile == "text-light"
+    assert dae.quality_features["ocr_noise_ratio"] >= 0.12
+    assert selected.policy_id == "receipt_rescue_local"
+    assert reason == "match"
+    assert decision.route_specialization == "receipt"
+    assert decision.policy.policy_id == "receipt_rescue_local"
 
 
 def test_policy_advisor_ranked_fallback(tmp_path: Path) -> None:
@@ -314,6 +404,49 @@ def test_policy_advisor_fallback_rank_does_not_match_missing_range_features(tmp_
     assert scores["scanned_text"] == 1.0
 
 
+def test_policy_store_does_not_match_missing_range_features(tmp_path: Path) -> None:
+    policy_path = tmp_path / "policies.json"
+    policy_path.write_text(
+        json.dumps(
+            {
+                "default_policy_id": "default",
+                "policies": [
+                    {
+                        "policy_id": "needs_noise",
+                        "name": "Needs OCR Noise",
+                        "conditions": {
+                            "quality_bin": ["C"],
+                            "quality_features.ocr_noise_ratio": {"min": 0.12},
+                        },
+                        "actions": {},
+                    },
+                    {"policy_id": "default", "name": "Default", "conditions": {}, "actions": {}},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    store = PolicyStore(str(policy_path), default_policy_id="default")
+    dae = DAEOutput(
+        doc_id="d1",
+        doc_type="scanned_document",
+        vendor_cluster="cord",
+        quality_bin="C",
+        complexity_bin="3",
+        content_profile="image-heavy",
+        quality_score=0.2,
+        complexity_score=0.8,
+        quality_features={},
+        structural_features={},
+        signals={},
+    )
+
+    selected, reason = store.select_policy(dae)
+
+    assert selected.policy_id == "default"
+    assert reason == "default"
+
+
 def test_plan_router_uses_adaptive_fallback_and_static_mode(tmp_path: Path) -> None:
     policy_path = tmp_path / "policies.json"
     policy_path.write_text(
@@ -368,6 +501,82 @@ def test_plan_router_uses_adaptive_fallback_and_static_mode(tmp_path: Path) -> N
     assert static.policy.policy_id == "default"
     assert static.advice_source == "static"
     assert static.fallback_reason == "baseline_blocked"
+
+
+def test_plan_router_rejects_condition_mismatched_adaptive_recommendation(tmp_path: Path) -> None:
+    policy_path = tmp_path / "policies.json"
+    policy_path.write_text(
+        json.dumps(
+            {
+                "default_policy_id": "default",
+                "policies": [
+                    {"policy_id": "default", "name": "Default", "conditions": {}, "actions": {}},
+                    {
+                        "policy_id": "forms_policy",
+                        "name": "Forms",
+                        "conditions": {"content_profile": ["form-centric"]},
+                        "actions": {},
+                    },
+                    {
+                        "policy_id": "table_policy",
+                        "name": "Table",
+                        "conditions": {"route_bin": ["heavy"], "content_profile": ["table-heavy"]},
+                        "actions": {"preprocess": {"table_extract": {"enabled": True}}},
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    config = PipelineConfig()
+    config.ahmn.policy_mode = "adaptive"
+    store = PolicyStore(str(policy_path), default_policy_id="default")
+    router = PlanRouter(config, store)
+    dae = DAEOutput(
+        doc_id="d1",
+        doc_type="table_document",
+        vendor_cluster="acme",
+        quality_bin="B",
+        complexity_bin="2",
+        content_profile="table-heavy",
+        quality_score=0.7,
+        complexity_score=0.8,
+        layout_cluster_id="table_dense",
+        route_bin="heavy",
+        structural_features={"table_ratio": 0.4, "form_ratio": 0.0, "page_count": 1.0, "avg_line_length": 20.0, "heading_density": 0.0},
+        quality_features={"blur_score": 0.2, "skew_angle": 0.0, "text_density": 0.8, "image_ratio": 0.1, "dpi_est": 300.0},
+    )
+
+    def fake_advise(*args, **kwargs):  # noqa: ANN002, ANN003
+        return PolicyAdvice(
+            recommendations=[
+                PolicyRecommendation(
+                    policy_id="forms_policy",
+                    score=0.95,
+                    reason="direct_ts",
+                    source="ahmn_import",
+                ),
+                PolicyRecommendation(
+                    policy_id="table_policy",
+                    score=0.85,
+                    reason="direct_ts",
+                    source="ahmn_import",
+                ),
+            ],
+            source="ahmn_import",
+            fallback_used=False,
+            advice_id=str(uuid4()),
+            confidence=0.95,
+            retrieval_source="direct_ts",
+        )
+
+    router.advisor.advise = fake_advise  # type: ignore[method-assign]
+    decision = router.route(dae, SystemConstraints(max_cost_units=5, max_latency_ms=2000))
+
+    assert decision.policy.policy_id == "table_policy"
+    assert decision.advisor_recommendation is not None
+    assert decision.advisor_recommendation["policy_id"] == "forms_policy"
+    assert decision.advice_accepted is False
 
 
 def test_reward_treats_na_requested_values_as_missing() -> None:
@@ -569,7 +778,17 @@ def test_pipeline_posts_ahmn_feedback_after_execution(tmp_path: Path, monkeypatc
         source="digital",
         path="feedback.txt",
         metadata={"vendor": "acme"},
-        pages=[Page(number=1, text="Invoice Number: INV-55\nTotal Amount: 10.00\nTax: 0.80\n")],
+        pages=[
+            Page(
+                number=1,
+                text=(
+                    "Item | Qty | Price\n"
+                    "Widget | 1 | 9.20\n"
+                    "Tax | | 0.80\n"
+                    "Total | | 10.00\n"
+                ),
+            )
+        ],
     )
     result = pipeline.process_documents([doc])[0]
 
@@ -592,6 +811,51 @@ def test_pipeline_posts_ahmn_feedback_after_execution(tmp_path: Path, monkeypatc
     assert result.advice_id
     assert result.retrieval_source == "LTM"
     assert result.rabi_used is True
+
+
+def test_feedback_prefers_direct_import_when_mode_is_import(tmp_path: Path, monkeypatch) -> None:
+    config = PipelineConfig()
+    config.ahmn.enabled = True
+    config.ahmn.mode = "import"
+    config.ahmn.endpoint = "http://ahmn"
+    config.ahmn.log_endpoint = "/advice/log"
+    config.ahmn.direct_import = "ahmn_core.direct_advisor:get_advice"
+    ctx = _ctx(tmp_path, config=config)
+    recorded: list[tuple[str, str, float]] = []
+
+    class DummyModule:
+        @staticmethod
+        def log_outcome(advice_id: str, policy_id: str, reward: float) -> None:
+            recorded.append((advice_id, policy_id, reward))
+
+    monkeypatch.setattr("urllib.request.urlopen", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("http should not be used")))
+    monkeypatch.setattr(feedback_module.importlib, "import_module", lambda name: DummyModule)
+
+    logged, error = log_ahmn_feedback(
+        ctx=ctx,
+        config=config,
+        advice_id="advice-1",
+        selected_policy_id="table_heavy",
+        reward_value=0.8,
+        reward_details={"f1": 0.8},
+        latency_ms=100.0,
+        state=SimpleNamespace(validation_issues=[]),
+        dae_output=DAEOutput(
+            doc_id="doc-1",
+            doc_type="table_document",
+            vendor_cluster="acme",
+            quality_bin="B",
+            complexity_bin="2",
+            content_profile="table-heavy",
+            quality_score=0.7,
+            complexity_score=0.6,
+        ),
+        spent_budget_units=0.2,
+    )
+
+    assert logged is True
+    assert error is None
+    assert recorded == [("advice-1", "table_heavy", 0.8)]
 
 
 def test_process_inbox_writes_decision_chain_and_reward_artifacts(tmp_path: Path, monkeypatch) -> None:
@@ -716,7 +980,7 @@ def test_benchmark_generates_paper_evidence(tmp_path: Path, monkeypatch) -> None
         ),
         encoding="utf-8",
     )
-    def fake_launch_process_inbox(*, root, config_path, extraction_fields, run_id, input_dir):  # noqa: ANN001
+    def fake_launch_process_inbox(*, root, config_path, extraction_fields, run_id, input_dir, job_id=None):  # noqa: ANN001
         config_payload = json.loads(Path(config_path).read_text(encoding="utf-8"))
         mode = config_payload.get("ahmn", {}).get("policy_mode", "static")
         adaptive = mode == "adaptive"
@@ -773,7 +1037,7 @@ def test_benchmark_generates_paper_evidence(tmp_path: Path, monkeypatch) -> None
     assert "groups" in payload["comparison"]
     assert "clean" in payload["comparison"]["groups"]
     assert payload["experiment"]["condition_configs"][benchmark_module.ADAPTIVE_LABEL]["ahmn_enabled"] is True
-    assert payload["experiment"]["condition_configs"][benchmark_module.ADAPTIVE_LABEL]["ahmn_mode"] in {"http", "auto"}
+    assert payload["experiment"]["condition_configs"][benchmark_module.ADAPTIVE_LABEL]["ahmn_mode"] in {"http", "auto", "import"}
     assert payload["experiment"]["condition_configs"][benchmark_module.ADAPTIVE_LABEL]["policy_mode"] == benchmark_module.ADAPTIVE_LABEL
     assert payload["experiment"]["condition_configs"][benchmark_module.ADAPTIVE_LABEL]["runtime_policy_mode"] == "adaptive"
     assert "exact_f1" in payload["comparison"]["table"]
@@ -825,7 +1089,7 @@ def test_benchmark_fails_when_adaptive_feedback_is_missing(tmp_path: Path, monke
         encoding="utf-8",
     )
 
-    def fake_launch_process_inbox(*, root, config_path, extraction_fields, run_id, input_dir):  # noqa: ANN001
+    def fake_launch_process_inbox(*, root, config_path, extraction_fields, run_id, input_dir, job_id=None):  # noqa: ANN001
         config_payload = json.loads(Path(config_path).read_text(encoding="utf-8"))
         adaptive = config_payload.get("ahmn", {}).get("policy_mode") == "adaptive"
         doc = {
@@ -865,6 +1129,135 @@ def test_benchmark_fails_when_adaptive_feedback_is_missing(tmp_path: Path, monke
     with pytest.raises(SystemExit) as exc:
         run_benchmark(config_path="configs/idpo_research_config.json", pack_path=str(pack_path))
     assert "feedback logging failed" in str(exc.value)
+
+
+def test_benchmark_batch_mode_runs_one_process_inbox_call_per_condition(tmp_path: Path, monkeypatch) -> None:
+    runtime_root = tmp_path / "idpo-data"
+    monkeypatch.setenv("IDPO_DATA_DIR", str(runtime_root))
+    configs_dir = tmp_path / "configs"
+    configs_dir.mkdir(parents=True, exist_ok=True)
+    pack_path = tmp_path / "pack.json"
+    inputs_dir = tmp_path / "inputs"
+    inputs_dir.mkdir(parents=True, exist_ok=True)
+    (inputs_dir / "receipt_a.txt").write_text("Receipt A", encoding="utf-8")
+    (inputs_dir / "receipt_b.txt").write_text("Receipt B", encoding="utf-8")
+    (configs_dir / "policy_store_research.json").write_text(
+        json.dumps(
+            {
+                "default_policy_id": "default",
+                "policies": [
+                    {"policy_id": "default", "name": "Default", "conditions": {}, "actions": {}},
+                    {"policy_id": "noisy_ocr_rescue", "name": "Noisy OCR Rescue", "conditions": {}, "actions": {}},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (configs_dir / "idpo_research_config.json").write_text(
+        json.dumps(
+            {
+                "ahmn": {
+                    "enabled": True,
+                    "policy_mode": "adaptive",
+                    "mode": "import",
+                    "direct_import": "ahmn_core.direct_advisor:get_advice",
+                },
+                "knowledge": {"policy_store_path": "configs/policy_store_research.json"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    pack_path.write_text(
+        json.dumps(
+            {
+                "name": "tiny_batch_pack",
+                "batch_mode": "single_run_per_condition",
+                "shared_fields": {"total_amount": "Receipt total"},
+                "cases": [
+                    {
+                        "case_id": "receipt_a",
+                        "tags": ["receipt", "scanned"],
+                        "path": "inputs/receipt_a.txt",
+                        "fields": {"total_amount": "Receipt total"},
+                        "expected": {"total_amount": "1,000"},
+                    },
+                    {
+                        "case_id": "receipt_b",
+                        "tags": ["receipt", "scanned"],
+                        "path": "inputs/receipt_b.txt",
+                        "fields": {"total_amount": "Receipt total"},
+                        "expected": {"total_amount": "2,000"},
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(benchmark_module, "REPO_ROOT", tmp_path)
+
+    calls: list[dict[str, object]] = []
+
+    def fake_launch_process_inbox(*, root, config_path, extraction_fields, run_id, input_dir, job_id=None):  # noqa: ANN001
+        config_payload = json.loads(Path(config_path).read_text(encoding="utf-8"))
+        adaptive = config_payload.get("ahmn", {}).get("policy_mode") == "adaptive"
+        files = sorted(path.name for path in Path(input_dir).iterdir() if path.is_file())
+        calls.append({"adaptive": adaptive, "files": files, "run_id": run_id, "job_id": job_id})
+        values = {"receipt_a": "1000", "receipt_b": "2000"}
+        docs = []
+        for stem, value in values.items():
+            docs.append(
+                {
+                    "doc_id": stem,
+                    "filename": f"{stem}.txt",
+                    "policy_id": "noisy_ocr_rescue",
+                    "latency_ms": 15.0 if adaptive else 12.0,
+                    "reward": 0.9,
+                    "reward_type": "canonical_union",
+                    "validation_issue_count": 0,
+                    "recovered_fields_count": 0,
+                    "escalation_status": "not_needed",
+                    "operator_stack": ["structuring.extract", "validation"],
+                    "advice_source": "ahmn_import" if adaptive else "static",
+                    "retrieval_source": "direct_ts" if adaptive else None,
+                    "advisor_recommendation": {"policy_id": "noisy_ocr_rescue", "score": 0.8, "source": "ahmn_import"} if adaptive else None,
+                    "fallback_candidates": [] if adaptive else [],
+                    "feedback_logged": adaptive,
+                    "feedback_error": None,
+                    "rabi_used": False,
+                    "advice_confidence": 0.8 if adaptive else 0.0,
+                    "fallback_reason": None,
+                    "blocked_policy": False,
+                    "rollback_triggered": False,
+                    "defer_status": "not_needed",
+                    "schema_coverage": 1.0,
+                    "schema_grounding_coverage": 1.0,
+                    "schema_valid": True,
+                    "schema_missing_required_count": 0,
+                    "schema_hallucinated_field_count": 0,
+                    "structured_fields": {"total_amount": value},
+                }
+            )
+        return {
+            "run_id": run_id,
+            "run_dir": str(tmp_path / run_id),
+            "doc_records": docs,
+            "run_payload": {"ahmn_state_path": str(tmp_path / f"{run_id}_ahmn_state.json")},
+        }
+
+    monkeypatch.setattr(benchmark_module, "_launch_process_inbox", fake_launch_process_inbox)
+    evidence = run_benchmark(
+        config_path="configs/idpo_research_config.json",
+        pack_path=str(pack_path),
+        existing_job_id="job-123",
+    )
+
+    assert len(calls) == 2
+    assert all(call["files"] == ["receipt_a.txt", "receipt_b.txt"] for call in calls)
+    assert all(call["job_id"] == "job-123" for call in calls)
+    assert evidence["conditions"]["static"]["run_ids"] == [str(calls[0]["run_id"])]
+    assert evidence["conditions"][benchmark_module.ADAPTIVE_LABEL]["run_ids"] == [str(calls[1]["run_id"])]
+    assert evidence["comparison"]["table"]["exact_f1"]["static"] == 1.0
+    assert evidence["comparison"]["table"]["exact_f1"][benchmark_module.ADAPTIVE_LABEL] == 1.0
 
 
 def test_case_metrics_treats_numeric_formatting_as_equal() -> None:
@@ -1002,8 +1395,10 @@ def test_research_config_and_policy_store_align_with_ahmn_ids() -> None:
     config_payload = json.loads((repo_root() / "configs" / "idpo_research_config.json").read_text(encoding="utf-8"))
     policy_payload = json.loads((repo_root() / "configs" / "policy_store_research.json").read_text(encoding="utf-8"))
     extension_payload = json.loads((repo_root() / "configs" / "policy_store_cloud_extensions.json").read_text(encoding="utf-8"))
+    assert config_payload["preprocessing"]["ocr_engine"] == "paddle"
     assert config_payload["ahmn"]["enabled"] is True
     assert config_payload["ahmn"]["policy_mode"] == "adaptive"
+    assert config_payload["ahmn"]["mode"] == "import"
     assert config_payload["ahmn"]["advice_endpoint"] == "/advice"
     assert config_payload["ahmn"]["log_endpoint"] == "/advice/log"
     assert config_payload["shadow"]["enabled"] is False
@@ -1011,6 +1406,8 @@ def test_research_config_and_policy_store_align_with_ahmn_ids() -> None:
         "unknown_vendor_safe",
         "forms",
         "forms_rescue_local",
+        "receipt_fast_local",
+        "receipt_rescue_local",
         "noisy_ocr_rescue",
         "noisy_ocr_precision_local",
         "scanned_text",

@@ -126,6 +126,8 @@ class PlanRouter:
                 baseline_policy,
                 baseline_reason,
                 blocked,
+                dae_output,
+                doc,
             )
             if selected_policy.policy_id in blocked and selected_policy.policy_id != self.config.knowledge.default_policy_id:
                 selected_policy = self.policy_store._policy_map.get(self.config.knowledge.default_policy_id, selected_policy)
@@ -194,12 +196,21 @@ class PlanRouter:
         baseline_policy: PolicyDefinition,
         baseline_reason: str,
         blocked_policy_ids: set[str],
+        dae_output: DAEOutput,
+        doc: object | None = None,
     ) -> tuple[PolicyDefinition, dict[str, Any], str, str | None]:
         fallback_reason: str | None = None
         for recommendation in advice.recommendations:
             policy = self.policy_store._policy_map.get(recommendation.policy_id)
             if not policy:
                 fallback_reason = "invalid_recommendation"
+                continue
+            if policy.conditions and not self.policy_store.matches_policy(
+                policy,
+                dae_output,
+                doc if hasattr(doc, "metadata") else None,
+            ):
+                fallback_reason = "condition_mismatch_recommendation"
                 continue
             if recommendation.policy_id in blocked_policy_ids:
                 fallback_reason = "blocked_recommendation"
@@ -476,11 +487,20 @@ def _fallback_payloads(advice: PolicyAdvice) -> list[dict[str, Any]]:
 def _route_specialization(dae_output: DAEOutput) -> str:
     table_ratio = float((dae_output.structural_features or {}).get("table_ratio", 0.0))
     form_ratio = float((dae_output.structural_features or {}).get("form_ratio", 0.0))
+    page_count = float((dae_output.structural_features or {}).get("page_count", 0.0))
+    numeric_density = float((dae_output.structural_features or {}).get("numeric_density", 0.0))
     image_ratio = float((dae_output.quality_features or {}).get("image_ratio", dae_output.signals.get("image_ratio", 0.0)))
     if dae_output.layout_cluster_id == "table_dense" or table_ratio >= 0.2:
         return "table"
     if dae_output.layout_cluster_id == "form_dense" or form_ratio >= 0.2:
         return "form"
+    if (
+        page_count <= 1.5
+        and numeric_density >= 0.08
+        and dae_output.doc_type in {"scanned_document", "text_document"}
+        and dae_output.content_profile in {"text-light", "image-heavy"}
+    ):
+        return "receipt"
     if dae_output.layout_cluster_id == "image_sparse" or image_ratio >= 0.5:
         return "image"
     return "text"

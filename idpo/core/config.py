@@ -13,7 +13,7 @@ _ENV_FILE_LOADED = False
 
 @dataclass
 class PreprocessingConfig:
-    ocr_engine: str = "mock"
+    ocr_engine: str = "paddle"
     ocr_version: str = "v1"
     ocr_lang: str = "eng"
     ocr_psm: int = 6
@@ -270,6 +270,7 @@ class LLMConfig:
     persist_raw_llm_io: bool = True
     refine_field_descriptions: bool = True
     description_refinement_model: str = ""
+    description_refinement_use_cloud: bool = False
     description_refinement_max_tokens: int = 400
     description_refinement_temperature: float = 0.0
     description_refinement_max_fields: int = 24

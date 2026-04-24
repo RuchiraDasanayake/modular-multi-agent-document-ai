@@ -21,7 +21,7 @@
     ]
   },
   "preprocessing": {
-    "ocr_engine": "tesseract",
+    "ocr_engine": "paddle",
     "ocr_version": "v1",
     "ocr_lang": "eng",
     "ocr_psm": 6,
@@ -125,7 +125,7 @@
   "ahmn": {
     "enabled": true,
     "policy_mode": "adaptive",
-    "mode": "auto",
+    "mode": "import",
     "objective": "balanced",
     "timeout_ms": 500,
     "endpoint": "http://localhost:8001",
@@ -186,7 +186,8 @@
     "strict_json_output": true,
     "cloud_retry_without_json_mode": true,
     "refine_field_descriptions": true,
-    "description_refinement_model": "qwen3.5:9b",
+    "description_refinement_model": "gpt-4o-mini",
+    "description_refinement_use_cloud": true,
     "description_refinement_max_tokens": 300,
     "description_refinement_temperature": 0.0,
     "description_refinement_max_fields": 24,

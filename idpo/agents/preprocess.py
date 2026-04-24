@@ -294,7 +294,7 @@ class OcrAgent(Agent):
         self,
         page: Page,
         settings: dict[str, object],
-        engine_name: str = "tesseract",
+        engine_name: str = "paddle",
     ) -> tuple[str, bool, str | None, dict[str, object]]:
         path = page.image_path or ""
         try:
@@ -374,14 +374,8 @@ class OcrAgent(Agent):
 
         model_lang = self._paddle_lang(lang)
         try:
-            ocr = PaddleOCR(
-                use_doc_orientation_classify=False,
-                use_doc_unwarping=False,
-                use_textline_orientation=False,
-                lang=model_lang,
-                show_log=False,
-            )
-            result = ocr.ocr(path)
+            ocr = PaddleOCR(use_angle_cls=True, lang=model_lang, show_log=False)
+            result = ocr.ocr(path, cls=True)
         except Exception as exc:
             return "", True, f"paddleocr_failed:{str(exc)[:80]}", {"ocr_variant": "paddle"}
 

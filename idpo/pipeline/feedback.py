@@ -29,7 +29,11 @@ def log_ahmn_feedback(
     if not advice_id:
         return False, "missing_advice_id"
     endpoint = (config.ahmn.endpoint or "").strip()
-    if not endpoint:
+    mode = (config.ahmn.mode or "auto").strip().lower() or "auto"
+    direct_import = (config.ahmn.direct_import or "").strip()
+    http_allowed = mode in {"http", "auto"}
+    import_allowed = mode in {"import", "auto"} and bool(direct_import)
+    if not endpoint and mode == "http":
         return False, "ahmn_endpoint_missing"
 
     metrics: dict[str, object] = {
@@ -66,8 +70,8 @@ def log_ahmn_feedback(
             "structural_features": dae_output.structural_features,
         },
     }
-    # Try HTTP endpoint first (live AHMN server).
-    if endpoint:
+    # HTTP path for live AHMN service.
+    if http_allowed and endpoint:
         log_url = endpoint.rstrip("/") + config.ahmn.log_endpoint
         request = urllib.request.Request(
             log_url,
@@ -97,8 +101,8 @@ def log_ahmn_feedback(
         except Exception:
             http_error = "unknown_error"
 
-        # Fall through to direct_import if HTTP failed.
-        if not config.ahmn.direct_import:
+        # Fall through to direct_import only in auto mode.
+        if not import_allowed:
             _record_feedback_event(
                 ctx=ctx,
                 advice_id=advice_id,
@@ -111,10 +115,7 @@ def log_ahmn_feedback(
             return False, http_error
 
     # Direct-import path: call log_outcome on the imported module.
-    # This is the only feedback path that actually reaches the in-process advisor
-    # when no HTTP server is running (local benchmarks).
-    direct_import = (config.ahmn.direct_import or "").strip()
-    if direct_import:
+    if import_allowed:
         try:
             module_path, func_name = direct_import.rsplit(":", 1)
             module = importlib.import_module(module_path)

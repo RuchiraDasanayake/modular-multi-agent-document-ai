@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+
+from PIL import Image
 
 from idpo.agents.base import AgentContext
 from idpo.agents.preprocess import OcrAgent
 from idpo.core.artifacts import ArtifactStore
 from idpo.core.config import PipelineConfig
 from idpo.core.provenance import ProvenanceRecorder
+from idpo.core.types import Page
 
 
 def _ctx(tmp_path: Path, config: PipelineConfig | None = None) -> AgentContext:
@@ -94,3 +98,61 @@ def test_ocr_rerun_reason_does_not_trigger_on_clean_text_above_confidence_floor(
     reason = agent._ocr_rerun_reason(clean_text, 72.0, ctx)  # noqa: SLF001
 
     assert reason is None
+
+
+def test_ocr_image_prefers_paddle_when_requested(monkeypatch) -> None:
+    agent = OcrAgent()
+    monkeypatch.setattr(
+        agent,
+        "_ocr_image_paddle",
+        lambda path, lang: ("Total Amount: 42.00", True, None, {"ocr_confidence": 93.0, "ocr_variant": "paddle"}),
+    )
+
+    text, used, failure, meta = agent._ocr_image(  # noqa: SLF001
+        Page(number=1, text="", image_path="receipt.png"),
+        {"lang": "eng", "psm": 6, "oem": 3, "alt_psm": [], "dpi": 300},
+        engine_name="paddle",
+    )
+
+    assert used is True
+    assert failure is None
+    assert text == "Total Amount: 42.00"
+    assert meta["ocr_engine_used"] == "paddleocr"
+
+
+def test_ocr_image_falls_back_to_tesseract_when_paddle_returns_no_text(tmp_path: Path, monkeypatch) -> None:
+    agent = OcrAgent()
+    image_path = tmp_path / "receipt.png"
+    Image.new("RGB", (8, 8), color="white").save(image_path)
+
+    class StubTesseract:
+        class Output:
+            DICT = "DICT"
+
+    monkeypatch.setattr(
+        agent,
+        "_ocr_image_paddle",
+        lambda path, lang: ("", True, "paddleocr_empty", {"ocr_confidence": 0.0, "ocr_variant": "paddle"}),
+    )
+    monkeypatch.setitem(sys.modules, "pytesseract", StubTesseract())
+    monkeypatch.setattr(agent, "_configure_tesseract", lambda pytesseract: None)
+    monkeypatch.setattr(agent, "_apply_orientation_correction", lambda img, pytesseract, lang: (img, 0))
+    monkeypatch.setattr(
+        agent,
+        "_run_ocr_variants",
+        lambda cleaned, pytesseract, tessdata_dir, lang, psm, oem, alt_psm, ImageOps, ImageFilter: (
+            "Total Amount: 42.00",
+            {"ocr_psm": psm, "ocr_oem": oem, "ocr_variant": "base", "ocr_confidence": 88.0},
+        ),
+    )
+
+    text, used, failure, meta = agent._ocr_image(  # noqa: SLF001
+        Page(number=1, text="", image_path=str(image_path)),
+        {"lang": "eng", "psm": 6, "oem": 3, "alt_psm": [], "dpi": 300},
+        engine_name="paddle",
+    )
+
+    assert used is True
+    assert failure is None
+    assert text == "Total Amount: 42.00"
+    assert meta["ocr_engine_used"] == "tesseract"

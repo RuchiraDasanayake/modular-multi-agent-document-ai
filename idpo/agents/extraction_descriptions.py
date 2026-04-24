@@ -4,7 +4,7 @@ import json
 from typing import Callable
 
 from idpo.agents.base import AgentContext
-from idpo.agents.extraction_providers import ollama_generate
+from idpo.agents.extraction_providers import ollama_generate, openai_chat_completion
 
 
 def normalize_field_descriptions(
@@ -63,16 +63,22 @@ def refine_field_descriptions(
         merged.update(base_map)
         return merged, meta
 
-    if str(ctx.config.llm.provider or "").strip().lower() != "ollama":
-        meta["error"] = "refinement_requires_local_ollama"
-        merged = dict(field_descriptions)
-        merged.update(base_map)
-        return merged, meta
-    refinement_model = str(
-        ctx.config.llm.description_refinement_model or ctx.config.llm.local_model or ""
-    ).strip()
+    use_cloud = bool(ctx.config.llm.description_refinement_use_cloud)
+    if use_cloud:
+        refinement_model = str(
+            ctx.config.llm.description_refinement_model or ctx.config.llm.cloud_model or ""
+        ).strip()
+    else:
+        if str(ctx.config.llm.provider or "").strip().lower() != "ollama":
+            meta["error"] = "refinement_requires_local_ollama"
+            merged = dict(field_descriptions)
+            merged.update(base_map)
+            return merged, meta
+        refinement_model = str(
+            ctx.config.llm.description_refinement_model or ctx.config.llm.local_model or ""
+        ).strip()
     if not refinement_model:
-        meta["error"] = "missing_local_model"
+        meta["error"] = "missing_refinement_model"
         merged = dict(field_descriptions)
         merged.update(base_map)
         return merged, meta
@@ -97,19 +103,32 @@ def refine_field_descriptions(
         f"Input map:\n{json.dumps(base_map, ensure_ascii=False)}"
     )
     try:
-        content = generate(
-            ctx.config.llm.base_url,
-            {
-                "model": model_name,
-                "prompt": prompt,
-                "stream": False,
-                "format": "json",
-                "options": {
-                    "temperature": ctx.config.llm.description_refinement_temperature,
+        if use_cloud:
+            content, _cloud_meta = openai_chat_completion(
+                model_name=model_name,
+                prompt=prompt,
+                api_key=ctx.config.llm.openai_api_key,
+                base_url=ctx.config.llm.openai_api_url,
+                timeout_s=int(ctx.config.llm.cloud_timeout_s),
+                temperature=ctx.config.llm.description_refinement_temperature,
+                max_tokens=ctx.config.llm.description_refinement_max_tokens,
+                response_format={"type": "json_object"},
+                retry_without_json_mode=bool(ctx.config.llm.cloud_retry_without_json_mode),
+            )
+        else:
+            content = generate(
+                ctx.config.llm.base_url,
+                {
+                    "model": model_name,
+                    "prompt": prompt,
+                    "stream": False,
+                    "format": "json",
+                    "options": {
+                        "temperature": ctx.config.llm.description_refinement_temperature,
+                    },
                 },
-            },
-            ctx.config.llm.timeout_s,
-        )
+                ctx.config.llm.timeout_s,
+            )
         if not content:
             meta["error"] = "empty_or_unavailable"
             merged = dict(field_descriptions)

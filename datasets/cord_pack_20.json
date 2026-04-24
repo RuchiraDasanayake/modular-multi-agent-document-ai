@@ -1,6 +1,14 @@
 {
   "name": "cord_v2_labeled_20",
   "description": "CORD v2 receipts — 20 labeled samples (seed17).",
+  "batch_mode": "single_run_per_condition",
+  "shared_fields": {
+    "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
+    "subtotal_amount": "Subtotal before tax. Number only.",
+    "tax_amount": "Tax amount. Number only.",
+    "cash_amount": "Cash paid by customer. Number only.",
+    "change_amount": "Change returned to customer. Number only."
+  },
   "cases": [
     {
       "case_id": "cord_validation_0000",

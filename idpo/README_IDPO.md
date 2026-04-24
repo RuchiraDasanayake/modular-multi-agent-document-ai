@@ -31,7 +31,7 @@ Everything else in IDPO should be treated as internal support code for those ent
 3. Selects a policy through one config-gated planner path:
    - `ahmn.policy_mode = "static"` keeps local deterministic routing
    - `ahmn.policy_mode = "adaptive"` uses `PolicyAdvisor` to consume fixed AHMN top-1 advice and falls back deterministically when needed
-4. Executes preprocessing, extraction, validation, recovery, escalation, chunking, and indexing.
+4. Executes preprocessing, extraction, validation, recovery, escalation, chunking, and indexing. OCR is Paddle-first for OCR-backed docs with Tesseract fallback retained.
 5. Writes run artifacts under `IDPO_DATA_DIR` instead of under the source tree.
 
 Default runtime storage:

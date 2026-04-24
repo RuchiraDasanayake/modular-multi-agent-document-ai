@@ -12,6 +12,7 @@
         ]
       },
       "actions": {
+        "execution_mode": "extraction_only",
         "preprocess": {
           "ocr": {
             "enabled": true,
@@ -85,6 +86,7 @@
         ]
       },
       "actions": {
+        "execution_mode": "extraction_only",
         "preprocess": {
           "ocr": {
             "enabled": true,
@@ -165,6 +167,7 @@
         ]
       },
       "actions": {
+        "execution_mode": "extraction_only",
         "preprocess": {
           "ocr": {
             "enabled": true,
@@ -384,6 +387,207 @@
         "tradeoff": "Slower than the balanced form policy and more likely to over-process easy forms.",
         "cost_profile": "moderate local cost",
         "sibling_policy_id": "forms"
+      }
+    },
+    {
+      "policy_id": "receipt_fast_local",
+      "name": "Receipt Fast Local Policy",
+      "conditions": {
+        "doc_type": [
+          "scanned_document",
+          "text_document"
+        ],
+        "content_profile": [
+          "image-heavy",
+          "text-light"
+        ],
+        "route_bin": [
+          "light",
+          "standard",
+          "heavy"
+        ],
+        "structural_features.page_count": {
+          "max": 1.0
+        },
+        "structural_features.numeric_density": {
+          "min": 0.08
+        },
+        "quality_features.ocr_noise_ratio": {
+          "max": 0.18
+        }
+      },
+      "actions": {
+        "execution_mode": "extraction_only",
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2,
+            "psm": 4,
+            "alt_psm": [
+              6,
+              11
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "standard"
+          },
+          "table_extract": {
+            "enabled": false,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "receipt_id",
+            "document_date",
+            "merchant_name",
+            "subtotal_amount",
+            "tax_amount",
+            "total_amount",
+            "cash_amount",
+            "change_amount"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_receipt_fast_local"
+        },
+        "recovery": {
+          "strategy": "regex"
+        },
+        "chunking": {
+          "chunk_size": 220,
+          "chunk_overlap": 24,
+          "max_chunks": 48
+        },
+        "retrieval": {
+          "dense_k": 6,
+          "sparse_k": 6,
+          "final_k": 6,
+          "mmr_lambda": 0.58,
+          "metadata_boost": 0.06
+        },
+        "token_budget": {
+          "max_tokens": 1000,
+          "reserved_tokens": 140,
+          "strategy": "simple"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "receipt_fast_local",
+        "max_latency_ms": 180000,
+        "family": "receipt extraction",
+        "variant": "fast-local",
+        "when_used": "Use first for compact single-page receipts with strong numeric density and manageable OCR noise.",
+        "why": "Targets flat receipt totals with a short extraction-only path so easy receipts do not pay long-document costs.",
+        "tradeoff": "Fast on ordinary receipts, but weaker when OCR noise or currency formatting becomes severe.",
+        "cost_profile": "low cost first pass",
+        "sibling_policy_id": "receipt_rescue_local"
+      }
+    },
+    {
+      "policy_id": "receipt_rescue_local",
+      "name": "Receipt Rescue Local Policy",
+      "conditions": {
+        "doc_type": [
+          "scanned_document",
+          "text_document"
+        ],
+        "content_profile": [
+          "image-heavy",
+          "text-light"
+        ],
+        "route_bin": [
+          "light",
+          "standard",
+          "heavy"
+        ],
+        "structural_features.page_count": {
+          "max": 1.0
+        },
+        "structural_features.numeric_density": {
+          "min": 0.08
+        },
+        "quality_features.ocr_noise_ratio": {
+          "min": 0.12
+        }
+      },
+      "actions": {
+        "execution_mode": "extraction_only",
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 4,
+            "psm": 4,
+            "alt_psm": [
+              3,
+              4,
+              6,
+              11,
+              12
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "aggressive"
+          },
+          "table_extract": {
+            "enabled": false,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "receipt_id",
+            "document_date",
+            "merchant_name",
+            "subtotal_amount",
+            "tax_amount",
+            "total_amount",
+            "cash_amount",
+            "change_amount"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_receipt_rescue_local"
+        },
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "chunking": {
+          "chunk_size": 200,
+          "chunk_overlap": 28,
+          "max_chunks": 56
+        },
+        "retrieval": {
+          "dense_k": 8,
+          "sparse_k": 10,
+          "final_k": 8,
+          "mmr_lambda": 0.64,
+          "metadata_boost": 0.1
+        },
+        "token_budget": {
+          "max_tokens": 1200,
+          "reserved_tokens": 160,
+          "strategy": "simple"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "receipt_rescue_local",
+        "max_latency_ms": 180000,
+        "family": "receipt extraction",
+        "variant": "rescue-local",
+        "when_used": "Use when compact receipts are single-page but OCR noise or scan quality pushes the document off the fast path.",
+        "why": "Adds stronger OCR retries and conservative recovery to stabilize receipt totals before falling back to generic OCR rescue.",
+        "tradeoff": "Better recall on degraded receipts, but slower than the fast receipt policy.",
+        "cost_profile": "moderate local cost",
+        "sibling_policy_id": "receipt_fast_local"
       }
     },
     {

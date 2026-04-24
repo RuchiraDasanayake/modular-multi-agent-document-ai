@@ -21,6 +21,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+# Prefer the repo's .venv Python (has paddleocr + all deps) over sys.executable
+# which may point to a backup/dev venv missing optional packages.
+_VENV_PYTHON = REPO_ROOT / ".venv" / "Scripts" / "python.exe"
+_SUBPROCESS_PYTHON = str(_VENV_PYTHON) if _VENV_PYTHON.exists() else sys.executable
+
 from idpo.core.storage import benchmark_reports_dir
 
 ADAPTIVE_LABEL = "adaptive_safe"
@@ -120,6 +125,18 @@ def _display_path(path_value: str | Path | None) -> str | None:
 
 def _sanitize_filename(name: str) -> str:
     return "".join(ch if ch.isalnum() or ch in {".", "_", "-"} else "_" for ch in name)
+
+
+def _unique_nonempty(values: list[object]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for value in values:
+        text = str(value or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        ordered.append(text)
+    return ordered
 
 
 def _job_review_state(doc: dict[str, Any]) -> str:
@@ -486,13 +503,14 @@ def _launch_process_inbox(
     extraction_fields: list[dict[str, str]],
     run_id: str,
     input_dir: Path,
+    job_id: str | None = None,
 ) -> dict[str, Any]:
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".json", delete=False) as handle:
         json.dump(extraction_fields, handle, indent=2)
         fields_file = handle.name
     try:
         command = [
-            sys.executable,
+            _SUBPROCESS_PYTHON,
             "-m",
             "idpo.cli",
             "process-inbox",
@@ -509,6 +527,9 @@ def _launch_process_inbox(
             "--output-mode",
             "full",
         ]
+        env = os.environ.copy()
+        if job_id:
+            env["IDPO_JOB_ID"] = str(job_id)
         completed = subprocess.run(
             command,
             cwd=str(root),
@@ -516,6 +537,7 @@ def _launch_process_inbox(
             text=True,
             check=False,
             encoding="utf-8",
+            env=env,
         )
         if completed.returncode != 0:
             raise SystemExit(
@@ -566,6 +588,126 @@ def _write_condition_config(base_config: Path, condition: str, temp_dir: Path) -
     out_path = temp_dir / f"{condition}_config.json"
     out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return out_path
+
+
+def _should_batch_cases(pack: dict[str, Any], cases: list[dict[str, Any]]) -> bool:
+    mode = str(pack.get("batch_mode", "")).strip().lower()
+    return bool(cases) and (mode == "single_run_per_condition" or isinstance(pack.get("shared_fields"), dict))
+
+
+def _shared_extraction_fields(pack: dict[str, Any], cases: list[dict[str, Any]]) -> list[dict[str, str]]:
+    shared = pack.get("shared_fields")
+    if isinstance(shared, dict) and shared:
+        return [{"name": str(key), "description": str(value)} for key, value in shared.items()]
+
+    merged: dict[str, str] = {}
+    for case in cases:
+        fields = case.get("fields", {})
+        if not isinstance(fields, dict):
+            continue
+        for key, value in fields.items():
+            normalized = str(key).strip()
+            if not normalized or normalized in merged:
+                continue
+            merged[normalized] = str(value)
+    return [{"name": key, "description": value} for key, value in merged.items()]
+
+
+def _case_doc_keys(case_id: str, source_path: Path, doc: dict[str, Any]) -> set[str]:
+    keys = {
+        case_id.strip().lower(),
+        source_path.stem.strip().lower(),
+        source_path.name.strip().lower(),
+    }
+    doc_id = str(doc.get("doc_id", "")).strip().lower()
+    filename = str(doc.get("filename", "") or doc.get("file_name", "")).strip().lower()
+    if doc_id:
+        keys.add(doc_id)
+    if filename:
+        keys.add(filename)
+        keys.add(Path(filename).stem.strip().lower())
+    return {key for key in keys if key}
+
+
+def _run_condition_batch(
+    *,
+    repo_root: Path,
+    config_path: str,
+    condition: str,
+    cases: list[dict[str, Any]],
+    shared_fields: list[dict[str, str]],
+    job_id: str | None = None,
+) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    staged_cases: list[tuple[dict[str, Any], Path]] = []
+
+    with tempfile.TemporaryDirectory(prefix=f"idpo_bench_{condition}_batch_") as tmp_dir:
+        tmp_root = Path(tmp_dir)
+        for case in cases:
+            case_id = str(case.get("case_id", "")).strip() or f"case_{len(results) + len(staged_cases) + 1}"
+            tags = [str(tag).strip() for tag in (case.get("tags", []) or []) if str(tag).strip()]
+            source_path = (repo_root / str(case.get("path", ""))).resolve()
+            expected = {str(k): str(v) for k, v in (case.get("expected", {}) or {}).items()}
+            if not source_path.exists():
+                results.append({"case_id": case_id, "status": "failed", "tags": tags, "error": f"missing_file:{source_path}"})
+                continue
+            target_name = f"{_sanitize_filename(case_id)}{source_path.suffix}"
+            shutil.copy2(source_path, tmp_root / target_name)
+            staged_cases.append((case, source_path))
+
+        if not staged_cases:
+            return results
+
+        run = _launch_process_inbox(
+            root=repo_root,
+            config_path=config_path,
+            extraction_fields=shared_fields,
+            run_id=f"{condition}_batch_{int(time.time() * 1000)}",
+            input_dir=tmp_root,
+            job_id=job_id,
+        )
+
+    unmatched_docs = [doc for doc in run.get("doc_records", []) if isinstance(doc, dict)]
+    run_payload = run.get("run_payload", {}) if isinstance(run.get("run_payload"), dict) else {}
+    ahmn_state_path = str(run_payload.get("ahmn_state_path", "")).strip() or None
+
+    for case, source_path in staged_cases:
+        case_id = str(case.get("case_id", "")).strip()
+        tags = [str(tag).strip() for tag in (case.get("tags", []) or []) if str(tag).strip()]
+        expected = {str(k): str(v) for k, v in (case.get("expected", {}) or {}).items()}
+        match_index = None
+        target_keys = {case_id.strip().lower(), source_path.stem.strip().lower(), source_path.name.strip().lower()}
+        for idx, doc in enumerate(unmatched_docs):
+            if target_keys & _case_doc_keys(case_id, source_path, doc):
+                match_index = idx
+                break
+        if match_index is None:
+            results.append({"case_id": case_id, "status": "failed", "tags": tags, "error": "no_doc_record"})
+            continue
+        doc = unmatched_docs.pop(match_index)
+        structured = doc.get("structured_fields", {})
+        if not isinstance(structured, dict):
+            structured = {}
+        tp, fp, fn = _case_metrics(expected, structured)
+        results.append(
+            {
+                "case_id": case_id,
+                "status": "ok",
+                "tags": tags,
+                "doc": doc,
+                "run_id": run.get("run_id", ""),
+                "run_dir": run.get("run_dir", ""),
+                "expected": expected,
+                "ahmn_state_path": ahmn_state_path,
+                "exact_metrics": {
+                    "tp": tp,
+                    "fp": fp,
+                    "fn": fn,
+                    **_precision_recall_f1(tp, fp, fn),
+                },
+            }
+        )
+    return results
 
 
 def _condition_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
@@ -662,8 +804,9 @@ def _condition_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     }
     summary = {
         "doc_count": doc_count,
-        "run_ids": [str(item.get("run_id", "")) for item in results if item.get("run_id")],
-        "run_dirs": [str(item.get("run_dir", "")) for item in results if item.get("run_dir")],
+        "run_ids": _unique_nonempty([item.get("run_id", "") for item in results]),
+        "run_dirs": _unique_nonempty([item.get("run_dir", "") for item in results]),
+        "ahmn_state_paths": _unique_nonempty([item.get("ahmn_state_path", "") for item in results]),
         "avg_latency_ms": round(total_latency / doc_count, 2) if doc_count else 0.0,
         "avg_reward": round(total_reward / doc_count, 4) if doc_count else 0.0,
         "validation_pass_rate": round(validation_passes / doc_count, 4) if doc_count else 0.0,
@@ -1052,60 +1195,76 @@ def run_benchmark(
         }
         if not bool(condition_settings[ADAPTIVE_LABEL].get("enabled")):
             raise SystemExit("Adaptive benchmark configuration must enable AHMN")
-        for case in cases:
-            case_id = str(case.get("case_id", "")).strip() or f"case_{sum(len(v) for v in conditions.values()) + 1}"
-            tags = [str(tag).strip() for tag in (case.get("tags", []) or []) if str(tag).strip()]
-            source_path = (repo_root / str(case.get("path", ""))).resolve()
-            fields = [
-                {"name": key, "description": str(desc)}
-                for key, desc in (case.get("fields", {}) or {}).items()
-            ]
-            expected = {str(k): str(v) for k, v in (case.get("expected", {}) or {}).items()}
-            if not source_path.exists():
-                for condition in conditions:
-                    conditions[condition].append(
-                        {"case_id": case_id, "status": "failed", "error": f"missing_file:{source_path}"}
-                    )
-                continue
-
+        if _should_batch_cases(pack, cases):
+            shared_fields = _shared_extraction_fields(pack, cases)
             for condition in ("static", ADAPTIVE_LABEL):
-                with tempfile.TemporaryDirectory(prefix=f"idpo_bench_{condition}_{case_id}_") as tmp_dir:
-                    temp_path = Path(tmp_dir) / source_path.name
-                    shutil.copy2(source_path, temp_path)
-                    run = _launch_process_inbox(
-                        root=repo_root,
+                conditions[condition].extend(
+                    _run_condition_batch(
+                        repo_root=repo_root,
                         config_path=str(condition_configs[condition]),
-                        extraction_fields=fields,
-                        run_id=f"{condition}_{case_id}_{int(time.time() * 1000)}",
-                        input_dir=Path(tmp_dir),
+                        condition=condition,
+                        cases=cases,
+                        shared_fields=shared_fields,
+                        job_id=existing_job_id,
                     )
-
-                docs = run.get("doc_records", [])
-                if not docs:
-                    conditions[condition].append({"case_id": case_id, "status": "failed", "error": "no_doc_records"})
-                    continue
-                doc = docs[0]
-                structured = doc.get("structured_fields", {})
-                if not isinstance(structured, dict):
-                    structured = {}
-                tp, fp, fn = _case_metrics(expected, structured)
-                conditions[condition].append(
-                    {
-                        "case_id": case_id,
-                        "status": "ok",
-                        "tags": tags,
-                        "doc": doc,
-                        "run_id": run.get("run_id", ""),
-                        "run_dir": run.get("run_dir", ""),
-                        "expected": expected,
-                        "exact_metrics": {
-                            "tp": tp,
-                            "fp": fp,
-                            "fn": fn,
-                            **_precision_recall_f1(tp, fp, fn),
-                        },
-                    }
                 )
+        else:
+            for case in cases:
+                case_id = str(case.get("case_id", "")).strip() or f"case_{sum(len(v) for v in conditions.values()) + 1}"
+                tags = [str(tag).strip() for tag in (case.get("tags", []) or []) if str(tag).strip()]
+                source_path = (repo_root / str(case.get("path", ""))).resolve()
+                fields = [
+                    {"name": key, "description": str(desc)}
+                    for key, desc in (case.get("fields", {}) or {}).items()
+                ]
+                expected = {str(k): str(v) for k, v in (case.get("expected", {}) or {}).items()}
+                if not source_path.exists():
+                    for condition in conditions:
+                        conditions[condition].append(
+                            {"case_id": case_id, "status": "failed", "error": f"missing_file:{source_path}"}
+                        )
+                    continue
+
+                for condition in ("static", ADAPTIVE_LABEL):
+                    with tempfile.TemporaryDirectory(prefix=f"idpo_bench_{condition}_{case_id}_") as tmp_dir:
+                        temp_path = Path(tmp_dir) / source_path.name
+                        shutil.copy2(source_path, temp_path)
+                        run = _launch_process_inbox(
+                            root=repo_root,
+                            config_path=str(condition_configs[condition]),
+                            extraction_fields=fields,
+                            run_id=f"{condition}_{case_id}_{int(time.time() * 1000)}",
+                            input_dir=Path(tmp_dir),
+                            job_id=existing_job_id,
+                        )
+
+                    docs = run.get("doc_records", [])
+                    if not docs:
+                        conditions[condition].append({"case_id": case_id, "status": "failed", "error": "no_doc_records"})
+                        continue
+                    doc = docs[0]
+                    structured = doc.get("structured_fields", {})
+                    if not isinstance(structured, dict):
+                        structured = {}
+                    tp, fp, fn = _case_metrics(expected, structured)
+                    conditions[condition].append(
+                        {
+                            "case_id": case_id,
+                            "status": "ok",
+                            "tags": tags,
+                            "doc": doc,
+                            "run_id": run.get("run_id", ""),
+                            "run_dir": run.get("run_dir", ""),
+                            "ahmn_state_path": str((run.get("run_payload") or {}).get("ahmn_state_path", "")).strip() or None,
+                            "expected": expected,
+                            "exact_metrics": {
+                                "tp": tp,
+                                "fp": fp,
+                                "fn": fn,
+                                **_precision_recall_f1(tp, fp, fn),
+                            },
+                        }
+                    )
 
     _assert_adaptive_valid(conditions[ADAPTIVE_LABEL], valid_policy_ids)
     condition_summaries = {key: _condition_summary(value) for key, value in conditions.items()}
@@ -1134,12 +1293,14 @@ def run_benchmark(
                 "static": {
                     "run_id": static_item.get("run_id", ""),
                     "run_dir": static_item.get("run_dir", ""),
+                    "ahmn_state_path": static_item.get("ahmn_state_path"),
                     "doc": static_doc,
                     "exact_metrics": static_item.get("exact_metrics", {}),
                 },
                 ADAPTIVE_LABEL: {
                     "run_id": adaptive_item.get("run_id", ""),
                     "run_dir": adaptive_item.get("run_dir", ""),
+                    "ahmn_state_path": adaptive_item.get("ahmn_state_path"),
                     "doc": adaptive_doc,
                     "exact_metrics": adaptive_item.get("exact_metrics", {}),
                 },

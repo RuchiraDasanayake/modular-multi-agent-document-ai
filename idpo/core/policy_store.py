@@ -39,6 +39,25 @@ class PolicyStore:
         payload["selection_reason"] = reason
         return payload
 
+    def matches_policy(
+        self,
+        policy: PolicyDefinition,
+        dae_output: DAEOutput | None,
+        doc: Document | None = None,
+    ) -> bool:
+        return self._matches(policy.conditions, dae_output, doc)
+
+    def matching_policies(
+        self,
+        dae_output: DAEOutput | None,
+        doc: Document | None = None,
+    ) -> list[PolicyDefinition]:
+        return [
+            policy
+            for policy in self.policies
+            if self._matches(policy.conditions, dae_output, doc)
+        ]
+
     def _load(self) -> list[PolicyDefinition]:
         if self.path and self.path.exists():
             data = json.loads(self.path.read_text(encoding="utf-8"))
@@ -133,6 +152,8 @@ class PolicyStore:
         for key, expectation in conditions.items():
             current = value_map.get(key)
             if isinstance(expectation, dict):
+                if current is None:
+                    return False
                 if "min" in expectation and current is not None and current < expectation["min"]:
                     return False
                 if "max" in expectation and current is not None and current > expectation["max"]:

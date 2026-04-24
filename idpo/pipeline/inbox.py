@@ -13,6 +13,7 @@ integration behavior.
 
 from __future__ import annotations
 
+import importlib
 import json
 import logging
 import os
@@ -76,6 +77,7 @@ def process_inbox(
         raise ValueError(f"No supported files found in {inbox_dir}. Drop files there and retry.")
 
     resolved_run_id = run_id or uuid.uuid4().hex
+    job_id = os.getenv("IDPO_JOB_ID", "").strip() or None
     run_dir = runs_dir / resolved_run_id
     docs_dir = run_dir / "docs"
     docs_dir.mkdir(parents=True, exist_ok=True)
@@ -94,7 +96,7 @@ def process_inbox(
         "config_path": config_path,
         "policy_store_path": config.knowledge.policy_store_path,
         "execution_surface": os.getenv("IDPO_EXECUTION_SURFACE", "cli_process_inbox"),
-        "job_id": os.getenv("IDPO_JOB_ID"),
+        "job_id": job_id,
         "preflight_warnings": " | ".join(preflight_warnings),
     }
     (run_dir / "run.json").write_text(json.dumps(run_payload, indent=2), encoding="utf-8")
@@ -111,6 +113,9 @@ def process_inbox(
             if not docs:
                 raise ValueError("No documents were parsed from the input")
             for doc in docs:
+                doc.metadata["run_id"] = resolved_run_id
+                if job_id:
+                    doc.metadata["job_id"] = job_id
                 doc_dir = docs_dir / _safe_path_component(doc.doc_id)
                 prepare_doc_input(doc, file_path, doc_dir)
                 ingested_items.append({"doc": doc, "doc_dir": doc_dir, "file_path": file_path})
@@ -201,6 +206,14 @@ def process_inbox(
     if telemetry_status and telemetry_status.get("warning"):
         preflight_warnings.append(str(telemetry_status["warning"]))
     run_payload["telemetry"] = telemetry_status
+    ahmn_state = _write_ahmn_state_snapshot(
+        run_dir=run_dir,
+        config=config,
+        run_id=resolved_run_id,
+        job_id=job_id,
+    )
+    if ahmn_state:
+        run_payload.update(ahmn_state)
     (run_dir / "run.json").write_text(json.dumps(run_payload, indent=2), encoding="utf-8")
 
     return {
@@ -246,4 +259,43 @@ def _safe_path_component(raw: object) -> str:
 def _results_have_chunks(results: list[Any]) -> bool:
     return any(bool(getattr(result, "chunks", None)) for result in results)
 
+
+def _write_ahmn_state_snapshot(
+    *,
+    run_dir: Path,
+    config: PipelineConfig,
+    run_id: str,
+    job_id: str | None,
+) -> dict[str, object]:
+    if not config.ahmn.enabled:
+        return {}
+    direct_import = (config.ahmn.direct_import or "").strip()
+    if not direct_import:
+        return {}
+    try:
+        module_path, _ = direct_import.rsplit(":", 1)
+        module = importlib.import_module(module_path)
+    except Exception:
+        return {}
+    snapshot_fn = getattr(module, "get_state_snapshot", None)
+    if not callable(snapshot_fn):
+        return {}
+    resolve_scope = getattr(module, "resolve_scope_key", None)
+    try:
+        scope_key = (
+            resolve_scope(job_id=job_id, run_id=run_id)
+            if callable(resolve_scope)
+            else (job_id or run_id)
+        )
+        snapshot = snapshot_fn(scope_key) if scope_key else snapshot_fn()
+    except Exception:
+        return {}
+    if not isinstance(snapshot, dict):
+        return {}
+    snapshot_path = run_dir / "ahmn_state.json"
+    snapshot_path.write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
+    return {
+        "ahmn_state_path": str(snapshot_path),
+        "ahmn_scope_key": str(snapshot.get("scope_key", scope_key or "")),
+    }
 

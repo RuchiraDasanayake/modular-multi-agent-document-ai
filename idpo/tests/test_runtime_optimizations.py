@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -111,3 +112,77 @@ def test_process_inbox_builds_run_index_once_per_batch(tmp_path: Path, monkeypat
     assert result["metrics"]["processed_doc_count"] == 2
     assert len(build_index_calls) == 1
     assert build_index_calls[0]["count"] == 2
+
+
+def test_process_inbox_writes_ahmn_state_snapshot_when_direct_import_is_enabled(tmp_path: Path, monkeypatch) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(parents=True, exist_ok=True)
+    runtime_root = tmp_path / "runtime"
+    monkeypatch.setenv("IDPO_DATA_DIR", str(runtime_root))
+    monkeypatch.setenv("IDPO_JOB_ID", "job-123")
+
+    doc_path = workspace / "one.txt"
+    doc_path.write_text("Invoice Number: INV-1\nTotal Amount: 10.00\n", encoding="utf-8")
+
+    class DummyDirectAdvisor:
+        @staticmethod
+        def resolve_scope_key(*, job_id=None, run_id=None):  # noqa: ANN001
+            return f"job_{job_id}" if job_id else f"run_{run_id}"
+
+        @staticmethod
+        def get_state_snapshot(scope_key=None):  # noqa: ANN001
+            return {
+                "scope_key": scope_key,
+                "call_count": 2,
+                "policies": {"default": {"alpha": 2.0, "beta": 1.0, "mean": 0.6667}},
+                "state_path": str(runtime_root / "ahmn" / "direct_advisor" / "dummy.json"),
+            }
+
+    class FakePipeline:
+        def __init__(self, config=None, run_dir=None):  # noqa: ANN001
+            self.run_dir = run_dir
+
+        def process_documents(self, docs):  # noqa: ANN001
+            return [SimpleNamespace(doc_id=doc.doc_id, chunks=[]) for doc in docs]
+
+    monkeypatch.setattr(inbox_module, "Pipeline", FakePipeline)
+    monkeypatch.setattr(inbox_module.importlib, "import_module", lambda name: DummyDirectAdvisor)
+    monkeypatch.setattr(inbox_module, "write_doc_outputs", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        inbox_module,
+        "create_doc_record",
+        lambda result, doc_dir, expected_fields, doc: {
+            "doc_id": result.doc_id,
+            "file_name": Path(doc.path).name,
+            "entities": [],
+            "structured_fields": {},
+        },
+    )
+    monkeypatch.setattr(inbox_module, "aggregate_reward_metrics", lambda records: {})
+    monkeypatch.setattr(inbox_module, "write_decision_chain_summary", lambda *args, **kwargs: None)
+    monkeypatch.setattr(inbox_module, "write_docs_excel", lambda *args, **kwargs: None)
+    monkeypatch.setattr(inbox_module, "write_entities_excel", lambda *args, **kwargs: None)
+    monkeypatch.setattr(inbox_module, "write_run_excel", lambda *args, **kwargs: None)
+    monkeypatch.setattr(inbox_module, "persist_run_telemetry", lambda *args, **kwargs: {"enabled": False})
+    monkeypatch.setattr(inbox_module, "entity_records", lambda records, expected_fields: [])
+
+    config_path = workspace / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "ahmn": {
+                    "enabled": True,
+                    "direct_import": "ahmn_core.direct_advisor:get_advice",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = inbox_module.process_inbox(root=workspace, file_paths=[str(doc_path)], config_path=str(config_path))
+
+    run_payload = result["run_payload"]
+    assert run_payload["ahmn_scope_key"] == "job_job-123"
+    state_path = Path(run_payload["ahmn_state_path"])
+    assert state_path.exists()
+    snapshot = json.loads(state_path.read_text(encoding="utf-8"))
+    assert snapshot["scope_key"] == "job_job-123"
