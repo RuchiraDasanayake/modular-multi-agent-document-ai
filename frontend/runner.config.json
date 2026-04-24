@@ -18,7 +18,7 @@
     {
       "id": "idpo_process_inbox",
       "description": "Run IDPO inbox pipeline over uploaded files",
-      "program": "python",
+      "program": "../.venv/Scripts/python.exe",
       "args": [
         "-m",
         "idpo.cli",
@@ -40,7 +40,7 @@
     {
       "id": "idpo-cli",
       "kind": "cli",
-      "command": "python",
+      "command": "../.venv/Scripts/python.exe",
       "args": [
         "-m",
         "idpo.cli",
@@ -48,33 +48,9 @@
       ]
     },
     {
-      "id": "gateway",
+      "id": "ollama",
       "kind": "http",
-      "url": "http://127.0.0.1:8000/health",
-      "timeoutMs": 3000
-    },
-    {
-      "id": "ahmn",
-      "kind": "http",
-      "url": "http://127.0.0.1:8001/health",
-      "timeoutMs": 3000
-    },
-    {
-      "id": "guardrails",
-      "kind": "http",
-      "url": "http://127.0.0.1:8002/health",
-      "timeoutMs": 3000
-    },
-    {
-      "id": "xai-hitl",
-      "kind": "http",
-      "url": "http://127.0.0.1:8003/health",
-      "timeoutMs": 3000
-    },
-    {
-      "id": "idpo-ui",
-      "kind": "http",
-      "url": "http://127.0.0.1:8004/health",
+      "url": "http://127.0.0.1:11434",
       "timeoutMs": 3000
     }
   ]
