@@ -126,6 +126,7 @@ def ollama_chat_detailed(
     timeout_s: int,
     options: dict[str, object] | None = None,
     format_json: bool = True,
+    disable_think: bool = False,
 ) -> tuple[str | None, dict[str, object]]:
     """Ollama /api/chat wrapper — better for instruction-tuned models (Qwen3, Llama3).
 
@@ -143,6 +144,8 @@ def ollama_chat_detailed(
         payload["options"] = options
     if format_json:
         payload["format"] = "json"
+    if disable_think:
+        payload["think"] = False
 
     url = base_url.rstrip("/") + "/api/chat"
     data = json.dumps(payload).encode("utf-8")

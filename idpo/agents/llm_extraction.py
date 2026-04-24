@@ -109,6 +109,11 @@ class LLMExtractionAgent(Agent):
         )
         explicit_entities = self._filter_implausible_entities(explicit_entities)
         llm_diagnostics = self._initial_llm_diagnostics(model, description_refinement)
+        extraction_context = ""
+        if policy:
+            extraction_context = str(
+                (policy.actions or {}).get("extraction", {}).get("extraction_context", "") or ""
+            )
         llm_entities = self._extract_llm_entities(
             doc,
             explicit_keys,
@@ -117,6 +122,7 @@ class LLMExtractionAgent(Agent):
             model,
             ctx,
             llm_diagnostics,
+            extraction_context=extraction_context,
         )
 
         heuristic_entities = self._heuristic_schema_fill(
@@ -286,6 +292,7 @@ class LLMExtractionAgent(Agent):
         model: ModelDecision | None,
         ctx: AgentContext,
         diagnostics: dict[str, object],
+        extraction_context: str = "",
     ) -> list[Entity]:
         diagnostics["enabled"] = bool(ctx.config.llm.use_extraction)
         if not ctx.config.llm.use_extraction:
@@ -303,6 +310,7 @@ class LLMExtractionAgent(Agent):
                 model,
                 ctx,
                 diagnostics,
+                extraction_context=extraction_context,
             )
         if model.mode == "cloud":
             return self._run_cloud_first_extraction(
@@ -325,6 +333,7 @@ class LLMExtractionAgent(Agent):
         model: ModelDecision,
         ctx: AgentContext,
         diagnostics: dict[str, object],
+        extraction_context: str = "",
     ) -> list[Entity]:
         llm_entities = self._attempt_local_extraction(
             doc,
@@ -334,6 +343,7 @@ class LLMExtractionAgent(Agent):
             ctx,
             diagnostics,
             failure_reason="empty_or_unavailable",
+            extraction_context=extraction_context,
         )
         fallback_keys = self._fallback_keys_for_cloud(
             explicit_keys,
@@ -444,6 +454,7 @@ class LLMExtractionAgent(Agent):
         ctx: AgentContext,
         diagnostics: dict[str, object],
         failure_reason: str,
+        extraction_context: str = "",
     ) -> list[Entity]:
         diagnostics["local_attempted"] = True
         local_raw, local_meta = self._unpack_extraction_call(
@@ -453,6 +464,7 @@ class LLMExtractionAgent(Agent):
                 model_name,
                 ctx,
                 field_descriptions=field_descriptions,
+                extraction_context=extraction_context,
             )
         )
         diagnostics["local_call"] = local_meta
@@ -889,6 +901,7 @@ class LLMExtractionAgent(Agent):
         model_name: str,
         ctx: AgentContext,
         field_descriptions: dict[str, str] | None = None,
+        extraction_context: str = "",
     ) -> list[Entity] | tuple[list[Entity], dict[str, object]]:
         started = time.time()
         text, context_meta = build_extraction_input(doc, explicit_keys, field_descriptions or {}, ctx)
@@ -915,7 +928,8 @@ class LLMExtractionAgent(Agent):
             # more deterministic structured extraction.
             no_think = model_name.lower().startswith("qwen")
             messages = build_chat_messages(
-                text, explicit_keys, ctx, field_descriptions or {}, no_think=no_think
+                text, explicit_keys, ctx, field_descriptions or {}, no_think=no_think,
+                extraction_context=extraction_context,
             )
             response, call_meta = ollama_chat_detailed(
                 llm_cfg.base_url,
@@ -924,6 +938,7 @@ class LLMExtractionAgent(Agent):
                 timeout_s=llm_cfg.timeout_s,
                 options=options,
                 format_json=format_json,
+                disable_think=no_think,
             )
             prompt_chars = sum(len(m.get("content", "")) for m in messages)
             endpoint_used = "ollama.chat"

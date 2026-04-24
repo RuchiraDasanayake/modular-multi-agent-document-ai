@@ -36,6 +36,8 @@ def build_prompt(
     explicit_keys: list[str],
     ctx: AgentContext,
     field_descriptions: dict[str, str],
+    *,
+    extraction_context: str = "",
 ) -> str:
     """Build the user-turn prompt (works for both /generate and /chat endpoints)."""
     keys = explicit_keys or [rule.key for rule in ctx.config.structuring.extraction_rules]
@@ -49,7 +51,10 @@ def build_prompt(
     else:
         fields_block = "  - Extract any relevant key-value fields you find"
 
+    context_block = f"{extraction_context.strip()}\n\n" if extraction_context.strip() else ""
+
     return (
+        f"{context_block}"
         "Extract the following fields from the document text.\n\n"
         "FIELDS:\n"
         f"{fields_block}\n\n"
@@ -75,6 +80,7 @@ def build_chat_messages(
     field_descriptions: dict[str, str],
     *,
     no_think: bool = True,
+    extraction_context: str = "",
 ) -> list[dict[str, str]]:
     """Build messages list for /api/chat endpoint (Qwen3, Llama3, etc.).
 
@@ -82,7 +88,7 @@ def build_chat_messages(
     Qwen3's extended thinking chain — faster and more deterministic for
     structured extraction tasks.
     """
-    user_content = build_prompt(text, explicit_keys, ctx, field_descriptions)
+    user_content = build_prompt(text, explicit_keys, ctx, field_descriptions, extraction_context=extraction_context)
     if no_think:
         user_content = "/no_think\n" + user_content
     return [

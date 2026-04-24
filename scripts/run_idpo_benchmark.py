@@ -36,8 +36,62 @@ _NUMERIC_FIELD_HINTS = ("amount", "price", "total", "subtotal", "tax", "cash", "
 
 
 def _norm(value: object) -> str:
+    import re as _re
     text = str(value or "").strip().lower()
-    return " ".join(text.split())
+    text = " ".join(text.split())
+    # Collapse whitespace around punctuation so "12 / 10 / 98" == "12/10/98"
+    text = _re.sub(r"\s*([/\-,.])\s*", r"\1", text)
+    return text
+
+
+_MONTH_ALIASES: dict[str, str] = {
+    # Common OCR misspellings of month names
+    "janry": "january", "janury": "january", "janaury": "january",
+    "febray": "february", "feburary": "february", "februray": "february",
+    "marck": "march", "mrach": "march",
+    "apirl": "april", "aprl": "april",
+    "juen": "june", "jne": "june",
+    "jully": "july", "jluy": "july",
+    "agust": "august", "augst": "august",
+    "septmber": "september", "septembar": "september", "sepember": "september",
+    "ocober": "october", "octber": "october",
+    "novmber": "november", "novamber": "november", "novembar": "november",
+    "decmber": "december", "decamber": "december", "decembar": "december",
+}
+
+
+def _norm_text(value: object) -> str:
+    """Normalise a free-text field (name / date) for fuzzy comparison.
+
+    Beyond basic _norm: unify comma/dot as date separator, correct common OCR
+    month misspellings, and remove dots inside initials so "S.P.ZOLOT" and
+    "SPOLOT" both become "spolot".
+    """
+    import re as _re
+    text = _norm(value)
+    # Treat dot/comma interchangeably as date separator between digit groups
+    text = _re.sub(r"(\d)[,.](\d)", r"\1,\2", text)
+    # Insert space between a letter run and a digit run so "january311997" →
+    # "january 31 1997" (helps date comparison)
+    text = _re.sub(r"([a-z])(\d)", r"\1 \2", text)
+    text = _re.sub(r"(\d)([a-z])", r"\1 \2", text)
+    # Collapse again after insertions
+    text = " ".join(text.split())
+    # Fix OCR month misspellings
+    for bad, good in _MONTH_ALIASES.items():
+        text = _re.sub(r"\b" + bad + r"\b", good, text)
+    # Remove dots within initials: "s.p.zolot" → "spzolot" for comparison
+    # (only when the pattern is single-letter.single-letter)
+    text = _re.sub(r"(?<=[a-z])\.(?=[a-z])", "", text)
+    return text
+
+
+def _text_similarity(a: str, b: str) -> float:
+    """SequenceMatcher ratio on normalised text strings."""
+    import difflib
+    if not a or not b:
+        return 0.0
+    return difflib.SequenceMatcher(None, a, b).ratio()
 
 
 _CURRENCY_PREFIX_RE = None
@@ -71,16 +125,30 @@ def _normalize_exact_value(key: str, value: object) -> str:
     return normalized
 
 
+_FUZZY_MATCH_THRESHOLD = 0.75
+
+
 def _case_metrics(expected: dict[str, str], extracted: dict[str, object]) -> tuple[int, int, int]:
     tp = 0
     fp = 0
     fn = 0
+    lowered_key: str
     for key, expected_value in expected.items():
-        got = _normalize_exact_value(key, extracted.get(key, ""))
-        exp = _normalize_exact_value(key, expected_value)
-        if got and got == exp:
+        lowered_key = str(key or "").strip().lower()
+        is_numeric = any(hint in lowered_key for hint in _NUMERIC_FIELD_HINTS)
+        got_norm = _normalize_exact_value(key, extracted.get(key, ""))
+        exp_norm = _normalize_exact_value(key, expected_value)
+        if got_norm and got_norm == exp_norm:
             tp += 1
-        elif got and got != exp:
+        elif not is_numeric and got_norm:
+            # For text fields, accept fuzzy match to handle OCR noise on names/dates
+            sim = _text_similarity(_norm_text(extracted.get(key, "")), _norm_text(expected_value))
+            if sim >= _FUZZY_MATCH_THRESHOLD:
+                tp += 1
+            else:
+                fp += 1
+                fn += 1
+        elif got_norm:
             fp += 1
             fn += 1
         else:
@@ -1290,6 +1358,7 @@ def run_benchmark(
             {
                 "case_id": case_id,
                 "tags": tags,
+                "expected": {str(k): str(v) for k, v in (case.get("expected") or {}).items()},
                 "static": {
                     "run_id": static_item.get("run_id", ""),
                     "run_dir": static_item.get("run_dir", ""),

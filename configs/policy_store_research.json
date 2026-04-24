@@ -2,6 +2,139 @@
   "default_policy_id": "default",
   "policies": [
     {
+      "policy_id": "receipt_specialist",
+      "name": "Receipt Specialist Policy",
+      "conditions": {
+        "vendor_cluster": [
+          "cord"
+        ]
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2,
+            "psm": 4,
+            "alt_psm": [
+              6,
+              11
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "standard"
+          },
+          "table_extract": {
+            "enabled": false
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "total_amount",
+            "subtotal_amount",
+            "tax_amount",
+            "cash_amount",
+            "change_amount"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_receipt_specialist",
+          "extraction_context": "DOCUMENT TYPE: Point-of-sale receipt (Korean/Indonesian retail). This document contains transaction amounts in local currency. Amounts may use a dot as a thousands separator (e.g. 20.000 means twenty thousand, not twenty). Tax may be labeled PB1, VAT, or TAX. Focus exclusively on extracting the requested numeric amounts. Do NOT extract person names, organization names, letter metadata, or dates as field values unless specifically requested."
+        },
+        "recovery": {
+          "strategy": "regex"
+        },
+        "chunking": {
+          "chunk_size": 220,
+          "chunk_overlap": 24,
+          "max_chunks": 48
+        },
+        "retrieval": {
+          "dense_k": 6,
+          "sparse_k": 6,
+          "final_k": 6,
+          "mmr_lambda": 0.58,
+          "metadata_boost": 0.06
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "receipt_specialist",
+        "family": "receipt extraction",
+        "variant": "specialist",
+        "when_used": "CORD receipts (vendor_cluster=cord). Numeric amount extraction from Korean/Indonesian receipts.",
+        "cost_profile": "low cost"
+      }
+    },
+    {
+      "policy_id": "correspondence_specialist",
+      "name": "Correspondence Specialist Policy",
+      "conditions": {
+        "vendor_cluster": [
+          "funsd"
+        ]
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2,
+            "psm": 3,
+            "alt_psm": [
+              4,
+              6
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "aggressive"
+          },
+          "table_extract": {
+            "enabled": false
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "sender_name",
+            "recipient_name",
+            "document_date",
+            "letter_id"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_correspondence_specialist",
+          "extraction_context": "DOCUMENT TYPE: Scanned business correspondence (letter or internal memo). This document contains sender and recipient names, and a date. Names may be abbreviated (e.g. \"K.A.S\" for \"K.A. Sparrow\") or OCR-degraded. Look for To:/From: fields, salutation lines, and signature blocks. Extract the best available version of each name even if partially legible. Do NOT attempt to extract prices, totals, invoice numbers, or monetary amounts \u2014 this is not a financial document."
+        },
+        "recovery": {
+          "strategy": "regex"
+        },
+        "chunking": {
+          "chunk_size": 420,
+          "chunk_overlap": 60,
+          "max_chunks": 96
+        },
+        "retrieval": {
+          "dense_k": 10,
+          "sparse_k": 10,
+          "final_k": 10,
+          "mmr_lambda": 0.6,
+          "metadata_boost": 0.1
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "correspondence_specialist",
+        "family": "correspondence extraction",
+        "variant": "specialist",
+        "when_used": "FUNSD business correspondence (vendor_cluster=funsd). Name and date extraction from scanned letters/memos.",
+        "cost_profile": "moderate local cost"
+      }
+    },
+    {
       "policy_id": "unknown_vendor_safe",
       "name": "Unknown Vendor Safe Policy",
       "conditions": {
@@ -605,7 +738,7 @@
         "preprocess": {
           "ocr": {
             "enabled": true,
-            "passes": 3,
+            "passes": 2,
             "psm": 4,
             "alt_psm": [
               6,
@@ -643,9 +776,9 @@
           "max_chunks": 120
         },
         "retrieval": {
-          "dense_k": 12,
-          "sparse_k": 14,
-          "final_k": 12,
+          "dense_k": 10,
+          "sparse_k": 10,
+          "final_k": 10,
           "mmr_lambda": 0.78,
           "metadata_boost": 0.18
         }

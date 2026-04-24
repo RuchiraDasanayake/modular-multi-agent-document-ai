@@ -262,7 +262,7 @@ class LLMConfig:
     # temperature=0 + format=json => deterministic structured output on phi3/llama3.
     local_temperature: float = 0.0
     local_format_json: bool = True
-    local_num_predict: int = 1024
+    local_num_predict: int = 4096
     local_top_p: float = 0.9
     # Persist raw prompt and raw model response in the document artifact for
     # monitoring and re-audit. Turn off only if payloads contain sensitive data

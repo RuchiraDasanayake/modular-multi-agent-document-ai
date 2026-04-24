@@ -112,17 +112,24 @@ def best_generic_match(tokens: list[str], generic_by_key: dict[str, list[Entity]
 def regex_fallback(key: str, tokens: list[str], text: str) -> Entity | None:
     lowered = " ".join(tokens)
     if any(token in lowered for token in ["amount", "total", "balance", "due", "price", "cost"]):
+        # Allow newlines between label and value; match Korean dot-thousands (e.g. 100.000)
+        # and Western comma-thousands (e.g. 100,000) plus optional 2-digit cents.
+        _num = r"(?:\$|usd\s*)?(?:\d{1,3}(?:[.,]\d{3})+(?:\.\d{2})?|\d{1,3}(?:,\d{3})*(?:\.\d{2})?)"
         candidates = re.findall(
-            r"(?:total|amount|balance|due|subtotal|tax|invoice\s+total)[^\d\n]{0,18}"
-            r"((?:\$|usd\s*)?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)",
+            r"(?:total|amount|balance|due|subtotal|tax|invoice\s+total)[^\d]{0,30}" + f"({_num})",
             text,
             re.IGNORECASE,
         )
+        # Discard zero-only matches produced by partial digit runs (e.g. ".000" boundary)
+        candidates = [c for c in candidates if not re.fullmatch(r"0+(?:[.,]0+)?", c.strip())]
         if candidates:
-            best = max(
-                candidates,
-                key=lambda item: float(item.replace(",", "").replace("usd", "").replace("$", "") or 0),
-            )
+            def _to_float(s: str) -> float:
+                s = s.replace("$", "").replace("usd", "").strip()
+                # Korean/Indonesian dot-thousands: "100.000" → 100000
+                if re.fullmatch(r"\d{1,3}(?:\.\d{3})+", s):
+                    s = s.replace(".", "")
+                return float(s.replace(",", "").replace(".", "") or 0)
+            best = max(candidates, key=_to_float)
             return Entity(
                 key=key,
                 value=best.strip(),
@@ -159,9 +166,10 @@ def regex_fallback(key: str, tokens: list[str], text: str) -> Entity | None:
                 metadata={"explicit": True, "source": "schema_regex", "rule": "date"},
             )
     if any(token in lowered for token in ["invoice", "id", "number", "reference"]):
-        id_match = re.search(r"\b[A-Z]{0,4}[\-#]?\d{3,}[A-Z0-9-]*\b", text)
+        # Require at least one letter — pure digit strings are amounts, not IDs
+        id_match = re.search(r"\b[A-Z]{1,4}[\-#]?\d{3,}[A-Z0-9-]*\b", text)
         if not id_match:
-            id_match = re.search(r"\b[A-Z0-9-]{5,}\b", text)
+            id_match = re.search(r"\b(?=[A-Z0-9-]{5,}\b)(?=[A-Z0-9-]*[A-Z])[A-Z0-9-]{5,}\b", text)
         if id_match:
             return Entity(
                 key=key,
