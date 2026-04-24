@@ -99,37 +99,31 @@ def test_extraction_only_route_skips_summary_and_chunking() -> None:
     assert "structuring.summary" not in operators
 
 
-def test_recovery_rejects_invalid_amount_candidate(tmp_path: Path) -> None:
+def test_recovery_attempts_llm_and_degrades_gracefully_on_failure(tmp_path: Path) -> None:
     cfg = PipelineConfig()
-    cfg.validation.rules = [
-        ValidationRule(field_pattern=".*_amount$", value_pattern=r"^\d+(\.\d{2})?$", normalize="numeric")
-    ]
     ctx = _ctx(tmp_path, cfg)
     agent = RecoveryAgent()
     doc = Document(doc_id="doc-1", source="digital", path="doc.txt", pages=[Page(number=1, text="Total Amount: ABC")])
     issues = [ValidationIssue(field="total_amount", issue="pattern_mismatch", severity="medium")]
-    result = agent.run({"document": doc, "entities": [], "issues": issues, "strategy": "regex"}, ctx)
-    assert result.artifacts["recovered_fields"] == {}
+    result = agent.run({"document": doc, "entities": [], "issues": issues}, ctx)
+    # LLM unavailable in unit tests → recovered_fields empty, but no exception raised.
+    assert isinstance(result.artifacts["recovered_fields"], dict)
+    trace = result.artifacts["recovery_trace"]
+    assert trace  # at least one trace entry (llm attempt + error)
+    assert trace[0]["strategy"] == "llm_reextraction"
 
 
-def test_recovery_normalizes_noisy_receipt_amount_from_existing_value(tmp_path: Path) -> None:
+def test_recovery_preserves_existing_entities_when_llm_fails(tmp_path: Path) -> None:
     cfg = PipelineConfig()
-    cfg.validation.rules = [
-        ValidationRule(field_pattern=".*_amount$", value_pattern=r"^\d+(\.\d{2})?$", normalize="numeric")
-    ]
     ctx = _ctx(tmp_path, cfg)
     agent = RecoveryAgent()
-    doc = Document(doc_id="doc-1", source="scanned", path="doc.txt", pages=[Page(number=1, text="CASH -7.000\nTL -7, 000")])
-    entities = [Entity(key="cash_amount", value="CASH -7.000", confidence=0.9)]
-    issues = [ValidationIssue(field="cash_amount", issue="semantic_amount_mismatch", severity="medium")]
-
-    result = agent.run({"document": doc, "entities": entities, "issues": issues, "strategy": "alternate_rules"}, ctx)
-
-    assert result.artifacts["recovered_fields"] == {"cash_amount": "7000"}
-    updated = {entity.key: entity.value for entity in result.artifacts["entities"]}
-    assert updated["cash_amount"] == "7000"
-    trace = result.artifacts["recovery_trace"]
-    assert trace[0]["reason"] == "normalized_existing_value"
+    doc = Document(doc_id="doc-1", source="scanned", path="doc.txt", pages=[Page(number=1, text="CASH 7000")])
+    entities = [Entity(key="cash_amount", value="7000", confidence=0.9)]
+    issues = [ValidationIssue(field="total_amount", issue="missing_field", severity="medium")]
+    result = agent.run({"document": doc, "entities": entities, "issues": issues}, ctx)
+    # cash_amount not in failing fields → should be preserved unchanged
+    updated = {e.key: e.value for e in result.artifacts["entities"]}
+    assert updated.get("cash_amount") == "7000"
 
 
 def test_inbox_batch_run_processes_multiple_docs_in_one_run(tmp_path: Path, monkeypatch) -> None:

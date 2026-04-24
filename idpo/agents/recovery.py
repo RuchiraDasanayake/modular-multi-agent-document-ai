@@ -1,103 +1,50 @@
-"""Error recovery agent for re-extracting failed or low-confidence fields."""
+"""Error recovery agent — re-extracts failed fields via LLM."""
 
 from __future__ import annotations
 
-import re
 import time
 
 from idpo.agents.base import Agent, AgentContext
-from idpo.agents.preprocess import mock_ocr
 from idpo.core.contracts import AgentMessage
 from idpo.core.types import AgentResult, Document, Entity, StageSignal, ValidationIssue
 
+
+_RECOVERABLE_TAGS = {"missing_field", "empty_value", "pattern_mismatch", "low_confidence"}
+
+
 class RecoveryAgent(Agent):
     name = "recovery"
-    version = "v1"
-    input_contract = {"document": "Document", "entities": "list", "issues": "list", "strategy": "str|None"}
+    version = "v2"
+    input_contract = {"document": "Document", "entities": "list", "issues": "list"}
     output_contract = {"entities": "list", "recovered_fields": "dict", "recovery_trace": "list", "signal": "StageSignal"}
 
-    def run(
-        self,
-        payload: AgentMessage,
-        ctx: AgentContext,
-    ) -> AgentResult:
+    def run(self, payload: AgentMessage, ctx: AgentContext) -> AgentResult:
         started = time.time()
         doc: Document = payload["document"]
         entities: list[Entity] = payload.get("entities", [])
         issues: list[ValidationIssue] = payload.get("issues", [])
-        strategy = payload.get("strategy") or "regex"
 
-        raw_text = "\n".join((page.raw_text or page.text) for page in doc.pages)
-        alternate_text = raw_text
-        if strategy == "alternate_ocr":
-            alternate_text = mock_ocr(raw_text, passes=2)
+        failing_fields = list(dict.fromkeys(
+            issue.field for issue in issues
+            if issue.field and self._is_recoverable(issue)
+        ))
+
         updated_entities = {entity.key: entity for entity in entities}
         recovered_fields: dict[str, str] = {}
         recovery_trace: list[dict[str, object]] = []
 
-        for issue in issues:
-            if not self._is_recoverable_issue(issue):
-                continue
-            pattern = self._pattern_for_field(issue.field, strategy)
-            before_value = updated_entities.get(issue.field).value if issue.field in updated_entities else ""
-            trace = {
-                "field": issue.field,
-                "issue_type": issue.issue,
-                "strategy": strategy,
-                "before_value": before_value,
-                "after_value": "",
-                "success": False,
-                "reason": "no_match",
-            }
-            normalized_existing = self._normalize_existing_candidate(issue.field, before_value)
-            if normalized_existing and self._passes_validation(issue.field, normalized_existing, ctx):
-                updated_entities[issue.field] = Entity(
-                    key=issue.field,
-                    value=normalized_existing,
-                    confidence=ctx.config.preprocessing.recovery_confidence,
-                    metadata={
-                        "recovered": True,
-                        "strategy": strategy,
-                        "validated_recovery": True,
-                        "source": "recovery_normalized_existing",
-                    },
-                )
-                recovered_fields[issue.field] = normalized_existing
-                trace["after_value"] = normalized_existing
-                trace["success"] = True
-                trace["reason"] = "normalized_existing_value"
-                recovery_trace.append(trace)
-                continue
-            match = re.search(pattern, raw_text, re.IGNORECASE) or re.search(pattern, alternate_text, re.IGNORECASE)
-            if not match:
-                recovery_trace.append(trace)
-                continue
-            value = match.group(1).strip()
-            if not value:
-                trace["reason"] = "empty_match"
-                recovery_trace.append(trace)
-                continue
-            if not self._passes_validation(issue.field, value, ctx):
-                trace["after_value"] = value
-                trace["reason"] = "candidate_failed_validation"
-                recovery_trace.append(trace)
-                continue
-            updated_entities[issue.field] = Entity(
-                key=issue.field,
-                value=value,
-                confidence=ctx.config.preprocessing.recovery_confidence,
-                metadata={
-                    "recovered": True,
-                    "pattern": pattern,
-                    "strategy": strategy,
-                    "validated_recovery": True,
-                },
-            )
-            recovered_fields[issue.field] = value
-            trace["after_value"] = value
-            trace["success"] = True
-            trace["reason"] = "recovered"
-            recovery_trace.append(trace)
+        if failing_fields:
+            new_entities = self._llm_recover(doc, failing_fields, ctx, recovery_trace)
+            recovery_confidence = ctx.config.preprocessing.recovery_confidence
+            for entity in new_entities:
+                if entity.key in failing_fields and str(entity.value or "").strip():
+                    updated_entities[entity.key] = Entity(
+                        key=entity.key,
+                        value=entity.value,
+                        confidence=min(entity.confidence, recovery_confidence),
+                        metadata={**(entity.metadata or {}), "recovered": True, "source": "llm_recovery"},
+                    )
+                    recovered_fields[entity.key] = str(entity.value)
 
         artifact = ctx.artifact_store.save_json(
             f"{doc.doc_id}_recovery.json",
@@ -110,17 +57,13 @@ class RecoveryAgent(Agent):
             stage=self.name,
             confidence=0.65 if recovered_fields else 0.35,
             uncertainty=0.35 if recovered_fields else 0.65,
-            metadata={"recovered_count": len(recovered_fields), "attempt_count": len(recovery_trace)},
+            metadata={"recovered_count": len(recovered_fields), "attempt_count": len(failing_fields)},
         )
         self._record(
             ctx,
-            inputs={"doc_id": doc.doc_id, "issue_count": len(issues)},
-            outputs={
-                "recovered": list(recovered_fields.keys()),
-                "artifact_id": artifact.artifact_id,
-                "attempt_count": len(recovery_trace),
-            },
-            parameters={"max_retries": ctx.config.preprocessing.max_retries, "strategy": strategy},
+            inputs={"doc_id": doc.doc_id, "issue_count": len(issues), "failing_fields": failing_fields},
+            outputs={"recovered": list(recovered_fields.keys()), "artifact_id": artifact.artifact_id},
+            parameters={"strategy": "llm_reextraction"},
             artifacts=[artifact.artifact_id],
             output_artifacts=[artifact.artifact_id],
             started=started,
@@ -136,85 +79,36 @@ class RecoveryAgent(Agent):
             }
         )
 
-    def _pattern_for_field(self, field: str, strategy: str | None) -> str:
-        label = field.replace("_", r"[\s_]")
-        if strategy == "alternate_rules":
-            # More restrictive: capture only up to the next line break or common delimiter
-            return rf"(?i){label}\s*[:=\-]\s*([^\n;|]+?)(?:\s*[\n;|]|$)"
-        # Default: capture value after the label, stop at line break or common separators
-        return rf"(?i){label}[:\s]+([^\n;|]+?)(?:\s*[\n;|]|$)"
-
-    def _is_recoverable_issue(self, issue: ValidationIssue) -> bool:
+    def _is_recoverable(self, issue: ValidationIssue) -> bool:
         tag = (issue.issue or "").strip().lower()
-        if not tag:
-            return False
-        if tag in {"missing_field", "empty_value", "pattern_mismatch", "low_confidence"}:
-            return True
-        if tag.startswith("semantic_"):
-            return True
-        return False
+        return tag in _RECOVERABLE_TAGS or tag.startswith("semantic_")
 
-    def _passes_validation(self, field: str, value: str, ctx: AgentContext) -> bool:
-        normalized = value.strip()
-        if not normalized:
-            return False
-
-        matched_rule = None
-        for rule in ctx.config.validation.rules:
-            if re.match(rule.field_pattern, field):
-                matched_rule = rule
-                break
-        if matched_rule:
-            candidate = self._normalize_for_mode(normalized, matched_rule.normalize)
-            if matched_rule.value_pattern and not re.fullmatch(matched_rule.value_pattern, candidate):
-                return False
-        return self._semantic_plausible(field, normalized)
-
-    def _normalize_for_mode(self, value: str, mode: str) -> str:
-        text = value.strip()
-        if mode == "numeric":
-            compact = text.replace(",", "")
-            compact = re.sub(r"[^\d.\-]", "", compact)
-            compact = re.sub(r"(?<!^)-", "", compact)
-            return compact
-        if mode == "upper":
-            return re.sub(r"\s+", "", text).upper()
-        return text
-
-    def _semantic_plausible(self, field: str, value: str) -> bool:
-        lowered = field.lower()
-        if "date" in lowered:
-            return bool(
-                re.fullmatch(r"\d{4}-\d{2}-\d{2}", value)
-                or re.fullmatch(r"\d{1,2}[/-]\d{1,2}[/-]\d{2,4}", value)
+    def _llm_recover(
+        self,
+        doc: Document,
+        failing_fields: list[str],
+        ctx: AgentContext,
+        recovery_trace: list[dict[str, object]],
+    ) -> list[Entity]:
+        try:
+            from idpo.agents.llm_extraction import LLMExtractionAgent
+            agent = LLMExtractionAgent()
+            result = agent.run(
+                {
+                    "document": doc,
+                    "explicit_keys": failing_fields,
+                    "field_descriptions": dict(ctx.config.structuring.field_descriptions),
+                    "recovery_pass": True,
+                },
+                ctx,
             )
-        if "amount" in lowered or "total" in lowered:
-            compact = value.replace(",", "")
-            compact = re.sub(r"[^\d.\-]", "", compact)
-            return bool(re.fullmatch(r"-?\d+(?:\.\d{1,2})?", compact))
-        return True
-
-    def _normalize_existing_candidate(self, field: str, value: str) -> str:
-        lowered = field.lower()
-        if "amount" not in lowered and "total" not in lowered and not lowered.endswith("_price"):
-            return ""
-        text = (value or "").strip()
-        if not text:
-            return ""
-        cleaned = re.sub(r"(?i)\b(cash|total|amount|subtotal|tax|tl|usd|eur|rp)\b", "", text)
-        cleaned = cleaned.replace(" ", "")
-        cleaned = re.sub(r"[^\d,.\-]", "", cleaned)
-        cleaned = re.sub(r"(?<!^)-", "", cleaned)
-        if cleaned.startswith("-") and re.search(r"[A-Za-z]", text):
-            cleaned = cleaned[1:]
-        if re.fullmatch(r"-?\d{1,3}(?:[.,]\d{3})+", cleaned):
-            cleaned = cleaned.replace(".", "").replace(",", "")
-        elif re.fullmatch(r"-?\d+[.]\d{3}", cleaned):
-            cleaned = cleaned.replace(".", "")
-        elif re.fullmatch(r"-?\d+,\d{3}", cleaned):
-            cleaned = cleaned.replace(",", "")
-        elif re.fullmatch(r"-?\d+,\d{2}$", cleaned) and "." not in cleaned:
-            cleaned = cleaned.replace(",", ".")
-        else:
-            cleaned = cleaned.replace(",", "")
-        return cleaned.strip()
+            entities: list[Entity] = result.artifacts.get("entities", [])
+            recovery_trace.append({
+                "strategy": "llm_reextraction",
+                "fields_attempted": failing_fields,
+                "fields_recovered": [e.key for e in entities if str(e.value or "").strip()],
+            })
+            return entities
+        except Exception as exc:
+            recovery_trace.append({"strategy": "llm_reextraction", "error": str(exc), "fields_attempted": failing_fields})
+            return []

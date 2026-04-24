@@ -102,6 +102,7 @@ class PipelineResult:
     feedback_logged: bool = False
     feedback_error: str | None = None
     plan_payload: dict[str, object] = field(default_factory=dict)
+    stage_timings_ms: dict[str, float] = field(default_factory=dict)
 
 
 def build_pipeline_result(
@@ -244,4 +245,5 @@ def build_pipeline_result(
         spent_budget_units=state.spent_budget_units,
         feedback_logged=feedback_logged,
         feedback_error=feedback_error,
+        stage_timings_ms=dict(state.stage_timings_ms),
     )
