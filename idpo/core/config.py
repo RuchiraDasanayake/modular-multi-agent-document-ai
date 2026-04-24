@@ -245,7 +245,6 @@ class LLMConfig:
     base_url: str = "http://localhost:11434"
     timeout_s: int = 60
     use_extraction: bool = False
-    use_summarization: bool = False
     cloud_provider: str = "openai"
     cloud_timeout_s: int = 60
     cloud_temperature: float = 0.0

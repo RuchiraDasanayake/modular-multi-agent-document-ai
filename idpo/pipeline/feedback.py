@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import json
 import urllib.error
 import urllib.request
@@ -65,33 +66,84 @@ def log_ahmn_feedback(
             "structural_features": dae_output.structural_features,
         },
     }
-    log_url = endpoint.rstrip("/") + config.ahmn.log_endpoint
-    request = urllib.request.Request(
-        log_url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-    )
-    timeout = max(config.ahmn.timeout_ms, 10) / 1000.0
-    try:
-        with urllib.request.urlopen(request, timeout=timeout):
+    # Try HTTP endpoint first (live AHMN server).
+    if endpoint:
+        log_url = endpoint.rstrip("/") + config.ahmn.log_endpoint
+        request = urllib.request.Request(
+            log_url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        timeout = max(config.ahmn.timeout_ms, 10) / 1000.0
+        http_error: str | None = None
+        try:
+            with urllib.request.urlopen(request, timeout=timeout):
+                _record_feedback_event(
+                    ctx=ctx,
+                    advice_id=advice_id,
+                    selected_policy_id=selected_policy_id,
+                    metrics=metrics,
+                    log_endpoint=config.ahmn.log_endpoint,
+                    logged=True,
+                    error=None,
+                )
+                return True, None
+        except urllib.error.HTTPError as exc:
+            http_error = f"http_{exc.code}"
+        except urllib.error.URLError:
+            http_error = "unreachable"
+        except TimeoutError:
+            http_error = "timeout"
+        except Exception:
+            http_error = "unknown_error"
+
+        # Fall through to direct_import if HTTP failed.
+        if not config.ahmn.direct_import:
             _record_feedback_event(
                 ctx=ctx,
                 advice_id=advice_id,
                 selected_policy_id=selected_policy_id,
                 metrics=metrics,
                 log_endpoint=config.ahmn.log_endpoint,
-                logged=True,
-                error=None,
+                logged=False,
+                error=http_error,
             )
-            return True, None
-    except urllib.error.HTTPError as exc:
-        error = f"http_{exc.code}"
-    except urllib.error.URLError:
-        error = "unreachable"
-    except TimeoutError:
-        error = "timeout"
-    except Exception:
-        error = "unknown_error"
+            return False, http_error
+
+    # Direct-import path: call log_outcome on the imported module.
+    # This is the only feedback path that actually reaches the in-process advisor
+    # when no HTTP server is running (local benchmarks).
+    direct_import = (config.ahmn.direct_import or "").strip()
+    if direct_import:
+        try:
+            module_path, func_name = direct_import.rsplit(":", 1)
+            module = importlib.import_module(module_path)
+            log_fn = getattr(module, "log_outcome", None)
+            if callable(log_fn):
+                f1 = float((reward_details or {}).get("f1", reward_value) or reward_value)
+                log_fn(advice_id, selected_policy_id, f1)
+                _record_feedback_event(
+                    ctx=ctx,
+                    advice_id=advice_id,
+                    selected_policy_id=selected_policy_id,
+                    metrics=metrics,
+                    log_endpoint="direct_import",
+                    logged=True,
+                    error=None,
+                )
+                return True, None
+        except Exception as exc:
+            error = f"direct_import_error:{exc}"
+            _record_feedback_event(
+                ctx=ctx,
+                advice_id=advice_id,
+                selected_policy_id=selected_policy_id,
+                metrics=metrics,
+                log_endpoint="direct_import",
+                logged=False,
+                error=error,
+            )
+            return False, error
 
     _record_feedback_event(
         ctx=ctx,
@@ -100,9 +152,9 @@ def log_ahmn_feedback(
         metrics=metrics,
         log_endpoint=config.ahmn.log_endpoint,
         logged=False,
-        error=error,
+        error="no_feedback_channel",
     )
-    return False, error
+    return False, "no_feedback_channel"
 
 
 def _record_feedback_event(

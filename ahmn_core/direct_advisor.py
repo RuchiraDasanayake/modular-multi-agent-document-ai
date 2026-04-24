@@ -23,6 +23,8 @@ _POLICY_STORE_PATH = _REPO_ROOT / "configs" / "policy_store_research.json"
 _state_lock = threading.Lock()
 _posteriors: dict[str, list[float]] = {}  # policy_id -> [alpha, beta]
 _call_count = 0
+# Single persistent RNG — stateless per-call RNG breaks exploration-exploitation.
+_rng = random.Random()
 
 # Policies that are actually relevant for receipts (CORD v2 doc type)
 _RECEIPT_POLICY_PRIORITY = [
@@ -51,8 +53,8 @@ def _ensure_initialized(policy_ids: list[str]) -> None:
 
 
 def _thompson_sample(policy_ids: list[str]) -> str:
-    rng = random.Random()
-    samples = {pid: rng.betavariate(_posteriors[pid][0], _posteriors[pid][1])
+    # _rng is module-level — state persists across calls for real exploration.
+    samples = {pid: _rng.betavariate(_posteriors[pid][0], _posteriors[pid][1])
                for pid in policy_ids}
     return max(samples, key=lambda pid: samples[pid])
 
@@ -69,9 +71,9 @@ def get_advice(payload: dict[str, Any]) -> dict[str, Any]:
         selected = _thompson_sample(policy_ids)
         _call_count += 1
         count = _call_count
+        # Read inside the lock — log_outcome can mutate _posteriors concurrently.
+        alpha, beta = _posteriors[selected]
 
-    # Confidence = proportion of weight on selected policy (heuristic)
-    alpha, beta = _posteriors[selected]
     confidence = round(alpha / (alpha + beta), 4)
 
     return {

@@ -254,6 +254,11 @@ class Pipeline:
         blocked_policy = False
         rollback_triggered = False
         rollback_reason = None
+        # Preserve the AHMN-recommended policy_id before any rollback substitution.
+        # Feedback must be logged against what AHMN recommended, not the fallback
+        # we actually ran — logging the fallback's reward against AHMN's arm poisons
+        # the posterior with outcomes it was never responsible for.
+        ahmn_recommended_policy_id = policy.policy_id
 
         if self.rollback_monitor.is_blocked(policy.policy_id) and policy.policy_id != self.config.knowledge.default_policy_id:
             fallback = self.policy_store._policy_map.get(self.config.knowledge.default_policy_id, policy)
@@ -447,7 +452,7 @@ class Pipeline:
             ctx=self.ctx,
             config=self.config,
             advice_id=advice_id,
-            selected_policy_id=policy.policy_id,
+            selected_policy_id=ahmn_recommended_policy_id,
             reward_value=reward_value,
             reward_details=reward_details,
             latency_ms=latency_ms,

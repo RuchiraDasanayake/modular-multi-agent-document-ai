@@ -80,6 +80,10 @@ def _case_metrics(expected: dict[str, str], extracted: dict[str, object]) -> tup
             fn += 1
         else:
             fn += 1
+    # Count hallucinated fields (extracted but not in expected) as false positives.
+    for key, value in extracted.items():
+        if key not in expected and _normalize_exact_value(key, value):
+            fp += 1
     return tp, fp, fn
 
 
