@@ -150,10 +150,16 @@ def _resolve_selection_mode(request: Request) -> str:
     return _normalize_selection_mode(ADVICE_SELECTION_MODE)
 
 
-def _policy_score(alpha: float, beta: float, selection_mode: str) -> float:
+def _policy_score(
+    alpha: float,
+    beta: float,
+    selection_mode: str,
+    rng: random.Random | None = None,
+) -> float:
     if selection_mode == "deterministic":
         return alpha / (alpha + beta)
-    return random.betavariate(alpha, beta)
+    _rng = rng if rng is not None else random
+    return _rng.betavariate(alpha, beta)
 
 
 def _as_metrics_dict(value: Any) -> dict[str, Any]:
@@ -545,6 +551,11 @@ async def get_advice(context: DocumentContext, request: Request):
     )
     vector = _embedding_service.generate_embedding(context_str)
 
+    # Seed TS RNG from context so identical inputs produce reproducible draws
+    # while still exploring across different document contexts.
+    ctx_seed = int(hashlib.sha256(context_str.encode()).hexdigest(), 16) % (2**31)
+    ts_rng = random.Random(ctx_seed)
+
     policy_id = "default"
     policy_data: dict = {"action": "standard_processing"}
     confidence = 0.3
@@ -585,7 +596,7 @@ async def get_advice(context: DocumentContext, request: Request):
                 direct_row = max(direct_rows, key=lambda r: r[5])
                 alpha_used = max(0.1, float(direct_row[2]))
                 beta_used = max(0.1, float(direct_row[3]))
-                score = _policy_score(alpha_used, beta_used, selection_mode)
+                score = _policy_score(alpha_used, beta_used, selection_mode, ts_rng)
                 representative = direct_row
                 is_cold = False
             else:
@@ -606,7 +617,7 @@ async def get_advice(context: DocumentContext, request: Request):
                 if policy_prior.n_neighbors == 0:
                     # No valid neighbors for RABI; skip this policy candidate.
                     continue
-                score = _policy_score(policy_prior.alpha, policy_prior.beta, selection_mode)
+                score = _policy_score(policy_prior.alpha, policy_prior.beta, selection_mode, ts_rng)
                 representative = max(pid_rows, key=lambda r: r[5])
                 is_cold = True
                 prior = policy_prior  # last cold-start prior used (for downstream confidence)
