@@ -311,9 +311,11 @@ class PolicyAdvisor:
         if isinstance(expected, list):
             return current in expected
         if isinstance(expected, dict):
-            if "min" in expected and current is not None and current < expected["min"]:
+            if current is None:
                 return False
-            if "max" in expected and current is not None and current > expected["max"]:
+            if "min" in expected and current < expected["min"]:
+                return False
+            if "max" in expected and current > expected["max"]:
                 return False
             if "equals" in expected:
                 return current == expected["equals"]

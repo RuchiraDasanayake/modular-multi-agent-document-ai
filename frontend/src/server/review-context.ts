@@ -11,7 +11,7 @@ import type {
 } from "@/types/idpo";
 import { loadRunnerConfig } from "@/server/config";
 import type { ReviewArtifact, ReviewFieldResult, ReviewState } from "@/server/review";
-import { readReviewArtifact } from "@/server/review";
+import { readReviewArtifact, sanitizeVendorIdentity } from "@/server/review";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -267,7 +267,11 @@ function buildPromptPreview(summary: JobValidationContextSummary, fieldConfig: J
 function summarizeJobValidationContext(job: JobStatus, fieldConfig: JobFieldConfig[]): JobValidationContextSummary {
   const artifacts = collectReviewedArtifacts(job);
   const knownVendors = uniqueStrings(
-    artifacts.flatMap((artifact) => [artifact.documentContext.vendor_cluster ?? "", artifact.documentContext.vendor ?? ""]),
+    artifacts.flatMap((artifact) => {
+      const vendorCluster = sanitizeVendorIdentity(artifact.documentContext.vendor_cluster);
+      const vendor = sanitizeVendorIdentity(artifact.documentContext.vendor);
+      return [vendorCluster ?? "", vendor ?? ""];
+    }),
     6,
   );
 

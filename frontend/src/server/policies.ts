@@ -4,6 +4,7 @@ import { getRunDocument } from "@/server/artifacts";
 import { loadRunnerConfig } from "@/server/config";
 import { getJobOrThrow } from "@/server/jobs";
 import { readJobValidationContext } from "@/server/review-context";
+import { sanitizeVendorIdentity } from "@/server/review";
 
 interface PolicyStorePayload {
   default_policy_id?: unknown;
@@ -1108,7 +1109,13 @@ export function listJobPolicies(jobId: string): JobPolicyWorkspace {
 export function getSuggestedJobPolicyMatching(jobId: string): JobPolicySuggestedMatching {
   const job = getJobOrThrow(jobId);
   const reviewContext = readJobValidationContext(jobId);
-  const vendorClusters = uniqueStrings(reviewContext?.current.summary.knownVendors ?? [], 8);
+  const vendorClusters = uniqueStrings(
+    (reviewContext?.current.summary.knownVendors ?? []).flatMap((value) => {
+      const sanitized = sanitizeVendorIdentity(value);
+      return sanitized ? [sanitized] : [];
+    }),
+    8,
+  );
   const docTypes: string[] = [];
   const contentProfiles: string[] = [];
 
@@ -1119,8 +1126,9 @@ export function getSuggestedJobPolicyMatching(jobId: string): JobPolicySuggested
     try {
       const detail = getRunDocument(document.latestRunId, document.latestDocId);
       const metadata = asRecord(detail.metadata) ?? {};
-      if (typeof metadata.vendorCluster === "string") {
-        vendorClusters.push(metadata.vendorCluster);
+      const vendorCluster = sanitizeVendorIdentity(metadata.vendorCluster);
+      if (vendorCluster) {
+        vendorClusters.push(vendorCluster);
       }
       if (typeof metadata.docType === "string") {
         docTypes.push(metadata.docType);

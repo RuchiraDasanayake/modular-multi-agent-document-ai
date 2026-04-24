@@ -21,7 +21,7 @@
     ]
   },
   "preprocessing": {
-    "ocr_engine": "paddleocr",
+    "ocr_engine": "tesseract",
     "ocr_version": "v1",
     "ocr_lang": "eng",
     "ocr_psm": 6,
@@ -96,9 +96,9 @@
     "quality_drop_threshold": 0.05
   },
   "queue": {
-    "enabled": false,
+    "enabled": true,
     "max_workers": 4,
-    "per_partition_concurrency": 1,
+    "per_partition_concurrency": 2,
     "partition_keys": [
       "doc_type",
       "vendor_cluster"

@@ -21,7 +21,7 @@
     ]
   },
   "preprocessing": {
-    "ocr_engine": "paddleocr",
+    "ocr_engine": "tesseract",
     "ocr_version": "v1",
     "ocr_lang": "eng",
     "ocr_psm": 6,
@@ -60,7 +60,7 @@
       },
       {
         "field_pattern": ".*_amount$",
-        "value_pattern": "^\\d+(\\.\\d{2})?$",
+        "value_pattern": "^\\d{1,3}(,\\d{3})*(\\.\\d+)?$|^\\d+(\\.\\d+)?$",
         "severity": "medium",
         "normalize": "numeric"
       },
@@ -113,9 +113,9 @@
     "min_validation_pass_delta": 0.1
   },
   "queue": {
-    "enabled": false,
+    "enabled": true,
     "max_workers": 4,
-    "per_partition_concurrency": 1,
+    "per_partition_concurrency": 2,
     "partition_keys": [
       "doc_type",
       "vendor_cluster"
@@ -125,13 +125,13 @@
   "ahmn": {
     "enabled": true,
     "policy_mode": "adaptive",
-    "mode": "http",
+    "mode": "auto",
     "objective": "balanced",
     "timeout_ms": 500,
     "endpoint": "http://localhost:8001",
     "advice_endpoint": "/advice",
     "log_endpoint": "/advice/log",
-    "direct_import": null,
+    "direct_import": "ahmn_core.direct_advisor:get_advice",
     "policy_override_id": null,
     "action_overrides": {}
   },
@@ -164,7 +164,7 @@
     "default_policy_id": "default"
   },
   "llm": {
-    "local_model": "phi3:mini",
+    "local_model": "qwen3.5:9b",
     "cloud_model": "gpt-4o-mini",
     "flagship_model": "gpt-4.1",
     "default_mode": "local",
@@ -172,7 +172,7 @@
     "provider": "ollama",
     "cloud_provider": "openai",
     "base_url": "http://localhost:11434",
-    "timeout_s": 60,
+    "timeout_s": 120,
     "cloud_timeout_s": 60,
     "cloud_temperature": 0.0,
     "cloud_max_tokens": 2000,
@@ -181,12 +181,12 @@
     "flagship_min_missing_fields": 99,
     "max_cloud_fields_per_call": 8,
     "prompt_max_chars": 18000,
-    "context_window_lines": 1,
+    "context_window_lines": 2,
     "prefer_targeted_context": true,
     "strict_json_output": true,
     "cloud_retry_without_json_mode": true,
     "refine_field_descriptions": true,
-    "description_refinement_model": "phi3:mini",
+    "description_refinement_model": "qwen3.5:9b",
     "description_refinement_max_tokens": 300,
     "description_refinement_temperature": 0.0,
     "description_refinement_max_fields": 24,

@@ -684,9 +684,12 @@ function appendRunOutcome(
   document.latestRoute = outcome.route;
   document.latestPolicy = outcome.policy;
   document.errorSummary = outcome.errorSummary;
-  document.reviewState = outcome.reviewState;
-  document.reviewStatus = outcome.reviewStatus ?? null;
-  document.reviewSource = outcome.reviewSource ?? null;
+  // Never overwrite a persisted human review with a non-human result from a new run.
+  if (document.reviewStatus !== "human_reviewed" || outcome.reviewStatus === "human_reviewed") {
+    document.reviewState = outcome.reviewState;
+    document.reviewStatus = outcome.reviewStatus ?? null;
+    document.reviewSource = outcome.reviewSource ?? null;
+  }
   document.status = nextStatus;
   document.updatedAt = nowIso();
 }
@@ -1171,9 +1174,13 @@ export async function startJobRuns(payload: StartJobRunsRequest): Promise<JobSta
       }
       document.status = "processing";
       document.errorSummary = null;
-      document.reviewState = null;
-      document.reviewStatus = "unreviewed";
-      document.reviewSource = null;
+      // Preserve human review — only clear AI/unreviewed states so a human-reviewed
+      // record is never silently wiped by a reprocess.
+      if (document.reviewStatus !== "human_reviewed") {
+        document.reviewState = null;
+        document.reviewStatus = "unreviewed";
+        document.reviewSource = null;
+      }
       document.updatedAt = nowIso();
     }
     return job;

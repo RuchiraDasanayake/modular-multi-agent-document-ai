@@ -68,7 +68,21 @@ export async function GET(request: Request, { params }: Params) {
         detail = null;
       }
     }
-    const review = outcome?.runId && outcome?.docId ? readReviewArtifact(outcome.runId, outcome.docId) : null;
+    // Load review for the selected outcome. If none exists (e.g. document was reprocessed
+    // after being reviewed), walk backwards through all outcomes to surface the most recent
+    // human review artifact so it is never silently lost from the UI.
+    let review = outcome?.runId && outcome?.docId ? readReviewArtifact(outcome.runId, outcome.docId) : null;
+    if (!review && document.reviewStatus === "human_reviewed") {
+      const reversed = [...document.outcomes].reverse();
+      for (const o of reversed) {
+        if (!o.runId || !o.docId) continue;
+        const candidate = readReviewArtifact(o.runId, o.docId);
+        if (candidate?.reviewSource === "human") {
+          review = candidate;
+          break;
+        }
+      }
+    }
     const transparency = detail && typeof detail === "object" && detail !== null && "transparency" in detail
       ? ((detail as Record<string, unknown>).transparency as Record<string, unknown> | null)
       : null;
@@ -76,6 +90,44 @@ export async function GET(request: Request, { params }: Params) {
       detail && typeof detail === "object" && detail !== null && Array.isArray((detail as Record<string, unknown>).provenanceEvents)
         ? ((detail as Record<string, unknown>).provenanceEvents as unknown[])
         : [];
+
+    // Build expected values: human/AI review corrections take priority,
+    // then benchmark pack ground truth, then nothing.
+    const expectedFieldValues: Record<string, string> = {};
+    const expectedFieldSource: Record<string, "review" | "benchmark"> = {};
+    // 1. Benchmark pack expected values (lowest priority)
+    const outcomeAny = outcome as unknown as Record<string, unknown> | null;
+    const benchmarkExpected =
+      outcomeAny &&
+      typeof outcomeAny.expectedFieldValues === "object" &&
+      outcomeAny.expectedFieldValues !== null
+        ? (outcomeAny.expectedFieldValues as Record<string, string>)
+        : null;
+    if (benchmarkExpected) {
+      for (const [k, v] of Object.entries(benchmarkExpected)) {
+        if (typeof v === "string" && v.trim()) {
+          expectedFieldValues[k] = v.trim();
+          expectedFieldSource[k] = "benchmark";
+        }
+      }
+    }
+    // 2. Review corrected values override benchmark (highest priority)
+    if (review?.fields && Array.isArray(review.fields)) {
+      for (const field of review.fields as ReviewFieldResult[]) {
+        const key = field.fieldKey.trim();
+        const corrected = typeof field.correctedValue === "string" ? field.correctedValue.trim() : null;
+        const extracted = field.extractedValue.trim();
+        if (!key) continue;
+        if (corrected) {
+          expectedFieldValues[key] = corrected;
+          expectedFieldSource[key] = "review";
+        } else if (field.reviewState === "correct" && extracted && extracted !== "N/A") {
+          // Reviewer confirmed correct — the extracted value IS the expected value
+          expectedFieldValues[key] = extracted;
+          expectedFieldSource[key] = "review";
+        }
+      }
+    }
 
     return NextResponse.json(
       {
@@ -93,6 +145,8 @@ export async function GET(request: Request, { params }: Params) {
         requestedFields: job.fieldConfigCurrent ?? [],
         outcome,
         fieldValues: outcome?.fieldValues ?? {},
+        expectedFieldValues: Object.keys(expectedFieldValues).length > 0 ? expectedFieldValues : null,
+        expectedFieldSource: Object.keys(expectedFieldSource).length > 0 ? expectedFieldSource : null,
         review,
         support: {
           ahmn: {

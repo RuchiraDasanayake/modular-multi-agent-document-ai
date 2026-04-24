@@ -5,6 +5,10 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { IdpoCard } from "@/components/idpo/card";
+import {
+  mergeSavedReviewIntoDocumentPayload,
+  suggestedReviewRowsFromDocumentPayload,
+} from "@/components/idpo/job-document-review";
 import { StatusBadge } from "@/components/idpo/status-badge";
 import { idpoApi } from "@/lib/idpo-api";
 import type { FieldExtraction, ProvenanceEvent } from "@/types/idpo";
@@ -52,6 +56,39 @@ function formatMetric(value: unknown, suffix = ""): string {
     return "-";
   }
   return `${value}${suffix}`;
+}
+
+const NUMERIC_FIELD_HINTS = ["amount", "price", "total", "subtotal", "tax", "cash", "change"];
+
+function stripCurrencyPrefix(value: string): string {
+  const stripped = value.replace(/^[^\d\-.]+/, "").trim();
+  return stripped || value;
+}
+
+function normalizeExactComparisonValue(key: string, value: unknown): string {
+  const normalized = String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  const loweredKey = key.trim().toLowerCase();
+  if (NUMERIC_FIELD_HINTS.some((hint) => loweredKey.includes(hint))) {
+    let compact = stripCurrencyPrefix(normalized).replace(/\s+/g, "").replace(/,/g, "");
+    if (compact.includes(".") && compact.split(".").length === 2) {
+      const [integerPart, fracPart] = compact.split(".");
+      if (fracPart.length === 3) {
+        compact = `${integerPart}${fracPart}`;
+      } else {
+        const fracStripped = fracPart.replace(/0+$/, "");
+        compact = fracStripped ? `${integerPart}.${fracStripped}` : integerPart;
+      }
+    }
+    return compact;
+  }
+  return normalized;
+}
+
+function expectedValueMatches(key: string, extractedValue: string | null, expectedValue: string | null): boolean {
+  if (!extractedValue || !expectedValue) {
+    return false;
+  }
+  return normalizeExactComparisonValue(key, extractedValue) === normalizeExactComparisonValue(key, expectedValue);
 }
 
 function asStringArray(value: unknown): string[] {
@@ -668,51 +705,11 @@ export function JobDocumentPage() {
   }, [jobId, docId, mode, runId]);
 
   useEffect(() => {
-    const reviewPayload = payload?.review && typeof payload.review === "object" ? (payload.review as Record<string, unknown>) : null;
-    const reviewFields = Array.isArray(reviewPayload?.fields) ? reviewPayload?.fields : [];
-    if (reviewFields.length > 0) {
-      setReviewRows(
-        reviewFields.map((item) => {
-          const entry = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
-          return {
-            fieldKey: String(entry.fieldKey ?? ""),
-            fieldLabel: String(entry.fieldLabel ?? entry.fieldKey ?? ""),
-            extractedValue: String(entry.extractedValue ?? "N/A"),
-            correctedValue: typeof entry.correctedValue === "string" ? entry.correctedValue : "",
-            reviewState: String(entry.reviewState ?? "correct") as ReviewState,
-            reviewNote: typeof entry.reviewNote === "string" ? entry.reviewNote : "",
-          };
-        }),
-      );
-      return;
-    }
-
-    const requestedFields = Array.isArray(payload?.requestedFields) ? payload.requestedFields : [];
-    const fieldValues =
-      payload?.fieldValues && typeof payload.fieldValues === "object" && !Array.isArray(payload.fieldValues)
-        ? (payload.fieldValues as Record<string, unknown>)
-        : {};
-    setReviewRows(
-      requestedFields
-        .map((item) => {
-          const entry = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
-          const fieldLabel = String(entry.name ?? "").trim();
-          if (!fieldLabel) {
-            return null;
-          }
-          const fieldKey = normalizeFieldKey(fieldLabel);
-          const extractedValue = String(fieldValues[fieldKey] ?? fieldValues[fieldLabel] ?? "N/A").trim() || "N/A";
-          return {
-            fieldKey,
-            fieldLabel,
-            extractedValue,
-            correctedValue: "",
-            reviewState: "correct" as ReviewState,
-            reviewNote: "",
-          };
-        })
-        .filter((item): item is ReviewRow => item !== null),
-    );
+    const suggestedRows = suggestedReviewRowsFromDocumentPayload(payload).map((row) => ({
+      ...row,
+      reviewState: row.reviewState as ReviewState,
+    }));
+    setReviewRows(suggestedRows);
   }, [payload]);
 
   const fieldEntries = useMemo(() => {
@@ -829,11 +826,19 @@ export function JobDocumentPage() {
   const fallbackSummary = deriveFallbackSummary(llmDiagnostics, fallbackKeys, finalExtraction);
   const reviewSource = typeof review?.reviewSource === "string" ? review.reviewSource : null;
   const reviewIsAi = reviewSource === "ai";
+  const outcomeRecord = asRecord(payload?.outcome);
+  const benchmarkBackedReview = !review && Boolean(payload?.expectedFieldValues);
+  const reviewMetrics = (review?.metrics as Record<string, unknown> | undefined) ?? null;
+  const displayedPrecision = reviewMetrics?.precision ?? outcomeRecord?.exactPrecision ?? null;
+  const displayedRecall = reviewMetrics?.recall ?? outcomeRecord?.exactRecall ?? null;
+  const displayedF1 = reviewMetrics?.f1 ?? outcomeRecord?.exactF1 ?? null;
   const reviewSourceLabel =
     reviewIsAi
       ? `auto review${typeof review?.reviewerConfidence === "number" ? ` / ${formatPercentValue(review.reviewerConfidence)}` : ""}`
       : reviewSource === "human"
         ? "human review"
+        : benchmarkBackedReview
+          ? "benchmark label"
         : "-";
 
   useEffect(() => {
@@ -952,7 +957,7 @@ export function JobDocumentPage() {
     }
     setSavingReview(true);
     try {
-      await idpoApi.saveJobDocumentReview(jobId, docId, {
+      const response = await idpoApi.saveJobDocumentReview(jobId, docId, {
         runId: activeRunId,
         mode: mode === "strict" ? "strict" : "adaptive",
         fields: reviewRows.map((row) => ({
@@ -964,7 +969,15 @@ export function JobDocumentPage() {
           reviewNote: row.reviewNote || null,
         })),
       });
-      await reloadDocument();
+      const nextPayload = mergeSavedReviewIntoDocumentPayload(payload, response.review);
+      setPayload(nextPayload);
+      const savedRows = suggestedReviewRowsFromDocumentPayload(nextPayload).map((row) => ({
+        ...row,
+        reviewState: row.reviewState as ReviewState,
+      }));
+      if (savedRows.length > 0) {
+        setReviewRows(savedRows);
+      }
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save review");
@@ -1065,44 +1078,98 @@ export function JobDocumentPage() {
           </div>
         ) : null}
         <div className="mt-3 overflow-x-auto">
-          <table className="w-full min-w-[720px] text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                <th className="px-2 py-2">Field</th>
-                <th className="px-2 py-2">Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleFieldRows.map(({ key, value, detail }) => (
-                <tr
-                  key={key}
-                  ref={(node) => {
-                    fieldRowRefs.current[normalizeFieldKey(key)] = node;
-                  }}
-                  className={`border-b border-slate-100 transition dark:border-slate-800 ${
-                    focusedFieldKey === normalizeFieldKey(key) ? "bg-cyan-50 dark:bg-cyan-950/20" : ""
-                  }`}
-                >
-                  <td className="px-2 py-2 font-medium text-slate-900 dark:text-slate-100">{key}</td>
-                  <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
-                    <div>{formatValue(value)}</div>
-                    {collectFieldEvidenceFacts(detail).length > 0 ? (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {collectFieldEvidenceFacts(detail).map((fact) => (
-                          <span
-                            key={`${key}_${fact}`}
-                            className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600 dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-300"
-                          >
-                            {fact}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {(() => {
+            const expectedMap =
+              payload?.expectedFieldValues &&
+              typeof payload.expectedFieldValues === "object" &&
+              !Array.isArray(payload.expectedFieldValues)
+                ? (payload.expectedFieldValues as Record<string, string>)
+                : null;
+            const sourceMap =
+              payload?.expectedFieldSource &&
+              typeof payload.expectedFieldSource === "object" &&
+              !Array.isArray(payload.expectedFieldSource)
+                ? (payload.expectedFieldSource as Record<string, string>)
+                : null;
+            const hasExpected = expectedMap !== null && Object.keys(expectedMap).length > 0;
+            return (
+              <table className="w-full min-w-[720px] text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                    <th className="px-2 py-2">Field</th>
+                    <th className="px-2 py-2">Extracted</th>
+                    {hasExpected ? <th className="px-2 py-2">Expected</th> : null}
+                    {hasExpected ? <th className="px-2 py-2">Match</th> : null}
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleFieldRows.map(({ key, value, detail }) => {
+                    const normKey = normalizeFieldKey(key);
+                    const expectedRaw = hasExpected ? (expectedMap?.[key] ?? expectedMap?.[normKey] ?? null) : null;
+                    const src = expectedRaw !== null ? (sourceMap?.[key] ?? sourceMap?.[normKey] ?? null) : null;
+                    const extractedStr = typeof value === "string" ? value.trim() : formatValue(value);
+                    const matched = expectedRaw !== null && expectedValueMatches(key, extractedStr, expectedRaw);
+                    return (
+                      <tr
+                        key={key}
+                        ref={(node) => {
+                          fieldRowRefs.current[normKey] = node;
+                        }}
+                        className={`border-b border-slate-100 transition dark:border-slate-800 ${
+                          focusedFieldKey === normKey ? "bg-cyan-50 dark:bg-cyan-950/20" : ""
+                        }`}
+                      >
+                        <td className="px-2 py-2 font-medium text-slate-900 dark:text-slate-100">{key}</td>
+                        <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
+                          <div>{formatValue(value)}</div>
+                          {collectFieldEvidenceFacts(detail).length > 0 ? (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {collectFieldEvidenceFacts(detail).map((fact) => (
+                                <span
+                                  key={`${key}_${fact}`}
+                                  className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600 dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-300"
+                                >
+                                  {fact}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                        </td>
+                        {hasExpected ? (
+                          <td className="px-2 py-2 text-slate-600 dark:text-slate-300">
+                            {expectedRaw ?? <span className="text-slate-400">—</span>}
+                            {src ? (
+                              <span className={`ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${src === "review" ? "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"}`}>
+                                {src}
+                              </span>
+                            ) : null}
+                          </td>
+                        ) : null}
+                        {hasExpected ? (
+                          <td className="px-2 py-2">
+                            {expectedRaw !== null ? (
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                                  matched
+                                    ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                                    : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                                }`}
+                              >
+                                {matched ? "match" : "miss"}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                        ) : null}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            );
+          })()}
+
           {visibleFieldEntries.length === 0 ? (
             selectedEvent && getEvidenceTarget(selectedEvent) === "fields" ? (
               <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">No field-specific evidence could be isolated for this event.</p>
@@ -1781,7 +1848,7 @@ export function JobDocumentPage() {
               {reviewIsAi ? "Precision (AI)" : "Precision"}
             </div>
             <div className="mt-1 font-medium text-slate-900 dark:text-white">
-              {formatScoreValue((review?.metrics as Record<string, unknown> | undefined)?.precision)}
+              {formatScoreValue(displayedPrecision)}
             </div>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/40">
@@ -1789,7 +1856,7 @@ export function JobDocumentPage() {
               {reviewIsAi ? "Recall (AI)" : "Recall"}
             </div>
             <div className="mt-1 font-medium text-slate-900 dark:text-white">
-              {formatScoreValue((review?.metrics as Record<string, unknown> | undefined)?.recall)}
+              {formatScoreValue(displayedRecall)}
             </div>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/40">
@@ -1797,7 +1864,7 @@ export function JobDocumentPage() {
               {reviewIsAi ? "F1 (AI)" : "F1"}
             </div>
             <div className="mt-1 font-medium text-slate-900 dark:text-white">
-              {formatScoreValue((review?.metrics as Record<string, unknown> | undefined)?.f1)}
+              {formatScoreValue(displayedF1)}
             </div>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/40">

@@ -112,6 +112,26 @@ def test_recovery_rejects_invalid_amount_candidate(tmp_path: Path) -> None:
     assert result.artifacts["recovered_fields"] == {}
 
 
+def test_recovery_normalizes_noisy_receipt_amount_from_existing_value(tmp_path: Path) -> None:
+    cfg = PipelineConfig()
+    cfg.validation.rules = [
+        ValidationRule(field_pattern=".*_amount$", value_pattern=r"^\d+(\.\d{2})?$", normalize="numeric")
+    ]
+    ctx = _ctx(tmp_path, cfg)
+    agent = RecoveryAgent()
+    doc = Document(doc_id="doc-1", source="scanned", path="doc.txt", pages=[Page(number=1, text="CASH -7.000\nTL -7, 000")])
+    entities = [Entity(key="cash_amount", value="CASH -7.000", confidence=0.9)]
+    issues = [ValidationIssue(field="cash_amount", issue="semantic_amount_mismatch", severity="medium")]
+
+    result = agent.run({"document": doc, "entities": entities, "issues": issues, "strategy": "alternate_rules"}, ctx)
+
+    assert result.artifacts["recovered_fields"] == {"cash_amount": "7000"}
+    updated = {entity.key: entity.value for entity in result.artifacts["entities"]}
+    assert updated["cash_amount"] == "7000"
+    trace = result.artifacts["recovery_trace"]
+    assert trace[0]["reason"] == "normalized_existing_value"
+
+
 def test_inbox_batch_run_processes_multiple_docs_in_one_run(tmp_path: Path, monkeypatch) -> None:
     root = tmp_path / "workspace"
     root.mkdir(parents=True, exist_ok=True)

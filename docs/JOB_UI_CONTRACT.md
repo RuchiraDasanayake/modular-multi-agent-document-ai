@@ -29,6 +29,7 @@ A job owns:
 - the selected input documents
 - the extraction field configuration
 - the execution mode
+- the optional job-level local model override when the operator does not want the system default
 - the job-level status summary
 - the job-level AHMN summary
 

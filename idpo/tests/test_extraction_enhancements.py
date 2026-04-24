@@ -314,8 +314,8 @@ def test_build_prompt_forbids_placeholders_and_allows_light_ocr_normalization(tm
         },
     )
 
-    assert "Do not return empty strings, N/A, unknown, or placeholder values." in prompt
-    assert "you may correct obvious OCR mistakes only when the intended text is unambiguous" in prompt
+    assert "Do NOT return N/A, empty strings, or label text" in prompt
+    assert "Extract numeric amounts exactly as they appear" in prompt
 
 
 def test_build_extraction_input_prefers_targeted_context_for_small_docs(tmp_path: Path) -> None:
@@ -350,6 +350,35 @@ def test_build_extraction_input_prefers_targeted_context_for_small_docs(tmp_path
     assert meta["strategy"] == "targeted_only"
     assert "[p1] Location: Chicago" in selected
     assert "[p1] Brand Description: Menthol Smokers" in selected
+
+
+def test_build_extraction_input_falls_back_to_full_when_targeted_context_is_too_thin(tmp_path: Path) -> None:
+    config = PipelineConfig()
+    config.llm.context_window_lines = 0
+    ctx = _ctx(tmp_path, config)
+    doc = _doc(
+        "hati tii-m «©\n"
+        "=  & oy i\n"
+        "sores) 08\n"
+        "AIR MINERAL -7, 000\n"
+        "TL -7, 000\n"
+        "\n"
+        "CASH -7.000\n"
+    )
+
+    selected, meta = build_extraction_input(
+        doc,
+        ["total_amount", "cash_amount"],
+        {
+            "total_amount": "Receipt total amount paid",
+            "cash_amount": "Cash amount tendered",
+        },
+        ctx,
+    )
+
+    assert meta["strategy"] == "full"
+    assert "AIR MINERAL -7, 000" in selected
+    assert "CASH -7.000" in selected
 
 
 def test_description_refinement_prefers_explicit_local_refinement_model(tmp_path: Path, monkeypatch) -> None:

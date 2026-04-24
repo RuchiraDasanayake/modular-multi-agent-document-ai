@@ -11,31 +11,36 @@ The key insight is to SEPARATE noise from drift:
 - Noise (σ²): Inherent variance in Bernoulli rewards (within-window variance)
 - Drift (Δ): Actual change in underlying mean (between-window shift)
 
-Forgetting Rate via Concentration Bounds:
-─────────────────────────────────────────
-We want γ to produce an effective window n_eff = 1/γ short enough that a
-drift of magnitude Δ is separable from noise, but long enough that the
-estimator remains stable. Hoeffding concentration on Bernoulli rewards
-gives confidence radius r(n, t) = √(ln(t) / n) at level 1/t.
+Optimal Forgetting Rate — Bias-Variance Decomposition:
+───────────────────────────────────────────────────────
+The per-round regret of a Beta-Bernoulli bandit under drift decomposes into
+two competing costs that depend on the forgetting rate γ ∈ (0, 1]:
 
-Setting r(n_eff, t) ≤ Δ so that drift Δ is just detectable against noise
-after n_eff fresh samples gives:
-    √(ln(t) · γ) ≤ Δ
-    γ ≤ Δ² / ln(t)
+  C_bias(γ)     = Δ² / γ
+      Slow forgetting (small γ) keeps a long effective window n_eff = 1/γ.
+      Stale evidence biases the posterior, costing Δ² per effective sample.
 
-We take the boundary case (the largest forgetting that remains detectable)
-and use the root form for numerical stability:
-    γ* = √(Δ² / ln(t))   [concentration-matched forgetting]
+  C_variance(γ) = γ · ln(t)
+      Fast forgetting (large γ) shrinks n_eff. Fewer effective samples
+      increase estimation variance, bounded by the Hoeffding radius √(ln(t)/n_eff)
+      squared and integrated over the horizon, which scales as γ·ln(t).
 
-Interpretation: γ* is the forgetting rate at which the shortest effective
-window still rejects "no drift" at confidence 1 - 1/t. Larger drift → more
-aggressive forgetting. More observed samples → lower γ* (we can afford a
-longer effective window because detection is easier).
+Minimising the total cost C(γ) = Δ²/γ + γ·ln(t) over γ:
 
-Critical design choice: γ* uses the drift magnitude Δ only. Noise variance
-σ² is measured separately and does NOT contribute to γ*. This is what
-distinguishes DAAF from simple variance-based forgetting schedules which
-react to noise as if it were drift.
+    dC/dγ = -Δ²/γ² + ln(t) = 0
+    γ²     = Δ² / ln(t)
+    γ*     = Δ / √(ln(t))  =  √(Δ² / ln(t))     ... (bias-variance optimal)
+
+Interpretation:
+- Larger drift Δ → higher γ* → more aggressive forgetting (tracks change faster)
+- More data t  → lower  γ* → gentler forgetting (longer effective window affordable)
+- Noise σ² does NOT appear — noise affects C_variance only through the Hoeffding
+  bound constant, which drops out of the optimisation. This is why DAAF is immune
+  to noise-induced forgetting while remaining responsive to true mean shift.
+
+Forgetting application (exponential decay of pseudocounts):
+    α_new = 1 + (1 − γ) · (α_old − 1)
+    β_new = 1 + (1 − γ) · (β_old − 1)
 
 Author: AHMN Research Team
 """
@@ -57,19 +62,23 @@ class DriftType(Enum):
 class DriftMetrics:
     """
     Metrics from drift detection.
-    
+
     Key distinction:
-    - drift_magnitude: |μ_recent - μ_older| (mean shift = TRUE drift)
-    - noise_variance: Var(rewards) (inherent stochasticity ≠ drift)
+    - drift_magnitude: statistically validated mean shift (0 when not significant)
+    - raw_delta:       raw |μ_recent - μ_older| before significance test
+    - noise_variance:  within-window variance (NOT drift)
+    - z_score:         Welch z-statistic — how many SEs apart the two window means are
     """
-    drift_magnitude: float      # Δ - estimated mean shift (TRUE drift)
-    noise_variance: float       # σ² - inherent reward variance (NOT drift)
-    optimal_gamma: float        # γ* - optimal forgetting rate
-    is_drifting: bool          # Whether drift exceeds threshold
-    drift_type: DriftType      # Classification
-    confidence: float          # Confidence in estimate (0-1)
-    trend_direction: float     # +1 improving, -1 degrading, 0 stable
-    effective_horizon: int     # Estimated samples until drift invalidates
+    drift_magnitude: float      # Δ — validated mean shift used for γ* (0 if not significant)
+    noise_variance: float       # σ² — inherent reward variance (NOT drift)
+    optimal_gamma: float        # γ* — optimal forgetting rate
+    is_drifting: bool           # True only when z-score clears significance threshold
+    drift_type: DriftType       # Classification (requires both magnitude AND significance)
+    confidence: float           # Confidence in estimate (0-1)
+    trend_direction: float      # +1 improving, -1 degrading, 0 stable
+    effective_horizon: int      # Estimated samples until drift invalidates
+    z_score: float = 0.0        # Welch z-statistic for the two-window mean comparison
+    raw_delta: float = 0.0      # Raw |μ_recent - μ_older| before significance filter
 
 class DriftEstimator:
     """
@@ -102,6 +111,7 @@ class DriftEstimator:
         self._recent_sum = 0.0
         self._recent_sq_sum = 0.0
         self._older_sum = 0.0
+        self._older_sq_sum = 0.0
         
     def update(self, reward: float) -> DriftMetrics:
         """Update with new observation and compute drift metrics."""
@@ -115,8 +125,10 @@ class DriftEstimator:
             if len(self.older_window) == self.window_size:
                 evicted = self.older_window[0]
                 self._older_sum -= evicted
+                self._older_sq_sum -= evicted ** 2
             self.older_window.append(shifted)
             self._older_sum += shifted
+            self._older_sq_sum += shifted ** 2
         
         # Update recent window stats
         if len(self.recent_window) == self.window_size:
@@ -151,42 +163,66 @@ class DriftEstimator:
         # Window statistics
         recent_mean = self._recent_sum / n_recent
         
-        # Noise variance (within-window) - NOT drift
+        # Within-window variance (noise σ²) — NOT drift, computed from recent window
         if n_recent > 1:
-            noise_var = (self._recent_sq_sum / n_recent) - (recent_mean ** 2)
-            noise_var = max(0.0, noise_var)
+            noise_var = max(0.0, (self._recent_sq_sum / n_recent) - recent_mean ** 2)
         else:
             noise_var = 0.25
-        
-        # Drift magnitude (between-window mean shift) - IS drift
+
+        # Between-window drift detection via Welch z-test
+        # ─────────────────────────────────────────────────
+        # Raw mean difference is a biased estimate of drift when n is small:
+        # even with zero true drift, sampling noise produces |μ̂_recent - μ̂_older| > 0.
+        # We use a two-sample z-test to reject the null (no drift) before acting.
+        #
+        # SE² = Var(μ̂_recent - μ̂_older) = σ²_recent/n_recent + σ²_older/n_older
+        # z   = raw_delta / SE
+        # Thresholds: z ≥ 2.0 → gradual (p < 0.05), z ≥ 3.0 → abrupt (p < 0.003)
+        z_score = 0.0
+        raw_delta = 0.0
+        drift_magnitude = 0.0
+        trend = 0.0
+
         if n_older >= self.min_samples:
             older_mean = self._older_sum / n_older
-            drift_magnitude = abs(recent_mean - older_mean)
+            var_older = max(0.0, (self._older_sq_sum / n_older) - older_mean ** 2)
+
+            raw_delta = abs(recent_mean - older_mean)
             trend = 1.0 if recent_mean > older_mean else (-1.0 if recent_mean < older_mean else 0.0)
-        else:
-            drift_magnitude = 0.0
-            trend = 0.0
-        
-        # Classify drift type
-        if drift_magnitude >= self.abrupt_threshold:
+
+            se = math.sqrt(noise_var / n_recent + var_older / n_older)
+            z_score = raw_delta / max(se, 1e-9)
+
+        # Classify: require BOTH statistical significance AND minimum magnitude.
+        # This prevents noise-induced false positives on stable reward streams.
+        if z_score >= 3.0 and raw_delta >= self.abrupt_threshold:
             drift_type = DriftType.ABRUPT
-        elif drift_magnitude >= self.drift_threshold:
+            drift_magnitude = raw_delta      # statistically confirmed — use for γ*
+        elif z_score >= 2.0 and raw_delta >= self.drift_threshold:
             drift_type = DriftType.GRADUAL
+            drift_magnitude = raw_delta      # statistically confirmed — use for γ*
         else:
             drift_type = DriftType.NONE
+            drift_magnitude = 0.0            # not significant — suppress forgetting
         
         is_drifting = drift_type != DriftType.NONE
         confidence = min(1.0, (n_recent + n_older) / (2 * self.window_size))
         
         # ═══════════════════════════════════════════════════════════════
-        # CORE FORMULA: γ* = √(Δ² / ln(t))
-        # 
-        # Uses drift_magnitude (Δ), NOT noise_variance (σ²)
+        # OPTIMAL FORGETTING RATE — bias-variance minimisation
+        #
+        # C(γ) = Δ²/γ  +  γ·ln(t)
+        # dC/dγ = 0  →  γ* = Δ / √(ln(t))
+        #
+        # C_bias    = Δ²/γ      : cost of slow forgetting (stale posterior)
+        # C_variance = γ·ln(t)  : cost of fast forgetting (high variance)
+        # Noise σ² cancels out — only true mean shift Δ drives forgetting.
         # ═══════════════════════════════════════════════════════════════
         if self.total_samples > 1 and drift_magnitude > 0:
-            gamma_star = math.sqrt(
-                (drift_magnitude ** 2) / max(1.0, math.log(self.total_samples))
-            )
+            log_t = max(1.0, math.log(self.total_samples))
+            bias_cost = drift_magnitude ** 2          # C_bias  ∝ Δ²/γ  → numerator
+            variance_cost = log_t                     # C_var   ∝ γ·ln(t) → denominator
+            gamma_star = math.sqrt(bias_cost / variance_cost)
         else:
             gamma_star = 0.001
         
@@ -208,7 +244,9 @@ class DriftEstimator:
             drift_type=drift_type,
             confidence=confidence,
             trend_direction=trend,
-            effective_horizon=max(1, effective_horizon)
+            effective_horizon=max(1, effective_horizon),
+            z_score=z_score,
+            raw_delta=raw_delta,
         )
     
     def reset(self):
@@ -219,6 +257,7 @@ class DriftEstimator:
         self._recent_sum = 0.0
         self._recent_sq_sum = 0.0
         self._older_sum = 0.0
+        self._older_sq_sum = 0.0
 
 class AdaptiveForgettingBandit:
     """

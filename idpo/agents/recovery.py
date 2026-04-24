@@ -39,7 +39,6 @@ class RecoveryAgent(Agent):
             if not self._is_recoverable_issue(issue):
                 continue
             pattern = self._pattern_for_field(issue.field, strategy)
-            match = re.search(pattern, raw_text, re.IGNORECASE) or re.search(pattern, alternate_text, re.IGNORECASE)
             before_value = updated_entities.get(issue.field).value if issue.field in updated_entities else ""
             trace = {
                 "field": issue.field,
@@ -50,6 +49,26 @@ class RecoveryAgent(Agent):
                 "success": False,
                 "reason": "no_match",
             }
+            normalized_existing = self._normalize_existing_candidate(issue.field, before_value)
+            if normalized_existing and self._passes_validation(issue.field, normalized_existing, ctx):
+                updated_entities[issue.field] = Entity(
+                    key=issue.field,
+                    value=normalized_existing,
+                    confidence=ctx.config.preprocessing.recovery_confidence,
+                    metadata={
+                        "recovered": True,
+                        "strategy": strategy,
+                        "validated_recovery": True,
+                        "source": "recovery_normalized_existing",
+                    },
+                )
+                recovered_fields[issue.field] = normalized_existing
+                trace["after_value"] = normalized_existing
+                trace["success"] = True
+                trace["reason"] = "normalized_existing_value"
+                recovery_trace.append(trace)
+                continue
+            match = re.search(pattern, raw_text, re.IGNORECASE) or re.search(pattern, alternate_text, re.IGNORECASE)
             if not match:
                 recovery_trace.append(trace)
                 continue
@@ -174,3 +193,28 @@ class RecoveryAgent(Agent):
             compact = re.sub(r"[^\d.\-]", "", compact)
             return bool(re.fullmatch(r"-?\d+(?:\.\d{1,2})?", compact))
         return True
+
+    def _normalize_existing_candidate(self, field: str, value: str) -> str:
+        lowered = field.lower()
+        if "amount" not in lowered and "total" not in lowered and not lowered.endswith("_price"):
+            return ""
+        text = (value or "").strip()
+        if not text:
+            return ""
+        cleaned = re.sub(r"(?i)\b(cash|total|amount|subtotal|tax|tl|usd|eur|rp)\b", "", text)
+        cleaned = cleaned.replace(" ", "")
+        cleaned = re.sub(r"[^\d,.\-]", "", cleaned)
+        cleaned = re.sub(r"(?<!^)-", "", cleaned)
+        if cleaned.startswith("-") and re.search(r"[A-Za-z]", text):
+            cleaned = cleaned[1:]
+        if re.fullmatch(r"-?\d{1,3}(?:[.,]\d{3})+", cleaned):
+            cleaned = cleaned.replace(".", "").replace(",", "")
+        elif re.fullmatch(r"-?\d+[.]\d{3}", cleaned):
+            cleaned = cleaned.replace(".", "")
+        elif re.fullmatch(r"-?\d+,\d{3}", cleaned):
+            cleaned = cleaned.replace(",", "")
+        elif re.fullmatch(r"-?\d+,\d{2}$", cleaned) and "." not in cleaned:
+            cleaned = cleaned.replace(",", ".")
+        else:
+            cleaned = cleaned.replace(",", "")
+        return cleaned.strip()

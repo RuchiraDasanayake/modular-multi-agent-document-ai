@@ -125,6 +125,10 @@ def create_doc_record(result, doc_dir: Path, expected_fields: list[dict[str, str
         "model_mode": getattr(result, "model_mode", ""),
         "model_reason": getattr(result, "model_reason", ""),
         "latency_ms": round(float(getattr(result, "latency_ms", 0.0) or 0.0), 2),
+        "stage_timings_ms": {
+            str(k): round(float(v), 2)
+            for k, v in (getattr(result, "stage_timings_ms", {}) or {}).items()
+        },
         "preprocess_route": ",".join(result.preprocess_route),
         "ocr_engine_used": str(ocr_meta.get("engine", "")),
         "ocr_avg_confidence": round(float(ocr_meta.get("avg_ocr_confidence", 0.0) or 0.0), 2),

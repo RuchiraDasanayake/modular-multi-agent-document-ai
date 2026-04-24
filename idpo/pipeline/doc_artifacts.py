@@ -30,7 +30,40 @@ def prepare_doc_input(doc, file_path: Path, doc_dir: Path) -> None:
     _write_hashes(original_path, doc_dir)
 
 
-def write_doc_outputs(run_dir: Path, doc, result, doc_dir: Path, events_path: Path) -> None:
+def build_run_provenance_index(run_dir: Path) -> dict[str, list[dict[str, object]]]:
+    """Index run-level provenance events by doc_id once for O(1) per-doc lookup.
+
+    Without this, _materialize_doc_provenance_from_run scans the full events.jsonl
+    for every document — O(N*M) for N docs and M total events.
+    """
+    source_events = run_dir / "provenance" / "events.jsonl"
+    index: dict[str, list[dict[str, object]]] = {}
+    if not source_events.exists():
+        return index
+    with source_events.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                payload = json.loads(stripped)
+            except Exception:
+                continue
+            doc_id = str((payload.get("inputs") or {}).get("doc_id") or "").strip()
+            if doc_id:
+                index.setdefault(doc_id, []).append(payload)
+    return index
+
+
+def write_doc_outputs(
+    run_dir: Path,
+    doc,
+    result,
+    doc_dir: Path,
+    events_path: Path,
+    *,
+    run_provenance_index: dict[str, list[dict[str, object]]] | None = None,
+) -> None:
     _ensure_doc_dirs(doc_dir)
     _write_dae_output(result, doc_dir)
     _write_plan_output(result, doc_dir)
@@ -41,7 +74,7 @@ def write_doc_outputs(run_dir: Path, doc, result, doc_dir: Path, events_path: Pa
     _write_decision_chain(result, doc_dir)
     _write_chunking(result, doc_dir)
     _write_ocr_output(doc, result, doc_dir)
-    _materialize_doc_provenance_from_run(run_dir, result.doc_id, doc_dir)
+    _materialize_doc_provenance_from_run(run_dir, result.doc_id, doc_dir, run_provenance_index)
     _write_transparency(result, doc_dir)
     _append_events(events_path, result, doc_dir)
 
@@ -424,22 +457,34 @@ def _append_events(events_path: Path, result, doc_dir: Path) -> None:
         handle.write(json.dumps(event) + "\n")
 
 
-def _materialize_doc_provenance_from_run(run_dir: Path, doc_id: str, doc_dir: Path) -> None:
+def _materialize_doc_provenance_from_run(
+    run_dir: Path,
+    doc_id: str,
+    doc_dir: Path,
+    run_provenance_index: dict[str, list[dict[str, object]]] | None = None,
+) -> None:
     provenance_dir = doc_dir / "provenance"
     provenance_dir.mkdir(parents=True, exist_ok=True)
 
-    source_events = run_dir / "provenance" / "events.jsonl"
-    doc_events = []
-    if source_events.exists():
-        with source_events.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                stripped = line.strip()
-                if not stripped:
-                    continue
-                payload = json.loads(stripped)
-                event_doc_id = str((payload.get("inputs") or {}).get("doc_id") or "").strip()
-                if event_doc_id == str(doc_id):
-                    doc_events.append(payload)
+    if run_provenance_index is not None:
+        doc_events = run_provenance_index.get(str(doc_id), [])
+    else:
+        # Fallback: scan full file (only happens when called outside the normal batch path).
+        source_events = run_dir / "provenance" / "events.jsonl"
+        doc_events = []
+        if source_events.exists():
+            with source_events.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+                    try:
+                        payload = json.loads(stripped)
+                    except Exception:
+                        continue
+                    event_doc_id = str((payload.get("inputs") or {}).get("doc_id") or "").strip()
+                    if event_doc_id == str(doc_id):
+                        doc_events.append(payload)
     _write_jsonl(provenance_dir / "events.jsonl", doc_events)
 
     source_graph = run_dir / "provenance" / "provenance_graph.json"

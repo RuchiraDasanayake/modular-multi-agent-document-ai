@@ -17,6 +17,16 @@ import type {
 } from "@/types/idpo";
 
 const CONFIG_PATH = "configs/idpo_research_config.json";
+const SYSTEM_DEFAULT_LOCAL_MODEL = "phi3:mini";
+const LOCAL_MODEL_OPTIONS = [
+  { value: "", label: `System default (${SYSTEM_DEFAULT_LOCAL_MODEL})` },
+  { value: "phi3:mini", label: "phi3:mini" },
+  { value: "qwen3:8b", label: "qwen3:8b" },
+];
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
 
 function formatDate(value: string | undefined): string {
   if (!value) {
@@ -132,6 +142,7 @@ export function JobDetailPage() {
   const [resultMode, setResultMode] = useState<JobRunMode>("adaptive");
   const [maxCostPerDoc, setMaxCostPerDoc] = useState("");
   const [escalationEnabled, setEscalationEnabled] = useState(true);
+  const [localModel, setLocalModel] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showReviewContext, setShowReviewContext] = useState(false);
   const [reviewContextDraft, setReviewContextDraft] = useState({
@@ -177,6 +188,20 @@ export function JobDetailPage() {
       current.length > 0 ? current : (job.documents ?? []).filter((document) => document.selected).map((document) => document.fileId),
     );
     setResultMode(resultModeForJob(job.mode ?? "adaptive"));
+    const settings = asRecord(job.settings) ?? {};
+    setMaxCostPerDoc((current) =>
+      current
+        ? current
+        : typeof settings.maxCostPerDoc === "number" && Number.isFinite(settings.maxCostPerDoc)
+          ? String(settings.maxCostPerDoc)
+          : "",
+    );
+    setEscalationEnabled((current) =>
+      current !== true ? current : typeof settings.escalationEnabled === "boolean" ? settings.escalationEnabled : true,
+    );
+    setLocalModel((current) =>
+      current || (typeof settings.llmLocalModel === "string" ? settings.llmLocalModel.trim() : ""),
+    );
   }, [job]);
 
   useEffect(() => {
@@ -249,6 +274,9 @@ export function JobDetailPage() {
     mode?: JobExecutionMode;
     fieldConfigCurrent?: JobFieldConfig[];
     selectedFileIds?: string[];
+    settings?: {
+      llmLocalModel?: string | null;
+    };
   }) {
     setSaving(true);
     try {
@@ -266,11 +294,10 @@ export function JobDetailPage() {
     if (!files || files.length === 0) {
       return;
     }
-    const formData = new FormData();
-    Array.from(files).forEach((file) => formData.append("files", file));
+    const selectedFiles = Array.from(files);
     setSaving(true);
     try {
-      const updated = await idpoApi.uploadJobDocuments(jobId, formData);
+      const updated = await idpoApi.uploadJobDocuments(jobId, selectedFiles);
       setJob(updated);
       setSelectedFileIds((current) => {
         const known = new Set(current);
@@ -327,6 +354,15 @@ export function JobDetailPage() {
     await patchJob({ mode: nextMode });
   }
 
+  async function handleChangeLocalModel(nextModel: string) {
+    setLocalModel(nextModel);
+    await patchJob({
+      settings: {
+        llmLocalModel: nextModel.trim() || null,
+      },
+    });
+  }
+
   async function handleAddField() {
     const name = newFieldName.trim();
     if (!name) {
@@ -373,6 +409,8 @@ export function JobDetailPage() {
           report: true,
           escalationEnabled,
           maxCostPerDoc: maxCostPerDoc.trim() ? Number(maxCostPerDoc) : undefined,
+          llmLocalModel: localModel.trim() || undefined,
+          autoInstallLocalModel: Boolean(localModel.trim()),
           customFields: fieldConfig.map((field) => ({
             key: field.name,
             description: field.description,
@@ -984,6 +1022,23 @@ export function JobDetailPage() {
                 placeholder="Optional"
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
               />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-slate-700 dark:text-slate-300">Local extraction model</span>
+              <select
+                value={localModel}
+                onChange={(event) => void handleChangeLocalModel(event.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+              >
+                {LOCAL_MODEL_OPTIONS.map((option) => (
+                  <option key={option.label} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+                Applies to future runs for this job. Choosing a specific model enables automatic Ollama pull if it is missing.
+              </span>
             </label>
             <label className="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">
               <input

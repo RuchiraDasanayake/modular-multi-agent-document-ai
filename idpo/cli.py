@@ -38,6 +38,14 @@ def main() -> None:
     inbox_parser.add_argument("--root", default=".", help="Project root for relative paths; runtime storage uses IDPO_DATA_DIR")
     inbox_parser.add_argument("--config", default=None)
     inbox_parser.add_argument("--input-dir", default=None, help="Optional directory to process directly instead of the managed inbox")
+    inbox_parser.add_argument("--run-id", default=None, help="Optional explicit run id")
+    inbox_parser.add_argument("--fields-file", default=None, help="Optional JSON file containing extraction field definitions")
+    inbox_parser.add_argument(
+        "--output-mode",
+        default="summary",
+        choices=("summary", "full"),
+        help="Print a summary payload or the full process_inbox result as JSON",
+    )
 
     migrate_parser = subparsers.add_parser("migrate-storage", help="Move legacy repo-root runtime data into IDPO_DATA_DIR")
     migrate_parser.add_argument("--root", default=".", help="Legacy repo root containing runs/ and inputs/")
@@ -88,14 +96,11 @@ def main() -> None:
             json.dumps({"results": [result_to_dict(result) for result in results]}, indent=2),
             encoding="utf-8",
         )
-        excel_out = args.excel_out or str(pipeline.run_dir / "entities.xlsx")
-        pipeline.export_structured_results(results, excel_out)
-        if args.simple_output_dir:
-            pipeline.export_simple_workspace(docs, results, args.simple_output_dir)
         return
 
     if args.command == "process-inbox":
         file_paths = None
+        extraction_fields = None
         if args.input_dir:
             input_dir = Path(args.input_dir)
             if not input_dir.exists():
@@ -107,8 +112,22 @@ def main() -> None:
             ]
             if not file_paths:
                 raise SystemExit(f"No supported files found in {input_dir}")
-        result = process_inbox(Path(args.root), args.config, file_paths=file_paths)
-        print(json.dumps({"run_id": result["run_id"], "run_dir": result["run_dir"]}, indent=2))
+        if args.fields_file:
+            fields_path = Path(args.fields_file)
+            if not fields_path.exists():
+                raise SystemExit(f"Fields file does not exist: {fields_path}")
+            extraction_fields = json.loads(fields_path.read_text(encoding="utf-8"))
+            if not isinstance(extraction_fields, list):
+                raise SystemExit("Fields file must contain a JSON array")
+        result = process_inbox(
+            Path(args.root),
+            args.config,
+            extraction_fields=extraction_fields,
+            run_id=args.run_id,
+            file_paths=file_paths,
+        )
+        payload = result if args.output_mode == "full" else {"run_id": result["run_id"], "run_dir": result["run_dir"]}
+        print(json.dumps(payload, indent=2))
         return
 
     if args.command == "migrate-storage":

@@ -118,6 +118,73 @@ def ollama_generate_detailed(
     return response, meta
 
 
+def ollama_chat_detailed(
+    base_url: str,
+    messages: list[dict[str, str]],
+    model: str,
+    *,
+    timeout_s: int,
+    options: dict[str, object] | None = None,
+    format_json: bool = True,
+) -> tuple[str | None, dict[str, object]]:
+    """Ollama /api/chat wrapper — better for instruction-tuned models (Qwen3, Llama3).
+
+    The chat endpoint honours the model's instruction template, which gives
+    significantly better structured-output adherence than /api/generate for
+    models with a built-in chat format.
+    """
+    meta: dict[str, object] = {"endpoint": "ollama.chat"}
+    payload: dict[str, object] = {
+        "model": model,
+        "messages": messages,
+        "stream": False,
+    }
+    if options:
+        payload["options"] = options
+    if format_json:
+        payload["format"] = "json"
+
+    url = base_url.rstrip("/") + "/api/chat"
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            body = resp.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        meta["error"] = f"http_{exc.code}"
+        return None, meta
+    except urllib.error.URLError as exc:
+        meta["error"] = f"unreachable:{str(exc.reason)[:120]}"
+        return None, meta
+    except TimeoutError:
+        meta["error"] = "timeout"
+        return None, meta
+    except Exception as exc:
+        meta["error"] = f"unknown:{str(exc)[:120]}"
+        return None, meta
+
+    try:
+        parsed = json.loads(body)
+    except Exception:
+        meta["error"] = "bad_json_body"
+        return None, meta
+
+    message = parsed.get("message", {})
+    response = message.get("content") if isinstance(message, dict) else None
+    meta.update({
+        "prompt_tokens": int(parsed.get("prompt_eval_count", 0) or 0),
+        "completion_tokens": int(parsed.get("eval_count", 0) or 0),
+        "total_tokens": int(parsed.get("prompt_eval_count", 0) or 0)
+        + int(parsed.get("eval_count", 0) or 0),
+        "load_duration_ms": round(int(parsed.get("load_duration", 0) or 0) / 1e6, 2),
+        "prompt_eval_duration_ms": round(int(parsed.get("prompt_eval_duration", 0) or 0) / 1e6, 2),
+        "eval_duration_ms": round(int(parsed.get("eval_duration", 0) or 0) / 1e6, 2),
+        "total_duration_ms": round(int(parsed.get("total_duration", 0) or 0) / 1e6, 2),
+        "done_reason": str(parsed.get("done_reason") or ""),
+    })
+    return response, meta
+
+
 def openai_chat_completion(
     *,
     model_name: str,

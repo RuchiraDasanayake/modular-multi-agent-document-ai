@@ -7,24 +7,27 @@ import json
 import os
 import random
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
 from collections import Counter, defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from idpo.core.storage import benchmark_reports_dir
-from idpo.pipeline.inbox import process_inbox
 
 ADAPTIVE_LABEL = "adaptive_safe"
 PRIMARY_GROUP_TAGS = ("table", "form", "scanned", "text", "mixed", "noisy_ocr")
 BOOTSTRAP_ITERATIONS = 1000
 BOOTSTRAP_SEED = 17
+_NUMERIC_FIELD_HINTS = ("amount", "price", "total", "subtotal", "tax", "cash", "change")
 
 
 def _norm(value: object) -> str:
@@ -32,13 +35,44 @@ def _norm(value: object) -> str:
     return " ".join(text.split())
 
 
+_CURRENCY_PREFIX_RE = None
+
+
+def _strip_currency_prefix(text: str) -> str:
+    """Strip leading currency symbols/codes (e.g. 'Rp ', '₩', '$', '€') from a value string."""
+    import re
+    stripped = re.sub(r"^[^\d\-\.]+", "", text).strip()
+    return stripped if stripped else text
+
+
+def _normalize_exact_value(key: str, value: object) -> str:
+    normalized = _norm(value)
+    lowered_key = str(key or "").strip().lower()
+    if any(hint in lowered_key for hint in _NUMERIC_FIELD_HINTS):
+        # Strip currency prefix before processing (e.g. "Rp 39.600" → "39.600")
+        normalized = _strip_currency_prefix(normalized)
+        compact = normalized.replace(" ", "").replace(",", "")
+        if compact.count(".") == 1:
+            integer_part, frac_part = compact.split(".")
+            if len(frac_part) == 3:
+                # Exactly 3 digits after decimal = thousands separator in Korean/Indonesian
+                # receipts (e.g. "81.400" = 81,400 won, "74.000" = 74,000 won).
+                compact = integer_part + frac_part
+            else:
+                # Regular decimal — strip trailing zeros (e.g. "14.00" → "14", "12.60" → "12.6")
+                frac_stripped = frac_part.rstrip("0")
+                compact = f"{integer_part}.{frac_stripped}" if frac_stripped else integer_part
+        return compact
+    return normalized
+
+
 def _case_metrics(expected: dict[str, str], extracted: dict[str, object]) -> tuple[int, int, int]:
     tp = 0
     fp = 0
     fn = 0
     for key, expected_value in expected.items():
-        got = _norm(extracted.get(key, ""))
-        exp = _norm(expected_value)
+        got = _normalize_exact_value(key, extracted.get(key, ""))
+        exp = _normalize_exact_value(key, expected_value)
         if got and got == exp:
             tp += 1
         elif got and got != exp:
@@ -64,6 +98,441 @@ def _load_config_payload(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _now_iso(timestamp: float | None = None) -> str:
+    if timestamp is None:
+        moment = datetime.now(timezone.utc)
+    else:
+        moment = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+    return moment.isoformat().replace("+00:00", "Z")
+
+
+def _display_path(path_value: str | Path | None) -> str | None:
+    if path_value is None:
+        return None
+    return str(path_value).replace("\\", "/")
+
+
+def _sanitize_filename(name: str) -> str:
+    return "".join(ch if ch.isalnum() or ch in {".", "_", "-"} else "_" for ch in name)
+
+
+def _job_review_state(doc: dict[str, Any]) -> str:
+    issue_count = int(doc.get("validation_issue_count", 0) or 0)
+    if issue_count > 0:
+        return f"{issue_count} issue(s)"
+    defer_status = str(doc.get("defer_status", "")).strip()
+    if defer_status and defer_status != "not_needed":
+        return defer_status
+    if str(doc.get("fallback_reason", "")).strip():
+        return "fallback"
+    return "clear"
+
+
+def _structured_field_values(value: object) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    fields: dict[str, str] = {}
+    for key, raw in value.items():
+        name = str(key).strip()
+        if not name:
+            continue
+        fields[name] = "" if raw is None else str(raw)
+    return fields
+
+
+def _benchmark_review_state(exact: dict[str, Any], doc: dict[str, Any]) -> str:
+    f1 = float(exact.get("f1", 0.0) or 0.0)
+    base = f"human_reviewed | F1 {f1:.2f}"
+    issue_count = int(doc.get("validation_issue_count", 0) or 0)
+    if issue_count > 0:
+        return f"{base} | {issue_count} issue(s)"
+    fallback_reason = str(doc.get("fallback_reason", "")).strip()
+    if fallback_reason:
+        return f"{base} | {fallback_reason}"
+    return base
+
+
+def _frontend_job_storage_paths() -> tuple[Path, Path]:
+    frontend_root = REPO_ROOT / "frontend"
+    runner_config = _load_config_payload(frontend_root / "runner.config.json")
+    runtime_root = os.getenv("IDPO_DATA_DIR", "").strip()
+    if runtime_root:
+        data_root = Path(runtime_root).expanduser()
+        if not data_root.is_absolute():
+            data_root = (Path.cwd() / data_root).resolve()
+        uploads_dir = (data_root / "frontend" / "uploads").resolve()
+        jobs_dir = (data_root / "frontend" / "jobs").resolve()
+    else:
+        uploads_dir = (frontend_root / str(runner_config.get("uploadsDir", "../../idpo-data/frontend/uploads"))).resolve()
+        jobs_dir = (frontend_root / str(runner_config.get("jobsDir", "../../idpo-data/frontend/jobs"))).resolve()
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    jobs_dir.mkdir(parents=True, exist_ok=True)
+    return uploads_dir, jobs_dir
+
+
+def _case_source_path(case: dict[str, Any]) -> Path:
+    return (REPO_ROOT / str(case.get("path", ""))).resolve()
+
+
+def _default_research_job_name(pack_name: str, case: dict[str, Any]) -> str:
+    source_name = str(case.get("source_dataset", "")).strip() or pack_name
+    case_id = str(case.get("case_id", "")).strip() or "case"
+    category = "receipt" if "receipt" in {str(tag).strip() for tag in (case.get("tags", []) or [])} else "document"
+    source_label = source_name.replace("naver-clova-ix/", "").replace("_", " ").replace("-", " ").strip()
+    source_label = source_label or "benchmark"
+    return f"Research Pilot: {source_label} {category} {case_id}"
+
+
+def _build_job_outcome(condition: str, item: dict[str, Any]) -> dict[str, Any]:
+    run_mode = "strict" if condition == "static" else "adaptive"
+    doc = item.get("doc", {}) if isinstance(item.get("doc"), dict) else {}
+    ok = bool(doc) and bool(str(doc.get("doc_id", "")).strip()) and not str(item.get("error", "")).strip()
+    exact = item.get("exact_metrics", {}) if isinstance(item.get("exact_metrics"), dict) else {}
+    return {
+        "runId": str(item.get("run_id", "")).strip() or None,
+        "mode": run_mode,
+        "docId": str(doc.get("doc_id", "")).strip() or None,
+        "status": "processed" if ok else "failed",
+        "route": str(doc.get("route_bin", "")).strip() or None,
+        "policy": str(doc.get("policy_id", "")).strip() or None,
+        "errorSummary": None if ok else str(item.get("error", "Benchmark case failed")).strip(),
+        "reviewState": _benchmark_review_state(exact, doc) if ok else "failed",
+        "reviewStatus": "human_reviewed" if ok else "unreviewed",
+        "reviewSource": "human" if ok else None,
+        "fieldValues": _structured_field_values(doc.get("structured_fields", {})),
+        "adviceInfluenced": bool(doc.get("advice_accepted", False)) or bool(doc.get("policy_changed", False)),
+        "feedbackLogged": bool(doc.get("feedback_logged", False)),
+        "fallbackReason": str(doc.get("fallback_reason", "")).strip() or None,
+        "exactPrecision": float(exact.get("precision", 0.0) or 0.0) if ok else None,
+        "exactRecall": float(exact.get("recall", 0.0) or 0.0) if ok else None,
+        "exactF1": float(exact.get("f1", 0.0) or 0.0) if ok else None,
+    }
+
+
+def register_frontend_jobs_from_evidence(
+    evidence: dict[str, Any],
+    *,
+    pack_path: str | None = None,
+    job_name_prefix: str | None = None,
+    existing_job_id: str | None = None,
+) -> dict[str, Any]:
+    """Register all benchmark documents into ONE persistent job.
+
+    AHMN learning accumulates within a job context. Using a single job for all
+    benchmark documents preserves bandit state across the whole evaluation run.
+    Pass ``existing_job_id`` to extend a previous benchmark job (e.g. Phase A →
+    Phase B → Phase C) rather than starting a new one.
+    """
+    experiment = evidence.get("experiment", {}) if isinstance(evidence.get("experiment"), dict) else {}
+    documents = evidence.get("documents", [])
+    if not isinstance(documents, list) or not documents:
+        return {}
+
+    resolved_pack_path = Path(pack_path or str(experiment.get("pack_path", ""))).resolve()
+    pack_payload = _load_config_payload(resolved_pack_path)
+    cases = {
+        str(case.get("case_id", "")).strip(): case
+        for case in pack_payload.get("cases", [])
+        if isinstance(case, dict) and str(case.get("case_id", "")).strip()
+    }
+    uploads_root, jobs_root = _frontend_job_storage_paths()
+    generated_at = float(experiment.get("generated_at", time.time()) or time.time())
+    created_at = _now_iso(generated_at)
+    default_prefix = job_name_prefix.strip() if isinstance(job_name_prefix, str) and job_name_prefix.strip() else ""
+    pack_name = str(pack_payload.get("name", "benchmark_pack"))
+
+    # Load existing job or scaffold a new one
+    if existing_job_id:
+        job_file = jobs_root / f"{existing_job_id}.json"
+        if not job_file.exists():
+            raise FileNotFoundError(f"Benchmark job not found: {job_file}")
+        job_payload: dict[str, Any] = json.loads(job_file.read_text(encoding="utf-8"))
+        job_id = existing_job_id
+    else:
+        job_id = uuid4().hex
+        job_name = f"{default_prefix}: {pack_name}" if default_prefix else f"Research Benchmark: {pack_name}"
+        job_payload = {
+            "jobId": job_id,
+            "status": "success",
+            "createdAt": created_at,
+            "startedAt": created_at,
+            "endedAt": created_at,
+            "commandId": "idpo_process_inbox",
+            "runId": None,
+            "runPath": None,
+            "latestRunId": None,
+            "logs": [
+                f"[benchmark] benchmark_run_id={experiment.get('benchmark_run_id', '')}",
+                f"[benchmark] pack_path={_display_path(resolved_pack_path)}",
+                f"[benchmark] report_path={_display_path(benchmark_reports_dir() / str(experiment.get('benchmark_run_id', '')) / 'paper_evidence.json')}",
+            ],
+            "settings": {
+                "source": "benchmark_import",
+                "benchmarkRunId": str(experiment.get("benchmark_run_id", "")).strip() or None,
+                "packName": pack_name or None,
+                "packPath": _display_path(resolved_pack_path),
+                "fieldMappingVersion": str(pack_payload.get("field_mapping_version", "")).strip() or None,
+            },
+            "jobName": job_name,
+            "mode": "both",
+            "fieldConfigCurrent": [],
+            "documents": [],
+            "runs": [],
+            "counts": {"loadedCount": 0, "processingCount": 0, "processedCount": 0, "failedCount": 0},
+            "ahmnSummary": {
+                "jobProfile": "research_benchmark_import",
+                "memoryMatched": False,
+                "documentsWithAdvice": 0,
+                "documentsLoggedBack": 0,
+                "adviceInfluencedCount": 0,
+                "reviewedDocumentCount": 0,
+                "reviewedHumanCount": 0,
+                "reviewedAiCount": 0,
+                "reviewedFeedbackLoggedCount": 0,
+                "reviewedFeedbackPendingCount": 0,
+                "jobOverlayPolicies": 0,
+                "jobOverlayReady": False,
+                "adaptationSummary": "",
+            },
+            "uploadsPath": _display_path(uploads_root / job_id),
+        }
+
+    uploads_path = uploads_root / job_id
+    uploads_path.mkdir(parents=True, exist_ok=True)
+
+    existing_field_names = {
+        fc["name"]
+        for fc in (job_payload.get("fieldConfigCurrent") or [])
+        if isinstance(fc, dict) and fc.get("name")
+    }
+    existing_file_ids = {d["fileId"] for d in (job_payload.get("documents") or []) if isinstance(d, dict)}
+    added_count = 0
+
+    for document in documents:
+        if not isinstance(document, dict):
+            continue
+        case_id = str(document.get("case_id", "")).strip()
+        case = cases.get(case_id)
+        if not case:
+            continue
+        source_path = _case_source_path(case)
+        if not source_path.exists():
+            raise FileNotFoundError(f"Benchmark source file missing for case '{case_id}': {source_path}")
+
+        file_id = case_id or uuid4().hex
+        # Skip if this case was already registered into the job (idempotent re-import)
+        if file_id in existing_file_ids:
+            continue
+
+        file_name = source_path.name
+        stored_name = f"{file_id}__{_sanitize_filename(file_name)}"
+        shutil.copy2(source_path, uploads_path / stored_name)
+
+        static_item = document.get("static", {}) if isinstance(document.get("static"), dict) else {}
+        adaptive_item = document.get(ADAPTIVE_LABEL, {}) if isinstance(document.get(ADAPTIVE_LABEL), dict) else {}
+        expected_fields = {str(k): str(v) for k, v in (case.get("expected", {}) or {}).items()}
+        strict_outcome = _build_job_outcome("static", static_item)
+        adaptive_outcome = _build_job_outcome(ADAPTIVE_LABEL, adaptive_item)
+        for outcome in (strict_outcome, adaptive_outcome):
+            outcome["expectedFieldValues"] = expected_fields
+        outcomes = [strict_outcome, adaptive_outcome]
+        processed_modes = {o["mode"] for o in outcomes if o.get("status") == "processed"}
+        document_status = "processed" if processed_modes == {"strict", "adaptive"} else "failed"
+        preferred = adaptive_outcome if adaptive_outcome.get("runId") else strict_outcome
+
+        field_snapshot = [
+            {"name": str(name), "description": str(description)}
+            for name, description in (case.get("fields", {}) or {}).items()
+        ]
+        for fc in field_snapshot:
+            if fc["name"] not in existing_field_names:
+                job_payload["fieldConfigCurrent"].append(fc)
+                existing_field_names.add(fc["name"])
+
+        job_payload["documents"].append({
+            "fileId": file_id,
+            "fileName": file_name,
+            "storedName": stored_name,
+            "size": source_path.stat().st_size,
+            "selected": True,
+            "status": document_status,
+            "errorSummary": None if document_status == "processed" else "Benchmark case did not complete in both modes.",
+            "reviewState": preferred.get("reviewState"),
+            "reviewStatus": "human_reviewed" if document_status == "processed" else "unreviewed",
+            "reviewSource": "human" if document_status == "processed" else None,
+            "latestRoute": preferred.get("route"),
+            "latestPolicy": preferred.get("policy"),
+            "latestRunId": preferred.get("runId"),
+            "latestDocId": preferred.get("docId"),
+            "createdAt": created_at,
+            "updatedAt": created_at,
+            "outcomes": outcomes,
+        })
+
+        job_run_id_base = f"{job_id}_{case_id}"
+        job_payload["runs"].append({
+            "jobRunId": f"{job_run_id_base}_adaptive",
+            "runId": adaptive_outcome.get("runId"),
+            "mode": "adaptive",
+            "status": "success" if adaptive_outcome.get("status") == "processed" else "failed",
+            "createdAt": created_at,
+            "startedAt": created_at,
+            "endedAt": created_at,
+            "fieldSnapshot": field_snapshot,
+            "selectedFileIds": [file_id],
+            "runPath": _display_path(adaptive_item.get("run_dir")),
+            "error": adaptive_outcome.get("errorSummary"),
+            "processedCount": 1 if adaptive_outcome.get("status") == "processed" else 0,
+            "failedCount": 0 if adaptive_outcome.get("status") == "processed" else 1,
+            "adviceDocumentCount": 1 if adaptive_outcome.get("adviceInfluenced") else 0,
+            "loggedFeedbackCount": 1 if adaptive_outcome.get("feedbackLogged") else 0,
+        })
+        job_payload["runs"].append({
+            "jobRunId": f"{job_run_id_base}_strict",
+            "runId": strict_outcome.get("runId"),
+            "mode": "strict",
+            "status": "success" if strict_outcome.get("status") == "processed" else "failed",
+            "createdAt": created_at,
+            "startedAt": created_at,
+            "endedAt": created_at,
+            "fieldSnapshot": field_snapshot,
+            "selectedFileIds": [file_id],
+            "runPath": _display_path(static_item.get("run_dir")),
+            "error": strict_outcome.get("errorSummary"),
+            "processedCount": 1 if strict_outcome.get("status") == "processed" else 0,
+            "failedCount": 0 if strict_outcome.get("status") == "processed" else 1,
+            "adviceDocumentCount": 0,
+            "loggedFeedbackCount": 1 if strict_outcome.get("feedbackLogged") else 0,
+        })
+
+        job_payload["logs"].append(f"[benchmark] case_id={case_id}")
+        existing_file_ids.add(file_id)
+        added_count += 1
+
+    # Recompute counts and AHMN summary from the full document list
+    all_docs: list[dict[str, Any]] = job_payload.get("documents") or []
+    processed_count = sum(1 for d in all_docs if d.get("status") == "processed")
+    failed_count = len(all_docs) - processed_count
+    job_payload["counts"] = {
+        "loadedCount": 0,
+        "processingCount": 0,
+        "processedCount": processed_count,
+        "failedCount": failed_count,
+    }
+    job_payload["status"] = "success" if failed_count == 0 else "failed"
+
+    all_adaptive_influenced = sum(
+        1 for d in all_docs
+        for o in (d.get("outcomes") or [])
+        if o.get("mode") == "adaptive" and o.get("adviceInfluenced")
+    )
+    all_adaptive_feedback = sum(
+        1 for d in all_docs
+        for o in (d.get("outcomes") or [])
+        if o.get("mode") == "adaptive" and o.get("feedbackLogged")
+    )
+    any_memory_matched = any(
+        o.get("retrievalSource") or o.get("retrieval_source")
+        for d in all_docs
+        for o in (d.get("outcomes") or [])
+    )
+    prev_ahmn = job_payload.get("ahmnSummary") or {}
+    job_payload["ahmnSummary"] = {
+        "jobProfile": "research_benchmark_import",
+        "memoryMatched": any_memory_matched,
+        "documentsWithAdvice": all_adaptive_influenced,
+        "documentsLoggedBack": all_adaptive_feedback,
+        "adviceInfluencedCount": all_adaptive_influenced,
+        "reviewedDocumentCount": len(all_docs),
+        "reviewedHumanCount": len(all_docs),
+        "reviewedAiCount": 0,
+        "reviewedFeedbackLoggedCount": int(prev_ahmn.get("reviewedFeedbackLoggedCount", 0) or 0),
+        "reviewedFeedbackPendingCount": int(prev_ahmn.get("reviewedFeedbackPendingCount", 0) or 0),
+        "jobOverlayPolicies": int(prev_ahmn.get("jobOverlayPolicies", 0) or 0),
+        "jobOverlayReady": bool(prev_ahmn.get("jobOverlayReady", False)),
+        "adaptationSummary": (
+            f"Benchmark import: {len(all_docs)} documents total, "
+            f"{all_adaptive_influenced} advice-influenced, "
+            f"{all_adaptive_feedback} feedback logged."
+        ),
+    }
+
+    if all_docs:
+        last_doc = all_docs[-1]
+        job_payload["latestRunId"] = last_doc.get("latestRunId")
+        job_payload["runId"] = last_doc.get("latestRunId")
+
+    job_file = jobs_root / f"{job_id}.json"
+    job_file.write_text(json.dumps(job_payload, indent=2), encoding="utf-8")
+    return {
+        "job_id": job_id,
+        "job_name": job_payload.get("jobName", ""),
+        "job_file": str(job_file),
+        "doc_count": len(all_docs),
+        "added_count": added_count,
+    }
+
+
+def _launch_process_inbox(
+    *,
+    root: Path,
+    config_path: str,
+    extraction_fields: list[dict[str, str]],
+    run_id: str,
+    input_dir: Path,
+) -> dict[str, Any]:
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".json", delete=False) as handle:
+        json.dump(extraction_fields, handle, indent=2)
+        fields_file = handle.name
+    try:
+        command = [
+            sys.executable,
+            "-m",
+            "idpo.cli",
+            "process-inbox",
+            "--root",
+            str(root),
+            "--config",
+            config_path,
+            "--input-dir",
+            str(input_dir),
+            "--run-id",
+            run_id,
+            "--fields-file",
+            fields_file,
+            "--output-mode",
+            "full",
+        ]
+        completed = subprocess.run(
+            command,
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            check=False,
+            encoding="utf-8",
+        )
+        if completed.returncode != 0:
+            raise SystemExit(
+                "process-inbox CLI failed"
+                f"\ncommand={' '.join(command)}"
+                f"\nstdout={completed.stdout.strip()}"
+                f"\nstderr={completed.stderr.strip()}"
+            )
+        try:
+            return json.loads(completed.stdout)
+        except json.JSONDecodeError as exc:
+            raise SystemExit(
+                "process-inbox CLI returned invalid JSON"
+                f"\nstdout={completed.stdout.strip()}"
+                f"\nstderr={completed.stderr.strip()}"
+            ) from exc
+    finally:
+        try:
+            Path(fields_file).unlink(missing_ok=True)
+        except Exception:
+            pass
 
 
 def _containment_state(doc: dict[str, Any]) -> str:
@@ -539,7 +1008,14 @@ def _claim_checks(
     return checks
 
 
-def run_benchmark(config_path: str = "configs/idpo_research_config.json", pack_path: str = "idpo/benchmark/benchmark_pack.json") -> dict[str, Any]:
+def run_benchmark(
+    config_path: str = "configs/idpo_research_config.json",
+    pack_path: str = "idpo/benchmark/benchmark_pack.json",
+    *,
+    register_frontend_jobs: bool = False,
+    job_name_prefix: str | None = None,
+    existing_job_id: str | None = None,
+) -> dict[str, Any]:
     repo_root = REPO_ROOT
     pack_file = (repo_root / pack_path).resolve()
     base_config_path = (repo_root / config_path).resolve()
@@ -592,12 +1068,12 @@ def run_benchmark(config_path: str = "configs/idpo_research_config.json", pack_p
                 with tempfile.TemporaryDirectory(prefix=f"idpo_bench_{condition}_{case_id}_") as tmp_dir:
                     temp_path = Path(tmp_dir) / source_path.name
                     shutil.copy2(source_path, temp_path)
-                    run = process_inbox(
+                    run = _launch_process_inbox(
                         root=repo_root,
                         config_path=str(condition_configs[condition]),
                         extraction_fields=fields,
                         run_id=f"{condition}_{case_id}_{int(time.time() * 1000)}",
-                        file_paths=[str(temp_path)],
+                        input_dir=Path(tmp_dir),
                     )
 
                 docs = run.get("doc_records", [])
@@ -733,6 +1209,14 @@ def run_benchmark(config_path: str = "configs/idpo_research_config.json", pack_p
     (out_dir / "paper_evidence.json").write_text(json.dumps(evidence, indent=2), encoding="utf-8")
     (out_dir / "paper_table.md").write_text(_table_markdown(evidence), encoding="utf-8")
     (out_dir / "paper_table.csv").write_text(_table_csv(evidence), encoding="utf-8")
+    if register_frontend_jobs:
+        result = register_frontend_jobs_from_evidence(
+            evidence,
+            pack_path=str(pack_file),
+            job_name_prefix=job_name_prefix,
+            existing_job_id=existing_job_id,
+        )
+        evidence["frontend_job"] = result
     return evidence
 
 
@@ -829,10 +1313,28 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/idpo_research_config.json")
     parser.add_argument("--pack", default="idpo/benchmark/benchmark_pack.json")
+    parser.add_argument("--register-frontend-jobs", action="store_true")
+    parser.add_argument("--job-name-prefix", default=None)
+    parser.add_argument(
+        "--benchmark-job-id",
+        default=None,
+        help="Existing frontend job ID to append documents to. "
+             "Omit to create a new job. Use this to extend Phase A → B → C "
+             "while preserving AHMN learning context across all processed documents.",
+    )
     args = parser.parse_args()
-    evidence = run_benchmark(config_path=args.config, pack_path=args.pack)
+    evidence = run_benchmark(
+        config_path=args.config,
+        pack_path=args.pack,
+        register_frontend_jobs=args.register_frontend_jobs,
+        job_name_prefix=args.job_name_prefix,
+        existing_job_id=args.benchmark_job_id,
+    )
     print(json.dumps(evidence["comparison"]["table"], indent=2))
     print(f"report_path={benchmark_reports_dir() / evidence['experiment']['benchmark_run_id'] / 'paper_evidence.json'}")
+    if "frontend_job" in evidence:
+        fj = evidence["frontend_job"]
+        print(f"frontend_job_id={fj.get('job_id')} doc_count={fj.get('doc_count')} added={fj.get('added_count')}")
     return 0
 
 

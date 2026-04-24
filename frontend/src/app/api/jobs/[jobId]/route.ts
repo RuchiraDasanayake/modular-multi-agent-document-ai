@@ -86,6 +86,21 @@ function parseReviewContextManualInput(value: unknown): JobValidationContextManu
   };
 }
 
+function parseSettingsPatch(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  const patch: Record<string, unknown> = {};
+
+  if ("llmLocalModel" in record) {
+    const model = typeof record.llmLocalModel === "string" ? record.llmLocalModel.trim() : "";
+    patch.llmLocalModel = model || null;
+  }
+
+  return Object.keys(patch).length > 0 ? patch : undefined;
+}
+
 export async function PATCH(request: Request, { params }: Params) {
   try {
     const { jobId } = await params;
@@ -109,6 +124,21 @@ export async function PATCH(request: Request, { params }: Params) {
         for (const document of job.documents ?? []) {
           document.selected = selected.has(document.fileId);
         }
+      }
+      const settingsPatch = parseSettingsPatch(payload.settings);
+      if (settingsPatch) {
+        const nextSettings =
+          job.settings && typeof job.settings === "object" && !Array.isArray(job.settings)
+            ? { ...job.settings }
+            : {};
+        if ("llmLocalModel" in settingsPatch) {
+          if (typeof settingsPatch.llmLocalModel === "string" && settingsPatch.llmLocalModel.trim()) {
+            nextSettings.llmLocalModel = settingsPatch.llmLocalModel;
+          } else {
+            delete nextSettings.llmLocalModel;
+          }
+        }
+        job.settings = nextSettings;
       }
       return job;
     });

@@ -25,43 +25,70 @@ _DESC_STOPWORDS = {
 }
 
 
+SYSTEM_PROMPT = (
+    "You are a precise document data extraction engine. "
+    "You only return valid JSON. No markdown, no explanations, no extra text."
+)
+
+
 def build_prompt(
     text: str,
     explicit_keys: list[str],
     ctx: AgentContext,
     field_descriptions: dict[str, str],
 ) -> str:
+    """Build the user-turn prompt (works for both /generate and /chat endpoints)."""
     keys = explicit_keys or [rule.key for rule in ctx.config.structuring.extraction_rules]
     if field_descriptions and keys:
         fields_block = "\n".join(
-            f"  - \"{key}\": {field_descriptions.get(key, 'Extract this field value')}"
+            f'  - "{key}": {field_descriptions.get(key, "Extract this field value")}'
             for key in keys
         )
     elif keys:
-        fields_block = "\n".join(f"  - \"{key}\"" for key in keys)
+        fields_block = "\n".join(f'  - "{key}"' for key in keys)
     else:
         fields_block = "  - Extract any relevant key-value fields you find"
 
     return (
-        "You are an expert document data extraction system.\n\n"
-        "TASK: Extract structured fields from the document text below.\n\n"
-        "FIELDS TO EXTRACT:\n"
+        "Extract the following fields from the document text.\n\n"
+        "FIELDS:\n"
         f"{fields_block}\n\n"
         "RULES:\n"
-        "1. Return ONLY valid JSON with top-level key 'entities' as a list.\n"
-        "2. Each entity object must be exactly: {\"key\": \"<requested_key>\", \"value\": \"<exact_span>\", \"confidence\": <0.0-1.0>}.\n"
-        "3. Use ONLY requested key names; never invent keys.\n"
-        "4. If a field is not found, omit it entirely. Do not return empty strings, N/A, unknown, or placeholder values.\n"
-        "5. Prefer exact spans from the text. Keep original formatting for amounts, IDs, and dates. For names, locations, and descriptive text, you may correct obvious OCR mistakes only when the intended text is unambiguous.\n"
-        "6. Confidence: 0.9+ exact evidence, 0.6-0.8 probable, <0.6 weak.\n"
-        "7. No markdown, no explanations, no extra keys.\n\n"
-        "8. At most one entity per key; keep the best supported value.\n\n"
+        "1. Return ONLY a JSON object with key 'entities' as a list.\n"
+        '2. Each entity: {"key": "<field_name>", "value": "<exact_value>", "confidence": <0.0-1.0>}\n'
+        "3. Use ONLY the requested field names above — never invent keys.\n"
+        "4. Extract numeric amounts exactly as they appear (e.g. '70,000' not '70000', '36.000' not '36').\n"
+        "5. If a field is not found, omit it. Do NOT return N/A, empty strings, or label text.\n"
+        "6. At most one entity per key. Confidence: 0.9+ = direct evidence, 0.6-0.8 = probable.\n\n"
         "DOCUMENT TEXT:\n"
-        "```\n"
+        "---\n"
         f"{text}\n"
-        "```\n\n"
-        "Return JSON:\n"
+        "---\n\n"
+        "JSON:"
     )
+
+
+def build_chat_messages(
+    text: str,
+    explicit_keys: list[str],
+    ctx: AgentContext,
+    field_descriptions: dict[str, str],
+    *,
+    no_think: bool = True,
+) -> list[dict[str, str]]:
+    """Build messages list for /api/chat endpoint (Qwen3, Llama3, etc.).
+
+    ``no_think=True`` prepends /no_think to the user message which disables
+    Qwen3's extended thinking chain — faster and more deterministic for
+    structured extraction tasks.
+    """
+    user_content = build_prompt(text, explicit_keys, ctx, field_descriptions)
+    if no_think:
+        user_content = "/no_think\n" + user_content
+    return [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": user_content},
+    ]
 
 
 def build_extraction_text(
@@ -105,7 +132,11 @@ def build_extraction_input(
             targeted_lines = len([line for line in targeted.splitlines() if line.strip()])
             meta["targeted_context_chars"] = len(targeted)
             meta["targeted_context_lines"] = targeted_lines
-            if len(full_text) <= max_chars and len(targeted) <= int(len(full_text) * 0.85):
+            if (
+                len(full_text) <= max_chars
+                and len(targeted) <= int(len(full_text) * 0.85)
+                and _targeted_context_is_sufficient(targeted, full_text)
+            ):
                 meta.update(
                     {
                         "strategy": "targeted_only",
@@ -211,6 +242,15 @@ def _targeted_context(
                     continue
                 snippets.append(f"[p{page.number}] {text_line}")
     return "\n".join(snippets)
+
+
+def _targeted_context_is_sufficient(targeted: str, full_text: str) -> bool:
+    targeted_chars = len(targeted.strip())
+    if targeted_chars == 0:
+        return False
+    full_chars = max(1, len(full_text.strip()))
+    min_chars = min(full_chars, max(40, int(full_chars * 0.3)))
+    return targeted_chars >= min_chars
 
 
 def _smart_truncate(text: str, max_chars: int) -> str:

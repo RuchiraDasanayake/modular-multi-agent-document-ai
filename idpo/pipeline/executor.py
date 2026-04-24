@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from idpo.agents.answering import AnsweringAgent
 from idpo.agents.base import AgentContext
 from idpo.agents.chunking import ChunkingAgent
+from idpo.agents.extraction_parsing import normalize_key
 from idpo.agents.escalation import EscalationAgent
 from idpo.agents.preprocess import DeskewAgent, DenoiseAgent, OcrAgent, TableFormAgent
 from idpo.agents.recovery import RecoveryAgent
@@ -51,6 +52,7 @@ class ExecutionState:
     preprocess_route: list[str] = field(default_factory=list)
     preprocess_artifacts: list[str] = field(default_factory=list)
     stage_signals: list[StageSignal] = field(default_factory=list)
+    stage_timings_ms: dict[str, float] = field(default_factory=dict)
     artifacts: dict[str, str] = field(default_factory=dict)
     last_artifact_id: str | None = None
     spent_budget_units: float = 0.0
@@ -100,6 +102,7 @@ class PlanExecutor:
 
             operator = step.operator
             executed = True
+            stage_started = time.perf_counter()
             if operator.startswith("preprocess."):
                 self._run_preprocess(step, state, ctx)
             elif operator == "structuring.extract":
@@ -156,6 +159,8 @@ class PlanExecutor:
                 executed = False
 
             if executed:
+                duration_ms = (time.perf_counter() - stage_started) * 1000.0
+                state.stage_timings_ms[operator] = round(state.stage_timings_ms.get(operator, 0.0) + duration_ms, 2)
                 budget.spend(step.budget_units)
 
         state.spent_budget_units = budget.spent
@@ -189,7 +194,7 @@ class PlanExecutor:
             state.last_artifact_id = artifact_id
         signal = result.artifacts.get("signal")
         if signal:
-            state.stage_signals.append(signal)
+            state.stage_signals.append(self._annotate_signal(step.operator, signal, state))
 
     def _run_extraction(self, step, state: ExecutionState, ctx: AgentContext) -> None:
         model = self._model_from_params(step.params, ctx)
@@ -213,21 +218,21 @@ class PlanExecutor:
         state.llm_diagnostics = result.artifacts.get("llm_diagnostics", {})
         signal = result.artifacts.get("signal")
         if signal:
-            state.stage_signals.append(signal)
+            state.stage_signals.append(self._annotate_signal(step.operator, signal, state))
 
     def _run_sectioning(self, step, state: ExecutionState, ctx: AgentContext) -> None:
         result = self.sectioning.run({"document": state.document}, ctx)
         state.sections = result.artifacts.get("sections", [])
         signal = result.artifacts.get("signal")
         if signal:
-            state.stage_signals.append(signal)
+            state.stage_signals.append(self._annotate_signal(step.operator, signal, state))
 
     def _run_summary(self, step, state: ExecutionState, ctx: AgentContext) -> None:
         result = self.summarizer.run({"document": state.document}, ctx)
         state.summary = result.artifacts.get("summary", "")
         signal = result.artifacts.get("signal")
         if signal:
-            state.stage_signals.append(signal)
+            state.stage_signals.append(self._annotate_signal(step.operator, signal, state))
 
     def _run_validation(self, step, state: ExecutionState, ctx: AgentContext, stage: str) -> None:
         result = self.validator.run(
@@ -239,7 +244,7 @@ class PlanExecutor:
         state.field_confidence = result.artifacts.get("field_confidence", {})
         signal = result.artifacts.get("signal")
         if signal:
-            state.stage_signals.append(signal)
+            state.stage_signals.append(self._annotate_signal(step.operator, signal, state))
 
     def _run_recovery(self, step, state: ExecutionState, ctx: AgentContext) -> None:
         result = self.recovery.run(
@@ -261,8 +266,9 @@ class PlanExecutor:
         ]
         signal = result.artifacts.get("signal")
         if signal:
-            state.stage_signals.append(signal)
+            state.stage_signals.append(self._annotate_signal(step.operator, signal, state))
         if state.recovered_fields:
+            self._refresh_requested_field_status(state)
             self._run_validation(step, state, ctx, stage="post_recovery")
 
     def _run_escalation(
@@ -292,7 +298,7 @@ class PlanExecutor:
         }
         signal = result.artifacts.get("signal")
         if signal:
-            state.stage_signals.append(signal)
+            state.stage_signals.append(self._annotate_signal(step.operator, signal, state))
 
     def _run_chunking(self, step, state: ExecutionState, ctx: AgentContext) -> None:
         payload = {
@@ -308,10 +314,35 @@ class PlanExecutor:
             state.chunk_artifact_id = chunk_artifact.artifact_id
         signal = result.artifacts.get("signal")
         if signal:
-            state.stage_signals.append(signal)
+            state.stage_signals.append(self._annotate_signal(step.operator, signal, state))
 
     def _model_from_params(self, params: dict[str, object], ctx: AgentContext) -> ModelDecision:
         model_tier = str(params.get("model_tier", ctx.config.llm.default_mode))
         mode = "cloud" if model_tier in {"cloud", "tier2"} else "local"
         model_name = ctx.config.llm.cloud_model if mode == "cloud" else ctx.config.llm.local_model
         return ModelDecision(mode=mode, model_name=model_name, reason="plan", metadata={"model_tier": model_tier})
+
+    def _annotate_signal(self, operator: str, signal: StageSignal, state: ExecutionState) -> StageSignal:
+        metadata = dict(signal.metadata or {})
+        metadata.setdefault("operator", operator)
+        metadata["duration_ms"] = round(state.stage_timings_ms.get(operator, 0.0), 2)
+        return StageSignal(
+            stage=signal.stage,
+            confidence=signal.confidence,
+            uncertainty=signal.uncertainty,
+            failure_reason=signal.failure_reason,
+            metadata=metadata,
+        )
+
+    def _refresh_requested_field_status(self, state: ExecutionState) -> None:
+        if not state.requested_field_status:
+            return
+        by_key = {normalize_key(entity.key): entity for entity in state.entities}
+        for key, status in state.requested_field_status.items():
+            entity = by_key.get(normalize_key(str(key)))
+            if not entity:
+                continue
+            status["status"] = "extracted"
+            status["confidence"] = entity.confidence
+            status["value"] = entity.value
+            status["source"] = str((entity.metadata or {}).get("source", status.get("source", "unknown")))

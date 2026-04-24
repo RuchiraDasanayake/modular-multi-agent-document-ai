@@ -30,7 +30,7 @@ from idpo.core.storage import failed_dir as storage_failed_dir
 from idpo.core.storage import inbox_dir as storage_inbox_dir
 from idpo.core.storage import processed_dir as storage_processed_dir
 from idpo.core.storage import runs_root as storage_runs_root
-from idpo.pipeline.doc_artifacts import prepare_doc_input, write_doc_outputs
+from idpo.pipeline.doc_artifacts import build_run_provenance_index, prepare_doc_input, write_doc_outputs
 from idpo.pipeline.doc_records import create_doc_record, normalize_key
 from idpo.pipeline.orchestrator import Pipeline
 from idpo.pipeline.run_reports import (
@@ -156,9 +156,12 @@ def process_inbox(
                         + "\n"
                     )
 
-    if results:
+    if _results_have_chunks(results):
         pipeline.build_index(results, directory=str(run_dir / "embeddings" / "index"))
 
+    # Build provenance index once so write_doc_outputs doesn't rescan events.jsonl
+    # for every document (was O(N*M) — N docs times M total events).
+    run_prov_index = build_run_provenance_index(run_dir)
     results_by_doc_id = {str(result.doc_id): result for result in results}
     for item in ingested_items:
         doc = item["doc"]
@@ -167,8 +170,7 @@ def process_inbox(
         if not result:
             failed_doc_ids.add(str(doc.doc_id))
             continue
-        pipeline.build_index([result], directory=str(doc_dir / "embeddings" / "index"))
-        write_doc_outputs(run_dir, doc, result, doc_dir, events_path)
+        write_doc_outputs(run_dir, doc, result, doc_dir, events_path, run_provenance_index=run_prov_index)
         doc_records.append(create_doc_record(result, doc_dir, expected_fields, doc))
 
     for file_path in ingested_files:
@@ -239,5 +241,9 @@ def _write_fields_schema(run_dir: Path, fields: list[dict[str, str]]) -> None:
 def _safe_path_component(raw: object) -> str:
     value = re.sub(r"[^a-zA-Z0-9._-]+", "_", str(raw or "")).strip("._-")
     return value[:120] if value else uuid.uuid4().hex
+
+
+def _results_have_chunks(results: list[Any]) -> bool:
+    return any(bool(getattr(result, "chunks", None)) for result in results)
 
 

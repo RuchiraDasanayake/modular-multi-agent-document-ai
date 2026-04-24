@@ -78,6 +78,51 @@ def test_cli_process_inbox_accepts_input_dir(tmp_path: Path, monkeypatch) -> Non
     assert (runtime_root / "inputs" / "processed" / "invoice.txt").exists()
 
 
+def test_cli_process_inbox_accepts_run_id_fields_file_and_full_output(tmp_path: Path, monkeypatch) -> None:
+    runtime_root = tmp_path / "idpo-data"
+    input_dir = tmp_path / "uploads"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("IDPO_DATA_DIR", str(runtime_root))
+
+    (input_dir / "invoice.txt").write_text("Invoice Number: INV-3\nTotal Amount: 25.00\n", encoding="utf-8")
+    fields_path = tmp_path / "fields.json"
+    fields_path.write_text(
+        json.dumps(
+            [
+                {"name": "invoice_number", "description": "Invoice identifier"},
+                {"name": "total_amount", "description": "Total due amount"},
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    stdout = StringIO()
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "idpo",
+            "process-inbox",
+            "--root",
+            str(tmp_path),
+            "--input-dir",
+            str(input_dir),
+            "--run-id",
+            "cli-run-1",
+            "--fields-file",
+            str(fields_path),
+            "--output-mode",
+            "full",
+        ],
+    )
+    with redirect_stdout(stdout):
+        cli_main()
+
+    payload = json.loads(stdout.getvalue())
+    assert payload["run_id"] == "cli-run-1"
+    assert Path(payload["run_dir"]).name == "cli-run-1"
+    assert payload["doc_records"][0]["structured_fields"]["invoice_number"] != ""
+
+
 def test_migrate_storage_moves_runs_and_runtime_inputs(tmp_path: Path) -> None:
     legacy_root = tmp_path / "legacy-repo"
     data_root = tmp_path / "idpo-data"

@@ -590,6 +590,73 @@ test("policy learning summary groups route sources and warm-start evidence", () 
   assert.equal(learning.driftAwarenessState, "active");
 });
 
+test("suggested policy matching ignores synthetic vendor clusters", () => {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "idpo-policy-matching-sanitize-"));
+  const dataDir = path.join(tmpRoot, "idpo-data");
+  process.env.IDPO_DATA_DIR = dataDir;
+  resetConfigCacheForTests();
+
+  try {
+    const config = loadRunnerConfig();
+    const job = createWorkspaceJob({
+      jobName: "Receipt Matching",
+      mode: "adaptive",
+      fieldConfigCurrent: [{ name: "total_amount" }],
+    });
+
+    mutateJob(job.jobId, (current) => {
+      current.documents = [
+        {
+          fileId: "file-1",
+          fileName: "receipt.png",
+          storedName: "file-1__receipt.png",
+          size: 10,
+          selected: true,
+          status: "processed",
+          errorSummary: null,
+          reviewState: "human_reviewed | F1 0.00",
+          reviewStatus: "human_reviewed",
+          reviewSource: "human",
+          reviewStage: null,
+          reviewConfidence: null,
+          latestRoute: "heavy",
+          latestPolicy: "forms",
+          latestRunId: "run-1",
+          latestDocId: "doc-1",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          outcomes: [],
+        },
+      ];
+      return current;
+    });
+
+    fs.mkdirSync(path.join(config.runsDir, "run-1", "primary", "docs", "doc-1", "dae"), { recursive: true });
+    fs.writeFileSync(
+      path.join(config.runsDir, "run-1", "primary", "docs", "doc-1", "dae", "output.json"),
+      JSON.stringify(
+        {
+          doc_type: "receipt",
+          vendor_cluster: "07bee9b0dde74ec59feb455d3eba1c31",
+          content_profile: "image-heavy",
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
+
+    const matching = getSuggestedJobPolicyMatching(job.jobId);
+    assert.deepEqual(matching.vendorClusters, []);
+    assert.deepEqual(matching.docTypes, ["receipt"]);
+    assert.deepEqual(matching.contentProfiles, ["image-heavy"]);
+  } finally {
+    resetConfigCacheForTests();
+    delete process.env.IDPO_DATA_DIR;
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
 test("leaderboard ranks by human-reviewed exact F1 before AHMN confidence", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "idpo-job-policies-trend-"));
   const dataDir = path.join(tmpRoot, "idpo-data");

@@ -44,17 +44,8 @@ from idpo.pipeline.executor import PlanExecutor, ExecutionState
 from idpo.pipeline.feedback import log_ahmn_feedback
 from idpo.pipeline.planning import PlanRouter, build_plan
 from idpo.pipeline.policy_safety import PolicyRollbackMonitor
-from idpo.pipeline.export import export_simple_workspace as write_simple_workspace
-from idpo.pipeline.export import export_structured_results as write_structured_export
 from idpo.pipeline.results import PipelineResult, build_pipeline_result
 from idpo.pipeline.reward import compute_reward, evaluate_policy_gates
-from idpo.pipeline.shadow import (
-    append_shadow_comparisons,
-    build_shadow_comparison,
-    compute_quality_metrics,
-    dispatch_shadow_plans,
-    should_run_shadow,
-)
 from idpo.core.storage import resolve_default_run_dir
 
 logger = logging.getLogger("idpo.pipeline")
@@ -89,7 +80,7 @@ class Pipeline:
         else:
             self.run_id = uuid.uuid4().hex
         self.config = config or PipelineConfig()
-        self.run_dir = self.base_run_dir / "primary" if self.config.shadow.enabled else self.base_run_dir
+        self.run_dir = self.base_run_dir
         self.run_dir.mkdir(parents=True, exist_ok=True)
 
         self.artifacts = ArtifactStore(str(self.run_dir / "artifacts"))
@@ -129,8 +120,16 @@ class Pipeline:
         (self.base_run_dir / "run_metadata.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     def process_documents(self, docs: list[Document]) -> list[PipelineResult]:
+        if not docs:
+            return []
         if not self.config.queue.enabled:
             return [self.process_document(doc) for doc in docs]
+        if len(docs) == 1:
+            doc = docs[0]
+            analysis_result = self.analysis.run({"document": doc}, self.ctx)
+            dae_output = analysis_result.artifacts.get("dae_output")
+            analysis_signal = analysis_result.artifacts.get("signal")
+            return [self.process_document(doc, dae_output=dae_output, analysis_signal=analysis_signal)]
 
         dae_payloads = []
         for doc in docs:
@@ -226,8 +225,6 @@ class Pipeline:
             rate_limit=None,
         )
         blocked_policy_ids = set(self.rollback_monitor.blocked)
-        if self.config.shadow.enabled:
-            blocked_policy_ids.update(self.config.shadow.candidate_policy_ids)
         route_decision = self.router.route(
             dae_output=dae_output,
             system_constraints=constraints,
@@ -362,20 +359,6 @@ class Pipeline:
             event_type="RouteSelection",
         )
 
-        shadow_executor = None
-        shadow_futures: list[concurrent.futures.Future] = []
-        if should_run_shadow(self.config, self._rng):
-            shadow_executor, shadow_futures = dispatch_shadow_plans(
-                config=self.config,
-                policy_store=self.policy_store,
-                rollback_monitor=self.rollback_monitor,
-                base_run_dir=self.base_run_dir,
-                run_id=self.run_id,
-                doc=doc,
-                dae_output=dae_output,
-                constraints=constraints,
-            )
-
         state = self.executor.execute(plan, doc, self.ctx, escalation_count=self._escalation_count)
         if state.escalated:
             with self._escalation_lock:
@@ -417,7 +400,17 @@ class Pipeline:
             event_type="FinalArtifacts",
         )
 
-        primary_metrics = compute_quality_metrics(state, latency_ms)
+        if state.field_confidence:
+            avg_conf = sum(state.field_confidence.values()) / max(len(state.field_confidence), 1)
+        elif state.entities:
+            avg_conf = sum(e.confidence for e in state.entities) / len(state.entities)
+        else:
+            avg_conf = 0.0
+        primary_metrics = {
+            "latency_ms": latency_ms,
+            "validation_failure": 1.0 if state.validation_issues else 0.0,
+            "quality_proxy": avg_conf,
+        }
         rollback_status = self.rollback_monitor.update(
             policy.policy_id,
             primary_metrics,
@@ -428,31 +421,6 @@ class Pipeline:
             rollback_reason = str(rollback_status.get("reason"))
         policy_blocked_count = int(rollback_status.get("blocked_count", len(self.rollback_monitor.blocked)) or 0)
         blocked_policy = blocked_policy or bool(rollback_status.get("blocked", False))
-
-        shadow_comparisons: list[dict[str, object]] = []
-        for future in shadow_futures:
-            shadow_result = future.result()
-            if shadow_result:
-                self.rollback_monitor.update(
-                    shadow_result["policy_id"],
-                    shadow_result["metrics"],
-                    self.config.knowledge.default_policy_id,
-                )
-                comparison = build_shadow_comparison(doc.doc_id, primary_metrics, shadow_result)
-                shadow_comparisons.append(comparison)
-                self.ctx.provenance.record(
-                    agent="shadow",
-                    version="v1",
-                    inputs={"doc_id": doc.doc_id, "policy_id": shadow_result["policy_id"]},
-                    outputs=comparison,
-                    parameters={"run_id": self.run_id},
-                    artifacts=[],
-                    event_type="ShadowComparison",
-                )
-        if shadow_executor:
-            shadow_executor.shutdown(wait=True)
-        if shadow_comparisons:
-            append_shadow_comparisons(self.run_dir, self.config.shadow.comparison_file, shadow_comparisons)
 
         defer_status = "not_needed"
         defer_reason = None
@@ -530,7 +498,6 @@ class Pipeline:
             latency_ms=latency_ms,
             feedback_logged=feedback_logged,
             feedback_error=feedback_error,
-            shadow_comparisons=shadow_comparisons,
             static_policy_reason=static_policy_reason,
             analysis_signal=analysis_signal,
         )
@@ -550,7 +517,11 @@ class Pipeline:
         return category, bin_name
 
     def _queue_partition_key(self, dae_output: DAEOutput, doc: Document) -> str:
+        import os
         parts = []
+        job_id = os.getenv("IDPO_JOB_ID", "").strip()
+        if job_id:
+            parts.append(f"job:{job_id}")
         for key in self.config.queue.partition_keys:
             value = getattr(dae_output, key, None)
             if value is None:
@@ -627,49 +598,3 @@ class Pipeline:
             )
         return bundle
 
-    def export_structured_results(self, results: list[PipelineResult], output_path: str) -> dict[str, object]:
-        export_payload = write_structured_export(results, output_path)
-        artifact_ids = []
-        if export_payload.get("format") == "xlsx":
-            artifact = self.artifacts.register_external(
-                export_payload["path"],
-                kind="structured_export",
-                metadata={"agent": "export_structured", "format": "xlsx"},
-            )
-            artifact_ids.append(artifact.artifact_id)
-        else:
-            for path in export_payload.get("paths", []):
-                artifact = self.artifacts.register_external(
-                    path,
-                    kind="structured_export",
-                    metadata={"agent": "export_structured", "format": "csv"},
-                )
-                artifact_ids.append(artifact.artifact_id)
-        self.ctx.provenance.record(
-            agent="export_structured",
-            version="v1",
-            inputs={"doc_ids": [result.doc_id for result in results]},
-            outputs={"output_artifacts": artifact_ids, "format": export_payload.get("format")},
-            parameters={"output_path": output_path},
-            artifacts=artifact_ids,
-        )
-        return export_payload
-
-    def export_simple_workspace(
-        self, docs: list[Document], results: list[PipelineResult], output_dir: str
-    ) -> dict[str, object]:
-        payload = write_simple_workspace(docs, results, output_dir)
-        artifact = self.artifacts.register_external(
-            payload["manifest"],
-            kind="simple_manifest",
-            metadata={"agent": "export_simple_workspace"},
-        )
-        self.ctx.provenance.record(
-            agent="export_simple_workspace",
-            version="v1",
-            inputs={"doc_ids": [doc.doc_id for doc in docs]},
-            outputs={"output_artifacts": [artifact.artifact_id], "count": payload.get("count", 0)},
-            parameters={"output_dir": output_dir},
-            artifacts=[artifact.artifact_id],
-        )
-        return payload

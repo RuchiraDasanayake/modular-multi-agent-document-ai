@@ -39,7 +39,7 @@ from idpo.agents.extraction_generic_kv import (
     parse_kv_line,
     parse_multi_kv_line,
 )
-from idpo.agents.extraction_prompts import build_extraction_input, build_prompt
+from idpo.agents.extraction_prompts import build_chat_messages, build_extraction_input, build_prompt
 from idpo.agents.extraction_rules import (
     best_generic_match,
     extract_explicit_entities,
@@ -49,6 +49,7 @@ from idpo.agents.extraction_rules import (
 )
 from idpo.agents.extraction_providers import (
     anthropic_messages_completion,
+    ollama_chat_detailed,
     ollama_generate,
     ollama_generate_detailed,
     openai_chat_completion,
@@ -873,6 +874,14 @@ class LLMExtractionAgent(Agent):
     def _tokenize(self, text: str) -> list[str]:
         return tokenize(text)
 
+    # Models that support the /api/chat endpoint and instruction templates.
+    _CHAT_MODEL_PREFIXES = ("qwen", "llama3", "llama-3", "mistral", "gemma", "deepseek")
+
+    @classmethod
+    def _uses_chat_endpoint(cls, model_name: str) -> bool:
+        lower = model_name.lower()
+        return any(lower.startswith(p) for p in cls._CHAT_MODEL_PREFIXES)
+
     def _llm_extract(
         self,
         doc: Document,
@@ -890,55 +899,78 @@ class LLMExtractionAgent(Agent):
                 "error": "empty_document",
                 "latency_ms": 0.0,
             }
-        prompt = build_prompt(text, explicit_keys, ctx, field_descriptions or {})
 
-        # Build Ollama payload with deterministic JSON output.
-        # format=json constrains phi3/llama3/mistral to emit valid JSON only,
-        # which dramatically improves parse rate vs free-form completion.
         llm_cfg = ctx.config.llm
+        use_chat = self._uses_chat_endpoint(model_name) or bool(getattr(llm_cfg, "local_use_chat_api", False))
+        format_json = bool(getattr(llm_cfg, "local_format_json", True))
         options: dict[str, object] = {
             "temperature": float(getattr(llm_cfg, "local_temperature", 0.0)),
             "top_p": float(getattr(llm_cfg, "local_top_p", 0.9)),
             "num_predict": int(getattr(llm_cfg, "local_num_predict", 1024)),
         }
-        payload: dict[str, object] = {
-            "model": model_name,
-            "prompt": prompt,
-            "stream": False,
-            "options": options,
-        }
-        if bool(getattr(llm_cfg, "local_format_json", True)):
-            payload["format"] = "json"
 
-        response, call_meta = ollama_generate_detailed(
-            llm_cfg.base_url,
-            payload,
-            llm_cfg.timeout_s,
-        )
+        if use_chat:
+            # Instruction-tuned models (Qwen3, Llama3) work best via /api/chat.
+            # /no_think disables Qwen3's extended thinking chain for faster,
+            # more deterministic structured extraction.
+            no_think = model_name.lower().startswith("qwen")
+            messages = build_chat_messages(
+                text, explicit_keys, ctx, field_descriptions or {}, no_think=no_think
+            )
+            response, call_meta = ollama_chat_detailed(
+                llm_cfg.base_url,
+                messages,
+                model_name,
+                timeout_s=llm_cfg.timeout_s,
+                options=options,
+                format_json=format_json,
+            )
+            prompt_chars = sum(len(m.get("content", "")) for m in messages)
+            endpoint_used = "ollama.chat"
+        else:
+            prompt = build_prompt(text, explicit_keys, ctx, field_descriptions or {})
+            payload: dict[str, object] = {
+                "model": model_name,
+                "prompt": prompt,
+                "stream": False,
+                "options": options,
+            }
+            if format_json:
+                payload["format"] = "json"
+            response, call_meta = ollama_generate_detailed(
+                llm_cfg.base_url,
+                payload,
+                llm_cfg.timeout_s,
+            )
+            prompt_chars = len(prompt)
+            endpoint_used = "ollama.generate"
+
         latency_ms = (time.time() - started) * 1000
         persist_raw = bool(getattr(llm_cfg, "persist_raw_llm_io", True))
 
         meta: dict[str, object] = {
             "provider": "ollama",
             "model": model_name,
-            "prompt_chars": len(prompt),
+            "prompt_chars": prompt_chars,
             "requested_fields": len(explicit_keys),
             "latency_ms": round(latency_ms, 2),
             "success": False,
             "entity_count": 0,
-            "prompt_version": "extraction_v2",
+            "prompt_version": "extraction_v3",
             "context": context_meta,
             "request": {
-                "format": "json" if payload.get("format") == "json" else "text",
+                "format": "json" if format_json else "text",
                 "options": options,
-                "endpoint": "ollama.generate",
+                "endpoint": endpoint_used,
                 "base_url": llm_cfg.base_url,
+                "chat_mode": use_chat,
             },
-            # Ollama token counts, durations, and error fields (if any).
             **call_meta,
         }
         if persist_raw:
-            meta["raw_prompt"] = prompt
+            meta["raw_messages"] = messages if use_chat else None
+            if not use_chat:
+                meta["raw_prompt"] = build_prompt(text, explicit_keys, ctx, field_descriptions or {})
             meta["raw_response"] = response or ""
 
         if not response:
@@ -949,9 +981,6 @@ class LLMExtractionAgent(Agent):
         meta["success"] = bool(entities)
         meta["entity_count"] = len(entities)
         if not entities:
-            # Parsed nothing from a non-empty response — keep the raw text even
-            # if persist_raw is off, because this is the case where we most
-            # need to debug what the model actually said.
             if not persist_raw:
                 meta["raw_response_preview"] = (response or "")[:1000]
             meta.setdefault("parse_failed", True)

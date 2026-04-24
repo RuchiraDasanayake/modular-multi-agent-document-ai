@@ -158,5 +158,4 @@ def result_to_dict(result: PipelineResult) -> dict[str, Any]:
         "spent_budget_units": _attr("spent_budget_units", 0.0),
         "feedback_logged": _attr("feedback_logged", False),
         "feedback_error": _attr("feedback_error", None),
-        "shadow_comparisons": _attr("shadow_comparisons", []),
     }

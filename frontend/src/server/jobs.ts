@@ -204,6 +204,12 @@ function normalizeDocuments(value: unknown): JobDocumentRecord[] {
           exactPrecision: typeof record.exactPrecision === "number" ? record.exactPrecision : null,
           exactRecall: typeof record.exactRecall === "number" ? record.exactRecall : null,
           exactF1: typeof record.exactF1 === "number" ? record.exactF1 : null,
+          expectedFieldValues:
+            record.expectedFieldValues &&
+            typeof record.expectedFieldValues === "object" &&
+            !Array.isArray(record.expectedFieldValues)
+              ? (record.expectedFieldValues as Record<string, string>)
+              : null,
         });
       }
     }

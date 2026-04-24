@@ -79,6 +79,30 @@ function normalizeFieldKey(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, "_");
 }
 
+function looksLikeSyntheticVendorIdentity(value: string): boolean {
+  const text = value.trim().toLowerCase();
+  if (!text) {
+    return false;
+  }
+  return (
+    /^[0-9a-f]{32}$/.test(text) ||
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(text) ||
+    /^cord_validation_\d{4,}$/.test(text) ||
+    /^jobrun[_-]/.test(text)
+  );
+}
+
+export function sanitizeVendorIdentity(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const text = value.trim();
+  if (!text || looksLikeSyntheticVendorIdentity(text)) {
+    return null;
+  }
+  return text;
+}
+
 export function isConcreteValue(value: unknown): boolean {
   const text = String(value ?? "").trim();
   return text.length > 0 && text.toUpperCase() !== "N/A" && text.toUpperCase() !== "NA";
@@ -263,10 +287,14 @@ export function buildRequestedReviewRows(detail: DetailRecord, fieldConfig: JobF
 
 function buildDocumentContext(detail: DetailRecord): ReviewArtifact["documentContext"] {
   const metadata = asRecord(detail.metadata) ?? {};
+  const vendorIdentity =
+    sanitizeVendorIdentity(metadata.vendorCluster) ??
+    sanitizeVendorIdentity(metadata.vendor) ??
+    null;
   return {
     doc_type: typeof metadata.docType === "string" && metadata.docType.trim() ? metadata.docType : "unknown",
-    vendor: typeof metadata.vendorCluster === "string" ? metadata.vendorCluster : null,
-    vendor_cluster: typeof metadata.vendorCluster === "string" ? metadata.vendorCluster : null,
+    vendor: vendorIdentity,
+    vendor_cluster: vendorIdentity,
     content_profile: typeof metadata.profile === "string" ? metadata.profile : null,
     route_bin: typeof metadata.routeBin === "string" ? metadata.routeBin : null,
     layout_cluster_id: typeof metadata.layoutClusterId === "string" ? metadata.layoutClusterId : null,

@@ -76,6 +76,7 @@ export interface JobDocumentRunOutcome {
   exactPrecision?: number | null;
   exactRecall?: number | null;
   exactF1?: number | null;
+  expectedFieldValues?: Record<string, string> | null;
 }
 
 export interface JobDocumentRecord {

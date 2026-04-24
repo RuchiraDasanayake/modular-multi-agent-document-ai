@@ -6,41 +6,43 @@ Unlike `docs/SYSTEM_CONTRACT.md`, this file is expected to change as goals evolv
 
 ## Current Phase
 
-`Systematic reduction and stabilization`
+`Dataset-driven stabilization and evidence build`
 
-The repository is currently in a cleanup phase before major new feature work.
+The repository is now in a dataset-driven stabilization phase.
+
+Cleanup still matters, but only when it directly improves:
+
+- external labeled evaluation
+- canonical runtime reliability
+- adaptive-safe evidence quality
+- operator-visible auditability
 
 ## Primary Goal
 
-Make adaptive extraction results clear, straightforward, and easy to inspect.
+Make `adaptive_safe` and the extraction runtime defensible on real labeled data without widening the claim or breaking the canonical product path.
 
 That means:
 
-- making the adaptive extraction outcome the main thing the operator sees and understands
-- reducing anything that hides, dilutes, or distracts from the extraction result
-- reducing unnecessary complexity
-- shrinking oversized multi-purpose files
-- isolating legacy and demo-only paths
+- keeping the paper claim narrow: `static` vs `adaptive_safe`
+- using external labeled data to find repeated extraction failures early
+- fixing only high-ROI issues that improve reliability across many cases
 - preserving one clear canonical runtime path
-- simplifying UI and UX around the real research workflow
-- keeping only the highest-value adaptive and evidence-related behavior
-- preserving high-ROI research-backing pieces even when simplifying aggressively
-- pausing for team direction when a cleanup choice could weaken the research claim or evidence quality
+- separating exact labeled metrics from runtime proxy reward
+- freezing mapping, config, and evidence before writing final results
+- simplifying or removing work that does not help the evidence loop
+- keeping docs aligned with the actual execution plan
 
 ## Current In-Scope Work
 
-- clean up `idpo/` first
-- fix the corrupted and overgrown main `IDPO` UI
-- make adaptive extraction results the clearest output in the primary UI path
-- move the operator UI toward a job-first model with queue tracking and structured results tables
-- finish the core operator path as `job -> document -> result -> log`
-- adapt UiPath-style queue-item traceability to document extraction where it fits
-- reduce complexity across `IDPO`, `AHMN`, and the frontend a section at a time
-- simplify the canonical runtime path
-- preserve and clarify run artifacts and output contracts
-- reduce AI-generated bloat and overlapping responsibilities
-- keep docs in sync with the real system
-- prepare a supported single-host public demo deployment path without major restructuring
+- stage and evaluate `CORD v2` as the primary external labeled dataset
+- define a strict receipt-field mapping for the first exact-metric loop
+- run repeated `static` vs `adaptive_safe` evaluations through the canonical runtime
+- inspect failures manually on small deterministic subsets before scaling
+- prioritize only high-ROI fixes in `IDPO`, `frontend`, or `AHMN` that improve evidence quality or runtime reliability
+- preserve and clarify run artifacts needed for exact scoring and adaptive containment review
+- keep the operator UI and run artifacts aligned with the adaptive-safe claim
+- quarantine or defer evaluation paths that do not serve the current claim
+- keep docs in sync with the active testing and evidence plan
 
 ## Current Non-Goals
 
@@ -49,25 +51,26 @@ For the current phase, do not prioritize:
 - major new product features
 - broad frontend redesign
 - cross-service architecture rewrites
-- benchmark claim expansion
+- broad benchmark claim expansion across many document families at once
 - adding alternate entrypoints unless explicitly required
 - Vercel-first deployment redesign
 - broad UI expansion
-- adding new knobs, panels, or metrics before the main workflow is simplified
+- adding new knobs, panels, or metrics before the evaluation loop is stable
+- multi-dataset expansion before `CORD v2` mapping and scoring are stable
+- line-item research expansion before flat receipt totals and containment behavior are reliable
 
 ## Current Success Criteria
 
 This phase is successful when:
 
-- the team can trace one document through the system end-to-end
-- the canonical runtime path is stable and documented
-- legacy and non-core surfaces are clearly separated
-- the biggest runtime files are split by responsibility
-- output artifacts remain predictable
-- the main operator-facing UI is clear, stable, free of encoding defects, and centered on adaptive extraction results
-- adaptive extraction outputs are easy to read without inspecting multiple panels or subsystem jargon
-- the operator-facing UI is centered on `job -> document -> result` instead of subsystem-first dashboards
-- every major surface has been reviewed with a keep/simplify/quarantine/remove decision
+- the team can run a deterministic labeled subset through the canonical runtime and score it exactly
+- `CORD v2` staging, mapping, and scoring are reproducible and documented
+- repeated failure categories are known and triaged by ROI instead of guessed ad hoc
+- high-ROI fixes improve exact extraction quality, structured-output quality, or containment visibility
+- the canonical runtime path remains stable and documented
+- exact labeled metrics remain clearly separated from runtime proxy reward
+- the main operator-facing UI and run artifacts clearly expose adaptive-safe behavior
+- evidence can be frozen without changing runtime labels or adding paper-only branches
 
 ## Document Roles
 
@@ -75,12 +78,16 @@ Use the docs this way:
 
 - `docs/PROJECT_DIRECTION.md`
   The current goal, scope, and non-goals
+- `docs/DATASET_PLAN.md`
+  The active dataset ladder and labeling strategy
+- `docs/CORD_EVALUATION_PLAN.md`
+  The active external labeled testing plan and failure triage loop
 - `docs/SYSTEM_CONTRACT.md`
   What the system currently is and must emit
 - `docs/IDPO_CLEANUP_PASS1.md`
-  The active cleanup plan for the current phase
+  The cleanup plan when a runtime reduction directly helps the evidence loop
 - `docs/SYSTEMATIC_REDUCTION_PLAN.md`
-  The cross-repo reduction order and decision method
+  The reduction order and decision method for cleanup work that remains in scope
 - `docs/FRONTEND_IDPO_PAGE_REDUCTION_PLAN.md`
   The active plan for the first frontend cleanup target
 - `docs/FRONTEND_IDPO_RUN_DETAIL_REDUCTION_PLAN.md`
@@ -118,14 +125,15 @@ Which code areas are most affected:
 
 ## Current Next Step
 
-Run the reduction program in strict order:
+Run the evaluation program in strict order:
 
-1. finish the core operator path first
-   Keep queue, field configuration, original-document validation, structured results, document path, and document log simple and explicit
-2. tighten the document-detail page around evidence-driven review
-   Add clickable log-to-evidence focus before adding more surface area
-3. reduce any remaining low-value frontend surfaces that compete with the job-first flow
-4. restore only high-ROI buried functionality that fits the job and document model cleanly
-5. integrate `AHMN`, then `XAI`, then `HITL` into the same job/document architecture in small passes
-6. continue reducing hot-path complexity in `idpo/agents/llm_extraction.py`
-7. continue reducing non-essential orchestration complexity in `idpo/pipeline/orchestrator.py`
+1. set up the external labeled path first
+   Use `CORD v2` as the first serious dataset and keep the first mapped field set small and exact
+2. build a deterministic pilot subset and manual review loop
+   Start with a small receipt subset, inspect failures, and classify them before making fixes
+3. apply only high-ROI fixes
+   Prioritize repeated normalization, extraction, logging, and containment issues over broad refactors
+4. freeze the mapping and scoring path before scaling
+   Do not keep changing what counts as correct while collecting evidence
+5. run larger validation passes only after the small loop is stable
+6. keep cleanup work scoped to what directly improves reliability, auditability, or exact evaluation

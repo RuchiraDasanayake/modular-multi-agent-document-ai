@@ -19,6 +19,10 @@ Support this claim with evidence from:
 - the current canonical run artifacts
 - the current canonical benchmark
 
+External labeled datasets such as `CORD v2` may be used to harden the runtime,
+find repeated failures, and build supporting evidence, but they do not replace
+the canonical benchmark or justify widening the claim by themselves.
+
 ## Canonical Runtime Path
 
 Use only this path:
@@ -79,6 +83,12 @@ The compare and benchmark pages must visibly show:
 - rollback / defer / feedback status
 
 ## Required Verification
+
+Before freeze, complete the active external labeled hardening loop defined in:
+
+- `docs/CORD_EVALUATION_PLAN.md`
+
+Then complete the canonical verification below.
 
 1. Run one live `static` job from the canonical UI.
 2. Run one live `adaptive_safe` job from the same UI.

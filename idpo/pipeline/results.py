@@ -102,7 +102,6 @@ class PipelineResult:
     feedback_logged: bool = False
     feedback_error: str | None = None
     plan_payload: dict[str, object] = field(default_factory=dict)
-    shadow_comparisons: list[dict[str, object]] = field(default_factory=list)
 
 
 def build_pipeline_result(
@@ -148,7 +147,6 @@ def build_pipeline_result(
     latency_ms: float,
     feedback_logged: bool,
     feedback_error: str | None,
-    shadow_comparisons: list[dict[str, object]],
     static_policy_reason: str,
     analysis_signal: StageSignal | None,
 ) -> PipelineResult:
@@ -246,5 +244,4 @@ def build_pipeline_result(
         spent_budget_units=state.spent_budget_units,
         feedback_logged=feedback_logged,
         feedback_error=feedback_error,
-        shadow_comparisons=shadow_comparisons,
     )

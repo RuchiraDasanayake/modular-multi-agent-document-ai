@@ -420,3 +420,166 @@ test("operator review context overlays user knowledge without replacing reviewed
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   }
 });
+
+test("buildReviewArtifact strips synthetic vendor identities from upload metadata", () => {
+  const artifact = buildReviewArtifact({
+    jobId: "job-1",
+    runId: "run-1",
+    docId: "doc-1",
+    detail: {
+      metadata: {
+        vendorCluster: "07bee9b0dde74ec59feb455d3eba1c31",
+        docType: "receipt",
+        profile: "image-heavy",
+      },
+    },
+    fieldConfig: [{ name: "total_amount" }],
+    reviewSource: "human",
+    fields: [
+      {
+        fieldKey: "total_amount",
+        fieldLabel: "total_amount",
+        extractedValue: "20,000",
+        correctedValue: null,
+        reviewState: "correct",
+        reviewNote: null,
+      },
+    ],
+  });
+
+  assert.equal(artifact.documentContext.vendor, null);
+  assert.equal(artifact.documentContext.vendor_cluster, null);
+  assert.equal(artifact.overlayKey, `unknown|receipt|image-heavy|${artifact.fieldSetHash}`);
+});
+
+test("review context ignores synthetic vendor identities from legacy reviewed artifacts", () => {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "idpo-review-context-sanitize-"));
+  const dataDir = path.join(tmpRoot, "idpo-data");
+  process.env.IDPO_DATA_DIR = dataDir;
+  resetConfigCacheForTests();
+
+  try {
+    const config = loadRunnerConfig();
+    const job = createWorkspaceJob({
+      jobName: "Receipt Research",
+      mode: "adaptive",
+      fieldConfigCurrent: [{ name: "total_amount" }],
+    });
+    const runId = "run-legacy";
+    const docId = "doc-legacy";
+    fs.mkdirSync(path.join(config.runsDir, runId, "primary", "docs", docId, "review"), { recursive: true });
+
+    mutateJob(job.jobId, (current) => {
+      current.documents = [
+        {
+          fileId: "file-1",
+          fileName: "receipt.png",
+          storedName: "file-1__receipt.png",
+          size: 10,
+          selected: true,
+          status: "processed",
+          errorSummary: null,
+          reviewState: "human_reviewed | F1 0.00",
+          reviewStatus: "human_reviewed",
+          reviewSource: "human",
+          reviewStage: null,
+          reviewConfidence: null,
+          latestRoute: "heavy",
+          latestPolicy: "forms",
+          latestRunId: runId,
+          latestDocId: docId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          outcomes: [
+            {
+              runId,
+              mode: "adaptive",
+              docId,
+              status: "processed",
+              route: "heavy",
+              policy: "forms",
+              errorSummary: null,
+              reviewState: "human_reviewed | F1 0.00",
+              reviewStatus: "human_reviewed",
+              reviewSource: "human",
+              reviewStage: null,
+              reviewConfidence: null,
+              fieldValues: {
+                total_amount: "12.50 USD",
+              },
+              adviceInfluenced: true,
+              feedbackLogged: true,
+              fallbackReason: null,
+              exactPrecision: 0,
+              exactRecall: 0,
+              exactF1: 0,
+            },
+          ],
+        },
+      ];
+      return current;
+    });
+
+    writeReviewArtifact({
+      version: 1,
+      jobId: job.jobId,
+      runId,
+      docId,
+      reviewStatus: "human_reviewed",
+      reviewSource: "human",
+      reviewWeight: 1,
+      reviewerStage: null,
+      reviewerConfidence: null,
+      reviewedAt: new Date().toISOString(),
+      fieldSetHash: "4229380af6c68d3c",
+      overlayKey: "07bee9b0dde74ec59feb455d3eba1c31|receipt|image-heavy|4229380af6c68d3c",
+      policyIdUsed: "forms",
+      adviceId: null,
+      documentContext: {
+        doc_type: "receipt",
+        vendor: "07bee9b0dde74ec59feb455d3eba1c31",
+        vendor_cluster: "07bee9b0dde74ec59feb455d3eba1c31",
+        content_profile: "image-heavy",
+        route_bin: "heavy",
+        layout_cluster_id: "image_sparse",
+      },
+      metrics: {
+        tp: 0,
+        fp: 1,
+        fn: 1,
+        precision: 0,
+        recall: 0,
+        f1: 0,
+        fieldStateCounts: {
+          correct: 0,
+          wrong_value: 1,
+          missed_field: 0,
+          correctly_skipped: 0,
+          hallucinated_field: 0,
+        },
+      },
+      fields: [
+        {
+          fieldKey: "total_amount",
+          fieldLabel: "total_amount",
+          extractedValue: "12.50 USD",
+          correctedValue: "22000",
+          reviewState: "wrong_value",
+          reviewNote: null,
+        },
+      ],
+      ahmnReviewFeedback: {
+        logged: false,
+        error: null,
+        attemptedAt: null,
+      },
+    });
+
+    const refreshed = refreshJobValidationContext(getJob(job.jobId) ?? job, job.fieldConfigCurrent ?? [], "human_review");
+    assert.deepEqual(refreshed.current.summary.knownVendors, []);
+  } finally {
+    resetConfigCacheForTests();
+    delete process.env.IDPO_DATA_DIR;
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});

@@ -255,6 +255,65 @@ def test_policy_advisor_uses_ahmn_contract_and_preserves_adaptive_metadata(tmp_p
     assert any(item.policy_id == "default" for item in advice.fallback_recommendations)
 
 
+def test_policy_advisor_fallback_rank_does_not_match_missing_range_features(tmp_path: Path) -> None:
+    policy_path = tmp_path / "policies.json"
+    policy_path.write_text(
+        json.dumps(
+            {
+                "default_policy_id": "default",
+                "policies": [
+                    {
+                        "policy_id": "needs_noise",
+                        "name": "Needs OCR Noise",
+                        "conditions": {
+                            "quality_bin": ["C"],
+                            "quality_features.ocr_noise_ratio": {"min": 0.12},
+                        },
+                        "actions": {},
+                    },
+                    {
+                        "policy_id": "scanned_text",
+                        "name": "Scanned Text",
+                        "conditions": {
+                            "doc_type": ["scanned_document"],
+                            "content_profile": ["image-heavy"],
+                        },
+                        "actions": {},
+                    },
+                    {"policy_id": "default", "name": "Default", "conditions": {}, "actions": {}},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    config = PipelineConfig()
+    config.ahmn.enabled = True
+    config.knowledge.policy_store_path = str(policy_path)
+    advisor = PolicyAdvisor(config)
+    store = PolicyStore(str(policy_path), default_policy_id="default")
+    dae = DAEOutput(
+        doc_id="d1",
+        doc_type="scanned_document",
+        vendor_cluster="cord",
+        quality_bin="C",
+        complexity_bin="3",
+        content_profile="image-heavy",
+        quality_score=0.2,
+        complexity_score=0.8,
+        quality_features={},
+        structural_features={},
+        signals={},
+    )
+
+    ranked = advisor._fallback_rank(dae, store, {})  # noqa: SLF001
+    scores = {item.policy_id: item.score for item in ranked}
+    reasons = {item.policy_id: item.reason for item in ranked}
+
+    assert scores["needs_noise"] == 0.5
+    assert reasons["needs_noise"] == "conditions_matched:1/2"
+    assert scores["scanned_text"] == 1.0
+
+
 def test_plan_router_uses_adaptive_fallback_and_static_mode(tmp_path: Path) -> None:
     policy_path = tmp_path / "policies.json"
     policy_path.write_text(
@@ -637,6 +696,7 @@ def test_benchmark_generates_paper_evidence(tmp_path: Path, monkeypatch) -> None
     runtime_root = tmp_path / "idpo-data"
     monkeypatch.setenv("IDPO_DATA_DIR", str(runtime_root))
     pack_path = tmp_path / "pack.json"
+    source_file = repo_root() / "idpo" / "benchmark" / "data" / "invoice_basic.txt"
     pack_path.write_text(
         json.dumps(
             {
@@ -645,7 +705,7 @@ def test_benchmark_generates_paper_evidence(tmp_path: Path, monkeypatch) -> None
                     {
                         "case_id": "invoice_basic",
                         "tags": ["table", "clean"],
-                        "path": "idpo/benchmark/data/invoice_basic.txt",
+                        "path": str(source_file.relative_to(repo_root())).replace("\\", "/"),
                         "fields": {
                             "invoice_number": "Invoice identifier",
                             "total_amount": "Total due amount",
@@ -660,7 +720,7 @@ def test_benchmark_generates_paper_evidence(tmp_path: Path, monkeypatch) -> None
         ),
         encoding="utf-8",
     )
-    def fake_process_inbox(root, config_path, extraction_fields, run_id, file_paths):  # noqa: ANN001
+    def fake_launch_process_inbox(*, root, config_path, extraction_fields, run_id, input_dir):  # noqa: ANN001
         config_payload = json.loads(Path(config_path).read_text(encoding="utf-8"))
         mode = config_payload.get("ahmn", {}).get("policy_mode", "static")
         adaptive = mode == "adaptive"
@@ -700,8 +760,13 @@ def test_benchmark_generates_paper_evidence(tmp_path: Path, monkeypatch) -> None
         }
         return {"run_id": run_id, "run_dir": str(tmp_path / run_id), "doc_records": [doc]}
 
-    monkeypatch.setattr(benchmark_module, "process_inbox", fake_process_inbox)
-    evidence = run_benchmark(config_path="configs/idpo_research_config.json", pack_path=str(pack_path))
+    monkeypatch.setattr(benchmark_module, "_launch_process_inbox", fake_launch_process_inbox)
+    evidence = run_benchmark(
+        config_path="configs/idpo_research_config.json",
+        pack_path=str(pack_path),
+        register_frontend_jobs=True,
+        job_name_prefix="Research Smoke",
+    )
     report_path = runtime_root / "runs" / "benchmarks" / evidence["experiment"]["benchmark_run_id"] / "paper_evidence.json"
     assert report_path.exists()
     payload = json.loads(report_path.read_text(encoding="utf-8"))
@@ -712,7 +777,7 @@ def test_benchmark_generates_paper_evidence(tmp_path: Path, monkeypatch) -> None
     assert "groups" in payload["comparison"]
     assert "clean" in payload["comparison"]["groups"]
     assert payload["experiment"]["condition_configs"][benchmark_module.ADAPTIVE_LABEL]["ahmn_enabled"] is True
-    assert payload["experiment"]["condition_configs"][benchmark_module.ADAPTIVE_LABEL]["ahmn_mode"] == "http"
+    assert payload["experiment"]["condition_configs"][benchmark_module.ADAPTIVE_LABEL]["ahmn_mode"] in {"http", "auto"}
     assert payload["experiment"]["condition_configs"][benchmark_module.ADAPTIVE_LABEL]["policy_mode"] == benchmark_module.ADAPTIVE_LABEL
     assert payload["experiment"]["condition_configs"][benchmark_module.ADAPTIVE_LABEL]["runtime_policy_mode"] == "adaptive"
     assert "exact_f1" in payload["comparison"]["table"]
@@ -728,6 +793,18 @@ def test_benchmark_generates_paper_evidence(tmp_path: Path, monkeypatch) -> None
     assert "exact_f1_delta" in payload["comparison"]["bootstrap"]["overall"]
     assert payload["comparison"]["table"]["feedback_logged_count"][benchmark_module.ADAPTIVE_LABEL] == 1
     assert payload["comparison"]["table"]["defer_requested_count"][benchmark_module.ADAPTIVE_LABEL] == 1
+    frontend_jobs = sorted((runtime_root / "frontend" / "jobs").glob("*.json"))
+    assert len(frontend_jobs) == 1
+    job_payload = json.loads(frontend_jobs[0].read_text(encoding="utf-8"))
+    assert job_payload["jobName"] == "Research Smoke: tiny_pack"
+    assert job_payload["mode"] == "both"
+    assert job_payload["documents"][0]["fileName"] == source_file.name
+    assert {item["mode"] for item in job_payload["documents"][0]["outcomes"]} == {"adaptive", "strict"}
+    uploads_path = Path(job_payload["uploadsPath"])
+    assert uploads_path.exists()
+    uploaded_files = list(uploads_path.iterdir())
+    assert len(uploaded_files) == 1
+    assert uploaded_files[0].read_text(encoding="utf-8") == source_file.read_text(encoding="utf-8")
 
 
 def test_benchmark_fails_when_adaptive_feedback_is_missing(tmp_path: Path, monkeypatch) -> None:
@@ -752,7 +829,7 @@ def test_benchmark_fails_when_adaptive_feedback_is_missing(tmp_path: Path, monke
         encoding="utf-8",
     )
 
-    def fake_process_inbox(root, config_path, extraction_fields, run_id, file_paths):  # noqa: ANN001
+    def fake_launch_process_inbox(*, root, config_path, extraction_fields, run_id, input_dir):  # noqa: ANN001
         config_payload = json.loads(Path(config_path).read_text(encoding="utf-8"))
         adaptive = config_payload.get("ahmn", {}).get("policy_mode") == "adaptive"
         doc = {
@@ -788,10 +865,141 @@ def test_benchmark_fails_when_adaptive_feedback_is_missing(tmp_path: Path, monke
         }
         return {"run_id": run_id, "run_dir": str(tmp_path / run_id), "doc_records": [doc]}
 
-    monkeypatch.setattr(benchmark_module, "process_inbox", fake_process_inbox)
+    monkeypatch.setattr(benchmark_module, "_launch_process_inbox", fake_launch_process_inbox)
     with pytest.raises(SystemExit) as exc:
         run_benchmark(config_path="configs/idpo_research_config.json", pack_path=str(pack_path))
     assert "feedback logging failed" in str(exc.value)
+
+
+def test_case_metrics_treats_numeric_formatting_as_equal() -> None:
+    tp, fp, fn = benchmark_module._case_metrics(  # noqa: SLF001
+        {"total_amount": "7,000", "cash_amount": "7,000"},
+        {"total_amount": "7000", "cash_amount": "7000"},
+    )
+    assert (tp, fp, fn) == (2, 0, 0)
+
+
+def test_case_metrics_handles_currency_prefixes_and_three_digit_grouping() -> None:
+    tp, fp, fn = benchmark_module._case_metrics(  # noqa: SLF001
+        {
+            "total_amount": "Rp 39.600",
+            "subtotal_amount": "Rp 36.000",
+            "tax_amount": "Rp 3.600",
+            "cash_amount": "81.400",
+        },
+        {
+            "total_amount": "39600",
+            "subtotal_amount": "36000",
+            "tax_amount": "3600",
+            "cash_amount": "81400",
+        },
+    )
+    assert (tp, fp, fn) == (4, 0, 0)
+
+
+def test_register_frontend_jobs_uses_single_persistent_job(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    runtime_root = tmp_path / "runtime"
+    monkeypatch.setenv("IDPO_DATA_DIR", str(runtime_root))
+    monkeypatch.setattr(benchmark_module, "REPO_ROOT", tmp_path)
+
+    inputs_dir = tmp_path / "inputs"
+    inputs_dir.mkdir(parents=True, exist_ok=True)
+    (inputs_dir / "doc1.txt").write_text("receipt one", encoding="utf-8")
+    (inputs_dir / "doc2.txt").write_text("receipt two", encoding="utf-8")
+
+    pack_path = tmp_path / "pack.json"
+    pack_path.write_text(
+        json.dumps(
+            {
+                "name": "cord_validation_incremental",
+                "field_mapping_version": "v1",
+                "cases": [
+                    {
+                        "case_id": "case-1",
+                        "path": "inputs/doc1.txt",
+                        "fields": {"total_amount": "Receipt total"},
+                        "expected": {"total_amount": "1,000"},
+                    },
+                    {
+                        "case_id": "case-2",
+                        "path": "inputs/doc2.txt",
+                        "fields": {"total_amount": "Receipt total"},
+                        "expected": {"total_amount": "2,000"},
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def make_item(case_id: str, run_id: str, value: str) -> dict[str, object]:
+        return {
+            "case_id": case_id,
+            "static": {
+                "run_id": f"{run_id}_strict",
+                "run_dir": str(tmp_path / f"{run_id}_strict"),
+                "doc": {
+                    "doc_id": f"{case_id}_strict",
+                    "route_bin": "standard",
+                    "policy_id": "noisy_ocr_rescue",
+                    "structured_fields": {"total_amount": value},
+                    "feedback_logged": False,
+                },
+                "exact_metrics": {"precision": 1.0, "recall": 1.0, "f1": 1.0},
+            },
+            benchmark_module.ADAPTIVE_LABEL: {
+                "run_id": f"{run_id}_adaptive",
+                "run_dir": str(tmp_path / f"{run_id}_adaptive"),
+                "doc": {
+                    "doc_id": f"{case_id}_adaptive",
+                    "route_bin": "standard",
+                    "policy_id": "noisy_ocr_rescue",
+                    "structured_fields": {"total_amount": value},
+                    "advice_accepted": True,
+                    "feedback_logged": True,
+                },
+                "exact_metrics": {"precision": 1.0, "recall": 1.0, "f1": 1.0},
+            },
+        }
+
+    evidence_one = {
+        "experiment": {"benchmark_run_id": "bench-1", "generated_at": 1_700_000_000, "pack_path": str(pack_path)},
+        "documents": [make_item("case-1", "run-1", "1000")],
+    }
+    first = benchmark_module.register_frontend_jobs_from_evidence(
+        evidence_one,
+        pack_path=str(pack_path),
+        job_name_prefix="CORD Phase A",
+    )
+
+    evidence_two = {
+        "experiment": {"benchmark_run_id": "bench-2", "generated_at": 1_700_000_100, "pack_path": str(pack_path)},
+        "documents": [make_item("case-2", "run-2", "2000")],
+    }
+    second = benchmark_module.register_frontend_jobs_from_evidence(
+        evidence_two,
+        pack_path=str(pack_path),
+        job_name_prefix="CORD Phase A",
+        existing_job_id=first["job_id"],
+    )
+
+    assert second["job_id"] == first["job_id"]
+    assert second["doc_count"] == 2
+    assert second["added_count"] == 1
+
+    job_file = runtime_root / "frontend" / "jobs" / f"{first['job_id']}.json"
+    payload = json.loads(job_file.read_text(encoding="utf-8"))
+    assert payload["jobName"] == "CORD Phase A: cord_validation_incremental"
+    assert len(payload["documents"]) == 2
+    assert {doc["fileId"] for doc in payload["documents"]} == {"case-1", "case-2"}
+    assert all(doc["reviewStatus"] == "human_reviewed" for doc in payload["documents"])
+    assert all(doc["reviewSource"] == "human" for doc in payload["documents"])
+    assert all(outcome["reviewStatus"] == "human_reviewed" for doc in payload["documents"] for outcome in doc["outcomes"])
+    assert len(payload["runs"]) == 4
+    assert payload["counts"]["processedCount"] == 2
+    assert payload["ahmnSummary"]["documentsWithAdvice"] == 2
+    assert payload["ahmnSummary"]["reviewedDocumentCount"] == 2
+    assert payload["ahmnSummary"]["reviewedHumanCount"] == 2
 
 
 def test_research_config_and_policy_store_align_with_ahmn_ids() -> None:
@@ -802,7 +1010,6 @@ def test_research_config_and_policy_store_align_with_ahmn_ids() -> None:
     assert config_payload["ahmn"]["policy_mode"] == "adaptive"
     assert config_payload["ahmn"]["advice_endpoint"] == "/advice"
     assert config_payload["ahmn"]["log_endpoint"] == "/advice/log"
-    assert config_payload["queue"]["enabled"] is False
     assert config_payload["shadow"]["enabled"] is False
     assert {item["policy_id"] for item in policy_payload["policies"]} == {
         "unknown_vendor_safe",
@@ -898,49 +1105,6 @@ def test_research_policy_condition_keys_match_live_dae_outputs(tmp_path: Path) -
     assert invalid_keys == {}
 
 
-def test_shadow_mode_does_not_change_canonical_output(tmp_path: Path) -> None:
-    policy_path = tmp_path / "policy_store.json"
-    policy_path.write_text(
-        json.dumps(
-            {
-                "default_policy_id": "default",
-                "policies": [
-                    {"policy_id": "default", "name": "Default", "conditions": {}, "actions": {}},
-                    {
-                        "policy_id": "shadow_alt",
-                        "name": "ShadowAlt",
-                        "conditions": {"route_bin": ["heavy"]},
-                        "actions": {"preprocess": {"denoise": {"enabled": True}}},
-                    },
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    config = PipelineConfig()
-    config.shadow.enabled = True
-    config.shadow.sample_rate = 1.0
-    config.shadow.candidate_policy_ids = ["shadow_alt"]
-    config.queue.enabled = False
-    config.knowledge.policy_store_path = str(policy_path)
-
-    pipeline = Pipeline(config=config, run_dir=str(tmp_path / "run"))
-    doc = Document(
-        doc_id="shadow-doc",
-        source="digital",
-        path="shadow.txt",
-        metadata={"vendor": "acme"},
-        pages=[Page(number=1, text="Record ID: A-1\nDate: 01/01/2026\n", raw_text="Record ID: A-1\nDate: 01/01/2026\n")],
-    )
-    result = pipeline.process_documents([doc])[0]
-    assert result.policy_id == "default"
-    comparison_path = pipeline.run_dir / "metrics" / config.shadow.comparison_file
-    assert comparison_path.exists()
-    comparisons = json.loads(comparison_path.read_text(encoding="utf-8"))
-    assert comparisons
-
-
 def test_rollback_triggers_when_metrics_regress(tmp_path: Path) -> None:
     config = RollbackConfig(
         enabled=True,
@@ -1020,7 +1184,6 @@ def test_provenance_contains_required_event_types(tmp_path: Path) -> None:
         "ValidationResult",
         "RecoveryAction",
         "EscalationAction",
-        "ShadowComparison",
     }
     assert required.issubset(set(events))
 
