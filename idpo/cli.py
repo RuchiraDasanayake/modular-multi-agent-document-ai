@@ -31,8 +31,6 @@ def main() -> None:
     process_parser.add_argument("--input", required=True)
     process_parser.add_argument("--run-dir", required=True)
     process_parser.add_argument("--config", default=None)
-    process_parser.add_argument("--excel-out", default=None)
-    process_parser.add_argument("--simple-output-dir", default=None, help="Write simple outputs under this folder")
 
     inbox_parser = subparsers.add_parser("process-inbox", help="Process inputs/inbox into a run layout and move files")
     inbox_parser.add_argument("--root", default=".", help="Project root for relative paths; runtime storage uses IDPO_DATA_DIR")

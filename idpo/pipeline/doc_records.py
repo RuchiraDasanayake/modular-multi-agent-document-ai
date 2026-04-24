@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from idpo.pipeline.doc_artifacts import fallback_path
+from idpo.pipeline.doc_artifacts import fallback_path, _is_concrete_value, _entity_is_grounded
 
 
 def normalize_key(raw: str) -> str:
@@ -320,16 +320,6 @@ def _map_entities(entities) -> dict[str, tuple[str, str, str, str, str]]:
     return mapped
 
 
-def _entity_is_grounded(entity) -> bool:
-    if getattr(entity, "page", None) is not None:
-        return True
-    if getattr(entity, "span", None):
-        return True
-    metadata = getattr(entity, "metadata", {}) or {}
-    bbox = metadata.get("bbox")
-    return isinstance(bbox, list) and len(bbox) >= 4
-
-
 def _schema_quality_metrics(
     expected_keys: list[str],
     requested_field_status: dict[str, dict[str, object]],
@@ -385,9 +375,6 @@ def _schema_quality_metrics(
     }
 
 
-def _is_concrete_value(value: object) -> bool:
-    text = str(value or "").strip()
-    return bool(text) and text.upper() not in {"N/A", "NA"}
 
 
 def _find_original_path(doc_dir: Path) -> str:

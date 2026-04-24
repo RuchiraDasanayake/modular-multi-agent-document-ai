@@ -40,7 +40,7 @@ from idpo.core.types import (
 from idpo.retrieval.bm25 import BM25Index
 from idpo.retrieval.index_bundle import IndexBundle
 from idpo.retrieval.vector_store import HashingEmbedder, VectorStore
-from idpo.pipeline.executor import PlanExecutor, ExecutionState
+from idpo.pipeline.executor import PlanExecutor
 from idpo.pipeline.feedback import log_ahmn_feedback
 from idpo.pipeline.planning import PlanRouter, build_plan
 from idpo.pipeline.policy_safety import PolicyRollbackMonitor
