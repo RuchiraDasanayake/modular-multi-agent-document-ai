@@ -38,6 +38,13 @@ _RECEIPT_POLICY_PRIORITY = [
     "unknown_vendor_safe",
 ]
 
+# Specialist policies (vendor_cluster-specific) get a stronger initial prior so
+# they win early TS draws when they appear as candidates.
+_SPECIALIST_POLICY_PRIORITY = [
+    "receipt_specialist",
+    "correspondence_specialist",
+]
+
 
 def _runtime_data_root() -> Path:
     raw = os.getenv("IDPO_DATA_DIR", "").strip()
@@ -194,7 +201,12 @@ def _persist_active_state() -> None:
 def _ensure_initialized(policy_ids: list[str]) -> None:
     for pid in policy_ids:
         if pid not in _posteriors:
-            alpha = 1.5 if pid in _RECEIPT_POLICY_PRIORITY else 1.0
+            if pid in _SPECIALIST_POLICY_PRIORITY:
+                alpha = 3.0  # specialist policies strongly preferred when they match
+            elif pid in _RECEIPT_POLICY_PRIORITY:
+                alpha = 1.5
+            else:
+                alpha = 1.0
             _posteriors[pid] = [alpha, 1.0]
 
 

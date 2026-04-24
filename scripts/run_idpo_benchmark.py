@@ -1295,7 +1295,7 @@ def run_benchmark(
 
                 for condition in ("static", ADAPTIVE_LABEL):
                     with tempfile.TemporaryDirectory(prefix=f"idpo_bench_{condition}_{case_id}_") as tmp_dir:
-                        temp_path = Path(tmp_dir) / source_path.name
+                        temp_path = Path(tmp_dir) / (case_id + source_path.suffix)
                         shutil.copy2(source_path, temp_path)
                         run = _launch_process_inbox(
                             root=repo_root,
