@@ -98,6 +98,7 @@ datasets/external/
 datasets/derived/
 datasets/upload_buckets/
 datasets/FUNSD/testing_data/images/
+datasets/FUNSD/training_data/
 
 # Temp / tool dirs
 .codex_tmp_policy_inspect/
