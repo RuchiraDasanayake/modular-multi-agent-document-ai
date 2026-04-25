@@ -31,6 +31,8 @@ class ValidationAgent(Agent):
         normalized: dict[str, str] = {}
         confidences: dict[str, float] = {}
 
+        doc_text = "\n".join(page.text for page in doc.pages if page.text).lower()
+
         rules = ctx.config.validation.rules
         for entity in entities:
             confidences[entity.key] = max(confidences.get(entity.key, 0.0), entity.confidence)
@@ -70,6 +72,14 @@ class ValidationAgent(Agent):
                 issues.append(semantic_issue)
                 confidences[entity.key] = max(
                     confidences[entity.key] - self._severity_penalty(semantic_issue.severity),
+                    0.1,
+                )
+
+            grounding_issue = self._grounding_issue(entity.key, str(entity.value or ""), doc_text)
+            if grounding_issue:
+                issues.append(grounding_issue)
+                confidences[entity.key] = max(
+                    confidences[entity.key] - self._severity_penalty(grounding_issue.severity),
                     0.1,
                 )
 
@@ -185,27 +195,51 @@ class ValidationAgent(Agent):
 
     def _looks_like_date(self, value: str) -> bool:
         text = value.strip()
-        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
-            return True
-        if re.fullmatch(r"\d{1,2}[/-]\d{1,2}[/-]\d{2,4}", text):
-            return True
-        try:
-            datetime.strptime(text, "%b %d, %Y")
-            return True
-        except Exception:
-            pass
-        try:
-            datetime.strptime(text, "%B %d, %Y")
-            return True
-        except Exception:
-            return False
+        _DATE_PATTERNS = [
+            r"\d{4}-\d{2}-\d{2}",
+            r"\d{1,2}[/\-\.]\d{1,2}[/\-\.]\d{2,4}",
+            r"\d{1,2}\s*/\s*\d{1,2}\s*/\s*\d{2,4}",
+            r"\d{1,2}[\s\-]+[A-Za-z]{3,9}[\s\-]+\d{2,4}",
+            r"[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}",
+            r"[A-Za-z]{3,9}\s+\d{4}",
+        ]
+        for pattern in _DATE_PATTERNS:
+            if re.fullmatch(pattern, text, re.IGNORECASE):
+                return True
+        for fmt in ("%b %d, %Y", "%B %d, %Y", "%b %d %Y", "%B %d %Y", "%d %b %Y", "%d %B %Y"):
+            try:
+                datetime.strptime(text, fmt)
+                return True
+            except Exception:
+                pass
+        return False
 
     def _looks_like_amount(self, value: str) -> bool:
-        return bool(re.fullmatch(r"-?\d+(?:\.\d{1,2})?", value.strip()))
+        # Accept: 70,000 / 379.500 / 1,234.56 / -50 / 6.000 (dot-thousands)
+        text = value.strip().lstrip("-").replace(",", "").replace(".", "")
+        return bool(text) and text.isdigit()
 
     def _looks_like_phone(self, value: str) -> bool:
         digits = re.sub(r"\D", "", value)
         return len(digits) >= 10
+
+    def _grounding_issue(self, field: str, value: str, doc_text_lower: str) -> ValidationIssue | None:
+        """Flag values that do not appear in the source document — likely hallucinated."""
+        if not value or not doc_text_lower:
+            return None
+        # Short tokens (≤3 chars) are too common to reliably ground
+        tokens = [t for t in re.split(r"[\s,.\-/]+", value.lower()) if len(t) > 3]
+        if not tokens:
+            return None
+        # Pass if ANY meaningful token appears in the document text
+        if any(token in doc_text_lower for token in tokens):
+            return None
+        return ValidationIssue(
+            field=field,
+            issue="ungrounded_value",
+            severity="high",
+            details={"value": value[:120]},
+        )
 
     def _normalize(self, value: str, mode: str) -> str:
         text = value.strip()

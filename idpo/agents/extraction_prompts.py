@@ -43,11 +43,11 @@ def build_prompt(
     keys = explicit_keys or [rule.key for rule in ctx.config.structuring.extraction_rules]
     if field_descriptions and keys:
         fields_block = "\n".join(
-            f'  - "{key}": {field_descriptions.get(key, "Extract this field value")}'
+            f'  - "{key}": {field_descriptions.get(key, "Extract this field value")} [omit if not present]'
             for key in keys
         )
     elif keys:
-        fields_block = "\n".join(f'  - "{key}"' for key in keys)
+        fields_block = "\n".join(f'  - "{key}" [omit if not present]' for key in keys)
     else:
         fields_block = "  - Extract any relevant key-value fields you find"
 
@@ -63,8 +63,9 @@ def build_prompt(
         '2. Each entity: {"key": "<field_name>", "value": "<exact_value>", "confidence": <0.0-1.0>}\n'
         "3. Use ONLY the requested field names above — never invent keys.\n"
         "4. Extract numeric amounts exactly as they appear (e.g. '70,000' not '70000', '36.000' not '36').\n"
-        "5. If a field is not found, omit it. Do NOT return N/A, empty strings, or label text.\n"
-        "6. At most one entity per key. Confidence: 0.9+ = direct evidence, 0.6-0.8 = probable.\n\n"
+        "5. Only extract values that appear explicitly in the document text — do NOT guess, infer, or construct values.\n"
+        "6. If a field is absent from the document, omit it entirely. Do NOT return null, N/A, empty strings, or label text.\n"
+        "7. At most one entity per key. Confidence: 0.9+ = value found verbatim, 0.6-0.8 = probable match, below 0.5 = uncertain.\n\n"
         "DOCUMENT TEXT:\n"
         "---\n"
         f"{text}\n"
