@@ -118,6 +118,28 @@ def ollama_generate_detailed(
     return response, meta
 
 
+_ENTITY_LIST_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "entities": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "key": {"type": "string"},
+                    "value": {"type": "string"},
+                    "confidence": {"type": "number"},
+                },
+                "required": ["key", "value", "confidence"],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["entities"],
+    "additionalProperties": False,
+}
+
+
 def ollama_chat_detailed(
     base_url: str,
     messages: list[dict[str, str]],
@@ -127,12 +149,17 @@ def ollama_chat_detailed(
     options: dict[str, object] | None = None,
     format_json: bool = True,
     disable_think: bool = False,
+    use_schema: bool = True,
 ) -> tuple[str | None, dict[str, object]]:
     """Ollama /api/chat wrapper — better for instruction-tuned models (Qwen3, Llama3).
 
     The chat endpoint honours the model's instruction template, which gives
     significantly better structured-output adherence than /api/generate for
     models with a built-in chat format.
+
+    When use_schema=True (default), passes the entity-list JSON schema via the
+    Ollama structured-output API (supported since Ollama 0.5). This prevents
+    hallucinated fields, malformed JSON, and wrapped markdown output.
     """
     meta: dict[str, object] = {"endpoint": "ollama.chat"}
     payload: dict[str, object] = {
@@ -143,7 +170,7 @@ def ollama_chat_detailed(
     if options:
         payload["options"] = options
     if format_json:
-        payload["format"] = "json"
+        payload["format"] = _ENTITY_LIST_SCHEMA if use_schema else "json"
     if disable_think:
         payload["think"] = False
 

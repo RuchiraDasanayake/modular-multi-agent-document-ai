@@ -648,7 +648,14 @@ def _write_condition_config(base_config: Path, condition: str, temp_dir: Path) -
     runtime_mode = "static" if condition == "static" else "adaptive"
     ahmn["policy_mode"] = runtime_mode
     if condition == "static":
+        # True dumb baseline: AHMN disabled AND fallback limited to default policy only.
+        # Without this, _fallback_rank scores specialist policies (via condition match) and
+        # static accidentally uses optimal routing — not a fair comparison.
         ahmn["enabled"] = False
+        knowledge = payload.setdefault("knowledge", {})
+        baseline_store = str(Path(base_config).resolve().parent / "policy_store_baseline.json")
+        if Path(baseline_store).exists():
+            knowledge["policy_store_path"] = baseline_store
     else:
         ahmn["enabled"] = True
         if str(ahmn.get("mode", "")).strip().lower() in {"", "mock"}:
