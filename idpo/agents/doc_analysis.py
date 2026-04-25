@@ -219,31 +219,34 @@ class DocumentAnalysisAgent(Agent):
         """Fast keyword fingerprint to identify document semantic type from OCR text."""
         lower = text.lower()
         receipt_signals = sum([
-            bool(re.search(r"\b(total|subtotal|tax|cash|change|receipt|invoice)\b", lower)),
-            bool(re.search(r"[$₩Rp]\s*[\d,.]+|[\d,.]+\s*(?:won|krw|idr)", lower)),
-            bool(re.search(r"\b(vat|pb1|ppn|gst)\b", lower)),
-            bool(re.search(r"\b(qty|quantity|unit\s*price|item)\b", lower)),
+            bool(re.search(r"\b(total|subtotal|tax|cash|change|receipt|invoice|grand\s*total)\b", lower)),
+            bool(re.search(r"[$₩Rp¥€£]\s*[\d,.]+|[\d,.]+\s*(?:won|krw|idr|usd|eur)", lower)),
+            bool(re.search(r"\b(vat|pb1|ppn|gst|discount|surcharge)\b", lower)),
+            bool(re.search(r"\b(qty|quantity|unit\s*price|item|price|amount)\b", lower)),
+            bool(re.search(r"\b(payment|paid|change|card|cash)\b", lower)),
+            # Line items: digit(s) × digit(s) pattern common on receipts
+            bool(re.search(r"\d+\s*[x×]\s*[\d,]+", lower)),
         ])
         correspondence_signals = sum([
-            bool(re.search(r"\bdear\b|\bsincerely\b|\bregards\b", lower)),
-            bool(re.search(r"^from\s*:|^to\s*:|^re\s*:", lower, re.MULTILINE)),
-            bool(re.search(r"yours\s+(?:truly|sincerely|faithfully)", lower)),
-            bool(re.search(r"\battention\b|\bcc\s*:", lower)),
+            bool(re.search(r"\bdear\b|\bsincerely\b|\bregards\b|\bfaithfully\b", lower)),
+            bool(re.search(r"^from\s*:|^to\s*:|^re\s*:|^subject\s*:", lower, re.MULTILINE)),
+            bool(re.search(r"yours\s+(?:truly|sincerely|faithfully)|best\s+regards", lower)),
+            bool(re.search(r"\battention\b|\bcc\s*:|\benc\b|\benclosed\b", lower)),
+            bool(re.search(r"\bdated?\b|\bdate\s*:", lower)),
+            # Salutation line: "Dear Mr/Ms/Dr ..."
+            bool(re.search(r"\bdear\s+(?:mr|ms|mrs|dr|prof|sir|madam)\b", lower)),
         ])
         legal_signals = sum([
-            bool(re.search(r"\bcourt\b|\bplaintiff\b|\bdefendant\b|\bjudge\b", lower)),
-            bool(re.search(r"case\s+(?:no|number|#)|\bfiled\b|\bserved\b", lower)),
+            bool(re.search(r"\bcourt\b|\bplaintiff\b|\bdefendant\b|\bjudge\b|\btribunal\b", lower)),
+            bool(re.search(r"case\s+(?:no|number|#)|\bfiled\b|\bserved\b|\bhereby\b", lower)),
         ])
+        # Require >= 2 strong signals for specialist routing; 1 signal = fallback to unknown
         if receipt_signals >= 2:
             return "receipt"
         if correspondence_signals >= 2:
             return "correspondence"
         if legal_signals >= 2:
             return "legal_form"
-        if receipt_signals == 1:
-            return "receipt"
-        if correspondence_signals == 1:
-            return "correspondence"
         return "unknown"
 
     def _quality_bin(self, quality_score: float) -> str:

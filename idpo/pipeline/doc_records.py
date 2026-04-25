@@ -326,7 +326,8 @@ def _schema_quality_metrics(
     entities,
     validation_issues,
 ) -> dict[str, object]:
-    expected = [str(key).strip() for key in expected_keys if str(key).strip()]
+    # Normalize both sides so key comparison is consistent with extraction output
+    expected = [normalize_key(str(key)) for key in expected_keys if str(key).strip()]
     expected_set = set(expected)
     extracted_keys: set[str] = set()
     extracted_required_keys: set[str] = set()
@@ -342,8 +343,12 @@ def _schema_quality_metrics(
             if _entity_is_grounded(entity):
                 grounded_required_keys.add(key)
 
-    for key in expected:
-        status = requested_field_status.get(key) or {}
+    # Also credit keys present in requested_field_status with a concrete value
+    for raw_key in (requested_field_status or {}):
+        key = normalize_key(str(raw_key))
+        if key not in expected_set:
+            continue
+        status = requested_field_status.get(raw_key) or {}
         if _is_concrete_value(status.get("value", "")):
             extracted_required_keys.add(key)
 

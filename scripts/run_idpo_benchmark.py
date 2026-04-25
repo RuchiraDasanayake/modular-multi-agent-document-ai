@@ -98,9 +98,10 @@ _CURRENCY_PREFIX_RE = None
 
 
 def _strip_currency_prefix(text: str) -> str:
-    """Strip leading currency symbols/codes (e.g. 'Rp ', '₩', '$', '€') from a value string."""
+    """Strip leading currency symbols/codes (e.g. 'Rp ', '₩', '$', '€', '. ') from a value string."""
     import re
-    stripped = re.sub(r"^[^\d\-\.]+", "", text).strip()
+    # Also strip leading dot(s) used as annotation prefix in CORD (e.g. ". 50,000")
+    stripped = re.sub(r"^[^\d\-]+", "", text).strip()
     return stripped if stripped else text
 
 

@@ -82,8 +82,9 @@ class ValidationAgent(Agent):
                     confidences[entity.key] - self._severity_penalty(grounding_issue.severity),
                     0.1,
                 )
-                meta = entity.metadata if isinstance(entity.metadata, dict) else {}
-                meta["ungrounded"] = True
+                if not isinstance(entity.metadata, dict):
+                    entity.metadata = {}
+                entity.metadata["ungrounded"] = True
 
         arithmetic_issues = self._check_receipt_arithmetic(normalized)
         for issue in arithmetic_issues:
@@ -284,6 +285,8 @@ class ValidationAgent(Agent):
             compact = text.replace(",", "")
             compact = re.sub(r"[^\d.\-]", "", compact)
             compact = re.sub(r"(?<!^)-", "", compact)
+            # Strip leading dot (CORD annotation quirk: ". 50,000" → ".50000" → "50000")
+            compact = compact.lstrip(".")
             return compact
         if mode == "upper":
             return re.sub(r"\s+", "", text).upper()

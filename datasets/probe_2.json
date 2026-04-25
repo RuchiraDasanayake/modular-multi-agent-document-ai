@@ -1,0 +1,50 @@
+{
+  "name": "probe_2",
+  "description": "2-doc probe",
+  "cases": [
+    {
+      "case_id": "cord_probe_0010",
+      "tags": [
+        "cord",
+        "receipt",
+        "external",
+        "unseen"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0010.png",
+      "fields": {
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
+      },
+      "expected": {
+        "total_amount": "60.000",
+        "cash_amount": "60.000",
+        "change_amount": "0"
+      }
+    },
+    {
+      "case_id": "cord_probe_0020",
+      "tags": [
+        "cord",
+        "receipt",
+        "external",
+        "unseen"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0020.png",
+      "fields": {
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
+      },
+      "expected": {
+        "total_amount": "16,500",
+        "subtotal_amount": "15,000",
+        "tax_amount": "1,500",
+        "cash_amount": "20,000",
+        "change_amount": "3,500"
+      }
+    }
+  ]
+}

@@ -952,10 +952,16 @@ class LLMExtractionAgent(Agent):
         llm_cfg = ctx.config.llm
         use_chat = self._uses_chat_endpoint(model_name) or bool(getattr(llm_cfg, "local_use_chat_api", False))
         format_json = bool(getattr(llm_cfg, "local_format_json", True))
+        # Qwen3: use temperature=0.6 in thinking mode to avoid greedy repetition loops
+        temp = float(getattr(llm_cfg, "local_temperature", 0.0))
+        if use_thinking:
+            temp = 0.6
         options: dict[str, object] = {
-            "temperature": float(getattr(llm_cfg, "local_temperature", 0.0)),
-            "top_p": float(getattr(llm_cfg, "local_top_p", 0.9)),
+            "temperature": temp,
+            "top_p": float(getattr(llm_cfg, "local_top_p", 0.8)),
+            "top_k": int(getattr(llm_cfg, "local_top_k", 20)),
             "num_predict": int(getattr(llm_cfg, "local_num_predict", 512)),
+            "num_ctx": int(getattr(llm_cfg, "local_num_ctx", 8192)),
         }
         no_think = model_name.lower().startswith("qwen") and not use_thinking
         descs = field_descriptions or {}
@@ -1007,10 +1013,16 @@ class LLMExtractionAgent(Agent):
         llm_cfg = ctx.config.llm
         use_chat = self._uses_chat_endpoint(model_name) or bool(getattr(llm_cfg, "local_use_chat_api", False))
         format_json = bool(getattr(llm_cfg, "local_format_json", True))
+        # Qwen3: use temperature=0.6 in thinking mode to avoid greedy repetition loops
+        temp = float(getattr(llm_cfg, "local_temperature", 0.0))
+        if use_thinking:
+            temp = 0.6
         options: dict[str, object] = {
-            "temperature": float(getattr(llm_cfg, "local_temperature", 0.0)),
-            "top_p": float(getattr(llm_cfg, "local_top_p", 0.9)),
+            "temperature": temp,
+            "top_p": float(getattr(llm_cfg, "local_top_p", 0.8)),
+            "top_k": int(getattr(llm_cfg, "local_top_k", 20)),
             "num_predict": int(getattr(llm_cfg, "local_num_predict", 1024)),
+            "num_ctx": int(getattr(llm_cfg, "local_num_ctx", 8192)),
         }
 
         if use_chat:

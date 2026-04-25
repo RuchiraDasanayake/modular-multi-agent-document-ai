@@ -1,0 +1,213 @@
+{
+  "name": "research_test_batch_2",
+  "description": "Permanent research batch 2 - 10 random docs",
+  "cases": [
+    {
+      "case_id": "cord_validation_0030",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0030.png",
+      "fields": {
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
+        "cash_amount": "Cash paid by customer. Number only.",
+        "change_amount": "Change returned to customer. Number only."
+      },
+      "expected": {
+        "total_amount": "31.000",
+        "cash_amount": "40.000",
+        "change_amount": "9.000"
+      }
+    },
+    {
+      "case_id": "cord_validation_0029",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0029.png",
+      "fields": {
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
+        "cash_amount": "Cash paid by customer. Number only.",
+        "subtotal_amount": "Subtotal before tax. Number only."
+      },
+      "expected": {
+        "total_amount": "56.000",
+        "cash_amount": "56.000",
+        "subtotal_amount": "56.000"
+      }
+    },
+    {
+      "case_id": "cord_validation_0015",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0015.png",
+      "fields": {
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
+        "subtotal_amount": "Subtotal before tax. Number only.",
+        "tax_amount": "Tax amount. Number only."
+      },
+      "expected": {
+        "total_amount": "17,999",
+        "subtotal_amount": "16,363",
+        "tax_amount": "1,636"
+      }
+    },
+    {
+      "case_id": "cord_validation_0046",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0046.png",
+      "fields": {
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
+        "cash_amount": "Cash paid by customer. Number only.",
+        "change_amount": "Change returned to customer. Number only.",
+        "subtotal_amount": "Subtotal before tax. Number only.",
+        "tax_amount": "Tax amount. Number only."
+      },
+      "expected": {
+        "total_amount": "44,000",
+        "cash_amount": ". 50,000",
+        "change_amount": ". 6,000",
+        "subtotal_amount": "40,000",
+        "tax_amount": "4,000"
+      }
+    },
+    {
+      "case_id": "cord_validation_0012",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0012.png",
+      "fields": {
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
+        "cash_amount": "Cash paid by customer. Number only.",
+        "subtotal_amount": "Subtotal before tax. Number only.",
+        "tax_amount": "Tax amount. Number only."
+      },
+      "expected": {
+        "total_amount": "20.000",
+        "cash_amount": "20.000",
+        "subtotal_amount": "18,182",
+        "tax_amount": "1,818"
+      }
+    },
+    {
+      "case_id": "cord_validation_0018",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0018.png",
+      "fields": {
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
+        "subtotal_amount": "Subtotal before tax. Number only.",
+        "tax_amount": "Tax amount. Number only."
+      },
+      "expected": {
+        "total_amount": "304,326",
+        "subtotal_amount": "261,000",
+        "tax_amount": "27,666"
+      }
+    },
+    {
+      "case_id": "cord_validation_0019",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0019.png",
+      "fields": {
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
+        "cash_amount": "Cash paid by customer. Number only.",
+        "subtotal_amount": "Subtotal before tax. Number only.",
+        "tax_amount": "Tax amount. Number only."
+      },
+      "expected": {
+        "total_amount": "18,999",
+        "cash_amount": "18,999",
+        "subtotal_amount": "17,272",
+        "tax_amount": "1,727"
+      }
+    },
+    {
+      "case_id": "cord_validation_0009",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0009.png",
+      "fields": {
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
+        "cash_amount": "Cash paid by customer. Number only.",
+        "change_amount": "Change returned to customer. Number only."
+      },
+      "expected": {
+        "total_amount": "42,500",
+        "cash_amount": "50,000",
+        "change_amount": "7,500"
+      }
+    },
+    {
+      "case_id": "funsd_82562350",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82562350.png",
+      "fields": {
+        "recipient": "The recipient name or department in the TO field.",
+        "sender": "The sender name or department in the FROM field.",
+        "date": "The date on the form (as written). Extract exactly as it appears."
+      },
+      "expected": {
+        "recipient": "Mr. Randy Spell",
+        "sender": "Rick Redfield",
+        "date": "May 1, 2000"
+      }
+    },
+    {
+      "case_id": "cord_validation_0006",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0006.png",
+      "fields": {
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
+        "subtotal_amount": "Subtotal before tax. Number only.",
+        "tax_amount": "Tax amount. Number only."
+      },
+      "expected": {
+        "total_amount": "39.600",
+        "subtotal_amount": "36.000",
+        "tax_amount": "3.600"
+      }
+    }
+  ]
+}

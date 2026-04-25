@@ -263,7 +263,9 @@ class LLMConfig:
     local_temperature: float = 0.0
     local_format_json: bool = True
     local_num_predict: int = 4096
-    local_top_p: float = 0.9
+    local_top_p: float = 0.8
+    local_top_k: int = 20
+    local_num_ctx: int = 8192
     # Persist raw prompt and raw model response in the document artifact for
     # monitoring and re-audit. Turn off only if payloads contain sensitive data
     # that must never land on disk.
