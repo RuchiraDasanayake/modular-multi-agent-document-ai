@@ -47,6 +47,8 @@ class DocumentAnalysisAgent(Agent):
         content_profile = self._profile(table_ratio, form_ratio, image_ratio, avg_len)
         doc_type = self._doc_type(doc, content_profile)
         vendor_cluster = self._vendor_cluster(doc)
+        ocr_text = "\n".join(page.text for page in doc.pages if page.text)
+        semantic_doc_type = self._classify_semantic_doc_type(ocr_text)
         quality_bin = self._quality_bin(quality_score)
         complexity_bin = self._complexity_bin(complexity_score)
 
@@ -76,6 +78,7 @@ class DocumentAnalysisAgent(Agent):
                 "content_profile": content_profile,
                 "route_bin": route_bin,
                 "layout_cluster_id": layout_cluster_id,
+                "semantic_doc_type": semantic_doc_type,
             }
         )
 
@@ -95,6 +98,7 @@ class DocumentAnalysisAgent(Agent):
             quality_features=quality_features,
             structural_features=structural_features,
             signals=signals,
+            semantic_doc_type=semantic_doc_type,
         )
 
         signal = StageSignal(
@@ -123,6 +127,7 @@ class DocumentAnalysisAgent(Agent):
                 "complexity_bin": complexity_bin,
                 "route_bin": route_bin,
                 "layout_cluster_id": layout_cluster_id,
+                "semantic_doc_type": semantic_doc_type,
                 "analysis_confidence": analysis_confidence,
             },
             parameters={},
@@ -209,6 +214,37 @@ class DocumentAnalysisAgent(Agent):
             return str(vendor).strip().lower()
         base = doc.doc_id.split("_")[0].split("-")[0].strip().lower()
         return base or "unknown"
+
+    def _classify_semantic_doc_type(self, text: str) -> str:
+        """Fast keyword fingerprint to identify document semantic type from OCR text."""
+        lower = text.lower()
+        receipt_signals = sum([
+            bool(re.search(r"\b(total|subtotal|tax|cash|change|receipt|invoice)\b", lower)),
+            bool(re.search(r"[$₩Rp]\s*[\d,.]+|[\d,.]+\s*(?:won|krw|idr)", lower)),
+            bool(re.search(r"\b(vat|pb1|ppn|gst)\b", lower)),
+            bool(re.search(r"\b(qty|quantity|unit\s*price|item)\b", lower)),
+        ])
+        correspondence_signals = sum([
+            bool(re.search(r"\bdear\b|\bsincerely\b|\bregards\b", lower)),
+            bool(re.search(r"^from\s*:|^to\s*:|^re\s*:", lower, re.MULTILINE)),
+            bool(re.search(r"yours\s+(?:truly|sincerely|faithfully)", lower)),
+            bool(re.search(r"\battention\b|\bcc\s*:", lower)),
+        ])
+        legal_signals = sum([
+            bool(re.search(r"\bcourt\b|\bplaintiff\b|\bdefendant\b|\bjudge\b", lower)),
+            bool(re.search(r"case\s+(?:no|number|#)|\bfiled\b|\bserved\b", lower)),
+        ])
+        if receipt_signals >= 2:
+            return "receipt"
+        if correspondence_signals >= 2:
+            return "correspondence"
+        if legal_signals >= 2:
+            return "legal_form"
+        if receipt_signals == 1:
+            return "receipt"
+        if correspondence_signals == 1:
+            return "correspondence"
+        return "unknown"
 
     def _quality_bin(self, quality_score: float) -> str:
         if quality_score >= 0.75:

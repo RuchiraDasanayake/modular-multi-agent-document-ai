@@ -576,13 +576,21 @@ def _is_concrete_value(value: object) -> bool:
 
 
 def _entity_is_grounded(entity) -> bool:
+    # Spatial grounding: OCR bbox or character span
     if getattr(entity, "page", None) is not None:
         return True
     if getattr(entity, "span", None):
         return True
     metadata = getattr(entity, "metadata", {}) or {}
     bbox = metadata.get("bbox")
-    return isinstance(bbox, list) and len(bbox) >= 4
+    if isinstance(bbox, list) and len(bbox) >= 4:
+        return True
+    # Text grounding: value token appears in source document (set by validation grounding check)
+    if metadata.get("text_grounded") is True:
+        return True
+    # Default: treat as grounded unless explicitly flagged as ungrounded by validation
+    # This is the correct default for LLM-extracted entities that passed grounding checks
+    return not metadata.get("ungrounded", False)
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:

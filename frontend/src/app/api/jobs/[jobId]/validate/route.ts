@@ -70,6 +70,7 @@ export async function POST(request: Request, { params }: Params) {
         fieldConfig: job.fieldConfigCurrent ?? [],
         reviewSource: "ai",
         fields: autoReview.fields.length > 0 ? autoReview.fields : buildRequestedReviewRows(detail, job.fieldConfigCurrent ?? []),
+        expectedFieldValues: outcome.expectedFieldValues ?? null,
         reviewerStage: autoReview.reviewStage,
         reviewerConfidence: autoReview.reviewConfidence,
       });

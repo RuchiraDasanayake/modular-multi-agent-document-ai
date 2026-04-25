@@ -5,9 +5,8 @@
       "policy_id": "receipt_specialist",
       "name": "Receipt Specialist Policy",
       "conditions": {
-        "vendor_cluster": [
-          "cord"
-        ]
+        "vendor_cluster": ["cord"],
+        "semantic_doc_type": ["receipt"]
       },
       "actions": {
         "preprocess": {
@@ -41,6 +40,8 @@
           ],
           "model_tier": "local",
           "ruleset": "research_receipt_specialist",
+          "per_field_extraction": true,
+          "use_thinking": false,
           "extraction_context": "DOCUMENT TYPE: Point-of-sale receipt (Korean/Indonesian retail). This document contains transaction amounts in local currency. Amounts may use a dot as a thousands separator (e.g. 20.000 means twenty thousand, not twenty). Tax may be labeled PB1, VAT, or TAX. Focus exclusively on extracting the requested numeric amounts. Do NOT extract person names, organization names, letter metadata, or dates as field values unless specifically requested."
         },
         "recovery": {
@@ -72,9 +73,8 @@
       "policy_id": "correspondence_specialist",
       "name": "Correspondence Specialist Policy",
       "conditions": {
-        "vendor_cluster": [
-          "funsd"
-        ]
+        "vendor_cluster": ["funsd"],
+        "semantic_doc_type": ["correspondence"]
       },
       "actions": {
         "preprocess": {
@@ -107,6 +107,8 @@
           ],
           "model_tier": "local",
           "ruleset": "research_correspondence_specialist",
+          "per_field_extraction": true,
+          "use_thinking": true,
           "extraction_context": "DOCUMENT TYPE: Scanned business correspondence (letter or internal memo). This document contains sender and recipient names, and a date. Names may be abbreviated (e.g. \"K.A.S\" for \"K.A. Sparrow\") or OCR-degraded. Look for To:/From: fields, salutation lines, and signature blocks. Extract the best available version of each name even if partially legible. Do NOT attempt to extract prices, totals, invoice numbers, or monetary amounts \u2014 this is not a financial document."
         },
         "recovery": {

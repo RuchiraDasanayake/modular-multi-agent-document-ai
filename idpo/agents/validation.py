@@ -82,6 +82,13 @@ class ValidationAgent(Agent):
                     confidences[entity.key] - self._severity_penalty(grounding_issue.severity),
                     0.1,
                 )
+                meta = entity.metadata if isinstance(entity.metadata, dict) else {}
+                meta["ungrounded"] = True
+
+        arithmetic_issues = self._check_receipt_arithmetic(normalized)
+        for issue in arithmetic_issues:
+            issues.append(issue)
+            confidences[issue.field] = max(confidences.get(issue.field, 0.5) - 0.25, 0.1)
 
         artifact = ctx.artifact_store.save_json(
             f"{doc.doc_id}_validation_{stage}.json",
@@ -240,6 +247,34 @@ class ValidationAgent(Agent):
             severity="high",
             details={"value": value[:120]},
         )
+
+    def _check_receipt_arithmetic(self, normalized: dict[str, str]) -> list[ValidationIssue]:
+        """Check that total = subtotal + tax (5% tolerance). Catches per-field swap errors."""
+        issues: list[ValidationIssue] = []
+        amount_fields = {
+            "total": None, "total_amount": None, "subtotal": None, "subtotal_amount": None,
+            "tax": None, "tax_amount": None,
+        }
+        for field in amount_fields:
+            raw = normalized.get(field, "")
+            if raw:
+                try:
+                    amount_fields[field] = float(raw.replace(",", ""))
+                except ValueError:
+                    pass
+        total = amount_fields.get("total") or amount_fields.get("total_amount")
+        subtotal = amount_fields.get("subtotal") or amount_fields.get("subtotal_amount")
+        tax = amount_fields.get("tax") or amount_fields.get("tax_amount")
+        if total is not None and subtotal is not None and tax is not None and total > 0:
+            expected = subtotal + tax
+            if abs(expected - total) / total > 0.05:
+                issues.append(ValidationIssue(
+                    field="total_amount",
+                    issue="arithmetic_inconsistency",
+                    severity="high",
+                    details={"total": total, "subtotal": subtotal, "tax": tax, "expected_total": round(expected, 2)},
+                ))
+        return issues
 
     def _normalize(self, value: str, mode: str) -> str:
         text = value.strip()

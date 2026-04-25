@@ -712,6 +712,7 @@ def _run_condition_batch(
     cases: list[dict[str, Any]],
     shared_fields: list[dict[str, str]],
     job_id: str | None = None,
+    learning_job_id: str | None = None,
 ) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     staged_cases: list[tuple[dict[str, Any], Path]] = []
@@ -739,7 +740,7 @@ def _run_condition_batch(
             extraction_fields=shared_fields,
             run_id=f"{condition}_batch_{int(time.time() * 1000)}",
             input_dir=tmp_root,
-            job_id=job_id,
+            job_id=learning_job_id or job_id,
         )
 
     unmatched_docs = [doc for doc in run.get("doc_records", []) if isinstance(doc, dict)]
@@ -1270,6 +1271,15 @@ def run_benchmark(
         }
         if not bool(condition_settings[ADAPTIVE_LABEL].get("enabled")):
             raise SystemExit("Adaptive benchmark configuration must enable AHMN")
+
+        # Per-condition AHMN learning scope: all docs in a condition share one job_id
+        # so Thompson Sampling accumulates evidence across documents (not just within each doc).
+        # These are separate from existing_job_id (the frontend job) which is for UI tracking.
+        condition_learning_job_ids: dict[str, str] = {
+            condition: f"bench_{benchmark_run_id}_{condition}"
+            for condition in ("static", ADAPTIVE_LABEL)
+        }
+
         if _should_batch_cases(pack, cases):
             shared_fields = _shared_extraction_fields(pack, cases)
             for condition in ("static", ADAPTIVE_LABEL):
@@ -1281,6 +1291,7 @@ def run_benchmark(
                         cases=cases,
                         shared_fields=shared_fields,
                         job_id=existing_job_id,
+                        learning_job_id=condition_learning_job_ids[condition],
                     )
                 )
         else:
@@ -1310,7 +1321,7 @@ def run_benchmark(
                             extraction_fields=fields,
                             run_id=f"{condition}_{case_id}_{int(time.time() * 1000)}",
                             input_dir=Path(tmp_dir),
-                            job_id=existing_job_id,
+                            job_id=condition_learning_job_ids[condition],
                         )
 
                     docs = run.get("doc_records", [])

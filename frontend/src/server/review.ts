@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import type { JobDocumentRecord, JobFieldConfig, JobStatus, ReviewStage } from "@/types/idpo";
+import { compareFieldValues } from "@/lib/idpo/exact-comparison";
 import { loadRunnerConfig } from "@/server/config";
 import { resolvePrimaryRunPath, resolveRunRoot } from "@/server/paths";
 import { asNumber, readJsonFile } from "@/server/utils";
@@ -119,6 +120,64 @@ function normalizeReviewState(value: unknown): ReviewState {
     default:
       return "wrong_value";
   }
+}
+
+function expectedFieldMap(value: Record<string, string> | null | undefined): Map<string, string> {
+  const mapped = new Map<string, string>();
+  for (const [key, raw] of Object.entries(value ?? {})) {
+    const normalizedKey = normalizeFieldKey(key);
+    const text = String(raw ?? "").trim();
+    if (!normalizedKey || !text) {
+      continue;
+    }
+    mapped.set(normalizedKey, text);
+  }
+  return mapped;
+}
+
+function canonicalizeReviewField(
+  field: ReviewFieldResult,
+  expectedByKey: Map<string, string>,
+): ReviewFieldResult {
+  const fieldKey = String(field.fieldKey ?? "").trim();
+  const fieldLabel = String(field.fieldLabel ?? field.fieldKey ?? "").trim();
+  const normalizedKey = normalizeFieldKey(fieldKey || fieldLabel);
+  const extractedValue = String(field.extractedValue ?? "N/A").trim() || "N/A";
+  const explicitCorrectedValue = typeof field.correctedValue === "string" && field.correctedValue.trim()
+    ? field.correctedValue.trim()
+    : null;
+  const expectedValue = explicitCorrectedValue ?? expectedByKey.get(normalizedKey) ?? null;
+
+  if (!expectedValue) {
+    return {
+      ...field,
+      fieldKey,
+      fieldLabel,
+      extractedValue,
+      correctedValue: explicitCorrectedValue,
+      reviewState: normalizeReviewState(field.reviewState),
+      reviewNote: field.reviewNote ?? null,
+    };
+  }
+
+  let reviewState: ReviewState;
+  if (!isConcreteValue(extractedValue)) {
+    reviewState = "missed_field";
+  } else if (compareFieldValues(fieldKey || fieldLabel, extractedValue, expectedValue)) {
+    reviewState = "correct";
+  } else {
+    reviewState = "wrong_value";
+  }
+
+  return {
+    ...field,
+    fieldKey,
+    fieldLabel,
+    extractedValue,
+    correctedValue: expectedValue,
+    reviewState,
+    reviewNote: field.reviewNote ?? null,
+  };
 }
 
 export function scoreReviewFields(fields: ReviewFieldResult[]): ReviewMetrics {
@@ -309,13 +368,14 @@ export function buildReviewArtifact(input: {
   fieldConfig: JobFieldConfig[];
   reviewSource: ReviewSource;
   fields?: ReviewFieldResult[];
+  expectedFieldValues?: Record<string, string> | null;
   reviewerStage?: ReviewStage | null;
   reviewerConfidence?: number | null;
 }): ReviewArtifact {
-  const rows = (input.fields ?? buildRequestedReviewRows(input.detail, input.fieldConfig)).map((field) => ({
-    ...field,
-    reviewState: normalizeReviewState(field.reviewState),
-  }));
+  const expectedByKey = expectedFieldMap(input.expectedFieldValues);
+  const rows = (input.fields ?? buildRequestedReviewRows(input.detail, input.fieldConfig)).map((field) =>
+    canonicalizeReviewField(field, expectedByKey),
+  );
   const fieldSetHash = computeFieldSetHash(rows.map((row) => row.fieldKey));
   const documentContext = buildDocumentContext(input.detail);
   const metrics = scoreReviewFields(rows);

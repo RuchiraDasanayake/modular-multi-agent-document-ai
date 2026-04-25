@@ -70,7 +70,7 @@ def test_local_first_cloud_fallback_targets_failed_fields(tmp_path: Path) -> Non
     ctx = _ctx(tmp_path, config)
     cloud_requested: list[list[str]] = []
 
-    def fake_local(self, doc, explicit_keys, model_name, context, field_descriptions=None):  # noqa: ANN001
+    def fake_local(self, doc, explicit_keys, model_name, context, field_descriptions=None, extraction_context="", use_thinking=False):  # noqa: ANN001
         return [
             Entity(
                 key="invoice_number",
@@ -80,7 +80,7 @@ def test_local_first_cloud_fallback_targets_failed_fields(tmp_path: Path) -> Non
             )
         ]
 
-    def fake_cloud(self, doc, explicit_keys, model_name, context, field_descriptions=None):  # noqa: ANN001
+    def fake_cloud(self, doc, explicit_keys, model_name, context, field_descriptions=None, extraction_context="", use_thinking=False):  # noqa: ANN001
         cloud_requested.append(list(explicit_keys))
         return [
             Entity(
@@ -314,7 +314,7 @@ def test_build_prompt_forbids_placeholders_and_allows_light_ocr_normalization(tm
         },
     )
 
-    assert "Do NOT return N/A, empty strings, or label text" in prompt
+    assert "Do NOT guess or infer a value" in prompt
     assert "Extract numeric amounts exactly as they appear" in prompt
 
 
@@ -418,7 +418,7 @@ def test_local_mode_does_not_call_cloud_when_cloud_fallback_is_disabled(tmp_path
     ctx = _ctx(tmp_path, config)
     cloud_called = False
 
-    def fake_local(self, doc, explicit_keys, model_name, context, field_descriptions=None):  # noqa: ANN001
+    def fake_local(self, doc, explicit_keys, model_name, context, field_descriptions=None, extraction_context="", use_thinking=False):  # noqa: ANN001
         return [
             Entity(
                 key="invoice_number",
@@ -428,7 +428,7 @@ def test_local_mode_does_not_call_cloud_when_cloud_fallback_is_disabled(tmp_path
             )
         ]
 
-    def fake_cloud(self, doc, explicit_keys, model_name, context, field_descriptions=None):  # noqa: ANN001
+    def fake_cloud(self, doc, explicit_keys, model_name, context, field_descriptions=None, extraction_context="", use_thinking=False):  # noqa: ANN001
         nonlocal cloud_called
         cloud_called = True
         return []

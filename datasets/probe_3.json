@@ -1,0 +1,57 @@
+{
+  "name": "3-Doc Probe (Fresh Records)",
+  "description": "2 unseen CORD receipts + 1 unseen FUNSD legal form. None of these appear in mixed_20. Purpose: observe routing, extraction quality, and static vs adaptive behaviour on fresh documents.",
+  "cases": [
+    {
+      "case_id": "cord_probe_0010",
+      "tags": ["cord", "receipt", "external", "unseen"],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0010.png",
+      "fields": {
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
+      },
+      "expected": {
+        "total_amount": "60.000",
+        "cash_amount": "60.000",
+        "change_amount": "0"
+      }
+    },
+    {
+      "case_id": "cord_probe_0020",
+      "tags": ["cord", "receipt", "external", "unseen"],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0020.png",
+      "fields": {
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
+      },
+      "expected": {
+        "total_amount": "16,500",
+        "subtotal_amount": "15,000",
+        "tax_amount": "1,500",
+        "cash_amount": "20,000",
+        "change_amount": "3,500"
+      }
+    },
+    {
+      "case_id": "funsd_probe_82491256",
+      "tags": ["funsd", "legal", "form", "unseen"],
+      "path": "datasets/FUNSD/testing_data/images/82491256.png",
+      "fields": {
+        "case_type": "Type or category of the legal case (e.g. asbestos, personal injury). Extract as-is.",
+        "date_filed": "Date the case was filed in court. Extract as-is.",
+        "date_served": "Date the case was served. Extract as-is.",
+        "plaintiff_counsel": "Name of the law firm or attorney representing the plaintiff. Extract as-is."
+      },
+      "expected": {
+        "case_type": "Asbestos",
+        "date_filed": "August 3, 1998",
+        "date_served": "July 23, 1998",
+        "plaintiff_counsel": "Wartnick, Chaber, Harowitz, Smith & Tigerman"
+      }
+    }
+  ]
+}

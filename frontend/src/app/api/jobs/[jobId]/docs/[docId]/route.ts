@@ -217,6 +217,7 @@ export async function POST(request: Request, { params }: Params) {
       fieldConfig: job.fieldConfigCurrent ?? [],
       reviewSource: "human",
       fields,
+      expectedFieldValues: outcome.expectedFieldValues ?? null,
     });
     const feedbackResult = await postReviewedFeedback(artifact);
     const reviewedArtifact = attachReviewFeedbackResult(artifact, feedbackResult);

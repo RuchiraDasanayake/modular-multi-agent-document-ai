@@ -39,7 +39,13 @@ from idpo.agents.extraction_generic_kv import (
     parse_kv_line,
     parse_multi_kv_line,
 )
-from idpo.agents.extraction_prompts import build_chat_messages, build_extraction_input, build_prompt
+from idpo.agents.extraction_prompts import (
+    build_chat_messages,
+    build_extraction_input,
+    build_prompt,
+    build_single_field_messages,
+    build_single_field_prompt,
+)
 from idpo.agents.extraction_rules import (
     best_generic_match,
     extract_explicit_entities,
@@ -110,10 +116,18 @@ class LLMExtractionAgent(Agent):
         explicit_entities = self._filter_implausible_entities(explicit_entities)
         llm_diagnostics = self._initial_llm_diagnostics(model, description_refinement)
         extraction_context = ""
+        per_field_extraction = False
+        use_thinking = False
         if policy:
-            extraction_context = str(
-                (policy.actions or {}).get("extraction", {}).get("extraction_context", "") or ""
-            )
+            extraction_actions = (policy.actions or {}).get("extraction", {})
+            extraction_context = str(extraction_actions.get("extraction_context", "") or "")
+            per_field_extraction = bool(extraction_actions.get("per_field_extraction", False))
+            use_thinking = bool(extraction_actions.get("use_thinking", False))
+        # Allow executor to pass these directly when policy object is not in payload
+        if payload.get("per_field_extraction"):
+            per_field_extraction = True
+        if payload.get("use_thinking"):
+            use_thinking = True
         llm_entities = self._extract_llm_entities(
             doc,
             explicit_keys,
@@ -123,6 +137,8 @@ class LLMExtractionAgent(Agent):
             ctx,
             llm_diagnostics,
             extraction_context=extraction_context,
+            per_field_extraction=per_field_extraction,
+            use_thinking=use_thinking,
         )
 
         heuristic_entities = self._heuristic_schema_fill(
@@ -293,6 +309,8 @@ class LLMExtractionAgent(Agent):
         ctx: AgentContext,
         diagnostics: dict[str, object],
         extraction_context: str = "",
+        per_field_extraction: bool = False,
+        use_thinking: bool = False,
     ) -> list[Entity]:
         diagnostics["enabled"] = bool(ctx.config.llm.use_extraction)
         if not ctx.config.llm.use_extraction:
@@ -311,6 +329,8 @@ class LLMExtractionAgent(Agent):
                 ctx,
                 diagnostics,
                 extraction_context=extraction_context,
+                per_field_extraction=per_field_extraction,
+                use_thinking=use_thinking,
             )
         if model.mode == "cloud":
             return self._run_cloud_first_extraction(
@@ -334,6 +354,8 @@ class LLMExtractionAgent(Agent):
         ctx: AgentContext,
         diagnostics: dict[str, object],
         extraction_context: str = "",
+        per_field_extraction: bool = False,
+        use_thinking: bool = False,
     ) -> list[Entity]:
         llm_entities = self._attempt_local_extraction(
             doc,
@@ -344,6 +366,8 @@ class LLMExtractionAgent(Agent):
             diagnostics,
             failure_reason="empty_or_unavailable",
             extraction_context=extraction_context,
+            per_field_extraction=per_field_extraction,
+            use_thinking=use_thinking,
         )
         fallback_keys = self._fallback_keys_for_cloud(
             explicit_keys,
@@ -455,20 +479,37 @@ class LLMExtractionAgent(Agent):
         diagnostics: dict[str, object],
         failure_reason: str,
         extraction_context: str = "",
+        per_field_extraction: bool = False,
+        use_thinking: bool = False,
     ) -> list[Entity]:
         diagnostics["local_attempted"] = True
-        local_raw, local_meta = self._unpack_extraction_call(
-            self._llm_extract(
+        diagnostics["per_field_extraction"] = per_field_extraction
+        diagnostics["use_thinking"] = use_thinking
+        if per_field_extraction and explicit_keys:
+            local_entities = self._llm_extract_per_field(
                 doc,
                 explicit_keys,
                 model_name,
                 ctx,
                 field_descriptions=field_descriptions,
                 extraction_context=extraction_context,
+                use_thinking=use_thinking,
             )
-        )
+            local_meta: dict[str, object] = {"per_field": True, "field_count": len(explicit_keys)}
+        else:
+            local_raw, local_meta = self._unpack_extraction_call(
+                self._llm_extract(
+                    doc,
+                    explicit_keys,
+                    model_name,
+                    ctx,
+                    field_descriptions=field_descriptions,
+                    extraction_context=extraction_context,
+                    use_thinking=use_thinking,
+                )
+            )
+            local_entities = self._canonicalize_entities(local_raw, explicit_keys, field_descriptions)
         diagnostics["local_call"] = local_meta
-        local_entities = self._canonicalize_entities(local_raw, explicit_keys, field_descriptions)
         if local_entities:
             diagnostics["local_succeeded"] = True
         else:
@@ -894,6 +935,55 @@ class LLMExtractionAgent(Agent):
         lower = model_name.lower()
         return any(lower.startswith(p) for p in cls._CHAT_MODEL_PREFIXES)
 
+    def _llm_extract_per_field(
+        self,
+        doc: Document,
+        explicit_keys: list[str],
+        model_name: str,
+        ctx: AgentContext,
+        field_descriptions: dict[str, str] | None = None,
+        extraction_context: str = "",
+        use_thinking: bool = False,
+    ) -> list[Entity]:
+        """Run one LLM call per field to eliminate cross-field assignment errors."""
+        text, _ = build_extraction_input(doc, explicit_keys, field_descriptions or {}, ctx)
+        if not text.strip():
+            return []
+        llm_cfg = ctx.config.llm
+        use_chat = self._uses_chat_endpoint(model_name) or bool(getattr(llm_cfg, "local_use_chat_api", False))
+        format_json = bool(getattr(llm_cfg, "local_format_json", True))
+        options: dict[str, object] = {
+            "temperature": float(getattr(llm_cfg, "local_temperature", 0.0)),
+            "top_p": float(getattr(llm_cfg, "local_top_p", 0.9)),
+            "num_predict": int(getattr(llm_cfg, "local_num_predict", 512)),
+        }
+        no_think = model_name.lower().startswith("qwen") and not use_thinking
+        descs = field_descriptions or {}
+        collected: list[Entity] = []
+        for key in explicit_keys:
+            desc = descs.get(key, "Extract this field value")
+            if use_chat:
+                messages = build_single_field_messages(
+                    text, key, desc, no_think=no_think, extraction_context=extraction_context
+                )
+                response, _ = ollama_chat_detailed(
+                    llm_cfg.base_url, messages, model_name,
+                    timeout_s=llm_cfg.timeout_s, options=options,
+                    format_json=format_json, disable_think=no_think,
+                )
+            else:
+                prompt = build_single_field_prompt(text, key, desc, extraction_context=extraction_context)
+                payload: dict[str, object] = {
+                    "model": model_name, "prompt": prompt, "stream": False, "options": options,
+                }
+                if format_json:
+                    payload["format"] = "json"
+                response, _ = ollama_generate_detailed(llm_cfg.base_url, payload, llm_cfg.timeout_s)
+            if response:
+                entities = self._parse_entities_response(response, model_name, source="llm_local_per_field")
+                collected.extend(entities)
+        return self._canonicalize_entities(collected, explicit_keys, descs)
+
     def _llm_extract(
         self,
         doc: Document,
@@ -902,6 +992,7 @@ class LLMExtractionAgent(Agent):
         ctx: AgentContext,
         field_descriptions: dict[str, str] | None = None,
         extraction_context: str = "",
+        use_thinking: bool = False,
     ) -> list[Entity] | tuple[list[Entity], dict[str, object]]:
         started = time.time()
         text, context_meta = build_extraction_input(doc, explicit_keys, field_descriptions or {}, ctx)
@@ -923,10 +1014,9 @@ class LLMExtractionAgent(Agent):
         }
 
         if use_chat:
-            # Instruction-tuned models (Qwen3, Llama3) work best via /api/chat.
-            # /no_think disables Qwen3's extended thinking chain for faster,
-            # more deterministic structured extraction.
-            no_think = model_name.lower().startswith("qwen")
+            # /no_think disables Qwen3's extended thinking chain.
+            # use_thinking=True (set by policy) re-enables it for complex docs.
+            no_think = model_name.lower().startswith("qwen") and not use_thinking
             messages = build_chat_messages(
                 text, explicit_keys, ctx, field_descriptions or {}, no_think=no_think,
                 extraction_context=extraction_context,

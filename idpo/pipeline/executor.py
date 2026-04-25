@@ -9,6 +9,7 @@ from idpo.agents.answering import AnsweringAgent
 from idpo.agents.base import AgentContext
 from idpo.agents.chunking import ChunkingAgent
 from idpo.agents.extraction_parsing import normalize_key
+
 from idpo.agents.escalation import EscalationAgent
 from idpo.agents.preprocess import DeskewAgent, DenoiseAgent, OcrAgent, TableFormAgent
 from idpo.agents.recovery import RecoveryAgent
@@ -198,8 +199,12 @@ class PlanExecutor:
 
     def _run_extraction(self, step, state: ExecutionState, ctx: AgentContext) -> None:
         model = self._model_from_params(step.params, ctx)
-        explicit_entities = step.params.get("explicit_entities") if step.params else None
-        field_descriptions = step.params.get("field_descriptions") if step.params else None
+        params = step.params or {}
+        explicit_entities = params.get("explicit_entities")
+        field_descriptions = params.get("field_descriptions")
+        per_field_extraction = bool(params.get("per_field_extraction", False))
+        use_thinking = bool(params.get("use_thinking", False))
+
         result = self.extractor.run(
             {
                 "document": state.document,
@@ -207,6 +212,8 @@ class PlanExecutor:
                 "input_artifact_id": state.last_artifact_id,
                 "explicit_entities": explicit_entities,
                 "field_descriptions": field_descriptions,
+                "per_field_extraction": per_field_extraction,
+                "use_thinking": use_thinking,
             },
             ctx,
         )

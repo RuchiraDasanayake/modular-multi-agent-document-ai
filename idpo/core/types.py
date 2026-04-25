@@ -47,6 +47,7 @@ class DAEOutput:
     quality_features: dict[str, float] = field(default_factory=dict)
     structural_features: dict[str, float] = field(default_factory=dict)
     signals: dict[str, float] = field(default_factory=dict)
+    semantic_doc_type: str = "unknown"
 
 @dataclass(frozen=True)
 class Entity:

@@ -199,13 +199,18 @@ class PlanRouter:
         dae_output: DAEOutput,
         doc: object | None = None,
     ) -> tuple[PolicyDefinition, dict[str, Any], str, str | None]:
+        _IDENTITY_KEYS = {"vendor_cluster", "semantic_doc_type"}
         fallback_reason: str | None = None
         for recommendation in advice.recommendations:
             policy = self.policy_store._policy_map.get(recommendation.policy_id)
             if not policy:
                 fallback_reason = "invalid_recommendation"
                 continue
-            if policy.conditions and not self.policy_store.matches_policy(
+            # Skip re-validation when the policy uses identity conditions (vendor_cluster /
+            # semantic_doc_type) — AHMN already evaluated those with OR logic, which is
+            # intentionally broader than the policy store's AND logic.
+            has_identity_condition = bool(policy.conditions and _IDENTITY_KEYS.intersection(policy.conditions))
+            if not has_identity_condition and policy.conditions and not self.policy_store.matches_policy(
                 policy,
                 dae_output,
                 doc if hasattr(doc, "metadata") else None,
@@ -327,14 +332,17 @@ def _default_operator_specs(dae_output: DAEOutput, actions: dict[str, Any]) -> l
         or (dae_output.route_bin == "heavy" and image_ratio >= 0.35)
     )
 
-    if is_image_pipeline and preprocess.get("deskew", {}).get("enabled", True) and (
-        dae_output.quality_bin == "C" or skew_angle > 2.0
-    ):
+    policy_deskew = preprocess.get("deskew", {})
+    policy_wants_deskew = policy_deskew.get("enabled") is True
+    quality_suggests_deskew = dae_output.quality_bin == "C" or skew_angle > 2.0
+    if is_image_pipeline and (policy_wants_deskew or quality_suggests_deskew):
         specs.append({"operator": "preprocess.deskew"})
-    if is_image_pipeline and preprocess.get("denoise", {}).get("enabled", True) and (
-        dae_output.route_bin == "heavy" or dae_output.quality_bin in {"B", "C"}
-    ):
-        specs.append({"operator": "preprocess.denoise"})
+
+    policy_denoise = preprocess.get("denoise", {})
+    policy_wants_denoise = policy_denoise.get("enabled") is True
+    quality_suggests_denoise = dae_output.route_bin == "heavy" or dae_output.quality_bin in {"B", "C"}
+    if is_image_pipeline and (policy_wants_denoise or quality_suggests_denoise):
+        specs.append({"operator": "preprocess.denoise", "params": policy_denoise})
     if is_image_pipeline and preprocess.get("ocr", {}).get("enabled", True):
         specs.append({"operator": "preprocess.ocr"})
     if preprocess.get("table_extract", {}).get("enabled", True) and (

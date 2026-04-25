@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from uuid import UUID
 from typing import Any, Dict, List, Optional
+
+from idpo.pipeline.job_context import read_job_context
 
 from idpo.core.config import PipelineConfig
 from idpo.core.policy_store import PolicyStore
@@ -78,12 +81,17 @@ class PolicyAdvisor:
         constraints: SystemConstraints,
         metadata: Dict[str, Any],
     ) -> Dict[str, Any]:
+        job_id = str(os.getenv("IDPO_JOB_ID", "") or metadata.get("job_id", "") or "").strip()
+        job_ctx = read_job_context(job_id) if job_id else {}
+
         return {
             "doc_type": dae_output.doc_type,
             "vendor": dae_output.vendor_cluster,
             "content_profile": dae_output.content_profile,
+            "semantic_doc_type": dae_output.semantic_doc_type,
             "extra_context": {
                 "vendor_cluster": dae_output.vendor_cluster,
+                "semantic_doc_type": dae_output.semantic_doc_type,
                 "layout_cluster_id": dae_output.layout_cluster_id,
                 "route_bin": dae_output.route_bin,
                 "quality_bin": dae_output.quality_bin,
@@ -96,6 +104,7 @@ class PolicyAdvisor:
                 "signals": dae_output.signals,
                 "constraints": constraints.__dict__,
                 "objective": self.config.ahmn.objective,
+                "job_context": job_ctx,
                 "metadata": metadata,
             },
         }

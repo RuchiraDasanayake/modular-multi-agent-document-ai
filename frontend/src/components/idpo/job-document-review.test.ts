@@ -128,6 +128,17 @@ test("benchmark payload pre-fills review rows with benchmark-aware states", () =
   assert.equal(byKey.get("extra_label")?.reviewState, "hallucinated_field");
 });
 
+test("benchmark payload treats fuzzy OCR text matches as correct", () => {
+  const rows = suggestedReviewRowsFromDocumentPayload({
+    requestedFields: [{ name: "invoice_date" }],
+    fieldValues: { invoice_date: "janry 31 1997" },
+    expectedFieldValues: { invoice_date: "January 31, 1997" },
+  });
+
+  assert.equal(rows[0]?.reviewState, "correct");
+  assert.equal(rows[0]?.correctedValue, "January 31, 1997");
+});
+
 test("saved review rows override benchmark draft rows", () => {
   const rows = suggestedReviewRowsFromDocumentPayload({
     requestedFields: [{ name: "total_amount" }],

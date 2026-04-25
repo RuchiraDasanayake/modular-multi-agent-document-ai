@@ -64,8 +64,8 @@ def build_prompt(
         "3. Use ONLY the requested field names above — never invent keys.\n"
         "4. Extract numeric amounts exactly as they appear (e.g. '70,000' not '70000', '36.000' not '36').\n"
         "5. Only extract values that appear explicitly in the document text — do NOT guess, infer, or construct values.\n"
-        "6. If a field is absent from the document, omit it entirely. Do NOT return null, N/A, empty strings, or label text.\n"
-        "7. At most one entity per key. Confidence: 0.9+ = value found verbatim, 0.6-0.8 = probable match, below 0.5 = uncertain.\n\n"
+        '6. If a field is absent, include it with value "N/A" and confidence 0.0. Do NOT guess or infer a value.\n'
+        "7. At most one entity per key. Confidence: 0.9+ = verbatim, 0.6-0.8 = probable, 0.0 = not found.\n\n"
         "DOCUMENT TEXT:\n"
         "---\n"
         f"{text}\n"
@@ -90,6 +90,50 @@ def build_chat_messages(
     structured extraction tasks.
     """
     user_content = build_prompt(text, explicit_keys, ctx, field_descriptions, extraction_context=extraction_context)
+    if no_think:
+        user_content = "/no_think\n" + user_content
+    return [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": user_content},
+    ]
+
+
+def build_single_field_prompt(
+    text: str,
+    key: str,
+    description: str,
+    *,
+    extraction_context: str = "",
+) -> str:
+    """Prompt for extracting exactly one field. Used by per-field extraction mode."""
+    context_block = f"{extraction_context.strip()}\n\n" if extraction_context.strip() else ""
+    return (
+        f"{context_block}"
+        f'Extract the field "{key}" from the document text.\n\n'
+        f"FIELD DESCRIPTION: {description or 'Extract this field value'}\n\n"
+        "RULES:\n"
+        "1. Return ONLY a JSON object: "
+        '{"entities": [{"key": "<field_name>", "value": "<exact_value>", "confidence": <0.0-1.0>}]}\n'
+        "2. Extract the value exactly as it appears in the document — do NOT guess or infer.\n"
+        '3. If the field is absent, return value "N/A" with confidence 0.0.\n'
+        "4. Extract numeric amounts exactly as they appear (e.g. '70,000' not '70000').\n\n"
+        "DOCUMENT TEXT:\n"
+        "---\n"
+        f"{text}\n"
+        "---\n\n"
+        "JSON:"
+    )
+
+
+def build_single_field_messages(
+    text: str,
+    key: str,
+    description: str,
+    *,
+    no_think: bool = True,
+    extraction_context: str = "",
+) -> list[dict[str, str]]:
+    user_content = build_single_field_prompt(text, key, description, extraction_context=extraction_context)
     if no_think:
         user_content = "/no_think\n" + user_content
     return [

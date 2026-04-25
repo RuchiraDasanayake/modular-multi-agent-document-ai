@@ -1253,7 +1253,11 @@ def test_benchmark_batch_mode_runs_one_process_inbox_call_per_condition(tmp_path
 
     assert len(calls) == 2
     assert all(call["files"] == ["receipt_a.txt", "receipt_b.txt"] for call in calls)
-    assert all(call["job_id"] == "job-123" for call in calls)
+    # Each condition gets its own per-condition learning job_id (not the frontend job-123)
+    # so AHMN Thompson Sampling accumulates separately per condition across docs.
+    assert all(call["job_id"] != "job-123" for call in calls)
+    assert all(str(call["job_id"] or "").startswith("bench_") for call in calls)
+    assert calls[0]["job_id"] != calls[1]["job_id"]
     assert evidence["conditions"]["static"]["run_ids"] == [str(calls[0]["run_id"])]
     assert evidence["conditions"][benchmark_module.ADAPTIVE_LABEL]["run_ids"] == [str(calls[1]["run_id"])]
     assert evidence["comparison"]["table"]["exact_f1"]["static"] == 1.0
@@ -1403,6 +1407,8 @@ def test_research_config_and_policy_store_align_with_ahmn_ids() -> None:
     assert config_payload["ahmn"]["log_endpoint"] == "/advice/log"
     assert config_payload["shadow"]["enabled"] is False
     assert {item["policy_id"] for item in policy_payload["policies"]} == {
+        "receipt_specialist",
+        "correspondence_specialist",
         "unknown_vendor_safe",
         "forms",
         "forms_rescue_local",
@@ -1471,6 +1477,7 @@ def test_research_policy_condition_keys_match_live_dae_outputs(tmp_path: Path) -
     allowed_keys = {
         "doc_type",
         "vendor_cluster",
+        "semantic_doc_type",
         "layout_cluster_id",
         "quality_bin",
         "complexity_bin",

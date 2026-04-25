@@ -1,8 +1,8 @@
+import { compareFieldValues } from "@/lib/idpo/exact-comparison";
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
-
-const NUMERIC_FIELD_HINTS = ["amount", "price", "total", "subtotal", "tax", "cash", "change"];
 
 function asNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -29,37 +29,6 @@ export interface DocumentReviewRow {
 
 function normalizeFieldKey(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, "_");
-}
-
-function stripCurrencyPrefix(value: string): string {
-  const stripped = value.replace(/^[^\d\-.]+/, "").trim();
-  return stripped || value;
-}
-
-function normalizeExactComparisonValue(key: string, value: unknown): string {
-  const normalized = String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-  if (!normalized) {
-    return "";
-  }
-  const loweredKey = key.trim().toLowerCase();
-  if (NUMERIC_FIELD_HINTS.some((hint) => loweredKey.includes(hint))) {
-    let compact = stripCurrencyPrefix(normalized).replace(/\s+/g, "").replace(/,/g, "");
-    if (compact.includes(".") && compact.split(".").length === 2) {
-      const [integerPart, fracPart] = compact.split(".");
-      if (fracPart.length === 3) {
-        compact = `${integerPart}${fracPart}`;
-      } else {
-        const fracStripped = fracPart.replace(/0+$/, "");
-        compact = fracStripped ? `${integerPart}.${fracStripped}` : integerPart;
-      }
-    }
-    return compact;
-  }
-  return normalized;
-}
-
-function valuesMatch(fieldKey: string, extractedValue: string, expectedValue: string): boolean {
-  return normalizeExactComparisonValue(fieldKey, extractedValue) === normalizeExactComparisonValue(fieldKey, expectedValue);
 }
 
 export function reviewRowsFromReviewArtifact(review: unknown): DocumentReviewRow[] {
@@ -131,7 +100,7 @@ export function suggestedReviewRowsFromDocumentPayload(payload: Record<string, u
       correctedValue = expectedValue;
       if (extractedValue === "N/A" || extractedValue === "") {
         reviewState = "missed_field";
-      } else if (valuesMatch(key, extractedValue, expectedValue)) {
+      } else if (compareFieldValues(key, extractedValue, expectedValue)) {
         reviewState = "correct";
       } else {
         reviewState = "wrong_value";

@@ -1,137 +1,175 @@
 # Paper Lock Checklist
 
-Use this checklist before writing the paper.
+Use this checklist before freezing paper claims.
 
-This checklist is product-constrained.
+The paper must fit the system. The system must not be bent into a paper-only branch.
 
-Do not change the system to fit the paper.
-Write the paper to fit the finalized product path.
+## 1. Canonical Paper Position
 
-## Canonical Claim
+Lock these before writing final results:
 
-Use one narrow claim only:
+- paper type:
+  - runtime systems paper
+- novelty foreground:
+  - AHMN first
+  - adaptive-safe runtime second
+- runtime comparison:
+  - `static`
+  - `adaptive_safe`
+- evidence model:
+  - Track A: algorithmic AHMN evidence
+  - Track B: canonical runtime evidence
 
-`adaptive_safe is a real runtime mode in which AHMN can change policy selection and IDPO keeps those adaptive decisions safe through fallback, rollback, and defer.`
+## 2. Canonical Runtime Constraint
 
-Support this claim with evidence from:
-
-- the current canonical UI
-- the current canonical run artifacts
-- the current canonical benchmark
-
-External labeled datasets such as `CORD v2` may be used to harden the runtime,
-find repeated failures, and build supporting evidence, but they do not replace
-the canonical benchmark or justify widening the claim by themselves.
-
-## Canonical Runtime Path
-
-Use only this path:
+Use only this runtime path for Track B:
 
 `frontend upload -> /api/runs/start -> frontend job runner -> idpo.cli process-inbox -> IDPO_DATA_DIR/runs/<run_id>`
 
-Do not use alternate wrappers, legacy routes, or paper-only flows.
+Do not use:
 
-## Canonical Modes
+- legacy wrappers
+- paper-only shortcuts
+- alternate runtime branches with different semantics
 
-Use only:
+## 3. Canonical Claim Constraint
 
-- `static`
-- `adaptive_safe`
+Use one narrow core claim:
 
-Do not rename them after evidence collection starts.
+`AHMN is a practical policy-learning layer for document extraction and is operationalized inside an adaptive-safe runtime where policy changes remain auditable and constrained through fallback, rollback, and defer.`
 
-## Canonical UI Pages
+Do not freeze stronger claims unless the evidence genuinely supports them.
 
-Use these pages for screenshots, demos, and evidence review:
+Especially do not freeze:
 
-- `/dashboard`
-- `/dashboard/idpo`
-- `/dashboard/idpo/runs/<run_id>`
-- `/dashboard/idpo/runs/<run_id>/docs/<doc_id>`
-- `/dashboard/idpo/compare`
-- `/dashboard/idpo/benchmark`
+- universal extraction superiority
+- broad generalization across document families
+- strong end-to-end proof of RABI and DAAF from runtime evidence alone
 
-## Canonical Config
+## 4. Dual-Track Evidence Lock
 
-Use:
+### Track A: AHMN evidence
 
-`configs/idpo_research_config.json`
+Lock what will be cited for:
 
-## Required UI-visible Evidence
+- Thompson Sampling
+- RABI
+- DAAF
 
-The run and document pages must visibly show:
+Allowed sources:
+
+- `ahmn_core/experiments`
+- robustness study outputs
+- reproducible ablations
+
+Track A must be explicitly labeled as:
+
+- controlled evidence
+- algorithmic evidence
+
+It must not be presented as identical to runtime benchmark evidence.
+
+### Track B: Runtime evidence
+
+Lock all of these:
+
+- one frozen config
+- one frozen mapping
+- one frozen benchmark set
+- one frozen reporting table for final runtime numbers
+
+Track B must use:
+
+- exact labeled metrics
+- runtime metrics
+- containment metrics
+
+Track B must not treat runtime proxy reward as exact correctness.
+
+## 5. Required Runtime Artifacts
+
+Before final freeze, verify that the runtime artifacts exist and are stable enough to support the paper.
+
+Required run-level artifacts:
+
+- `run.json`
+- `run_metadata.json`
+- `metrics.json`
+
+Required document-level artifacts:
+
+- `dae/output.json`
+- `plan/primary.json`
+- `structuring/extracted.json`
+- `validation/results.json`
+- `decision_chain.json`
+- `reward.json`
+- `recovery_trace.json`
+- `review/results.json` when review exists
+
+## 6. Required Runtime-Visible Evidence
+
+The runtime evidence must support visibility of:
 
 - static baseline policy
-- AHMN recommended policy
+- recommended policy
 - final selected policy
-- whether a policy change happened
-- fallback reason
-- rollback / blocked-policy state
-- defer status and reason
-- extraction outcome
-- structured-output quality signals
-- latency and cost where available
+- whether policy changed
+- advice acceptance or rejection
+- fallback state and reason
+- rollback state
+- defer state
+- exact extraction outcome where labels exist
+- latency and containment behavior
 
-The compare and benchmark pages must visibly show:
+If these cannot be shown from artifacts or canonical UI surfaces, do not make them paper claims.
 
-- `static` vs `adaptive_safe`
-- policy change rate
-- advice acceptance / fallback behavior
-- extraction quality
-- structured-output quality
-- latency / cost / escalation
-- rollback / defer / feedback status
+## 7. Required Verification Before Final Results
 
-## Required Verification
+Complete all of these before final lock:
 
-Before freeze, complete the active external labeled hardening loop defined in:
+1. Run the active labeled evaluation loop defined in `docs/CORD_EVALUATION_PLAN.md`.
+2. Verify one live `static` job on the canonical runtime path.
+3. Verify one live `adaptive_safe` job on the same path.
+4. Verify the runtime artifacts clearly expose policy-change and containment behavior.
+5. Regenerate the frozen benchmark evidence bundle for the final runtime result table.
+6. Confirm the final paper tables use only frozen evidence.
 
-- `docs/CORD_EVALUATION_PLAN.md`
+## 8. Interpretation Rules
 
-Then complete the canonical verification below.
+When writing results:
 
-1. Run one live `static` job from the canonical UI.
-2. Run one live `adaptive_safe` job from the same UI.
-3. Verify the run page shows:
-   - recommended policy
-   - final policy
-   - policy change state
-   - fallback / rollback / defer state
-   - extraction and structured-output outcome
-4. Verify the compare page shows:
-   - `static` vs `adaptive_safe`
-   - quality difference
-   - runtime difference
-   - safety-containment difference
-5. Regenerate the benchmark artifact:
+- if adaptive quality gains are weak or tied, say so directly
+- if containment behavior is strong, say so directly
+- if policy change is real but quality superiority is mixed, do not hide that distinction
 
-```bash
-python scripts/run_idpo_benchmark.py --config configs/idpo_research_config.json
-```
+Allowed interpretation:
 
-6. Verify the benchmark page renders:
-   - overall `static` vs `adaptive_safe`
-   - subgroup summaries
-   - per-case drilldown
-   - adaptive usage snapshot
-   - policy change behavior
-   - fallback / rollback / defer behavior
+- adaptive execution is real
+- policy change is observable
+- containment is explicit
+- exact superiority is conditional or mixed if the evidence says so
 
-## Freeze Rules
+Disallowed interpretation:
 
-After verification:
+- proxy reward equals ground-truth correctness
+- runtime tie somehow proves strong superiority
+- runtime evidence alone fully proves all AHMN subcomponents
 
-- do not change policy semantics casually
-- do not change runtime labels
-- do not change benchmark semantics
-- do not widen the claim
-- do not add paper-only branches
+## 9. Conference and Dissertation Alignment
 
-## Product-first Positioning
+Before finalizing writing:
 
-For the final submission:
+- ensure the conference manuscript and the dissertation-aligned draft share the same core claim
+- ensure the dissertation version expands explanation, not claim scope
+- ensure both versions cite the same frozen evidence core for runtime results
 
-- present the product as the main system
-- present the paper as a narrow account of the adaptive extraction path
-- keep AHMN claims modest
-- let IDPO carry the stronger practical claim: safe runtime containment of adaptive policy advice
+## 10. Final Lock Condition
+
+The paper is ready to finalize only if all statements below are true:
+
+- the claim does not depend on unproven strong F1 superiority
+- Track A and Track B are clearly separated
+- one frozen config, mapping, and benchmark set are chosen
+- the conference paper fits IEEE-style structure cleanly
+- the dissertation-aligned version expands from the same evidence base without changing the claim

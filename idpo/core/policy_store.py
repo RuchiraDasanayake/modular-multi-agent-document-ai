@@ -126,6 +126,7 @@ class PolicyStore:
                 {
                     "doc_type": dae_output.doc_type,
                     "vendor_cluster": dae_output.vendor_cluster,
+                    "semantic_doc_type": getattr(dae_output, "semantic_doc_type", None),
                     "layout_cluster_id": dae_output.layout_cluster_id,
                     "quality_bin": dae_output.quality_bin,
                     "complexity_bin": dae_output.complexity_bin,

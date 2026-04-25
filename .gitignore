@@ -84,11 +84,24 @@ frontend/data/uploads/*
 frontend/data/jobs/*.json
 !frontend/data/jobs/.gitkeep
 
-# Binary assets (images, etc.)
+# Binary assets / large data files
 *.png
 *.jpg
 *.jpeg
 *.npy
+*.rar
+*.zip
+*.parquet
+
+# Large dataset directories (not needed to run the code)
+datasets/external/
+datasets/derived/
+datasets/upload_buckets/
+datasets/FUNSD/testing_data/images/
+
+# Temp / tool dirs
+.codex_tmp_policy_inspect/
+.claude/scheduled_tasks.lock
 
 # Logs
 *.log

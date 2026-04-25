@@ -103,9 +103,11 @@ def _load_policies() -> list[dict[str, Any]]:
 def _value_map_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
     extra = payload.get("extra_context")
     extra_context = extra if isinstance(extra, dict) else {}
+    job_ctx = extra_context.get("job_context") or {}
     values: dict[str, Any] = {
         "doc_type": payload.get("doc_type"),
         "vendor_cluster": extra_context.get("vendor_cluster") or payload.get("vendor"),
+        "semantic_doc_type": extra_context.get("semantic_doc_type") or payload.get("semantic_doc_type"),
         "layout_cluster_id": extra_context.get("layout_cluster_id"),
         "quality_bin": extra_context.get("quality_bin"),
         "complexity_bin": extra_context.get("complexity_bin"),
@@ -113,6 +115,9 @@ def _value_map_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "route_bin": extra_context.get("route_bin"),
         "quality_score": extra_context.get("quality_score"),
         "complexity_score": extra_context.get("complexity_score"),
+        "job_doc_count": job_ctx.get("doc_count", 0),
+        "job_field_success_rates": job_ctx.get("field_success_rates", {}),
+        "job_consistently_failing": job_ctx.get("consistently_failing", []),
     }
     for prefix in ("quality_features", "structural_features", "signals"):
         nested = extra_context.get(prefix)
@@ -144,7 +149,19 @@ def _matches_expectation(current: Any, expected: Any) -> bool:
 def _matches_conditions(conditions: dict[str, Any], values: dict[str, Any]) -> bool:
     if not conditions:
         return False
-    for key, expected in conditions.items():
+    # Identity keys (vendor_cluster, semantic_doc_type) use OR logic: any match is sufficient.
+    # Other attribute keys (quality_bin, route_bin, etc.) still require all to match.
+    identity_keys = {"vendor_cluster", "semantic_doc_type"}
+    identity_conditions = {k: v for k, v in conditions.items() if k in identity_keys}
+    attribute_conditions = {k: v for k, v in conditions.items() if k not in identity_keys}
+
+    if identity_conditions:
+        identity_match = any(
+            _matches_expectation(values.get(k), v) for k, v in identity_conditions.items()
+        )
+        if not identity_match:
+            return False
+    for key, expected in attribute_conditions.items():
         if not _matches_expectation(values.get(key), expected):
             return False
     return True
@@ -161,7 +178,20 @@ def _candidate_policy_ids(payload: dict[str, Any]) -> list[str]:
     ]
     if default_policy_id not in candidate_ids:
         candidate_ids.append(default_policy_id)
-    return list(dict.fromkeys(candidate_ids))
+    candidate_ids = list(dict.fromkeys(candidate_ids))
+
+    # When a vendor-cluster specialist matches, it is the authoritative choice
+    # for this document type — quality-based generic policies should not compete.
+    # The specialist already handles OCR quality through its own preprocessing config.
+    active_specialists = [pid for pid in candidate_ids if pid in _SPECIALIST_POLICY_PRIORITY]
+    if active_specialists:
+        # Keep only specialists and the default fallback; drop generic quality policies
+        candidate_ids = [
+            pid for pid in candidate_ids
+            if pid in active_specialists or pid == default_policy_id
+        ]
+
+    return candidate_ids
 
 
 def _restore_state(scope_key: str) -> None:
@@ -198,11 +228,20 @@ def _persist_active_state() -> None:
     temp_path.replace(path)
 
 
-def _ensure_initialized(policy_ids: list[str]) -> None:
+def _ensure_initialized(policy_ids: list[str], field_success_rates: dict[str, float] | None = None) -> None:
+    failing_signal = 0.0
+    if field_success_rates:
+        rates = [r for r in field_success_rates.values()]
+        if rates:
+            avg_rate = sum(rates) / len(rates)
+            # How many standard deviations below 0.5 is the average? Clamp to [0, 1].
+            failing_signal = max(0.0, min(1.0, (0.5 - avg_rate) * 2.0))
+
     for pid in policy_ids:
         if pid not in _posteriors:
             if pid in _SPECIALIST_POLICY_PRIORITY:
-                alpha = 3.0  # specialist policies strongly preferred when they match
+                # Base prior 3.0, boosted up to 5.0 when job fields are consistently failing
+                alpha = 3.0 + failing_signal * 2.0
             elif pid in _RECEIPT_POLICY_PRIORITY:
                 alpha = 1.5
             else:
@@ -223,10 +262,14 @@ def get_advice(payload: dict[str, Any]) -> dict[str, Any]:
     advice_id = str(uuid.uuid4())
     scope_key = _scope_from_payload(payload)
 
+    extra = payload.get("extra_context") or {}
+    job_ctx = extra.get("job_context") or {}
+    field_success_rates = job_ctx.get("field_success_rates") if isinstance(job_ctx, dict) else None
+
     with _state_lock:
         if scope_key != _active_scope_key:
             _restore_state(scope_key)
-        _ensure_initialized(policy_ids)
+        _ensure_initialized(policy_ids, field_success_rates=field_success_rates)
         selected = _thompson_sample(policy_ids)
         _call_count += 1
         alpha, beta = _posteriors[selected]

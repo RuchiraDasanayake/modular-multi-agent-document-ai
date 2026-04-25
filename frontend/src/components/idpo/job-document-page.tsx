@@ -9,6 +9,7 @@ import {
   mergeSavedReviewIntoDocumentPayload,
   suggestedReviewRowsFromDocumentPayload,
 } from "@/components/idpo/job-document-review";
+import { compareFieldValues } from "@/lib/idpo/exact-comparison";
 import { StatusBadge } from "@/components/idpo/status-badge";
 import { idpoApi } from "@/lib/idpo-api";
 import type { FieldExtraction, ProvenanceEvent } from "@/types/idpo";
@@ -58,37 +59,11 @@ function formatMetric(value: unknown, suffix = ""): string {
   return `${value}${suffix}`;
 }
 
-const NUMERIC_FIELD_HINTS = ["amount", "price", "total", "subtotal", "tax", "cash", "change"];
-
-function stripCurrencyPrefix(value: string): string {
-  const stripped = value.replace(/^[^\d\-.]+/, "").trim();
-  return stripped || value;
-}
-
-function normalizeExactComparisonValue(key: string, value: unknown): string {
-  const normalized = String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-  const loweredKey = key.trim().toLowerCase();
-  if (NUMERIC_FIELD_HINTS.some((hint) => loweredKey.includes(hint))) {
-    let compact = stripCurrencyPrefix(normalized).replace(/\s+/g, "").replace(/,/g, "");
-    if (compact.includes(".") && compact.split(".").length === 2) {
-      const [integerPart, fracPart] = compact.split(".");
-      if (fracPart.length === 3) {
-        compact = `${integerPart}${fracPart}`;
-      } else {
-        const fracStripped = fracPart.replace(/0+$/, "");
-        compact = fracStripped ? `${integerPart}.${fracStripped}` : integerPart;
-      }
-    }
-    return compact;
-  }
-  return normalized;
-}
-
 function expectedValueMatches(key: string, extractedValue: string | null, expectedValue: string | null): boolean {
   if (!extractedValue || !expectedValue) {
     return false;
   }
-  return normalizeExactComparisonValue(key, extractedValue) === normalizeExactComparisonValue(key, expectedValue);
+  return compareFieldValues(key, extractedValue, expectedValue);
 }
 
 function asStringArray(value: unknown): string[] {

@@ -452,6 +452,69 @@ test("buildReviewArtifact strips synthetic vendor identities from upload metadat
   assert.equal(artifact.overlayKey, `unknown|receipt|image-heavy|${artifact.fieldSetHash}`);
 });
 
+test("buildReviewArtifact canonicalizes numeric matches against benchmark expected values", () => {
+  const artifact = buildReviewArtifact({
+    jobId: "job-1",
+    runId: "run-1",
+    docId: "doc-1",
+    detail: {
+      metadata: {
+        docType: "receipt",
+      },
+    },
+    fieldConfig: [{ name: "total_amount" }],
+    reviewSource: "human",
+    expectedFieldValues: {
+      total_amount: "31000",
+    },
+    fields: [
+      {
+        fieldKey: "total_amount",
+        fieldLabel: "total_amount",
+        extractedValue: "31.000",
+        correctedValue: null,
+        reviewState: "wrong_value",
+        reviewNote: "raw manual state was wrong",
+      },
+    ],
+  });
+
+  assert.equal(artifact.fields[0]?.reviewState, "correct");
+  assert.equal(artifact.fields[0]?.correctedValue, "31000");
+  assert.equal(artifact.metrics.tp, 1);
+  assert.equal(artifact.metrics.fp, 0);
+  assert.equal(artifact.metrics.fn, 0);
+  assert.equal(artifact.metrics.f1, 1);
+});
+
+test("buildReviewArtifact canonicalizes fuzzy OCR text matches against corrected values", () => {
+  const artifact = buildReviewArtifact({
+    jobId: "job-2",
+    runId: "run-2",
+    docId: "doc-2",
+    detail: {
+      metadata: {
+        docType: "form",
+      },
+    },
+    fieldConfig: [{ name: "invoice_date" }],
+    reviewSource: "human",
+    fields: [
+      {
+        fieldKey: "invoice_date",
+        fieldLabel: "invoice_date",
+        extractedValue: "janry 31 1997",
+        correctedValue: "January 31, 1997",
+        reviewState: "wrong_value",
+        reviewNote: "should normalize as equal",
+      },
+    ],
+  });
+
+  assert.equal(artifact.fields[0]?.reviewState, "correct");
+  assert.equal(artifact.metrics.f1, 1);
+});
+
 test("review context ignores synthetic vendor identities from legacy reviewed artifacts", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "idpo-review-context-sanitize-"));
   const dataDir = path.join(tmpRoot, "idpo-data");
