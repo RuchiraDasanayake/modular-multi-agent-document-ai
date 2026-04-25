@@ -12,11 +12,11 @@
       ],
       "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0000.png",
       "fields": {
-        "total_amount": "The cost of goods purchased \u2014 what the customer OWED. Look for labels: TOTAL, GRAND TOTAL, JUMLAH, AMOUNT DUE. IMPORTANT: this is NOT the cash tendered and NOT the change. It is typically the smallest of (total, cash, change) if the customer paid more than the bill. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is.",
-        "subtotal_amount": "The sum of items before tax. Look for labels: SUBTOTAL, SUB TOTAL, NETTO, HARGA. Usually slightly less than total_amount (total = subtotal + tax). May use dot as thousands separator. Extract the number as-is.",
-        "tax_amount": "The tax or service charge added on top of subtotal. Look for labels: TAX, VAT, PB1, PPN, SERVICE, PAJAK. Typically a small fraction of subtotal. May use dot as thousands separator. Extract the number as-is.",
-        "cash_amount": "The cash physically handed over by the customer. Look for labels: CASH, TUNAI, BAYAR, PAYMENT, UANG. Usually GREATER THAN OR EQUAL TO total_amount (customer pays at least the bill). May use dot as thousands separator. Extract the number as-is.",
-        "change_amount": "The change returned to the customer = cash_amount minus total_amount. Look for labels: CHANGE, KEMBALI, KEMBALIAN, SISA. Usually the difference between what was paid and what was owed. May use dot as thousands separator. Extract the number as-is."
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
       },
       "expected": {
         "total_amount": "28,000",
@@ -34,11 +34,11 @@
       ],
       "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0001.png",
       "fields": {
-        "total_amount": "The cost of goods purchased \u2014 what the customer OWED. Look for labels: TOTAL, GRAND TOTAL, JUMLAH, AMOUNT DUE. IMPORTANT: this is NOT the cash tendered and NOT the change. It is typically the smallest of (total, cash, change) if the customer paid more than the bill. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is.",
-        "subtotal_amount": "The sum of items before tax. Look for labels: SUBTOTAL, SUB TOTAL, NETTO, HARGA. Usually slightly less than total_amount (total = subtotal + tax). May use dot as thousands separator. Extract the number as-is.",
-        "tax_amount": "The tax or service charge added on top of subtotal. Look for labels: TAX, VAT, PB1, PPN, SERVICE, PAJAK. Typically a small fraction of subtotal. May use dot as thousands separator. Extract the number as-is.",
-        "cash_amount": "The cash physically handed over by the customer. Look for labels: CASH, TUNAI, BAYAR, PAYMENT, UANG. Usually GREATER THAN OR EQUAL TO total_amount (customer pays at least the bill). May use dot as thousands separator. Extract the number as-is.",
-        "change_amount": "The change returned to the customer = cash_amount minus total_amount. Look for labels: CHANGE, KEMBALI, KEMBALIAN, SISA. Usually the difference between what was paid and what was owed. May use dot as thousands separator. Extract the number as-is."
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
       },
       "expected": {
         "total_amount": "39.600",
@@ -56,11 +56,11 @@
       ],
       "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0002.png",
       "fields": {
-        "total_amount": "The cost of goods purchased \u2014 what the customer OWED. Look for labels: TOTAL, GRAND TOTAL, JUMLAH, AMOUNT DUE. IMPORTANT: this is NOT the cash tendered and NOT the change. It is typically the smallest of (total, cash, change) if the customer paid more than the bill. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is.",
-        "subtotal_amount": "The sum of items before tax. Look for labels: SUBTOTAL, SUB TOTAL, NETTO, HARGA. Usually slightly less than total_amount (total = subtotal + tax). May use dot as thousands separator. Extract the number as-is.",
-        "tax_amount": "The tax or service charge added on top of subtotal. Look for labels: TAX, VAT, PB1, PPN, SERVICE, PAJAK. Typically a small fraction of subtotal. May use dot as thousands separator. Extract the number as-is.",
-        "cash_amount": "The cash physically handed over by the customer. Look for labels: CASH, TUNAI, BAYAR, PAYMENT, UANG. Usually GREATER THAN OR EQUAL TO total_amount (customer pays at least the bill). May use dot as thousands separator. Extract the number as-is.",
-        "change_amount": "The change returned to the customer = cash_amount minus total_amount. Look for labels: CHANGE, KEMBALI, KEMBALIAN, SISA. Usually the difference between what was paid and what was owed. May use dot as thousands separator. Extract the number as-is."
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
       },
       "expected": {
         "total_amount": "308,000",
@@ -78,11 +78,11 @@
       ],
       "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0003.png",
       "fields": {
-        "total_amount": "The cost of goods purchased \u2014 what the customer OWED. Look for labels: TOTAL, GRAND TOTAL, JUMLAH, AMOUNT DUE. IMPORTANT: this is NOT the cash tendered and NOT the change. It is typically the smallest of (total, cash, change) if the customer paid more than the bill. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is.",
-        "subtotal_amount": "The sum of items before tax. Look for labels: SUBTOTAL, SUB TOTAL, NETTO, HARGA. Usually slightly less than total_amount (total = subtotal + tax). May use dot as thousands separator. Extract the number as-is.",
-        "tax_amount": "The tax or service charge added on top of subtotal. Look for labels: TAX, VAT, PB1, PPN, SERVICE, PAJAK. Typically a small fraction of subtotal. May use dot as thousands separator. Extract the number as-is.",
-        "cash_amount": "The cash physically handed over by the customer. Look for labels: CASH, TUNAI, BAYAR, PAYMENT, UANG. Usually GREATER THAN OR EQUAL TO total_amount (customer pays at least the bill). May use dot as thousands separator. Extract the number as-is.",
-        "change_amount": "The change returned to the customer = cash_amount minus total_amount. Look for labels: CHANGE, KEMBALI, KEMBALIAN, SISA. Usually the difference between what was paid and what was owed. May use dot as thousands separator. Extract the number as-is."
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
       },
       "expected": {
         "total_amount": "24,000",
@@ -99,11 +99,11 @@
       ],
       "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0004.png",
       "fields": {
-        "total_amount": "The cost of goods purchased \u2014 what the customer OWED. Look for labels: TOTAL, GRAND TOTAL, JUMLAH, AMOUNT DUE. IMPORTANT: this is NOT the cash tendered and NOT the change. It is typically the smallest of (total, cash, change) if the customer paid more than the bill. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is.",
-        "subtotal_amount": "The sum of items before tax. Look for labels: SUBTOTAL, SUB TOTAL, NETTO, HARGA. Usually slightly less than total_amount (total = subtotal + tax). May use dot as thousands separator. Extract the number as-is.",
-        "tax_amount": "The tax or service charge added on top of subtotal. Look for labels: TAX, VAT, PB1, PPN, SERVICE, PAJAK. Typically a small fraction of subtotal. May use dot as thousands separator. Extract the number as-is.",
-        "cash_amount": "The cash physically handed over by the customer. Look for labels: CASH, TUNAI, BAYAR, PAYMENT, UANG. Usually GREATER THAN OR EQUAL TO total_amount (customer pays at least the bill). May use dot as thousands separator. Extract the number as-is.",
-        "change_amount": "The change returned to the customer = cash_amount minus total_amount. Look for labels: CHANGE, KEMBALI, KEMBALIAN, SISA. Usually the difference between what was paid and what was owed. May use dot as thousands separator. Extract the number as-is."
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
       },
       "expected": {
         "total_amount": "6.000",
@@ -120,11 +120,11 @@
       ],
       "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0005.png",
       "fields": {
-        "total_amount": "The cost of goods purchased \u2014 what the customer OWED. Look for labels: TOTAL, GRAND TOTAL, JUMLAH, AMOUNT DUE. IMPORTANT: this is NOT the cash tendered and NOT the change. It is typically the smallest of (total, cash, change) if the customer paid more than the bill. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is.",
-        "subtotal_amount": "The sum of items before tax. Look for labels: SUBTOTAL, SUB TOTAL, NETTO, HARGA. Usually slightly less than total_amount (total = subtotal + tax). May use dot as thousands separator. Extract the number as-is.",
-        "tax_amount": "The tax or service charge added on top of subtotal. Look for labels: TAX, VAT, PB1, PPN, SERVICE, PAJAK. Typically a small fraction of subtotal. May use dot as thousands separator. Extract the number as-is.",
-        "cash_amount": "The cash physically handed over by the customer. Look for labels: CASH, TUNAI, BAYAR, PAYMENT, UANG. Usually GREATER THAN OR EQUAL TO total_amount (customer pays at least the bill). May use dot as thousands separator. Extract the number as-is.",
-        "change_amount": "The change returned to the customer = cash_amount minus total_amount. Look for labels: CHANGE, KEMBALI, KEMBALIAN, SISA. Usually the difference between what was paid and what was owed. May use dot as thousands separator. Extract the number as-is."
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
       },
       "expected": {
         "total_amount": "304,326",
@@ -142,11 +142,11 @@
       ],
       "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0006.png",
       "fields": {
-        "total_amount": "The cost of goods purchased \u2014 what the customer OWED. Look for labels: TOTAL, GRAND TOTAL, JUMLAH, AMOUNT DUE. IMPORTANT: this is NOT the cash tendered and NOT the change. It is typically the smallest of (total, cash, change) if the customer paid more than the bill. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is.",
-        "subtotal_amount": "The sum of items before tax. Look for labels: SUBTOTAL, SUB TOTAL, NETTO, HARGA. Usually slightly less than total_amount (total = subtotal + tax). May use dot as thousands separator. Extract the number as-is.",
-        "tax_amount": "The tax or service charge added on top of subtotal. Look for labels: TAX, VAT, PB1, PPN, SERVICE, PAJAK. Typically a small fraction of subtotal. May use dot as thousands separator. Extract the number as-is.",
-        "cash_amount": "The cash physically handed over by the customer. Look for labels: CASH, TUNAI, BAYAR, PAYMENT, UANG. Usually GREATER THAN OR EQUAL TO total_amount (customer pays at least the bill). May use dot as thousands separator. Extract the number as-is.",
-        "change_amount": "The change returned to the customer = cash_amount minus total_amount. Look for labels: CHANGE, KEMBALI, KEMBALIAN, SISA. Usually the difference between what was paid and what was owed. May use dot as thousands separator. Extract the number as-is."
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
       },
       "expected": {
         "total_amount": "70,000",
@@ -165,11 +165,11 @@
       ],
       "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0007.png",
       "fields": {
-        "total_amount": "The cost of goods purchased \u2014 what the customer OWED. Look for labels: TOTAL, GRAND TOTAL, JUMLAH, AMOUNT DUE. IMPORTANT: this is NOT the cash tendered and NOT the change. It is typically the smallest of (total, cash, change) if the customer paid more than the bill. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is.",
-        "subtotal_amount": "The sum of items before tax. Look for labels: SUBTOTAL, SUB TOTAL, NETTO, HARGA. Usually slightly less than total_amount (total = subtotal + tax). May use dot as thousands separator. Extract the number as-is.",
-        "tax_amount": "The tax or service charge added on top of subtotal. Look for labels: TAX, VAT, PB1, PPN, SERVICE, PAJAK. Typically a small fraction of subtotal. May use dot as thousands separator. Extract the number as-is.",
-        "cash_amount": "The cash physically handed over by the customer. Look for labels: CASH, TUNAI, BAYAR, PAYMENT, UANG. Usually GREATER THAN OR EQUAL TO total_amount (customer pays at least the bill). May use dot as thousands separator. Extract the number as-is.",
-        "change_amount": "The change returned to the customer = cash_amount minus total_amount. Look for labels: CHANGE, KEMBALI, KEMBALIAN, SISA. Usually the difference between what was paid and what was owed. May use dot as thousands separator. Extract the number as-is."
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
       },
       "expected": {
         "total_amount": "20,000",
@@ -187,11 +187,11 @@
       ],
       "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0008.png",
       "fields": {
-        "total_amount": "The cost of goods purchased \u2014 what the customer OWED. Look for labels: TOTAL, GRAND TOTAL, JUMLAH, AMOUNT DUE. IMPORTANT: this is NOT the cash tendered and NOT the change. It is typically the smallest of (total, cash, change) if the customer paid more than the bill. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is.",
-        "subtotal_amount": "The sum of items before tax. Look for labels: SUBTOTAL, SUB TOTAL, NETTO, HARGA. Usually slightly less than total_amount (total = subtotal + tax). May use dot as thousands separator. Extract the number as-is.",
-        "tax_amount": "The tax or service charge added on top of subtotal. Look for labels: TAX, VAT, PB1, PPN, SERVICE, PAJAK. Typically a small fraction of subtotal. May use dot as thousands separator. Extract the number as-is.",
-        "cash_amount": "The cash physically handed over by the customer. Look for labels: CASH, TUNAI, BAYAR, PAYMENT, UANG. Usually GREATER THAN OR EQUAL TO total_amount (customer pays at least the bill). May use dot as thousands separator. Extract the number as-is.",
-        "change_amount": "The change returned to the customer = cash_amount minus total_amount. Look for labels: CHANGE, KEMBALI, KEMBALIAN, SISA. Usually the difference between what was paid and what was owed. May use dot as thousands separator. Extract the number as-is."
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
       },
       "expected": {
         "total_amount": "379,500",
@@ -209,11 +209,11 @@
       ],
       "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0009.png",
       "fields": {
-        "total_amount": "The cost of goods purchased \u2014 what the customer OWED. Look for labels: TOTAL, GRAND TOTAL, JUMLAH, AMOUNT DUE. IMPORTANT: this is NOT the cash tendered and NOT the change. It is typically the smallest of (total, cash, change) if the customer paid more than the bill. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is.",
-        "subtotal_amount": "The sum of items before tax. Look for labels: SUBTOTAL, SUB TOTAL, NETTO, HARGA. Usually slightly less than total_amount (total = subtotal + tax). May use dot as thousands separator. Extract the number as-is.",
-        "tax_amount": "The tax or service charge added on top of subtotal. Look for labels: TAX, VAT, PB1, PPN, SERVICE, PAJAK. Typically a small fraction of subtotal. May use dot as thousands separator. Extract the number as-is.",
-        "cash_amount": "The cash physically handed over by the customer. Look for labels: CASH, TUNAI, BAYAR, PAYMENT, UANG. Usually GREATER THAN OR EQUAL TO total_amount (customer pays at least the bill). May use dot as thousands separator. Extract the number as-is.",
-        "change_amount": "The change returned to the customer = cash_amount minus total_amount. Look for labels: CHANGE, KEMBALI, KEMBALIAN, SISA. Usually the difference between what was paid and what was owed. May use dot as thousands separator. Extract the number as-is."
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
       },
       "expected": {
         "total_amount": "22,000",
@@ -229,9 +229,9 @@
       ],
       "path": "datasets/FUNSD/testing_data/images/82092117.png",
       "fields": {
-        "recipient": "Full name of the person or organization the letter/memo is addressed to. Look after \"To:\", \"Dear\", \"Attn:\", or in the header block. If OCR is degraded, extract the best partial reading visible \u2014 do not return empty if any fragment of a name is readable. Names may be abbreviated (e.g. K.A.S for K.A. Sparrow).",
-        "sender": "Full name of the person who wrote or signed the letter. Look for \"From:\", \"Sincerely,\", \"Regards,\", or at the bottom of the document near a signature. If OCR is degraded, extract the best partial reading visible \u2014 do not return empty if any fragment of a name is readable. May include title or contact info.",
-        "date": "Date the letter or document was written. Look for a date line near the top of the letter, or in the header. May be in any format (e.g. December 9, 1999, 12/10/98, 2-Dec-97). Extract exactly as it appears \u2014 include spaces around separators if present."
+        "recipient": "Name of the person or organization this letter is addressed to.",
+        "sender": "Name of the person or organization who wrote or signed this letter.",
+        "date": "Date the letter was written. Extract exactly as it appears in the document."
       },
       "expected": {
         "recipient": "George Baroody",
@@ -247,9 +247,9 @@
       ],
       "path": "datasets/FUNSD/testing_data/images/82200067_0069.png",
       "fields": {
-        "recipient": "Full name of the person or organization the letter/memo is addressed to. Look after \"To:\", \"Dear\", \"Attn:\", or in the header block. If OCR is degraded, extract the best partial reading visible \u2014 do not return empty if any fragment of a name is readable. Names may be abbreviated (e.g. K.A.S for K.A. Sparrow).",
-        "sender": "Full name of the person who wrote or signed the letter. Look for \"From:\", \"Sincerely,\", \"Regards,\", or at the bottom of the document near a signature. If OCR is degraded, extract the best partial reading visible \u2014 do not return empty if any fragment of a name is readable. May include title or contact info.",
-        "date": "Date the letter or document was written. Look for a date line near the top of the letter, or in the header. May be in any format (e.g. December 9, 1999, 12/10/98, 2-Dec-97). Extract exactly as it appears \u2014 include spaces around separators if present."
+        "recipient": "Name of the person or organization this letter is addressed to.",
+        "sender": "Name of the person or organization who wrote or signed this letter.",
+        "date": "Date the letter was written. Extract exactly as it appears in the document."
       },
       "expected": {
         "recipient": "K. A. Sparrow",
@@ -265,9 +265,9 @@
       ],
       "path": "datasets/FUNSD/testing_data/images/82250337_0338.png",
       "fields": {
-        "recipient": "Full name of the person or organization the letter/memo is addressed to. Look after \"To:\", \"Dear\", \"Attn:\", or in the header block. If OCR is degraded, extract the best partial reading visible \u2014 do not return empty if any fragment of a name is readable. Names may be abbreviated (e.g. K.A.S for K.A. Sparrow).",
-        "sender": "Full name of the person who wrote or signed the letter. Look for \"From:\", \"Sincerely,\", \"Regards,\", or at the bottom of the document near a signature. If OCR is degraded, extract the best partial reading visible \u2014 do not return empty if any fragment of a name is readable. May include title or contact info.",
-        "date": "Date the letter or document was written. Look for a date line near the top of the letter, or in the header. May be in any format (e.g. December 9, 1999, 12/10/98, 2-Dec-97). Extract exactly as it appears \u2014 include spaces around separators if present."
+        "recipient": "Name of the person or organization this letter is addressed to.",
+        "sender": "Name of the person or organization who wrote or signed this letter.",
+        "date": "Date the letter was written. Extract exactly as it appears in the document."
       },
       "expected": {
         "recipient": "Sam Zolot",
@@ -284,9 +284,9 @@
       ],
       "path": "datasets/FUNSD/testing_data/images/82252956_2958.png",
       "fields": {
-        "recipient": "Full name of the person or organization the letter/memo is addressed to. Look after \"To:\", \"Dear\", \"Attn:\", or in the header block. If OCR is degraded, extract the best partial reading visible \u2014 do not return empty if any fragment of a name is readable. Names may be abbreviated (e.g. K.A.S for K.A. Sparrow).",
-        "sender": "Full name of the person who wrote or signed the letter. Look for \"From:\", \"Sincerely,\", \"Regards,\", or at the bottom of the document near a signature. If OCR is degraded, extract the best partial reading visible \u2014 do not return empty if any fragment of a name is readable. May include title or contact info.",
-        "date": "Date the letter or document was written. Look for a date line near the top of the letter, or in the header. May be in any format (e.g. December 9, 1999, 12/10/98, 2-Dec-97). Extract exactly as it appears \u2014 include spaces around separators if present."
+        "recipient": "Name of the person or organization this letter is addressed to.",
+        "sender": "Name of the person or organization who wrote or signed this letter.",
+        "date": "Date the letter was written. Extract exactly as it appears in the document."
       },
       "expected": {
         "recipient": "K. A. Sparrow",
@@ -302,9 +302,9 @@
       ],
       "path": "datasets/FUNSD/testing_data/images/82253058_3059.png",
       "fields": {
-        "recipient": "Full name of the person or organization the letter/memo is addressed to. Look after \"To:\", \"Dear\", \"Attn:\", or in the header block. If OCR is degraded, extract the best partial reading visible \u2014 do not return empty if any fragment of a name is readable. Names may be abbreviated (e.g. K.A.S for K.A. Sparrow).",
-        "sender": "Full name of the person who wrote or signed the letter. Look for \"From:\", \"Sincerely,\", \"Regards,\", or at the bottom of the document near a signature. If OCR is degraded, extract the best partial reading visible \u2014 do not return empty if any fragment of a name is readable. May include title or contact info.",
-        "date": "Date the letter or document was written. Look for a date line near the top of the letter, or in the header. May be in any format (e.g. December 9, 1999, 12/10/98, 2-Dec-97). Extract exactly as it appears \u2014 include spaces around separators if present."
+        "recipient": "Name of the person or organization this letter is addressed to.",
+        "sender": "Name of the person or organization who wrote or signed this letter.",
+        "date": "Date the letter was written. Extract exactly as it appears in the document."
       },
       "expected": {
         "recipient": "MRS. K. A. SPARROW",
@@ -321,9 +321,9 @@
       ],
       "path": "datasets/FUNSD/testing_data/images/82253245_3247.png",
       "fields": {
-        "recipient": "Full name of the person or organization the letter/memo is addressed to. Look after \"To:\", \"Dear\", \"Attn:\", or in the header block. If OCR is degraded, extract the best partial reading visible \u2014 do not return empty if any fragment of a name is readable. Names may be abbreviated (e.g. K.A.S for K.A. Sparrow).",
-        "sender": "Full name of the person who wrote or signed the letter. Look for \"From:\", \"Sincerely,\", \"Regards,\", or at the bottom of the document near a signature. If OCR is degraded, extract the best partial reading visible \u2014 do not return empty if any fragment of a name is readable. May include title or contact info.",
-        "date": "Date the letter or document was written. Look for a date line near the top of the letter, or in the header. May be in any format (e.g. December 9, 1999, 12/10/98, 2-Dec-97). Extract exactly as it appears \u2014 include spaces around separators if present."
+        "recipient": "Name of the person or organization this letter is addressed to.",
+        "sender": "Name of the person or organization who wrote or signed this letter.",
+        "date": "Date the letter was written. Extract exactly as it appears in the document."
       },
       "expected": {
         "recipient": "K. A. Sparrow",
@@ -339,9 +339,9 @@
       ],
       "path": "datasets/FUNSD/testing_data/images/82253362_3364.png",
       "fields": {
-        "recipient": "Full name of the person or organization the letter/memo is addressed to. Look after \"To:\", \"Dear\", \"Attn:\", or in the header block. If OCR is degraded, extract the best partial reading visible \u2014 do not return empty if any fragment of a name is readable. Names may be abbreviated (e.g. K.A.S for K.A. Sparrow).",
-        "sender": "Full name of the person who wrote or signed the letter. Look for \"From:\", \"Sincerely,\", \"Regards,\", or at the bottom of the document near a signature. If OCR is degraded, extract the best partial reading visible \u2014 do not return empty if any fragment of a name is readable. May include title or contact info.",
-        "date": "Date the letter or document was written. Look for a date line near the top of the letter, or in the header. May be in any format (e.g. December 9, 1999, 12/10/98, 2-Dec-97). Extract exactly as it appears \u2014 include spaces around separators if present."
+        "recipient": "Name of the person or organization this letter is addressed to.",
+        "sender": "Name of the person or organization who wrote or signed this letter.",
+        "date": "Date the letter was written. Extract exactly as it appears in the document."
       },
       "expected": {
         "recipient": "K. A. Sparrow",
@@ -357,9 +357,9 @@
       ],
       "path": "datasets/FUNSD/testing_data/images/82254765.png",
       "fields": {
-        "recipient": "Full name of the person or organization the letter/memo is addressed to. Look after \"To:\", \"Dear\", \"Attn:\", or in the header block. If OCR is degraded, extract the best partial reading visible \u2014 do not return empty if any fragment of a name is readable. Names may be abbreviated (e.g. K.A.S for K.A. Sparrow).",
-        "sender": "Full name of the person who wrote or signed the letter. Look for \"From:\", \"Sincerely,\", \"Regards,\", or at the bottom of the document near a signature. If OCR is degraded, extract the best partial reading visible \u2014 do not return empty if any fragment of a name is readable. May include title or contact info.",
-        "date": "Date the letter or document was written. Look for a date line near the top of the letter, or in the header. May be in any format (e.g. December 9, 1999, 12/10/98, 2-Dec-97). Extract exactly as it appears \u2014 include spaces around separators if present."
+        "recipient": "Name of the person or organization this letter is addressed to.",
+        "sender": "Name of the person or organization who wrote or signed this letter.",
+        "date": "Date the letter was written. Extract exactly as it appears in the document."
       },
       "expected": {
         "recipient": "K. A. SPARROW",
@@ -375,9 +375,9 @@
       ],
       "path": "datasets/FUNSD/testing_data/images/82562350.png",
       "fields": {
-        "recipient": "Full name of the person or organization the letter/memo is addressed to. Look after \"To:\", \"Dear\", \"Attn:\", or in the header block. If OCR is degraded, extract the best partial reading visible \u2014 do not return empty if any fragment of a name is readable. Names may be abbreviated (e.g. K.A.S for K.A. Sparrow).",
-        "sender": "Full name of the person who wrote or signed the letter. Look for \"From:\", \"Sincerely,\", \"Regards,\", or at the bottom of the document near a signature. If OCR is degraded, extract the best partial reading visible \u2014 do not return empty if any fragment of a name is readable. May include title or contact info.",
-        "date": "Date the letter or document was written. Look for a date line near the top of the letter, or in the header. May be in any format (e.g. December 9, 1999, 12/10/98, 2-Dec-97). Extract exactly as it appears \u2014 include spaces around separators if present."
+        "recipient": "Name of the person or organization this letter is addressed to.",
+        "sender": "Name of the person or organization who wrote or signed this letter.",
+        "date": "Date the letter was written. Extract exactly as it appears in the document."
       },
       "expected": {
         "recipient": "Mr. Randy Spell",
@@ -394,9 +394,9 @@
       ],
       "path": "datasets/FUNSD/testing_data/images/82573104.png",
       "fields": {
-        "recipient": "Full name of the person or organization the letter/memo is addressed to. Look after \"To:\", \"Dear\", \"Attn:\", or in the header block. If OCR is degraded, extract the best partial reading visible \u2014 do not return empty if any fragment of a name is readable. Names may be abbreviated (e.g. K.A.S for K.A. Sparrow).",
-        "sender": "Full name of the person who wrote or signed the letter. Look for \"From:\", \"Sincerely,\", \"Regards,\", or at the bottom of the document near a signature. If OCR is degraded, extract the best partial reading visible \u2014 do not return empty if any fragment of a name is readable. May include title or contact info.",
-        "date": "Date the letter or document was written. Look for a date line near the top of the letter, or in the header. May be in any format (e.g. December 9, 1999, 12/10/98, 2-Dec-97). Extract exactly as it appears \u2014 include spaces around separators if present."
+        "recipient": "Name of the person or organization this letter is addressed to.",
+        "sender": "Name of the person or organization who wrote or signed this letter.",
+        "date": "Date the letter was written. Extract exactly as it appears in the document."
       },
       "expected": {
         "date": "December 9, 1999",
