@@ -366,6 +366,37 @@ class OcrAgent(Agent):
                 return "", True, "tessdata_missing", {}
             return "", True, "ocr_failed", {}
 
+    def _preprocess_for_paddle(self, path: str) -> str:
+        """Enhance image quality before PaddleOCR — upscale, contrast stretch, sharpen.
+
+        Returns path to a temp enhanced image, or original path if preprocessing fails.
+        Degraded fax/scan images benefit significantly from this before OCR.
+        """
+        try:
+            from PIL import Image, ImageFilter, ImageOps
+        except Exception:
+            return path
+        try:
+            img = Image.open(path)
+            if img.mode not in {"RGB", "L"}:
+                img = img.convert("RGB")
+            # Upscale small images — PaddleOCR text detection struggles below ~150 DPI
+            w, h = img.size
+            if max(w, h) < 1600:
+                scale = 1600 / max(w, h)
+                img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+            # Grayscale + autocontrast to normalise fax scan brightness range
+            gray = ImageOps.grayscale(img)
+            gray = ImageOps.autocontrast(gray, cutoff=2)
+            # Mild sharpening to recover edges lost in fax compression
+            gray = gray.filter(ImageFilter.UnsharpMask(radius=1.5, percent=120, threshold=2))
+            # Save to temp file
+            tmp_path = path + "_paddle_enhanced.png"
+            gray.save(tmp_path, format="PNG")
+            return tmp_path
+        except Exception:
+            return path
+
     def _ocr_image_paddle(self, path: str, lang: str) -> tuple[str, bool, str | None, dict[str, object]]:
         try:
             from paddleocr import PaddleOCR
@@ -373,11 +404,30 @@ class OcrAgent(Agent):
             return "", False, "paddleocr_not_available", {}
 
         model_lang = self._paddle_lang(lang)
+        enhanced_path = self._preprocess_for_paddle(path)
         try:
-            ocr = PaddleOCR(use_angle_cls=True, lang=model_lang, show_log=False)
-            result = ocr.ocr(path, cls=True)
+            # Lower det_db_thresh catches more text in degraded/low-contrast scans.
+            # det_db_box_thresh set lower to avoid dropping partial characters.
+            # use_angle_cls handles rotated/skewed fax pages.
+            ocr = PaddleOCR(
+                use_angle_cls=True,
+                lang=model_lang,
+                show_log=False,
+                det_db_thresh=0.2,
+                det_db_box_thresh=0.4,
+                det_db_unclip_ratio=1.8,
+            )
+            result = ocr.ocr(enhanced_path, cls=True)
         except Exception as exc:
             return "", True, f"paddleocr_failed:{str(exc)[:80]}", {"ocr_variant": "paddle"}
+        finally:
+            # Clean up temp enhanced image
+            if enhanced_path != path:
+                try:
+                    import os as _os
+                    _os.remove(enhanced_path)
+                except Exception:
+                    pass
 
         text, confidence = self._extract_paddle_text(result)
         if not text:
@@ -390,6 +440,7 @@ class OcrAgent(Agent):
                 "ocr_variant": "paddle",
                 "ocr_confidence": confidence,
                 "ocr_lang": model_lang,
+                "ocr_enhanced": enhanced_path != path,
             },
         )
 

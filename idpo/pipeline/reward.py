@@ -1,21 +1,16 @@
 """Reward and policy-gate helpers for pipeline execution.
 
-This module keeps reward scoring and policy threshold evaluation out of the main
-orchestrator so the document runtime path stays easier to follow and test.
-
-Reward design (non-circular evaluation target):
-  - The set of fields used to compute F1 is the UNION of:
-      (a) canonical fields for the detected doc_type (policy-independent), and
-      (b) policy-declared explicit_entities (policy-specific, if non-empty).
-  - A policy cannot shrink the denominator by omitting canonical fields, so it
-    cannot game the reward by asking for fewer fields.
-  - A policy that explicitly requests additional fields is held to that larger
-    target (principle of responsibility).
+Reward design:
+  - When the policy declares explicit fields (from the pack's requested fields),
+    score against ONLY those fields. This ensures F1 reflects what was actually
+    asked for, not generic canonical fields for the doc_type.
+  - Canonical fields are used as a fallback ONLY when no explicit fields are
+    declared (i.e. no pack ground truth). This prevents false negatives caused
+    by doc_type misclassification inflating the denominator.
   - TP requires a populated field value (see _has_field_value). Grounding is
     captured separately in schema_details.grounding_coverage.
-  - If no canonical schema is configured for the doc_type AND the policy does
-    not declare explicit_entities, the reward falls back to the proxy branch
-    below (validation + recovery + confidence).
+  - If neither explicit fields nor canonical fields are available, falls back to
+    the proxy branch (validation + recovery + confidence).
 """
 
 from __future__ import annotations
@@ -34,10 +29,14 @@ def compute_reward(
     dae_output: Optional[DAEOutput] = None,
     config: Optional[PipelineConfig] = None,
 ) -> tuple[str, float, dict[str, object]]:
-    canonical_fields = _canonical_fields_for_doc(dae_output, config)
     policy_fields = _policy_declared_fields(plan, state)
-    # Union — policy cannot shrink the evaluation target below the canonical set.
-    expected_fields = sorted(set(canonical_fields) | set(policy_fields))
+    # Policy-declared fields (from pack's requested fields) take full priority.
+    # Only fall back to canonical when no fields were explicitly declared.
+    if policy_fields:
+        expected_fields = sorted(set(policy_fields))
+    else:
+        canonical_fields = _canonical_fields_for_doc(dae_output, config)
+        expected_fields = sorted(set(canonical_fields))
     schema_details = _schema_quality_from_state(expected_fields, state)
     if expected_fields:
         extracted_expected = {
@@ -58,11 +57,10 @@ def compute_reward(
         precision = tp / (tp + fp) if (tp + fp) else 0.0
         recall = tp / (tp + fn) if (tp + fn) else 0.0
         f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
-        reward_type = "canonical_union" if canonical_fields else "policy_declared"
+        reward_type = "policy_declared" if policy_fields else "canonical_fallback"
         details = {
             "doc_id": doc.doc_id,
             "expected_fields": expected_fields,
-            "canonical_fields": canonical_fields,
             "policy_fields": policy_fields,
             "extracted_field_count": len(all_extracted_keys),
             "true_positive_count": tp,

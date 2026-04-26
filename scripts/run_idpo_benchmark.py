@@ -232,6 +232,26 @@ def _structured_field_values(value: object) -> dict[str, str]:
     return fields
 
 
+def _exact_scoring_field_values(doc: dict[str, Any]) -> dict[str, str]:
+    """Prefer final validated normalized fields when available.
+
+    Benchmarks should score against the same post-validation surface that the
+    pipeline persists in ``validation/normalized.json``. This avoids penalizing
+    cases where validation normalizes equivalent values after extraction.
+    """
+    normalized_path = str(doc.get("validation_normalized_path", "")).strip()
+    if normalized_path:
+        try:
+            payload = json.loads(Path(normalized_path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            payload = {}
+        normalized = payload.get("normalized", {}) if isinstance(payload, dict) else {}
+        values = _structured_field_values(normalized)
+        if values:
+            return values
+    return _structured_field_values(doc.get("structured_fields", {}))
+
+
 def _benchmark_review_state(exact: dict[str, Any], doc: dict[str, Any]) -> str:
     f1 = float(exact.get("f1", 0.0) or 0.0)
     base = f"human_reviewed | F1 {f1:.2f}"
@@ -427,9 +447,14 @@ def register_frontend_jobs_from_evidence(
         adaptive_outcome = _build_job_outcome(ADAPTIVE_LABEL, adaptive_item)
         for outcome in (strict_outcome, adaptive_outcome):
             outcome["expectedFieldValues"] = expected_fields
-        outcomes = [strict_outcome, adaptive_outcome]
+        # In adaptive-only mode, only include the adaptive outcome
+        has_static = bool(static_item.get("run_id") or static_item.get("doc"))
+        outcomes = [adaptive_outcome] if not has_static else [strict_outcome, adaptive_outcome]
         processed_modes = {o["mode"] for o in outcomes if o.get("status") == "processed"}
-        document_status = "processed" if processed_modes == {"strict", "adaptive"} else "failed"
+        if not has_static:
+            document_status = "processed" if "adaptive" in processed_modes else "failed"
+        else:
+            document_status = "processed" if processed_modes == {"strict", "adaptive"} else "failed"
         preferred = adaptive_outcome if adaptive_outcome.get("runId") else strict_outcome
 
         field_snapshot = [
@@ -479,23 +504,24 @@ def register_frontend_jobs_from_evidence(
             "adviceDocumentCount": 1 if adaptive_outcome.get("adviceInfluenced") else 0,
             "loggedFeedbackCount": 1 if adaptive_outcome.get("feedbackLogged") else 0,
         })
-        job_payload["runs"].append({
-            "jobRunId": f"{job_run_id_base}_strict",
-            "runId": strict_outcome.get("runId"),
-            "mode": "strict",
-            "status": "success" if strict_outcome.get("status") == "processed" else "failed",
-            "createdAt": created_at,
-            "startedAt": created_at,
-            "endedAt": created_at,
-            "fieldSnapshot": field_snapshot,
-            "selectedFileIds": [file_id],
-            "runPath": _display_path(static_item.get("run_dir")),
-            "error": strict_outcome.get("errorSummary"),
-            "processedCount": 1 if strict_outcome.get("status") == "processed" else 0,
-            "failedCount": 0 if strict_outcome.get("status") == "processed" else 1,
-            "adviceDocumentCount": 0,
-            "loggedFeedbackCount": 1 if strict_outcome.get("feedbackLogged") else 0,
-        })
+        if has_static:
+            job_payload["runs"].append({
+                "jobRunId": f"{job_run_id_base}_strict",
+                "runId": strict_outcome.get("runId"),
+                "mode": "strict",
+                "status": "success" if strict_outcome.get("status") == "processed" else "failed",
+                "createdAt": created_at,
+                "startedAt": created_at,
+                "endedAt": created_at,
+                "fieldSnapshot": field_snapshot,
+                "selectedFileIds": [file_id],
+                "runPath": _display_path(static_item.get("run_dir")),
+                "error": strict_outcome.get("errorSummary"),
+                "processedCount": 1 if strict_outcome.get("status") == "processed" else 0,
+                "failedCount": 0 if strict_outcome.get("status") == "processed" else 1,
+                "adviceDocumentCount": 0,
+                "loggedFeedbackCount": 1 if strict_outcome.get("feedbackLogged") else 0,
+            })
 
         job_payload["logs"].append(f"[benchmark] case_id={case_id}")
         existing_file_ids.add(file_id)
@@ -762,9 +788,7 @@ def _run_condition_batch(
             results.append({"case_id": case_id, "status": "failed", "tags": tags, "error": "no_doc_record"})
             continue
         doc = unmatched_docs.pop(match_index)
-        structured = doc.get("structured_fields", {})
-        if not isinstance(structured, dict):
-            structured = {}
+        structured = _exact_scoring_field_values(doc)
         tp, fp, fn = _case_metrics(expected, structured)
         results.append(
             {
@@ -1239,6 +1263,7 @@ def run_benchmark(
     register_frontend_jobs: bool = False,
     job_name_prefix: str | None = None,
     existing_job_id: str | None = None,
+    adaptive_only: bool = False,
 ) -> dict[str, Any]:
     repo_root = REPO_ROOT
     pack_file = (repo_root / pack_path).resolve()
@@ -1281,9 +1306,11 @@ def run_benchmark(
             for condition in ("static", ADAPTIVE_LABEL)
         }
 
+        active_conditions = (ADAPTIVE_LABEL,) if adaptive_only else ("static", ADAPTIVE_LABEL)
+
         if _should_batch_cases(pack, cases):
             shared_fields = _shared_extraction_fields(pack, cases)
-            for condition in ("static", ADAPTIVE_LABEL):
+            for condition in active_conditions:
                 conditions[condition].extend(
                     _run_condition_batch(
                         repo_root=repo_root,
@@ -1306,13 +1333,13 @@ def run_benchmark(
                 ]
                 expected = {str(k): str(v) for k, v in (case.get("expected", {}) or {}).items()}
                 if not source_path.exists():
-                    for condition in conditions:
+                    for condition in active_conditions:
                         conditions[condition].append(
                             {"case_id": case_id, "status": "failed", "error": f"missing_file:{source_path}"}
                         )
                     continue
 
-                for condition in ("static", ADAPTIVE_LABEL):
+                for condition in active_conditions:
                     with tempfile.TemporaryDirectory(prefix=f"idpo_bench_{condition}_{case_id}_") as tmp_dir:
                         temp_path = Path(tmp_dir) / (case_id + source_path.suffix)
                         shutil.copy2(source_path, temp_path)
@@ -1330,9 +1357,7 @@ def run_benchmark(
                         conditions[condition].append({"case_id": case_id, "status": "failed", "error": "no_doc_records"})
                         continue
                     doc = docs[0]
-                    structured = doc.get("structured_fields", {})
-                    if not isinstance(structured, dict):
-                        structured = {}
+                    structured = _exact_scoring_field_values(doc)
                     tp, fp, fn = _case_metrics(expected, structured)
                     conditions[condition].append(
                         {
@@ -1354,6 +1379,10 @@ def run_benchmark(
                     )
 
     _assert_adaptive_valid(conditions[ADAPTIVE_LABEL], valid_policy_ids)
+    # In adaptive-only mode the static condition is empty; seed a minimal summary so
+    # downstream report code doesn't crash on missing keys.
+    if adaptive_only and not conditions["static"]:
+        conditions["static"] = []
     condition_summaries = {key: _condition_summary(value) for key, value in conditions.items()}
     documents = []
     grouped_static: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -1479,41 +1508,47 @@ def _table_markdown(evidence: dict[str, Any]) -> str:
     exact_f1_delta = bootstrap.get("exact_f1_delta", {})
     latency_delta = bootstrap.get("latency_delta_ms", {})
     validation_delta = bootstrap.get("validation_pass_rate_delta", {})
+    static_doc_count = int(table["exact_scored_doc_count"]["static"] or 0)
+    has_static = static_doc_count > 0
+
+    def _static(value: object) -> object:
+        return value if has_static else "N/A"
+
     rows = [
         "| Metric | Static | Adaptive Safe |",
         "| --- | ---: | ---: |",
-        f"| Doc Count | {table['doc_count']} | {table['doc_count']} |",
-        f"| Avg Latency (ms) | {table['avg_latency_ms']['static']} | {table['avg_latency_ms'][ADAPTIVE_LABEL]} |",
-        f"| Avg Runtime Proxy Reward | {table['avg_reward']['static']} | {table['avg_reward'][ADAPTIVE_LABEL]} |",
-        f"| Exact Precision | {table['exact_precision']['static']} | {table['exact_precision'][ADAPTIVE_LABEL]} |",
-        f"| Exact Recall | {table['exact_recall']['static']} | {table['exact_recall'][ADAPTIVE_LABEL]} |",
-        f"| Exact F1 | {table['exact_f1']['static']} | {table['exact_f1'][ADAPTIVE_LABEL]} |",
-        f"| Validation Pass Rate | {table['validation_pass_rate']['static']} | {table['validation_pass_rate'][ADAPTIVE_LABEL]} |",
-        f"| Recovery Rate | {table['recovery_rate']['static']} | {table['recovery_rate'][ADAPTIVE_LABEL]} |",
-        f"| Escalation Rate | {table['escalation_rate']['static']} | {table['escalation_rate'][ADAPTIVE_LABEL]} |",
-        f"| Rollback Count | {table['rollback_count']['static']} | {table['rollback_count'][ADAPTIVE_LABEL]} |",
-        f"| Blocked Policy Count | {table['blocked_policy_count']['static']} | {table['blocked_policy_count'][ADAPTIVE_LABEL]} |",
-        f"| Feedback Logged | {table['feedback_logged_count']['static']} | {table['feedback_logged_count'][ADAPTIVE_LABEL]} |",
-        f"| Advice Accepted Count | {table['advice_accepted_count']['static']} | {table['advice_accepted_count'][ADAPTIVE_LABEL]} |",
-        f"| Policy Changed Count | {table['policy_changed_count']['static']} | {table['policy_changed_count'][ADAPTIVE_LABEL]} |",
-        f"| Exact-Scored Doc Count | {table['exact_scored_doc_count']['static']} | {table['exact_scored_doc_count'][ADAPTIVE_LABEL]} |",
-        f"| Avg Schema Coverage | {table['avg_schema_coverage']['static']} | {table['avg_schema_coverage'][ADAPTIVE_LABEL]} |",
-        f"| Avg Grounding Coverage | {table['avg_schema_grounding_coverage']['static']} | {table['avg_schema_grounding_coverage'][ADAPTIVE_LABEL]} |",
-        f"| Schema Valid Rate | {table['schema_valid_rate']['static']} | {table['schema_valid_rate'][ADAPTIVE_LABEL]} |",
-        f"| Defer Requested Count | {table['defer_requested_count']['static']} | {table['defer_requested_count'][ADAPTIVE_LABEL]} |",
-        f"| Defer Blocked Count | {table['defer_blocked_count']['static']} | {table['defer_blocked_count'][ADAPTIVE_LABEL]} |",
-        f"| Exact F1 Delta Mean | - | {exact_f1_delta.get('mean', 0.0)} |",
-        f"| Exact F1 Delta 95% CI | - | [{exact_f1_delta.get('ci_low', 0.0)}, {exact_f1_delta.get('ci_high', 0.0)}] |",
-        f"| Latency Delta Mean (ms) | - | {latency_delta.get('mean', 0.0)} |",
-        f"| Latency Delta 95% CI | - | [{latency_delta.get('ci_low', 0.0)}, {latency_delta.get('ci_high', 0.0)}] |",
-        f"| Validation Pass Delta Mean | - | {validation_delta.get('mean', 0.0)} |",
-        f"| Validation Pass Delta 95% CI | - | [{validation_delta.get('ci_low', 0.0)}, {validation_delta.get('ci_high', 0.0)}] |",
-        f"| Policy Distribution | `{json.dumps(table['policy_distribution']['static'], sort_keys=True)}` | `{json.dumps(table['policy_distribution'][ADAPTIVE_LABEL], sort_keys=True)}` |",
-        f"| Advice Sources | `{json.dumps(table['advice_source_counts']['static'], sort_keys=True)}` | `{json.dumps(table['advice_source_counts'][ADAPTIVE_LABEL], sort_keys=True)}` |",
-        f"| Advice Statuses | `{json.dumps(table['advice_status_counts']['static'], sort_keys=True)}` | `{json.dumps(table['advice_status_counts'][ADAPTIVE_LABEL], sort_keys=True)}` |",
-        f"| Retrieval Sources | `{json.dumps(table['retrieval_source_counts']['static'], sort_keys=True)}` | `{json.dumps(table['retrieval_source_counts'][ADAPTIVE_LABEL], sort_keys=True)}` |",
-        f"| Containment States | `{json.dumps(table['containment_state_counts']['static'], sort_keys=True)}` | `{json.dumps(table['containment_state_counts'][ADAPTIVE_LABEL], sort_keys=True)}` |",
-        f"| Operator Counts | `{json.dumps(table['operator_counts']['static'], sort_keys=True)}` | `{json.dumps(table['operator_counts'][ADAPTIVE_LABEL], sort_keys=True)}` |",
+        f"| Doc Count | {_static(static_doc_count)} | {table['exact_scored_doc_count'][ADAPTIVE_LABEL]} |",
+        f"| Avg Latency (ms) | {_static(table['avg_latency_ms']['static'])} | {table['avg_latency_ms'][ADAPTIVE_LABEL]} |",
+        f"| Avg Runtime Proxy Reward | {_static(table['avg_reward']['static'])} | {table['avg_reward'][ADAPTIVE_LABEL]} |",
+        f"| Exact Precision | {_static(table['exact_precision']['static'])} | {table['exact_precision'][ADAPTIVE_LABEL]} |",
+        f"| Exact Recall | {_static(table['exact_recall']['static'])} | {table['exact_recall'][ADAPTIVE_LABEL]} |",
+        f"| Exact F1 | {_static(table['exact_f1']['static'])} | {table['exact_f1'][ADAPTIVE_LABEL]} |",
+        f"| Validation Pass Rate | {_static(table['validation_pass_rate']['static'])} | {table['validation_pass_rate'][ADAPTIVE_LABEL]} |",
+        f"| Recovery Rate | {_static(table['recovery_rate']['static'])} | {table['recovery_rate'][ADAPTIVE_LABEL]} |",
+        f"| Escalation Rate | {_static(table['escalation_rate']['static'])} | {table['escalation_rate'][ADAPTIVE_LABEL]} |",
+        f"| Rollback Count | {_static(table['rollback_count']['static'])} | {table['rollback_count'][ADAPTIVE_LABEL]} |",
+        f"| Blocked Policy Count | {_static(table['blocked_policy_count']['static'])} | {table['blocked_policy_count'][ADAPTIVE_LABEL]} |",
+        f"| Feedback Logged | {_static(table['feedback_logged_count']['static'])} | {table['feedback_logged_count'][ADAPTIVE_LABEL]} |",
+        f"| Advice Accepted Count | {_static(table['advice_accepted_count']['static'])} | {table['advice_accepted_count'][ADAPTIVE_LABEL]} |",
+        f"| Policy Changed Count | {_static(table['policy_changed_count']['static'])} | {table['policy_changed_count'][ADAPTIVE_LABEL]} |",
+        f"| Exact-Scored Doc Count | {_static(static_doc_count)} | {table['exact_scored_doc_count'][ADAPTIVE_LABEL]} |",
+        f"| Avg Schema Coverage | {_static(table['avg_schema_coverage']['static'])} | {table['avg_schema_coverage'][ADAPTIVE_LABEL]} |",
+        f"| Avg Grounding Coverage | {_static(table['avg_schema_grounding_coverage']['static'])} | {table['avg_schema_grounding_coverage'][ADAPTIVE_LABEL]} |",
+        f"| Schema Valid Rate | {_static(table['schema_valid_rate']['static'])} | {table['schema_valid_rate'][ADAPTIVE_LABEL]} |",
+        f"| Defer Requested Count | {_static(table['defer_requested_count']['static'])} | {table['defer_requested_count'][ADAPTIVE_LABEL]} |",
+        f"| Defer Blocked Count | {_static(table['defer_blocked_count']['static'])} | {table['defer_blocked_count'][ADAPTIVE_LABEL]} |",
+        f"| Exact F1 Delta Mean | - | {exact_f1_delta.get('mean', 0.0) if has_static else 'N/A'} |",
+        f"| Exact F1 Delta 95% CI | - | [{exact_f1_delta.get('ci_low', 0.0)}, {exact_f1_delta.get('ci_high', 0.0)}] |" if has_static else "| Exact F1 Delta 95% CI | - | N/A |",
+        f"| Latency Delta Mean (ms) | - | {latency_delta.get('mean', 0.0) if has_static else 'N/A'} |",
+        f"| Latency Delta 95% CI | - | [{latency_delta.get('ci_low', 0.0)}, {latency_delta.get('ci_high', 0.0)}] |" if has_static else "| Latency Delta 95% CI | - | N/A |",
+        f"| Validation Pass Delta Mean | - | {validation_delta.get('mean', 0.0) if has_static else 'N/A'} |",
+        f"| Validation Pass Delta 95% CI | - | [{validation_delta.get('ci_low', 0.0)}, {validation_delta.get('ci_high', 0.0)}] |" if has_static else "| Validation Pass Delta 95% CI | - | N/A |",
+        f"| Policy Distribution | `{json.dumps(table['policy_distribution']['static'], sort_keys=True) if has_static else 'N/A'}` | `{json.dumps(table['policy_distribution'][ADAPTIVE_LABEL], sort_keys=True)}` |",
+        f"| Advice Sources | `{json.dumps(table['advice_source_counts']['static'], sort_keys=True) if has_static else 'N/A'}` | `{json.dumps(table['advice_source_counts'][ADAPTIVE_LABEL], sort_keys=True)}` |",
+        f"| Advice Statuses | `{json.dumps(table['advice_status_counts']['static'], sort_keys=True) if has_static else 'N/A'}` | `{json.dumps(table['advice_status_counts'][ADAPTIVE_LABEL], sort_keys=True)}` |",
+        f"| Retrieval Sources | `{json.dumps(table['retrieval_source_counts']['static'], sort_keys=True) if has_static else 'N/A'}` | `{json.dumps(table['retrieval_source_counts'][ADAPTIVE_LABEL], sort_keys=True)}` |",
+        f"| Containment States | `{json.dumps(table['containment_state_counts']['static'], sort_keys=True) if has_static else 'N/A'}` | `{json.dumps(table['containment_state_counts'][ADAPTIVE_LABEL], sort_keys=True)}` |",
+        f"| Operator Counts | `{json.dumps(table['operator_counts']['static'], sort_keys=True) if has_static else 'N/A'}` | `{json.dumps(table['operator_counts'][ADAPTIVE_LABEL], sort_keys=True)}` |",
     ]
     return "\n".join(rows) + "\n"
 
@@ -1524,40 +1559,46 @@ def _table_csv(evidence: dict[str, Any]) -> str:
     exact_f1_delta = bootstrap.get("exact_f1_delta", {})
     latency_delta = bootstrap.get("latency_delta_ms", {})
     validation_delta = bootstrap.get("validation_pass_rate_delta", {})
+    static_doc_count = int(table["exact_scored_doc_count"]["static"] or 0)
+    has_static = static_doc_count > 0
+
+    def _static(value: object) -> object:
+        return value if has_static else "N/A"
+
     rows = [
         f"metric,static,{ADAPTIVE_LABEL}",
-        f"doc_count,{table['doc_count']},{table['doc_count']}",
-        f"avg_latency_ms,{table['avg_latency_ms']['static']},{table['avg_latency_ms'][ADAPTIVE_LABEL]}",
-        f"avg_runtime_proxy_reward,{table['avg_reward']['static']},{table['avg_reward'][ADAPTIVE_LABEL]}",
-        f"exact_precision,{table['exact_precision']['static']},{table['exact_precision'][ADAPTIVE_LABEL]}",
-        f"exact_recall,{table['exact_recall']['static']},{table['exact_recall'][ADAPTIVE_LABEL]}",
-        f"exact_f1,{table['exact_f1']['static']},{table['exact_f1'][ADAPTIVE_LABEL]}",
-        f"validation_pass_rate,{table['validation_pass_rate']['static']},{table['validation_pass_rate'][ADAPTIVE_LABEL]}",
-        f"recovery_rate,{table['recovery_rate']['static']},{table['recovery_rate'][ADAPTIVE_LABEL]}",
-        f"escalation_rate,{table['escalation_rate']['static']},{table['escalation_rate'][ADAPTIVE_LABEL]}",
-        f"rollback_count,{table['rollback_count']['static']},{table['rollback_count'][ADAPTIVE_LABEL]}",
-        f"blocked_policy_count,{table['blocked_policy_count']['static']},{table['blocked_policy_count'][ADAPTIVE_LABEL]}",
-        f"feedback_logged_count,{table['feedback_logged_count']['static']},{table['feedback_logged_count'][ADAPTIVE_LABEL]}",
-        f"advice_accepted_count,{table['advice_accepted_count']['static']},{table['advice_accepted_count'][ADAPTIVE_LABEL]}",
-        f"policy_changed_count,{table['policy_changed_count']['static']},{table['policy_changed_count'][ADAPTIVE_LABEL]}",
-        f"exact_scored_doc_count,{table['exact_scored_doc_count']['static']},{table['exact_scored_doc_count'][ADAPTIVE_LABEL]}",
-        f"avg_schema_coverage,{table['avg_schema_coverage']['static']},{table['avg_schema_coverage'][ADAPTIVE_LABEL]}",
-        f"avg_schema_grounding_coverage,{table['avg_schema_grounding_coverage']['static']},{table['avg_schema_grounding_coverage'][ADAPTIVE_LABEL]}",
-        f"schema_valid_rate,{table['schema_valid_rate']['static']},{table['schema_valid_rate'][ADAPTIVE_LABEL]}",
-        f"defer_requested_count,{table['defer_requested_count']['static']},{table['defer_requested_count'][ADAPTIVE_LABEL]}",
-        f"defer_blocked_count,{table['defer_blocked_count']['static']},{table['defer_blocked_count'][ADAPTIVE_LABEL]}",
-        f"exact_f1_delta_mean,,{exact_f1_delta.get('mean', 0.0)}",
-        f"exact_f1_delta_ci,,\"[{exact_f1_delta.get('ci_low', 0.0)}, {exact_f1_delta.get('ci_high', 0.0)}]\"",
-        f"latency_delta_ms_mean,,{latency_delta.get('mean', 0.0)}",
-        f"latency_delta_ms_ci,,\"[{latency_delta.get('ci_low', 0.0)}, {latency_delta.get('ci_high', 0.0)}]\"",
-        f"validation_pass_rate_delta_mean,,{validation_delta.get('mean', 0.0)}",
-        f"validation_pass_rate_delta_ci,,\"[{validation_delta.get('ci_low', 0.0)}, {validation_delta.get('ci_high', 0.0)}]\"",
-        f"policy_distribution,\"{json.dumps(table['policy_distribution']['static'], sort_keys=True)}\",\"{json.dumps(table['policy_distribution'][ADAPTIVE_LABEL], sort_keys=True)}\"",
-        f"advice_source_counts,\"{json.dumps(table['advice_source_counts']['static'], sort_keys=True)}\",\"{json.dumps(table['advice_source_counts'][ADAPTIVE_LABEL], sort_keys=True)}\"",
-        f"advice_status_counts,\"{json.dumps(table['advice_status_counts']['static'], sort_keys=True)}\",\"{json.dumps(table['advice_status_counts'][ADAPTIVE_LABEL], sort_keys=True)}\"",
-        f"retrieval_source_counts,\"{json.dumps(table['retrieval_source_counts']['static'], sort_keys=True)}\",\"{json.dumps(table['retrieval_source_counts'][ADAPTIVE_LABEL], sort_keys=True)}\"",
-        f"containment_state_counts,\"{json.dumps(table['containment_state_counts']['static'], sort_keys=True)}\",\"{json.dumps(table['containment_state_counts'][ADAPTIVE_LABEL], sort_keys=True)}\"",
-        f"operator_counts,\"{json.dumps(table['operator_counts']['static'], sort_keys=True)}\",\"{json.dumps(table['operator_counts'][ADAPTIVE_LABEL], sort_keys=True)}\"",
+        f"doc_count,{_static(static_doc_count)},{table['exact_scored_doc_count'][ADAPTIVE_LABEL]}",
+        f"avg_latency_ms,{_static(table['avg_latency_ms']['static'])},{table['avg_latency_ms'][ADAPTIVE_LABEL]}",
+        f"avg_runtime_proxy_reward,{_static(table['avg_reward']['static'])},{table['avg_reward'][ADAPTIVE_LABEL]}",
+        f"exact_precision,{_static(table['exact_precision']['static'])},{table['exact_precision'][ADAPTIVE_LABEL]}",
+        f"exact_recall,{_static(table['exact_recall']['static'])},{table['exact_recall'][ADAPTIVE_LABEL]}",
+        f"exact_f1,{_static(table['exact_f1']['static'])},{table['exact_f1'][ADAPTIVE_LABEL]}",
+        f"validation_pass_rate,{_static(table['validation_pass_rate']['static'])},{table['validation_pass_rate'][ADAPTIVE_LABEL]}",
+        f"recovery_rate,{_static(table['recovery_rate']['static'])},{table['recovery_rate'][ADAPTIVE_LABEL]}",
+        f"escalation_rate,{_static(table['escalation_rate']['static'])},{table['escalation_rate'][ADAPTIVE_LABEL]}",
+        f"rollback_count,{_static(table['rollback_count']['static'])},{table['rollback_count'][ADAPTIVE_LABEL]}",
+        f"blocked_policy_count,{_static(table['blocked_policy_count']['static'])},{table['blocked_policy_count'][ADAPTIVE_LABEL]}",
+        f"feedback_logged_count,{_static(table['feedback_logged_count']['static'])},{table['feedback_logged_count'][ADAPTIVE_LABEL]}",
+        f"advice_accepted_count,{_static(table['advice_accepted_count']['static'])},{table['advice_accepted_count'][ADAPTIVE_LABEL]}",
+        f"policy_changed_count,{_static(table['policy_changed_count']['static'])},{table['policy_changed_count'][ADAPTIVE_LABEL]}",
+        f"exact_scored_doc_count,{_static(static_doc_count)},{table['exact_scored_doc_count'][ADAPTIVE_LABEL]}",
+        f"avg_schema_coverage,{_static(table['avg_schema_coverage']['static'])},{table['avg_schema_coverage'][ADAPTIVE_LABEL]}",
+        f"avg_schema_grounding_coverage,{_static(table['avg_schema_grounding_coverage']['static'])},{table['avg_schema_grounding_coverage'][ADAPTIVE_LABEL]}",
+        f"schema_valid_rate,{_static(table['schema_valid_rate']['static'])},{table['schema_valid_rate'][ADAPTIVE_LABEL]}",
+        f"defer_requested_count,{_static(table['defer_requested_count']['static'])},{table['defer_requested_count'][ADAPTIVE_LABEL]}",
+        f"defer_blocked_count,{_static(table['defer_blocked_count']['static'])},{table['defer_blocked_count'][ADAPTIVE_LABEL]}",
+        f"exact_f1_delta_mean,,{exact_f1_delta.get('mean', 0.0) if has_static else 'N/A'}",
+        f"exact_f1_delta_ci,,\"[{exact_f1_delta.get('ci_low', 0.0)}, {exact_f1_delta.get('ci_high', 0.0)}]\"" if has_static else "exact_f1_delta_ci,,N/A",
+        f"latency_delta_ms_mean,,{latency_delta.get('mean', 0.0) if has_static else 'N/A'}",
+        f"latency_delta_ms_ci,,\"[{latency_delta.get('ci_low', 0.0)}, {latency_delta.get('ci_high', 0.0)}]\"" if has_static else "latency_delta_ms_ci,,N/A",
+        f"validation_pass_rate_delta_mean,,{validation_delta.get('mean', 0.0) if has_static else 'N/A'}",
+        f"validation_pass_rate_delta_ci,,\"[{validation_delta.get('ci_low', 0.0)}, {validation_delta.get('ci_high', 0.0)}]\"" if has_static else "validation_pass_rate_delta_ci,,N/A",
+        f"policy_distribution,\"{json.dumps(table['policy_distribution']['static'], sort_keys=True) if has_static else 'N/A'}\",\"{json.dumps(table['policy_distribution'][ADAPTIVE_LABEL], sort_keys=True)}\"",
+        f"advice_source_counts,\"{json.dumps(table['advice_source_counts']['static'], sort_keys=True) if has_static else 'N/A'}\",\"{json.dumps(table['advice_source_counts'][ADAPTIVE_LABEL], sort_keys=True)}\"",
+        f"advice_status_counts,\"{json.dumps(table['advice_status_counts']['static'], sort_keys=True) if has_static else 'N/A'}\",\"{json.dumps(table['advice_status_counts'][ADAPTIVE_LABEL], sort_keys=True)}\"",
+        f"retrieval_source_counts,\"{json.dumps(table['retrieval_source_counts']['static'], sort_keys=True) if has_static else 'N/A'}\",\"{json.dumps(table['retrieval_source_counts'][ADAPTIVE_LABEL], sort_keys=True)}\"",
+        f"containment_state_counts,\"{json.dumps(table['containment_state_counts']['static'], sort_keys=True) if has_static else 'N/A'}\",\"{json.dumps(table['containment_state_counts'][ADAPTIVE_LABEL], sort_keys=True)}\"",
+        f"operator_counts,\"{json.dumps(table['operator_counts']['static'], sort_keys=True) if has_static else 'N/A'}\",\"{json.dumps(table['operator_counts'][ADAPTIVE_LABEL], sort_keys=True)}\"",
     ]
     return "\n".join(rows) + "\n"
 
@@ -1571,9 +1612,12 @@ def main() -> int:
     parser.add_argument(
         "--benchmark-job-id",
         default=None,
-        help="Existing frontend job ID to append documents to. "
-             "Omit to create a new job. Use this to extend Phase A → B → C "
-             "while preserving AHMN learning context across all processed documents.",
+        help="Existing frontend job ID to append documents to.",
+    )
+    parser.add_argument(
+        "--adaptive-only",
+        action="store_true",
+        help="Skip static baseline condition — run adaptive only. Halves runtime.",
     )
     args = parser.parse_args()
     evidence = run_benchmark(
@@ -1582,6 +1626,7 @@ def main() -> int:
         register_frontend_jobs=args.register_frontend_jobs,
         job_name_prefix=args.job_name_prefix,
         existing_job_id=args.benchmark_job_id,
+        adaptive_only=args.adaptive_only,
     )
     print(json.dumps(evidence["comparison"]["table"], indent=2))
     print(f"report_path={benchmark_reports_dir() / evidence['experiment']['benchmark_run_id'] / 'paper_evidence.json'}")

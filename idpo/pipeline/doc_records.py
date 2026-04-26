@@ -85,6 +85,7 @@ def create_doc_record(result, doc_dir: Path, expected_fields: list[dict[str, str
         "category": result.doc_type or result.category or "",
         "doc_type": result.doc_type,
         "vendor_cluster": result.vendor_cluster,
+        "semantic_doc_type": getattr(result, "semantic_doc_type", "unknown"),
         "layout_cluster_id": result.layout_cluster_id,
         "route_bin": result.route_bin,
         "route_specialization": result.route_specialization,

@@ -425,6 +425,9 @@ def _params_for_operator(
             "explicit_entities": explicit_entities,
             "field_descriptions": field_descriptions,
             "ruleset": params.get("ruleset", "config"),
+            "per_field_extraction": bool(params.get("per_field_extraction", False)),
+            "use_thinking": bool(params.get("use_thinking", False)),
+            "extraction_context": str(params.get("extraction_context", "") or ""),
         }
     if operator == "structuring.section":
         return {}

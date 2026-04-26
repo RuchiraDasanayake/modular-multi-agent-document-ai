@@ -1,0 +1,662 @@
+{
+  "name": "research_batch_diverse",
+  "description": "34 diverse business documents: 19 invoices (HuggingFace) + 15 DocVQA business docs (letters, reports, memos)",
+  "cases": [
+    {
+      "case_id": "invoice_0005",
+      "tags": [
+        "invoice",
+        "diverse",
+        "synthetic"
+      ],
+      "path": "datasets/diverse_docs/images/invoice_0005.png",
+      "fields": {
+        "invoice_number": "Invoice number or reference ID",
+        "invoice_date": "Date of the invoice",
+        "vendor_name": "Name of the seller or vendor company",
+        "customer_name": "Name of the client or customer company"
+      },
+      "expected": {
+        "invoice_number": "63665479",
+        "invoice_date": "02/12/2017",
+        "vendor_name": "Lowery LLC 90317 Michael Flats Suite 502 East Lisaville, DC",
+        "customer_name": "Carrillo-Montoya 089 Adam Knolls Apt. 628 Andreaside, UT 626"
+      }
+    },
+    {
+      "case_id": "docvqa_14184",
+      "tags": [
+        "docvqa",
+        "diverse",
+        "business_document"
+      ],
+      "path": "datasets/diverse_docs/images/docvqa_14184.png",
+      "fields": {
+        "subject": "Subject or title of the document",
+        "company_name": "Company or organization name"
+      },
+      "expected": {
+        "subject": "available",
+        "company_name": "independent ice and cold storage co."
+      }
+    },
+    {
+      "case_id": "docvqa_5232",
+      "tags": [
+        "docvqa",
+        "diverse",
+        "business_document"
+      ],
+      "path": "datasets/diverse_docs/images/docvqa_5232.png",
+      "fields": {
+        "subject": "Subject or title of the document",
+        "phone_number": "Phone or fax number"
+      },
+      "expected": {
+        "subject": "Menopausal Health Publication Management",
+        "phone_number": "609/924-6648"
+      }
+    },
+    {
+      "case_id": "invoice_0012",
+      "tags": [
+        "invoice",
+        "diverse",
+        "synthetic"
+      ],
+      "path": "datasets/diverse_docs/images/invoice_0012.png",
+      "fields": {
+        "invoice_number": "Invoice number or reference ID",
+        "invoice_date": "Date of the invoice",
+        "vendor_name": "Name of the seller or vendor company",
+        "customer_name": "Name of the client or customer company"
+      },
+      "expected": {
+        "invoice_number": "19537372",
+        "invoice_date": "07/28/2012",
+        "vendor_name": "Richardson LLC 97614 Timothy Plaza Mooreview, FL 34546",
+        "customer_name": "Rodriguez Ltd 50515 Jones Key Suite 674 South Cameron, MO 61"
+      }
+    },
+    {
+      "case_id": "docvqa_310",
+      "tags": [
+        "docvqa",
+        "diverse",
+        "business_document"
+      ],
+      "path": "datasets/diverse_docs/images/docvqa_310.png",
+      "fields": {
+        "subject": "Subject or title of the document",
+        "address": "Address"
+      },
+      "expected": {
+        "subject": "Virginia Slims Superslims Consumer Testing",
+        "address": "Dr. Ed Gee"
+      }
+    },
+    {
+      "case_id": "docvqa_494",
+      "tags": [
+        "docvqa",
+        "diverse",
+        "business_document"
+      ],
+      "path": "datasets/diverse_docs/images/docvqa_494.png",
+      "fields": {
+        "phone_number": "Phone or fax number",
+        "company_name": "Company or organization name"
+      },
+      "expected": {
+        "phone_number": "01628 537 900",
+        "company_name": "Takeda"
+      }
+    },
+    {
+      "case_id": "invoice_0016",
+      "tags": [
+        "invoice",
+        "diverse",
+        "synthetic"
+      ],
+      "path": "datasets/diverse_docs/images/invoice_0016.png",
+      "fields": {
+        "invoice_number": "Invoice number or reference ID",
+        "invoice_date": "Date of the invoice",
+        "vendor_name": "Name of the seller or vendor company",
+        "customer_name": "Name of the client or customer company"
+      },
+      "expected": {
+        "invoice_number": "41389063",
+        "invoice_date": "03/17/2021",
+        "vendor_name": "Carpenter, Robinson and Jackson 7554 Acevedo Expressway Apt.",
+        "customer_name": "Davis, Li and Coleman 07244 Henry View Thompsonchester, WA 4"
+      }
+    },
+    {
+      "case_id": "invoice_0010",
+      "tags": [
+        "invoice",
+        "diverse",
+        "synthetic"
+      ],
+      "path": "datasets/diverse_docs/images/invoice_0010.png",
+      "fields": {
+        "invoice_number": "Invoice number or reference ID",
+        "invoice_date": "Date of the invoice",
+        "vendor_name": "Name of the seller or vendor company",
+        "customer_name": "Name of the client or customer company"
+      },
+      "expected": {
+        "invoice_number": "58805260",
+        "invoice_date": "03/07/2019",
+        "vendor_name": "Murray-Parsons 98850 Fisher Pines Apt. 122 New Jeffreyland,",
+        "customer_name": "James, Johnson and Martin 57002 James Glens Elizabethfort, N"
+      }
+    },
+    {
+      "case_id": "invoice_0017",
+      "tags": [
+        "invoice",
+        "diverse",
+        "synthetic"
+      ],
+      "path": "datasets/diverse_docs/images/invoice_0017.png",
+      "fields": {
+        "invoice_number": "Invoice number or reference ID",
+        "invoice_date": "Date of the invoice",
+        "vendor_name": "Name of the seller or vendor company",
+        "customer_name": "Name of the client or customer company"
+      },
+      "expected": {
+        "invoice_number": "27139567",
+        "invoice_date": "07/14/2017",
+        "vendor_name": "Vargas, Miller and Miller 0714 Michele Springs Mendozabury,",
+        "customer_name": "Morris, Gentry and Nguyen 8616 Flores Vista Markstad, PA 320"
+      }
+    },
+    {
+      "case_id": "invoice_0011",
+      "tags": [
+        "invoice",
+        "diverse",
+        "synthetic"
+      ],
+      "path": "datasets/diverse_docs/images/invoice_0011.png",
+      "fields": {
+        "invoice_number": "Invoice number or reference ID",
+        "invoice_date": "Date of the invoice",
+        "vendor_name": "Name of the seller or vendor company",
+        "customer_name": "Name of the client or customer company"
+      },
+      "expected": {
+        "invoice_number": "11489615",
+        "invoice_date": "07/06/2016",
+        "vendor_name": "Jones-Flores 4168 Jason Stravenue Suite 306 Lorimouth, MO 13",
+        "customer_name": "Fields and Sons 138 Taylor Shores Port Mary, WY 68962"
+      }
+    },
+    {
+      "case_id": "docvqa_7149",
+      "tags": [
+        "docvqa",
+        "diverse",
+        "business_document"
+      ],
+      "path": "datasets/diverse_docs/images/docvqa_7149.png",
+      "fields": {
+        "institution_name": "Name of the institution",
+        "subject": "Subject or title of the document"
+      },
+      "expected": {
+        "institution_name": "Ariz. State U.",
+        "subject": "biology"
+      }
+    },
+    {
+      "case_id": "invoice_0015",
+      "tags": [
+        "invoice",
+        "diverse",
+        "synthetic"
+      ],
+      "path": "datasets/diverse_docs/images/invoice_0015.png",
+      "fields": {
+        "invoice_number": "Invoice number or reference ID",
+        "invoice_date": "Date of the invoice",
+        "vendor_name": "Name of the seller or vendor company",
+        "customer_name": "Name of the client or customer company"
+      },
+      "expected": {
+        "invoice_number": "46301857",
+        "invoice_date": "04/08/2017",
+        "vendor_name": "Murphy-Sanders USNV Miller FPO AA 82012",
+        "customer_name": "Parker, Graham and Swanson 607 Pearson Plaza New Jeffrey, NJ"
+      }
+    },
+    {
+      "case_id": "docvqa_7135",
+      "tags": [
+        "docvqa",
+        "diverse",
+        "business_document"
+      ],
+      "path": "datasets/diverse_docs/images/docvqa_7135.png",
+      "fields": {
+        "company_name": "Company or organization name",
+        "sender": "Sender name"
+      },
+      "expected": {
+        "company_name": "Amstar Corporation",
+        "sender": "A. B. Rizzuto"
+      }
+    },
+    {
+      "case_id": "invoice_0009",
+      "tags": [
+        "invoice",
+        "diverse",
+        "synthetic"
+      ],
+      "path": "datasets/diverse_docs/images/invoice_0009.png",
+      "fields": {
+        "invoice_number": "Invoice number or reference ID",
+        "invoice_date": "Date of the invoice",
+        "vendor_name": "Name of the seller or vendor company",
+        "customer_name": "Name of the client or customer company"
+      },
+      "expected": {
+        "invoice_number": "28590433",
+        "invoice_date": "09/27/2016",
+        "vendor_name": "White Group 14292 Leslie Ford Evansview, OK43757",
+        "customer_name": "Hoffman Inc 1478 Carr Lane Port George, ND 31020"
+      }
+    },
+    {
+      "case_id": "invoice_0008",
+      "tags": [
+        "invoice",
+        "diverse",
+        "synthetic"
+      ],
+      "path": "datasets/diverse_docs/images/invoice_0008.png",
+      "fields": {
+        "invoice_number": "Invoice number or reference ID",
+        "invoice_date": "Date of the invoice",
+        "vendor_name": "Name of the seller or vendor company",
+        "customer_name": "Name of the client or customer company"
+      },
+      "expected": {
+        "invoice_number": "65507091",
+        "invoice_date": "07/30/2014",
+        "vendor_name": "Pacheco, Simmons and Coleman 241 Heidi Vista Apt. 333 Odomvi",
+        "customer_name": "Hensley LLC 875 Jessica Course Apt. 269 North Kari, LA 34931"
+      }
+    },
+    {
+      "case_id": "docvqa_497",
+      "tags": [
+        "docvqa",
+        "diverse",
+        "business_document"
+      ],
+      "path": "datasets/diverse_docs/images/docvqa_497.png",
+      "fields": {
+        "company_name": "Company or organization name",
+        "total_amount": "Total amount",
+        "date": "Date of the document"
+      },
+      "expected": {
+        "company_name": "ELI LiLLY AND COMPANY",
+        "total_amount": "$203,280",
+        "date": "January 14, 1999"
+      }
+    },
+    {
+      "case_id": "invoice_0006",
+      "tags": [
+        "invoice",
+        "diverse",
+        "synthetic"
+      ],
+      "path": "datasets/diverse_docs/images/invoice_0006.png",
+      "fields": {
+        "invoice_number": "Invoice number or reference ID",
+        "invoice_date": "Date of the invoice",
+        "vendor_name": "Name of the seller or vendor company",
+        "customer_name": "Name of the client or customer company"
+      },
+      "expected": {
+        "invoice_number": "70123184",
+        "invoice_date": "01/28/2016",
+        "vendor_name": "Kelly, Hernandez and Vaughan 63133 Sean Forge Ericland, WY 9",
+        "customer_name": "Cooley Ltd 36837 Seth Lane Kevinview, NC29771"
+      }
+    },
+    {
+      "case_id": "docvqa_14388",
+      "tags": [
+        "docvqa",
+        "diverse",
+        "business_document"
+      ],
+      "path": "datasets/diverse_docs/images/docvqa_14388.png",
+      "fields": {
+        "institution_name": "Name of the institution",
+        "date": "Date of the document"
+      },
+      "expected": {
+        "institution_name": "vanderbilt university",
+        "date": "february 22, 1971"
+      }
+    },
+    {
+      "case_id": "invoice_0000",
+      "tags": [
+        "invoice",
+        "diverse",
+        "synthetic"
+      ],
+      "path": "datasets/diverse_docs/images/invoice_0000.png",
+      "fields": {
+        "invoice_number": "Invoice number or reference ID",
+        "invoice_date": "Date of the invoice",
+        "vendor_name": "Name of the seller or vendor company",
+        "customer_name": "Name of the client or customer company"
+      },
+      "expected": {
+        "invoice_number": "40378170",
+        "invoice_date": "10/15/2012",
+        "vendor_name": "Patel, Thompson and Montgomery 356 Kyle Vista New James, MA",
+        "customer_name": "Jackson, Odonnell and Jackson 267 John Track Suite 841 Jenni"
+      }
+    },
+    {
+      "case_id": "docvqa_14179",
+      "tags": [
+        "docvqa",
+        "diverse",
+        "business_document"
+      ],
+      "path": "datasets/diverse_docs/images/docvqa_14179.png",
+      "fields": {
+        "person_name": "Name of the person",
+        "institution_name": "Name of the institution"
+      },
+      "expected": {
+        "person_name": "Prof. W. J. Darby",
+        "institution_name": "Dept. of Nutrition"
+      }
+    },
+    {
+      "case_id": "invoice_0014",
+      "tags": [
+        "invoice",
+        "diverse",
+        "synthetic"
+      ],
+      "path": "datasets/diverse_docs/images/invoice_0014.png",
+      "fields": {
+        "invoice_number": "Invoice number or reference ID",
+        "invoice_date": "Date of the invoice",
+        "vendor_name": "Name of the seller or vendor company",
+        "customer_name": "Name of the client or customer company"
+      },
+      "expected": {
+        "invoice_number": "81163184",
+        "invoice_date": "10/23/2017",
+        "vendor_name": "Harrison-Melton 3468 Kevin Court Jenniferborough, ID 77615",
+        "customer_name": "Hoffman-Daniel 916 James Parks Suite 518 Bryanfurt, CO 16408"
+      }
+    },
+    {
+      "case_id": "invoice_0019",
+      "tags": [
+        "invoice",
+        "diverse",
+        "synthetic"
+      ],
+      "path": "datasets/diverse_docs/images/invoice_0019.png",
+      "fields": {
+        "invoice_number": "Invoice number or reference ID",
+        "invoice_date": "Date of the invoice",
+        "vendor_name": "Name of the seller or vendor company",
+        "customer_name": "Name of the client or customer company"
+      },
+      "expected": {
+        "invoice_number": "46405643",
+        "invoice_date": "05/16/2018",
+        "vendor_name": "Wilson Inc 52843 Tyler Track Suite 591 Lanemouth, ID 13638",
+        "customer_name": "Burke-Nelson 9539 Jennifer Pass Apt. 228 Erikfort, GA 55885"
+      }
+    },
+    {
+      "case_id": "invoice_0002",
+      "tags": [
+        "invoice",
+        "diverse",
+        "synthetic"
+      ],
+      "path": "datasets/diverse_docs/images/invoice_0002.png",
+      "fields": {
+        "invoice_number": "Invoice number or reference ID",
+        "invoice_date": "Date of the invoice",
+        "vendor_name": "Name of the seller or vendor company",
+        "customer_name": "Name of the client or customer company"
+      },
+      "expected": {
+        "invoice_number": "39280409",
+        "invoice_date": "07/06/2014",
+        "vendor_name": "Davis PLC 72057 Castillo Via Deniseshire, KY 95233",
+        "customer_name": "Bailey-Harris 106 Michael Street North William, DC 96680"
+      }
+    },
+    {
+      "case_id": "docvqa_2361",
+      "tags": [
+        "docvqa",
+        "diverse",
+        "business_document"
+      ],
+      "path": "datasets/diverse_docs/images/docvqa_2361.png",
+      "fields": {
+        "phone_number": "Phone or fax number",
+        "company_name": "Company or organization name"
+      },
+      "expected": {
+        "phone_number": "Mr. Dominick Griffo",
+        "company_name": "RJ Reynolds"
+      }
+    },
+    {
+      "case_id": "docvqa_491",
+      "tags": [
+        "docvqa",
+        "diverse",
+        "business_document"
+      ],
+      "path": "datasets/diverse_docs/images/docvqa_491.png",
+      "fields": {
+        "address": "Address",
+        "date": "Date of the document"
+      },
+      "expected": {
+        "address": "David Orloff, M.D.",
+        "date": "November 18, 2002"
+      }
+    },
+    {
+      "case_id": "docvqa_214",
+      "tags": [
+        "docvqa",
+        "diverse",
+        "business_document"
+      ],
+      "path": "datasets/diverse_docs/images/docvqa_214.png",
+      "fields": {
+        "subject": "Subject or title of the document",
+        "company_name": "Company or organization name"
+      },
+      "expected": {
+        "subject": "SARGASSO SEA TEMPERATURE",
+        "company_name": "Exxonmobil"
+      }
+    },
+    {
+      "case_id": "invoice_0003",
+      "tags": [
+        "invoice",
+        "diverse",
+        "synthetic"
+      ],
+      "path": "datasets/diverse_docs/images/invoice_0003.png",
+      "fields": {
+        "invoice_number": "Invoice number or reference ID",
+        "invoice_date": "Date of the invoice",
+        "vendor_name": "Name of the seller or vendor company",
+        "customer_name": "Name of the client or customer company"
+      },
+      "expected": {
+        "invoice_number": "27301261",
+        "invoice_date": "10/09/2012",
+        "vendor_name": "Williams LLC 72074 Taylor Plains Suite 342 West Alexandria,",
+        "customer_name": "Hernandez-Anderson 084 Carter Lane Apt. 846 South Ronaldbury"
+      }
+    },
+    {
+      "case_id": "docvqa_5324",
+      "tags": [
+        "docvqa",
+        "diverse",
+        "business_document"
+      ],
+      "path": "datasets/diverse_docs/images/docvqa_5324.png",
+      "fields": {
+        "phone_number": "Phone or fax number",
+        "address": "Address"
+      },
+      "expected": {
+        "phone_number": "360-666-3549",
+        "address": "www.pharmedassociates.com"
+      }
+    },
+    {
+      "case_id": "invoice_0004",
+      "tags": [
+        "invoice",
+        "diverse",
+        "synthetic"
+      ],
+      "path": "datasets/diverse_docs/images/invoice_0004.png",
+      "fields": {
+        "invoice_number": "Invoice number or reference ID",
+        "invoice_date": "Date of the invoice",
+        "vendor_name": "Name of the seller or vendor company",
+        "customer_name": "Name of the client or customer company"
+      },
+      "expected": {
+        "invoice_number": "10823698",
+        "invoice_date": "09/26/2020",
+        "vendor_name": "Hernandez Ltd 668 Marie Isle New Kimberg, AR 92381",
+        "customer_name": "Huerta-Cortez 22697 Hamilton Ranch New Samanthaton, AR 01797"
+      }
+    },
+    {
+      "case_id": "docvqa_14560",
+      "tags": [
+        "docvqa",
+        "diverse",
+        "business_document"
+      ],
+      "path": "datasets/diverse_docs/images/docvqa_14560.png",
+      "fields": {
+        "date": "Date of the document",
+        "address": "Address"
+      },
+      "expected": {
+        "date": "jan17'68",
+        "address": "food and nutrition board"
+      }
+    },
+    {
+      "case_id": "docvqa_3154",
+      "tags": [
+        "docvqa",
+        "diverse",
+        "business_document"
+      ],
+      "path": "datasets/diverse_docs/images/docvqa_3154.png",
+      "fields": {
+        "subject": "Subject or title of the document",
+        "phone_number": "Phone or fax number"
+      },
+      "expected": {
+        "subject": "response code request form",
+        "phone_number": "(910)765-3630"
+      }
+    },
+    {
+      "case_id": "invoice_0018",
+      "tags": [
+        "invoice",
+        "diverse",
+        "synthetic"
+      ],
+      "path": "datasets/diverse_docs/images/invoice_0018.png",
+      "fields": {
+        "invoice_number": "Invoice number or reference ID",
+        "invoice_date": "Date of the invoice",
+        "vendor_name": "Name of the seller or vendor company",
+        "customer_name": "Name of the client or customer company"
+      },
+      "expected": {
+        "invoice_number": "69941787",
+        "invoice_date": "03/03/2012",
+        "vendor_name": "Hanson PLC 2433 Johnston Lights Suite 326 West Robertfort, I",
+        "customer_name": "Nelson-Chandler 6461 Kendra Ridge Apt. 731 West Katherine, M"
+      }
+    },
+    {
+      "case_id": "invoice_0001",
+      "tags": [
+        "invoice",
+        "diverse",
+        "synthetic"
+      ],
+      "path": "datasets/diverse_docs/images/invoice_0001.png",
+      "fields": {
+        "invoice_number": "Invoice number or reference ID",
+        "invoice_date": "Date of the invoice",
+        "vendor_name": "Name of the seller or vendor company",
+        "customer_name": "Name of the client or customer company"
+      },
+      "expected": {
+        "invoice_number": "61356291",
+        "invoice_date": "09/06/2012",
+        "vendor_name": "Chapman, Kim and Green 64731 James Branch Smithmouth, NC 268",
+        "customer_name": "Rodriguez-Stevens 2280 Angela Plain Hortonshire, MS 93248"
+      }
+    },
+    {
+      "case_id": "invoice_0007",
+      "tags": [
+        "invoice",
+        "diverse",
+        "synthetic"
+      ],
+      "path": "datasets/diverse_docs/images/invoice_0007.png",
+      "fields": {
+        "invoice_number": "Invoice number or reference ID",
+        "invoice_date": "Date of the invoice",
+        "vendor_name": "Name of the seller or vendor company",
+        "customer_name": "Name of the client or customer company"
+      },
+      "expected": {
+        "invoice_number": "99763738",
+        "invoice_date": "06/14/2017",
+        "vendor_name": "Wheeler-Dawson 66055 Tammy Loaf Apt. 344 South Adamberg, AR",
+        "customer_name": "Franklin, Alexander and Ford 98812 Lynch Underpass Suite 322"
+      }
+    }
+  ]
+}

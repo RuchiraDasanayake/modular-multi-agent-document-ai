@@ -152,6 +152,7 @@ def _write_dae_output(result, doc_dir: Path) -> None:
         "doc_id": result.doc_id,
         "doc_type": result.doc_type,
         "vendor_cluster": result.vendor_cluster,
+        "semantic_doc_type": getattr(result, "semantic_doc_type", "unknown"),
         "layout_cluster_id": getattr(result, "layout_cluster_id", "unknown"),
         "route_bin": getattr(result, "route_bin", "standard"),
         "quality_bin": result.quality_bin,

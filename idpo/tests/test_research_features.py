@@ -25,7 +25,7 @@ import idpo.pipeline.feedback as feedback_module
 import scripts.run_idpo_benchmark as benchmark_module
 from idpo.pipeline.feedback import log_ahmn_feedback
 from idpo.pipeline.policy_safety import PolicySafetyMonitor
-from idpo.pipeline.planning import PlanRouter
+from idpo.pipeline.planning import PlanRouter, build_plan
 from idpo.pipeline.reward import _has_field_value
 from scripts.run_idpo_benchmark import run_benchmark
 from idpo.core.storage import repo_root
@@ -501,6 +501,38 @@ def test_plan_router_uses_adaptive_fallback_and_static_mode(tmp_path: Path) -> N
     assert static.policy.policy_id == "default"
     assert static.advice_source == "static"
     assert static.fallback_reason == "baseline_blocked"
+
+
+def test_build_plan_preserves_specialist_extraction_settings(tmp_path: Path) -> None:
+    config = PipelineConfig()
+    config.knowledge.policy_store_path = str(repo_root() / "configs" / "policy_store_research.json")
+    store = PolicyStore(config.knowledge.policy_store_path, default_policy_id="default")
+    receipt_policy = store._policy_map["receipt_specialist"]
+    dae = DAEOutput(
+        doc_id="cord-1",
+        doc_type="scanned_document",
+        vendor_cluster="cord",
+        quality_bin="C",
+        complexity_bin="2",
+        content_profile="image-heavy",
+        quality_score=0.1,
+        complexity_score=0.4,
+        semantic_doc_type="receipt",
+    )
+
+    plan = build_plan(
+        config=config,
+        dae_output=dae,
+        policy=receipt_policy,
+        system_constraints=SystemConstraints(max_cost_units=5, max_latency_ms=2000),
+        source="unit-test",
+        rationale="unit-test",
+    )
+
+    extract_step = next(step for step in plan.steps if step.operator == "structuring.extract")
+    assert extract_step.params["per_field_extraction"] is True
+    assert extract_step.params["use_thinking"] is False
+    assert "Point-of-sale receipt" in extract_step.params["extraction_context"]
 
 
 def test_plan_router_rejects_condition_mismatched_adaptive_recommendation(tmp_path: Path) -> None:
@@ -1288,6 +1320,115 @@ def test_case_metrics_handles_currency_prefixes_and_three_digit_grouping() -> No
         },
     )
     assert (tp, fp, fn) == (4, 0, 0)
+
+
+def test_exact_scoring_field_values_prefers_validation_normalized(tmp_path: Path) -> None:
+    normalized_path = tmp_path / "normalized.json"
+    normalized_path.write_text(
+        json.dumps(
+            {
+                "doc_id": "invoice_basic",
+                "normalized": {"invoice_date": "2026-01-31", "total_amount": "7000"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    doc = {
+        "structured_fields": {"invoice_date": "31/01/2026", "total_amount": "7,000"},
+        "validation_normalized_path": str(normalized_path),
+    }
+
+    assert benchmark_module._exact_scoring_field_values(doc) == {  # noqa: SLF001
+        "invoice_date": "2026-01-31",
+        "total_amount": "7000",
+    }
+
+
+def test_run_benchmark_scores_against_validation_normalized_fields(tmp_path: Path, monkeypatch) -> None:
+    runtime_root = tmp_path / "idpo-data"
+    monkeypatch.setenv("IDPO_DATA_DIR", str(runtime_root))
+
+    pack_path = tmp_path / "pack.json"
+    pack_path.write_text(
+        json.dumps(
+            {
+                "name": "normalized_exact_pack",
+                "cases": [
+                    {
+                        "case_id": "invoice_basic",
+                        "tags": ["table"],
+                        "path": "idpo/benchmark/data/invoice_basic.txt",
+                        "fields": {
+                            "invoice_date": "Invoice date",
+                            "total_amount": "Total amount",
+                        },
+                        "expected": {
+                            "invoice_date": "2026-01-31",
+                            "total_amount": "7000",
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_launch_process_inbox(*, root, config_path, extraction_fields, run_id, input_dir, job_id=None):  # noqa: ANN001
+        run_dir = tmp_path / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        normalized_path = run_dir / "normalized.json"
+        normalized_path.write_text(
+            json.dumps(
+                {
+                    "doc_id": "invoice_basic",
+                    "normalized": {
+                        "invoice_date": "2026-01-31",
+                        "total_amount": "7000",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        doc = {
+            "doc_id": "invoice_basic",
+            "policy_id": "default",
+            "latency_ms": 10.0,
+            "reward": 1.0,
+            "reward_type": "policy_declared",
+            "reward_details": {"f1": 1.0},
+            "validation_issue_count": 0,
+            "recovered_fields_count": 0,
+            "escalation_status": "not_needed",
+            "operator_stack": ["structuring.extract"],
+            "advice_source": "static",
+            "retrieval_source": None,
+            "advisor_recommendation": None,
+            "fallback_candidates": [],
+            "feedback_logged": True,
+            "feedback_error": None,
+            "rabi_used": False,
+            "advice_confidence": 0.0,
+            "fallback_reason": None,
+            "blocked_policy": False,
+            "rollback_triggered": False,
+            "defer_status": "not_needed",
+            "defer_reason": None,
+            "schema_coverage": 1.0,
+            "schema_grounding_coverage": 1.0,
+            "schema_valid": True,
+            "schema_missing_required_count": 0,
+            "schema_hallucinated_field_count": 0,
+            # Raw extraction is deliberately different; exact scoring must use normalized.
+            "structured_fields": {"invoice_date": "31/01/2026", "total_amount": "7,000"},
+            "validation_normalized_path": str(normalized_path),
+        }
+        return {"run_id": run_id, "run_dir": str(run_dir), "doc_records": [doc]}
+
+    monkeypatch.setattr(benchmark_module, "_launch_process_inbox", fake_launch_process_inbox)
+    evidence = run_benchmark(config_path="configs/idpo_research_config.json", pack_path=str(pack_path))
+
+    assert evidence["comparison"]["table"]["exact_f1"]["static"] == 1.0
+    assert evidence["comparison"]["table"]["exact_f1"][benchmark_module.ADAPTIVE_LABEL] == 1.0
 
 
 def test_register_frontend_jobs_uses_single_persistent_job(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
