@@ -1,0 +1,73 @@
+{
+  "policies": [
+    {
+      "policy_id": "default",
+      "name": "Safe Default Research Policy",
+      "conditions": {},
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 1,
+            "psm": 6,
+            "alt_psm": [
+              4
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "standard"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "record_id",
+            "document_date",
+            "total_amount"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_safe_default"
+        },
+        "recovery": {
+          "strategy": "regex"
+        },
+        "chunking": {
+          "chunk_size": 320,
+          "chunk_overlap": 50,
+          "max_chunks": 96
+        },
+        "retrieval": {
+          "dense_k": 10,
+          "sparse_k": 10,
+          "final_k": 10,
+          "mmr_lambda": 0.65,
+          "metadata_boost": 0.1
+        },
+        "token_budget": {
+          "max_tokens": 1400,
+          "reserved_tokens": 200,
+          "strategy": "simple"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "safe_default",
+        "family": "safe default",
+        "variant": "local",
+        "when_used": "Use when nothing else matches well enough and the system still needs a conservative extraction attempt.",
+        "why": "Provides a broad local-first baseline with light retrieval and no family-specific assumptions.",
+        "tradeoff": "Safe but generic. It is a starting point, not the strongest policy for specialized documents.",
+        "cost_profile": "low cost baseline"
+      }
+    }
+  ],
+  "version": "1.0",
+  "description": "Baseline store: single default policy only, no specialist routing"
+}

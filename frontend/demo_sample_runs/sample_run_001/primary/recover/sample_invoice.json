@@ -1,0 +1,13 @@
+{
+  "recovered_fields": {
+    "total_amount": "USD 1200.00"
+  },
+  "retry_log": [
+    {
+      "field": "total_amount",
+      "attempt": 1,
+      "strategy": "alternate_ocr",
+      "success": true
+    }
+  ]
+}

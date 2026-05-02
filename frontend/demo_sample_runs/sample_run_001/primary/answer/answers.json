@@ -1,0 +1,10 @@
+[
+  {
+    "doc_id": "sample_invoice",
+    "query": "What is the invoice total?",
+    "answer": "The invoice total is USD 1200.00.",
+    "citations": [
+      "sample_invoice_chunk_0"
+    ]
+  }
+]

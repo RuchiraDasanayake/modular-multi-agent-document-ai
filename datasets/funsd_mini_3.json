@@ -1,0 +1,65 @@
+{
+  "name": "funsd_mini_3",
+  "description": "FUNSD 3-doc debug pack",
+  "batch_mode": "single_run_per_condition",
+  "shared_fields": {
+    "date": "The date on the form (as written). Extract exactly as it appears.",
+    "recipient": "The recipient name or department in the TO field.",
+    "sender": "The sender name or department in the FROM field."
+  },
+  "cases": [
+    {
+      "case_id": "funsd_82092117",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82092117.png",
+      "fields": {
+        "recipient": "The recipient name or department in the TO field.",
+        "date": "The date on the form (as written). Extract exactly as it appears."
+      },
+      "expected": {
+        "recipient": "George Baroody",
+        "date": "12 /10 /98"
+      }
+    },
+    {
+      "case_id": "funsd_82200067_0069",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82200067_0069.png",
+      "fields": {
+        "recipient": "The recipient name or department in the TO field.",
+        "sender": "The sender name or department in the FROM field."
+      },
+      "expected": {
+        "recipient": "K. A. Sparrow",
+        "sender": "T. D. Blachly"
+      }
+    },
+    {
+      "case_id": "funsd_82250337_0338",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82250337_0338.png",
+      "fields": {
+        "recipient": "The recipient name or department in the TO field.",
+        "sender": "The sender name or department in the FROM field.",
+        "date": "The date on the form (as written). Extract exactly as it appears."
+      },
+      "expected": {
+        "recipient": "Sam Zolot",
+        "sender": "D. J. Landro",
+        "date": "2- Dec- 97"
+      }
+    }
+  ]
+}

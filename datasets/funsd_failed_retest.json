@@ -1,0 +1,119 @@
+{
+  "name": "funsd_failed_retest",
+  "description": "FUNSD docs that failed in batch 3 - retest with enhanced PaddleOCR preprocessing",
+  "cases": [
+    {
+      "case_id": "funsd_83823750",
+      "tags": ["funsd", "correspondence", "fax"],
+      "path": "datasets/FUNSD/testing_data/images/83823750.png",
+      "fields": {
+        "sender_name": "Name of the person sending the fax or letter",
+        "recipient_name": "Name of the person receiving the fax or letter",
+        "date": "Date of the document",
+        "company": "Company or organization name"
+      },
+      "expected": {
+        "sender_name": "Charles Duggan",
+        "recipient_name": "Robert H. Shaw",
+        "date": "November 11, 1997",
+        "company": "Lorillard Tobacco Company"
+      }
+    },
+    {
+      "case_id": "funsd_82253058_3059",
+      "tags": ["funsd", "correspondence", "memo"],
+      "path": "datasets/FUNSD/testing_data/images/82253058_3059.png",
+      "fields": {
+        "sender_name": "Name of the person who sent this memo",
+        "recipient_name": "Name of the person this memo is addressed to",
+        "date": "Date of the document",
+        "brand": "Product brand name mentioned"
+      },
+      "expected": {
+        "sender_name": "R. G. Ryan",
+        "recipient_name": "Mrs. K. A. Sparrow",
+        "date": "12/10/96",
+        "brand": "Camel Menthol"
+      }
+    },
+    {
+      "case_id": "funsd_82250337_0338",
+      "tags": ["funsd", "correspondence", "memo"],
+      "path": "datasets/FUNSD/testing_data/images/82250337_0338.png",
+      "fields": {
+        "sender_name": "Name of the person who sent this memo",
+        "recipient_name": "Name of the person this memo is addressed to",
+        "date": "Date of the document",
+        "brand": "Product brand name mentioned"
+      },
+      "expected": {
+        "sender_name": "D. J. Landro",
+        "recipient_name": "Sam Zolot",
+        "date": "2-Dec-97",
+        "brand": "Kool Waterfall"
+      }
+    },
+    {
+      "case_id": "funsd_82252956_2958",
+      "tags": ["funsd", "correspondence", "memo"],
+      "path": "datasets/FUNSD/testing_data/images/82252956_2958.png",
+      "fields": {
+        "sender_name": "Name of the person who sent this memo",
+        "recipient_name": "Name of the person this memo is addressed to",
+        "subject": "Subject line of the memo"
+      },
+      "expected": {
+        "sender_name": "D. J. Landro",
+        "recipient_name": "K. A. Sparrow",
+        "subject": "Old Gold Menthol Lights Progress Report"
+      }
+    },
+    {
+      "case_id": "funsd_83594639",
+      "tags": ["funsd", "correspondence", "fax"],
+      "path": "datasets/FUNSD/testing_data/images/83594639.png",
+      "fields": {
+        "sender_name": "Name of the person sending the fax",
+        "recipient_name": "Name of the person receiving the fax",
+        "date": "Date of the document",
+        "company": "Company or organization name"
+      },
+      "expected": {
+        "sender_name": "JJ Klein",
+        "recipient_name": "Ron Milstein",
+        "date": "September 22, 1997",
+        "company": "Lorillard"
+      }
+    },
+    {
+      "case_id": "funsd_83641919_1921",
+      "tags": ["funsd", "correspondence", "memo"],
+      "path": "datasets/FUNSD/testing_data/images/83641919_1921.png",
+      "fields": {
+        "sender_name": "Name of the person who sent this memo",
+        "recipient_name": "Name of the person this memo is addressed to",
+        "subject": "Subject line of the memo"
+      },
+      "expected": {
+        "sender_name": "R. W. Richardson",
+        "recipient_name": "S. P. Zolot",
+        "subject": "Old Gold Light Box Progress Report"
+      }
+    },
+    {
+      "case_id": "funsd_83635935",
+      "tags": ["funsd", "correspondence", "memo"],
+      "path": "datasets/FUNSD/testing_data/images/83635935.png",
+      "fields": {
+        "sender_name": "Name of the person who sent this",
+        "recipient_name": "Name of the person this is addressed to",
+        "date": "Date of the document"
+      },
+      "expected": {
+        "sender_name": "Barry Hirsch",
+        "recipient_name": "Dr. Spears",
+        "date": "June 4, 1997"
+      }
+    }
+  ]
+}

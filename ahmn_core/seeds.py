@@ -1,27 +1,26 @@
 """
-LTM Seed Data — Single Source of Truth
-========================================
-Authoritative policy seed data for AHMN's long-term memory initialization.
-Aligned with:
-  - configs/policy_store.json (5 policies: forms, scanned_text, table_heavy, mixed_content, default)
-  - IDPO pipeline document types and content profiles
-  - Guardrails DocumentType enum values
+LTM seed data for the canonical local-first policy bank.
 
-Used by:
-  - ahmn_core/main.py → Auto-seed on startup if LTM is empty
-  - scripts/reset_and_seed_db.py → Reseed the database
-  - scripts/fresh_deploy.py → Full reset via reset_and_seed_db.py
+This seed set is aligned with:
+  - configs/policy_store_research.json
+  - the default IDPO research runtime
+  - the free local-first product direction
 
-Policy Mappings:
-  table_heavy    → invoice, receipt, financial_statement, table_document
-  forms          → form_document, clinical_summary
-  scanned_text   → scanned_document, text_document
-  mixed_content  → mixed_document, contract
-  default        → unknown (catch-all)
+Optional paid cloud policies live in configs/policy_store_cloud_extensions.json
+and are intentionally not seeded here.
+
+Policy mappings:
+  table_heavy / table_dense_local -> invoice, receipt, financial_statement, table_document
+  forms / forms_rescue_local      -> form_document, clinical_summary, medical_record
+  noisy_ocr_rescue / noisy_ocr_precision_local -> noisy invoice-like OCR contexts
+  scanned_text          -> scanned_document
+  mixed_content         -> mixed_document, contract
+  long_document_chunked -> long heavy-route contracts
+  fast_local_text       -> text_document
+  default/unknown_vendor_safe -> unknown catch-all
 """
 
 LTM_SEEDS = [
-    # Invoice documents → table_heavy policy
     {
         "doc_type": "invoice",
         "content_profile": "table-heavy",
@@ -31,7 +30,15 @@ LTM_SEEDS = [
         "beta": 2.0,
         "confidence": 0.82,
     },
-    # Table documents → table_heavy policy
+    {
+        "doc_type": "invoice",
+        "content_profile": "table-heavy",
+        "policy_id": "table_dense_local",
+        "policy_data": {"doc_type": "invoice", "content_profile": "table-heavy", "action": "invoice_processing_dense_local", "origin": "seed"},
+        "alpha": 5.0,
+        "beta": 4.0,
+        "confidence": 0.56,
+    },
     {
         "doc_type": "table_document",
         "content_profile": "table-heavy",
@@ -41,7 +48,15 @@ LTM_SEEDS = [
         "beta": 3.0,
         "confidence": 0.73,
     },
-    # Receipt → table_heavy
+    {
+        "doc_type": "table_document",
+        "content_profile": "table-heavy",
+        "policy_id": "table_dense_local",
+        "policy_data": {"doc_type": "table_document", "content_profile": "table-heavy", "action": "table_extraction_dense_local", "origin": "seed"},
+        "alpha": 5.0,
+        "beta": 4.0,
+        "confidence": 0.56,
+    },
     {
         "doc_type": "receipt",
         "content_profile": "table-heavy",
@@ -51,7 +66,15 @@ LTM_SEEDS = [
         "beta": 3.0,
         "confidence": 0.70,
     },
-    # Form documents → forms policy
+    {
+        "doc_type": "receipt",
+        "content_profile": "table-heavy",
+        "policy_id": "table_dense_local",
+        "policy_data": {"doc_type": "receipt", "content_profile": "table-heavy", "action": "receipt_processing_dense_local", "origin": "seed"},
+        "alpha": 4.5,
+        "beta": 4.0,
+        "confidence": 0.53,
+    },
     {
         "doc_type": "form_document",
         "content_profile": "form-centric",
@@ -61,7 +84,15 @@ LTM_SEEDS = [
         "beta": 3.0,
         "confidence": 0.70,
     },
-    # Scanned documents → scanned_text policy
+    {
+        "doc_type": "form_document",
+        "content_profile": "form-centric",
+        "policy_id": "forms_rescue_local",
+        "policy_data": {"doc_type": "form_document", "content_profile": "form-centric", "action": "form_extraction_rescue_local", "origin": "seed"},
+        "alpha": 5.0,
+        "beta": 4.0,
+        "confidence": 0.56,
+    },
     {
         "doc_type": "scanned_document",
         "content_profile": "scanned",
@@ -71,7 +102,6 @@ LTM_SEEDS = [
         "beta": 4.0,
         "confidence": 0.60,
     },
-    # Mixed content → mixed_content policy
     {
         "doc_type": "mixed_document",
         "content_profile": "mixed",
@@ -81,7 +111,6 @@ LTM_SEEDS = [
         "beta": 3.0,
         "confidence": 0.63,
     },
-    # Contract → mixed_content (contracts are multi-section)
     {
         "doc_type": "contract",
         "content_profile": "mixed",
@@ -91,7 +120,6 @@ LTM_SEEDS = [
         "beta": 3.0,
         "confidence": 0.67,
     },
-    # Financial report → table_heavy (numbers + tables)
     {
         "doc_type": "financial_statement",
         "content_profile": "table-heavy",
@@ -101,17 +129,15 @@ LTM_SEEDS = [
         "beta": 4.0,
         "confidence": 0.64,
     },
-    # Text document → scanned_text
     {
         "doc_type": "text_document",
         "content_profile": "text-heavy",
-        "policy_id": "scanned_text",
-        "policy_data": {"doc_type": "text_document", "content_profile": "text-heavy", "action": "text_extraction", "origin": "seed"},
-        "alpha": 5.0,
-        "beta": 4.0,
-        "confidence": 0.56,
+        "policy_id": "fast_local_text",
+        "policy_data": {"doc_type": "text_document", "content_profile": "text-heavy", "action": "fast_text_extraction", "origin": "seed"},
+        "alpha": 7.0,
+        "beta": 3.0,
+        "confidence": 0.71,
     },
-    # Clinical summary → forms (structured extraction)
     {
         "doc_type": "clinical_summary",
         "content_profile": "form-centric",
@@ -121,17 +147,24 @@ LTM_SEEDS = [
         "beta": 3.0,
         "confidence": 0.67,
     },
-    # Unknown → default policy with flat prior
+    {
+        "doc_type": "clinical_summary",
+        "content_profile": "form-centric",
+        "policy_id": "forms_rescue_local",
+        "policy_data": {"doc_type": "clinical_summary", "content_profile": "form-centric", "action": "clinical_extraction_rescue_local", "origin": "seed"},
+        "alpha": 4.8,
+        "beta": 4.0,
+        "confidence": 0.55,
+    },
     {
         "doc_type": "unknown",
         "content_profile": "unknown",
-        "policy_id": "default",
-        "policy_data": {"doc_type": "unknown", "content_profile": "unknown", "action": "default_processing", "origin": "seed"},
+        "policy_id": "unknown_vendor_safe",
+        "policy_data": {"doc_type": "unknown", "content_profile": "unknown", "action": "safe_unknown_processing", "origin": "seed"},
         "alpha": 4.0,
         "beta": 4.0,
         "confidence": 0.50,
     },
-    # Medical record → forms
     {
         "doc_type": "medical_record",
         "content_profile": "form-centric",
@@ -140,5 +173,41 @@ LTM_SEEDS = [
         "alpha": 6.0,
         "beta": 4.0,
         "confidence": 0.60,
+    },
+    {
+        "doc_type": "medical_record",
+        "content_profile": "form-centric",
+        "policy_id": "forms_rescue_local",
+        "policy_data": {"doc_type": "medical_record", "content_profile": "form-centric", "action": "medical_extraction_rescue_local", "origin": "seed"},
+        "alpha": 4.5,
+        "beta": 4.2,
+        "confidence": 0.52,
+    },
+    {
+        "doc_type": "invoice",
+        "content_profile": "table-heavy",
+        "policy_id": "noisy_ocr_rescue",
+        "policy_data": {"doc_type": "invoice", "content_profile": "table-heavy", "action": "noisy_invoice_rescue", "origin": "seed"},
+        "alpha": 5.0,
+        "beta": 4.0,
+        "confidence": 0.58,
+    },
+    {
+        "doc_type": "invoice",
+        "content_profile": "table-heavy",
+        "policy_id": "noisy_ocr_precision_local",
+        "policy_data": {"doc_type": "invoice", "content_profile": "table-heavy", "action": "noisy_invoice_precision_local", "origin": "seed"},
+        "alpha": 4.6,
+        "beta": 4.1,
+        "confidence": 0.54,
+    },
+    {
+        "doc_type": "contract",
+        "content_profile": "mixed",
+        "policy_id": "long_document_chunked",
+        "policy_data": {"doc_type": "contract", "content_profile": "mixed", "action": "long_document_chunked", "origin": "seed"},
+        "alpha": 6.0,
+        "beta": 3.0,
+        "confidence": 0.69,
     },
 ]

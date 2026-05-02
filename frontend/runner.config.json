@@ -1,0 +1,57 @@
+{
+  "workspaceRoot": "..",
+  "runsDir": "../../idpo-data/runs",
+  "uploadsDir": "../../idpo-data/frontend/uploads",
+  "jobsDir": "../../idpo-data/frontend/jobs",
+  "demoSampleRunsDir": "./demo_sample_runs",
+  "maxUploadMb": 25,
+  "allowedExtensions": [
+    ".pdf",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".txt",
+    ".json"
+  ],
+  "defaultCommandId": "idpo_process_inbox",
+  "commands": [
+    {
+      "id": "idpo_process_inbox",
+      "description": "Run IDPO inbox pipeline over uploaded files",
+      "program": "../.venv/Scripts/python.exe",
+      "args": [
+        "-m",
+        "idpo.cli",
+        "process-inbox",
+        "--root",
+        "{workspace_root}",
+        "--config",
+        "{config_path}",
+        "--input-dir",
+        "{input_dir}"
+      ],
+      "cwd": "..",
+      "env": {
+        "PYTHONUTF8": "1"
+      }
+    }
+  ],
+  "backendChecks": [
+    {
+      "id": "idpo-cli",
+      "kind": "cli",
+      "command": "../.venv/Scripts/python.exe",
+      "args": [
+        "-m",
+        "idpo.cli",
+        "--help"
+      ]
+    },
+    {
+      "id": "ollama",
+      "kind": "http",
+      "url": "http://127.0.0.1:11434",
+      "timeoutMs": 3000
+    }
+  ]
+}

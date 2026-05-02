@@ -11,8 +11,36 @@ const nextConfig = {
       "http://localhost:8000";
     return [
       {
-        source: "/api/:path*",
-        destination: `${serverApiUrl}/api/:path*`,
+        source: "/api/auth/:path*",
+        destination: `${serverApiUrl}/api/auth/:path*`,
+      },
+      {
+        source: "/api/dashboard/:path*",
+        destination: `${serverApiUrl}/api/dashboard/:path*`,
+      },
+      {
+        source: "/api/experiments/:path*",
+        destination: `${serverApiUrl}/api/experiments/:path*`,
+      },
+      {
+        source: "/api/xai/:path*",
+        destination: `${serverApiUrl}/api/xai/:path*`,
+      },
+      {
+        source: "/api/hitl/:path*",
+        destination: `${serverApiUrl}/api/hitl/:path*`,
+      },
+      {
+        source: "/api/guardrails/:path*",
+        destination: `${serverApiUrl}/api/guardrails/:path*`,
+      },
+      {
+        source: "/api/idpo/:path*",
+        destination: `${serverApiUrl}/api/idpo/:path*`,
+      },
+      {
+        source: "/api/services/:path*",
+        destination: `${serverApiUrl}/api/services/:path*`,
       },
     ];
   },

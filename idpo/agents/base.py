@@ -18,6 +18,8 @@ class AgentContext:
     artifact_store: ArtifactStore
     provenance: ProvenanceRecorder
     run_id: str
+    budget_manager: Any | None = None
+    calibrator: Any | None = None
 
 class Agent:
     name: str = "agent"

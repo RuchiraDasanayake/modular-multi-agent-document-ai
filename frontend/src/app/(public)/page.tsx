@@ -135,8 +135,7 @@ export default function HomePage() {
                             transition={{ duration: 0.5, delay: 0.2 }}
                             className="text-lg text-slate-600 dark:text-gray-400 max-w-2xl mx-auto lg:mx-0 leading-relaxed"
                         >
-                            Extract, validate, and learn from any document with our multi-agent AI pipeline.
-                            Powered by explainable AI, smart validation, and continuous adaptive learning.
+                            A multi-agent document extraction pipeline that chooses its processing policy per document via contextual bandit learning, validates outputs against schema and source grounding, and learns from reviewer corrections.
                         </motion.p>
 
                         <motion.div

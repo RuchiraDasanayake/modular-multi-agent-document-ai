@@ -57,11 +57,11 @@ const ALGO_COLOR_MAP: Record<string, { border: string; bg: string; glow: string 
 
 const PIPELINE_STEPS = [
     { icon: "📥", label: "Upload", desc: "Drag & drop files" },
-    { icon: "🎯", label: "AHMN", desc: "Policy selection" },
-    { icon: "📄", label: "Extract", desc: "13-agent pipeline" },
-    { icon: "🛡️", label: "Validate", desc: "5-layer checks" },
-    { icon: "🔍", label: "Explain", desc: "XAI transparency" },
-    { icon: "📊", label: "Learn", desc: "Bandit updates" },
+    { icon: "🎯", label: "AHMN", desc: "Adaptive top-1 advice" },
+    { icon: "📄", label: "IDPO", desc: "Safe execution layer" },
+    { icon: "🛡️", label: "Validate", desc: "Fallback and rollback" },
+    { icon: "🔍", label: "XAI", desc: "Transparency and tracing" },
+    { icon: "📊", label: "HITL", desc: "Expert feedback loop" },
 ];
 
 export default function DashboardOverview() {
@@ -140,11 +140,10 @@ export default function DashboardOverview() {
                             )}
                         </div>
                         <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white tracking-tight leading-tight">
-                            Intelligent Document<br />Extraction
+                            Integrated Research<br />Document System
                         </h1>
                         <p className="text-white/75 mt-3 max-w-lg text-sm leading-relaxed">
-                            Upload documents and let our multi-agent AI pipeline extract, validate, and explain
-                            results — automatically learning from every interaction.
+                            The full system combines AHMN, IDPO, XAI, and HITL. The main runtime path focuses on fixed AHMN advice plus safe IDPO execution.
                         </p>
 
                         {/* Inline pipeline mini-viz */}
@@ -202,7 +201,25 @@ export default function DashboardOverview() {
 
             {/* ── Quick Actions Grid + Service Health ── */}
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-5 3xl:gap-6">
-                <div className="xl:col-span-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="xl:col-span-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <Link href="/dashboard/idpo" className="group glass-card-glow rounded-2xl p-5 flex flex-col gap-3 hover:border-brand-300 dark:hover:border-brand-500/30">
+                        <div className="w-11 h-11 rounded-xl bg-brand-50 dark:bg-brand-500/10 border border-brand-200/60 dark:border-brand-500/20 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+                            📄
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">IDPO Runtime</h3>
+                            <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">Run the live document pipeline in static or adaptive_safe mode</p>
+                        </div>
+                    </Link>
+                    <Link href="/dashboard/idpo/benchmark" className="group glass-card-glow rounded-2xl p-5 flex flex-col gap-3 hover:border-cyan-300 dark:hover:border-cyan-500/30">
+                        <div className="w-11 h-11 rounded-xl bg-cyan-50 dark:bg-cyan-500/10 border border-cyan-200/60 dark:border-cyan-500/20 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+                            📊
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Benchmark Results</h3>
+                            <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">Review static versus adaptive_safe performance and quality reports</p>
+                        </div>
+                    </Link>
                     <Link href="/dashboard/xai" className="group glass-card-glow rounded-2xl p-5 flex flex-col gap-3 hover:border-violet-300 dark:hover:border-violet-500/30">
                         <div className="w-11 h-11 rounded-xl bg-violet-50 dark:bg-violet-500/10 border border-violet-200/60 dark:border-violet-500/20 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
                             💬
@@ -280,8 +297,8 @@ export default function DashboardOverview() {
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-5 3xl:gap-6">
                 <div className="xl:col-span-2 glass-panel rounded-2xl p-5 sm:p-6 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-brand-500/5 to-cyan-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
-                    <h2 className="text-sm font-bold text-slate-900 dark:text-white mb-1 relative z-10">Research Algorithms</h2>
-                    <p className="text-xs text-slate-500 dark:text-gray-500 mb-4 relative z-10">Core innovations powering the extraction pipeline</p>
+                    <h2 className="text-sm font-bold text-slate-900 dark:text-white mb-1 relative z-10">Research Modules</h2>
+                    <p className="text-xs text-slate-500 dark:text-gray-500 mb-4 relative z-10">AHMN, IDPO, XAI, and HITL remain part of one integrated research system</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         {[
                             {

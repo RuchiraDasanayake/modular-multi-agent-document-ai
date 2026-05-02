@@ -1,4 +1,4 @@
-"""Entity extraction, sectioning, and document summarization agents."""
+"""Sectioning and summarization agents used by the active IDPO pipeline."""
 
 from __future__ import annotations
 
@@ -6,84 +6,9 @@ import re
 import time
 
 from idpo.agents.base import Agent, AgentContext
-from idpo.agents.llm_extraction import LLMExtractionAgent
 from idpo.core.contracts import AgentMessage
-from idpo.core.types import AgentResult, Document, Entity, Section, StageSignal
+from idpo.core.types import AgentResult, Document, Section, StageSignal
 
-class EntityExtractionAgent(Agent):
-    name = "entity_extraction"
-    version = "v1"
-    input_contract = {"document": "Document"}
-    output_contract = {"entities": "list", "signal": "StageSignal"}
-
-    def run(self, payload: AgentMessage, ctx: AgentContext) -> AgentResult:
-        started = time.time()
-        doc: Document = payload["document"]
-        entities: list[Entity] = []
-        full_text = "\n".join(page.text for page in doc.pages)
-
-        rules = ctx.config.structuring.extraction_rules
-        for rule in rules:
-            match = re.search(rule.pattern, full_text, re.IGNORECASE)
-            if match:
-                entities.append(
-                    Entity(
-                        key=rule.key,
-                        value=match.group(1).strip(),
-                        confidence=0.82,
-                        metadata={"pattern": rule.pattern, "label": rule.label},
-                    )
-                )
-
-        if ctx.config.structuring.allow_generic_kv:
-            entities.extend(self._generic_kv_entities(doc))
-
-        artifact = ctx.artifact_store.save_json(
-            f"{doc.doc_id}_entities.json",
-            {"entities": [entity.__dict__ for entity in entities]},
-            kind="entities",
-            raw=False,
-            metadata={"doc_id": doc.doc_id, "agent": self.name, "version": self.version},
-        )
-        signal = StageSignal(
-            stage=self.name,
-            confidence=0.7 if entities else 0.4,
-            uncertainty=0.3 if entities else 0.6,
-            metadata={"entity_count": len(entities)},
-        )
-        self._record(
-            ctx,
-            inputs={"doc_id": doc.doc_id},
-            outputs={"entity_count": len(entities), "artifact_id": artifact.artifact_id},
-            parameters={"rule_count": len(rules), "generic_kv": ctx.config.structuring.allow_generic_kv},
-            artifacts=[artifact.artifact_id],
-            output_artifacts=[artifact.artifact_id],
-            started=started,
-        )
-        return AgentResult(artifacts={"entities": entities, "entities_artifact": artifact, "signal": signal})
-
-    def _generic_kv_entities(self, doc: Document) -> list[Entity]:
-        entities: list[Entity] = []
-        lines = []
-        for page in doc.pages:
-            lines.extend(page.text.splitlines())
-        for line in lines:
-            if ":" not in line:
-                continue
-            key_part, value_part = line.split(":", 1)
-            key = key_part.strip().lower().replace(" ", "_")
-            value = value_part.strip()
-            if not key or not value:
-                continue
-            entities.append(
-                Entity(
-                    key=key,
-                    value=value,
-                    confidence=0.55,
-                    metadata={"generic_kv": True},
-                )
-            )
-        return entities
 
 class SectioningAgent(Agent):
     name = "sectioning"
@@ -167,35 +92,6 @@ class SectioningAgent(Agent):
         key = re.sub(r"[^a-z0-9]+", "_", stripped).strip("_")
         return key or "section"
 
-class ClassificationAgent(Agent):
-    name = "classification"
-    version = "v1"
-    input_contract = {"document": "Document", "analysis": "dict"}
-    output_contract = {"doc_type": "str", "signal": "StageSignal"}
-
-    def run(self, payload: AgentMessage, ctx: AgentContext) -> AgentResult:
-        started = time.time()
-        doc: Document = payload["document"]
-        analysis = payload.get("analysis", {})
-        doc_type = "text_document"
-        profile = analysis.get("profile") or doc.profile or ""
-        if "table" in profile:
-            doc_type = "table_document"
-        elif "form" in profile:
-            doc_type = "form_document"
-        elif doc.source == "scanned":
-            doc_type = "scanned_document"
-        doc.metadata["doc_type"] = doc_type
-
-        signal = StageSignal(stage=self.name, confidence=0.65, uncertainty=0.35, metadata={"doc_type": doc_type})
-        self._record(
-            ctx,
-            inputs={"doc_id": doc.doc_id},
-            outputs={"doc_type": doc_type},
-            parameters={},
-            started=started,
-        )
-        return AgentResult(artifacts={"doc_type": doc_type, "signal": signal})
 
 class SummarizationAgent(Agent):
     name = "summarization"
@@ -208,36 +104,27 @@ class SummarizationAgent(Agent):
         doc: Document = payload["document"]
         full_text = "\n".join(page.text for page in doc.pages)
 
-        # Pre-process: join broken lines into proper sentences
-        # Replace single newlines (not paragraph breaks) with spaces
-        cleaned_text = re.sub(r'(?<!\n)\n(?!\n)', ' ', full_text)
-        # Collapse multiple spaces
-        cleaned_text = re.sub(r'[ \t]+', ' ', cleaned_text)
-        # Remove bullet markers
-        cleaned_text = re.sub(r'[○●■□▪▸►▶•]', '', cleaned_text)
+        cleaned_text = re.sub(r"(?<!\n)\n(?!\n)", " ", full_text)
+        cleaned_text = re.sub(r"[ \t]+", " ", cleaned_text)
+        cleaned_text = re.sub(r"[\u25cb\u25cf\u25a0\u25a1\u25aa\u25b8\u25ba\u25b6\u2022]", "", cleaned_text)
 
-        # Extract meaningful sentences
         sentences = []
-        for s in re.split(r'(?<=[.!?])\s+', cleaned_text):
-            s = s.strip()
-            if len(s) > 20 and len(s.split()) >= 4:
-                sentences.append(s)
+        for sentence in re.split(r"(?<=[.!?])\s+", cleaned_text):
+            sentence = sentence.strip()
+            if len(sentence) > 20 and len(sentence.split()) >= 4:
+                sentences.append(sentence)
 
         if not sentences:
-            # Fallback: split by periods
-            sentences = [s.strip() for s in full_text.split(".") if len(s.strip()) > 15]
+            sentences = [sentence.strip() for sentence in full_text.split(".") if len(sentence.strip()) > 15]
 
-        # Use extractive summarization: pick the most informative sentences
-        # using a simple TF-IDF-like scoring approach
         summary_sentences = self._extract_key_sentences(sentences, max_sentences=5)
         summary = " ".join(summary_sentences).strip()
 
-        # Truncate if too long but preserve complete sentences
         if len(summary) > 800:
             truncated = summary[:800]
             last_period = truncated.rfind(".")
             if last_period > 400:
-                summary = truncated[:last_period + 1]
+                summary = truncated[: last_period + 1]
 
         artifact = ctx.artifact_store.save_text(
             f"{doc.doc_id}_summary.txt",
@@ -263,12 +150,10 @@ class SummarizationAgent(Agent):
         )
         return AgentResult(artifacts={"summary": summary, "summary_artifact": artifact, "signal": signal})
 
-    def _extract_key_sentences(self, sentences: list, max_sentences: int = 5) -> list:
-        """Pick the most informative sentences using word frequency scoring."""
+    def _extract_key_sentences(self, sentences: list[str], max_sentences: int = 5) -> list[str]:
         if len(sentences) <= max_sentences:
             return sentences
 
-        # Build word frequency map (excluding stop words)
         stop_words = {
             "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
             "have", "has", "had", "do", "does", "did", "will", "would", "could",
@@ -283,84 +168,23 @@ class SummarizationAgent(Agent):
             "those", "it", "its", "he", "she", "they", "we", "you", "i", "me",
             "my", "your", "his", "her", "our", "their",
         }
-        word_freq: dict = {}
+        word_freq: dict[str, int] = {}
         for sentence in sentences:
-            words = re.findall(r'\b[a-z]{3,}\b', sentence.lower())
+            words = re.findall(r"\b[a-z]{3,}\b", sentence.lower())
             for word in words:
                 if word not in stop_words:
                     word_freq[word] = word_freq.get(word, 0) + 1
 
-        # Score each sentence
-        scored = []
-        for i, sentence in enumerate(sentences):
-            words = re.findall(r'\b[a-z]{3,}\b', sentence.lower())
+        scored: list[tuple[float, int, str]] = []
+        for index, sentence in enumerate(sentences):
+            words = re.findall(r"\b[a-z]{3,}\b", sentence.lower())
             if not words:
-                scored.append((0.0, i, sentence))
+                scored.append((0.0, index, sentence))
                 continue
-            score = sum(word_freq.get(w, 0) for w in words if w not in stop_words) / len(words)
-            # Boost early sentences (they often contain key information)
-            position_boost = 1.0 + max(0, (5 - i) * 0.1)
-            scored.append((score * position_boost, i, sentence))
+            score = sum(word_freq.get(word, 0) for word in words if word not in stop_words) / len(words)
+            position_boost = 1.0 + max(0, (5 - index) * 0.1)
+            scored.append((score * position_boost, index, sentence))
 
-        scored.sort(key=lambda x: x[0], reverse=True)
-        selected = sorted(scored[:max_sentences], key=lambda x: x[1])  # preserve order
-        return [s[2] for s in selected]
-
-class StructuringRouter(Agent):
-    name = "structuring_router"
-    version = "v1"
-    input_contract = {
-        "document": "Document",
-        "analysis": "dict",
-        "policy": "ExtractionPolicy|None",
-        "model": "ModelDecision|None",
-        "input_artifact_id": "str|None",
-    }
-    output_contract = {
-        "entities": "list",
-        "explicit_entities": "list",
-        "default_entities": "list",
-        "sections": "list",
-        "summary": "str",
-        "signals": "list",
-    }
-
-    def __init__(self) -> None:
-        self.entity = LLMExtractionAgent()
-        self.section = SectioningAgent()
-        self.summary = SummarizationAgent()
-
-    def run(self, payload: AgentMessage, ctx: AgentContext) -> AgentResult:
-        started = time.time()
-        doc: Document = payload["document"]
-        analysis = payload.get("analysis", {})
-        result = AgentResult()
-        signals = []
-        policy = payload.get("policy")
-        model = payload.get("model")
-        input_artifact_id = payload.get("input_artifact_id")
-        entity_result = self.entity.run(
-            {"document": doc, "policy": policy, "model": model, "input_artifact_id": input_artifact_id},
-            ctx,
-        )
-        result = result.merge(entity_result)
-        signals.append(entity_result.artifacts.get("signal"))
-        section_result = self.section.run({"document": doc}, ctx)
-        result = result.merge(section_result)
-        signals.append(section_result.artifacts.get("signal"))
-        summary_result = self.summary.run({"document": doc}, ctx)
-        result = result.merge(summary_result)
-        signals.append(summary_result.artifacts.get("signal"))
-
-        self._record(
-            ctx,
-            inputs={"doc_id": doc.doc_id},
-            outputs={
-                "explicit_entities": len(entity_result.artifacts.get("explicit_entities", [])),
-                "default_entities": len(entity_result.artifacts.get("default_entities", [])),
-            },
-            parameters={"policy_id": policy.policy_id if policy else None},
-            started=started,
-        )
-        result.artifacts["signals"] = [signal for signal in signals if signal]
-        return result
+        scored.sort(key=lambda item: item[0], reverse=True)
+        selected = sorted(scored[:max_sentences], key=lambda item: item[1])
+        return [item[2] for item in selected]

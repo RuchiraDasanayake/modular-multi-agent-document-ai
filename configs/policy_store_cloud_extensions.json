@@ -1,0 +1,413 @@
+{
+  "default_policy_id": "default",
+  "extension_type": "cloud_optional",
+  "enabled_by_default": false,
+  "policies": [
+    {
+      "policy_id": "table_heavy_cloud",
+      "name": "Table Heavy Cloud Policy",
+      "conditions": {
+        "content_profile": [
+          "table-heavy"
+        ],
+        "route_bin": [
+          "standard",
+          "heavy"
+        ]
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2,
+            "psm": 6,
+            "alt_psm": [
+              4,
+              11
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "aggressive"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "invoice_number",
+            "supplier_name",
+            "total_amount",
+            "subtotal",
+            "tax",
+            "due_date"
+          ],
+          "model_tier": "cloud",
+          "ruleset": "research_table_cloud"
+        },
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "chunking": {
+          "chunk_size": 260,
+          "chunk_overlap": 40,
+          "max_chunks": 160
+        },
+        "retrieval": {
+          "dense_k": 12,
+          "sparse_k": 16,
+          "final_k": 12,
+          "mmr_lambda": 0.8,
+          "metadata_boost": 0.2
+        },
+        "token_budget": {
+          "max_tokens": 1800,
+          "reserved_tokens": 240,
+          "strategy": "simple"
+        },
+        "escalation": {
+          "tier": "tier2"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "table_precision",
+        "family": "table extraction",
+        "variant": "cloud-extension",
+        "base_policy_id": "table_heavy",
+        "when_used": "Optional paid extension for dense or ambiguous table-heavy contexts after local policies underperform.",
+        "why": "Keeps the same table strategy but swaps in a stronger cloud model when the operator enables paid inference.",
+        "tradeoff": "Higher cost and latency, justified only when local reviewed outcomes stay weak.",
+        "cost_profile": "high cost optional extension"
+      }
+    },
+    {
+      "policy_id": "forms_cloud",
+      "name": "Form Validation Cloud Policy",
+      "conditions": {
+        "content_profile": [
+          "form-centric"
+        ]
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 3,
+            "psm": 6,
+            "alt_psm": [
+              4,
+              6,
+              11
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "aggressive"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "claim_number",
+            "member_id",
+            "service_date",
+            "approval_code",
+            "total_amount"
+          ],
+          "field_descriptions": {
+            "approval_code": "Approval code required by form review workflows."
+          },
+          "model_tier": "cloud",
+          "ruleset": "research_forms_cloud"
+        },
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "escalation": {
+          "tier": "tier2"
+        },
+        "chunking": {
+          "chunk_size": 320,
+          "chunk_overlap": 45,
+          "max_chunks": 128
+        },
+        "token_budget": {
+          "max_tokens": 1800,
+          "reserved_tokens": 240,
+          "strategy": "simple"
+        },
+        "retrieval": {
+          "dense_k": 12,
+          "sparse_k": 12,
+          "final_k": 12
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "form_validation",
+        "family": "form extraction",
+        "variant": "cloud-extension",
+        "base_policy_id": "forms",
+        "when_used": "Optional paid extension for form-centric contexts after reviewed local failures.",
+        "why": "Keeps the same field targets and preprocessing while raising extraction strength for hard forms.",
+        "tradeoff": "Higher cost and latency than the local form family.",
+        "cost_profile": "high cost optional extension"
+      }
+    },
+    {
+      "policy_id": "noisy_ocr_rescue_cloud",
+      "name": "Noisy OCR Rescue Cloud Policy",
+      "conditions": {
+        "quality_bin": [
+          "C"
+        ],
+        "quality_features.ocr_noise_ratio": {
+          "min": 0.12
+        }
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 3,
+            "psm": 4,
+            "alt_psm": [
+              6,
+              11
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "aggressive"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "record_id",
+            "document_date",
+            "reference_code",
+            "total_amount"
+          ],
+          "model_tier": "cloud",
+          "ruleset": "research_noisy_ocr_rescue_cloud"
+        },
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "chunking": {
+          "chunk_size": 280,
+          "chunk_overlap": 55,
+          "max_chunks": 120
+        },
+        "retrieval": {
+          "dense_k": 12,
+          "sparse_k": 14,
+          "final_k": 12,
+          "mmr_lambda": 0.78,
+          "metadata_boost": 0.18
+        },
+        "token_budget": {
+          "max_tokens": 1800,
+          "reserved_tokens": 240,
+          "strategy": "simple"
+        },
+        "escalation": {
+          "tier": "tier2"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "noisy_ocr_rescue",
+        "family": "ocr rescue",
+        "variant": "cloud-extension",
+        "base_policy_id": "noisy_ocr_rescue",
+        "when_used": "Optional paid extension for badly degraded OCR where local rescue policies still underperform after review.",
+        "why": "Keeps the aggressive OCR cleanup path but swaps in a stronger model when local rescue is not enough.",
+        "tradeoff": "Most expensive rescue path in the optional bank.",
+        "cost_profile": "high cost optional extension"
+      }
+    },
+    {
+      "policy_id": "long_document_chunked_cloud",
+      "name": "Long Document Chunked Cloud Policy",
+      "conditions": {
+        "route_bin": [
+          "heavy"
+        ],
+        "complexity_bin": [
+          "3"
+        ],
+        "structural_features.line_length_cv": {
+          "max": 0.55
+        }
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2,
+            "psm": 3,
+            "alt_psm": [
+              4,
+              6
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "standard"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "agreement_id",
+            "effective_date",
+            "party_a",
+            "party_b",
+            "reference_code",
+            "total_value"
+          ],
+          "model_tier": "cloud",
+          "ruleset": "research_long_document_chunked_cloud"
+        },
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "chunking": {
+          "chunk_size": 540,
+          "chunk_overlap": 110,
+          "max_chunks": 220
+        },
+        "retrieval": {
+          "dense_k": 16,
+          "sparse_k": 14,
+          "final_k": 14,
+          "mmr_lambda": 0.72,
+          "metadata_boost": 0.2
+        },
+        "token_budget": {
+          "max_tokens": 2200,
+          "reserved_tokens": 260,
+          "strategy": "simple"
+        },
+        "escalation": {
+          "tier": "tier2"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "long_document_chunked",
+        "family": "long document",
+        "variant": "cloud-extension",
+        "base_policy_id": "long_document_chunked",
+        "when_used": "Optional paid extension for long heavy-route contexts after reviewed local failures.",
+        "why": "Keeps the same chunking and retrieval strategy but raises extraction strength when long-context local performance is weak.",
+        "tradeoff": "Higher cost and latency than the local long-document family.",
+        "cost_profile": "high cost optional extension"
+      }
+    },
+    {
+      "policy_id": "mixed_content_cloud",
+      "name": "Mixed Content Cloud Policy",
+      "conditions": {
+        "content_profile": [
+          "mixed"
+        ]
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2,
+            "psm": 3,
+            "alt_psm": [
+              4,
+              6
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "standard"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "agreement_id",
+            "effective_date",
+            "party_a",
+            "party_b",
+            "total_value"
+          ],
+          "model_tier": "cloud",
+          "ruleset": "research_mixed_cloud"
+        },
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "chunking": {
+          "chunk_size": 380,
+          "chunk_overlap": 70,
+          "max_chunks": 150
+        },
+        "retrieval": {
+          "dense_k": 12,
+          "sparse_k": 12,
+          "final_k": 12,
+          "mmr_lambda": 0.7,
+          "metadata_boost": 0.15
+        },
+        "token_budget": {
+          "max_tokens": 1800,
+          "reserved_tokens": 240,
+          "strategy": "simple"
+        },
+        "escalation": {
+          "tier": "tier2"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "balanced_multisection",
+        "family": "mixed content",
+        "variant": "cloud-extension",
+        "base_policy_id": "mixed_content",
+        "when_used": "Optional paid extension for mixed-layout contexts after reviewed local underperformance.",
+        "why": "Keeps the balanced mixed-layout strategy but uses a stronger model only when the operator enables paid inference.",
+        "tradeoff": "Higher cost and latency than the local mixed-content family.",
+        "cost_profile": "high cost optional extension"
+      }
+    }
+  ]
+}

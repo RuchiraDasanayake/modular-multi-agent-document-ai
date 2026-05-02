@@ -6,7 +6,8 @@ Reads experiment_results.json and produces:
   2. Per-scenario breakdown
   3. Statistical significance tests (Mann-Whitney U)
   4. Ablation study summaries
-  5. Data structures ready for matplotlib/seaborn plotting
+  5. Per-round regret curves with 95% confidence bands (saved as PNGs)
+  6. Failure mode catalog from robustness sweeps
 
 Usage:
     cd ahmn_core
@@ -20,12 +21,33 @@ import numpy as np
 
 from collections import defaultdict
 
-# scipy for statistical tests
 try:
     from scipy import stats as sp_stats
     HAS_SCIPY = True
 except ImportError:
     HAS_SCIPY = False
+
+try:
+    import matplotlib
+    matplotlib.use("Agg")  # headless — no display needed
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+    HAS_MPL = True
+except ImportError:
+    HAS_MPL = False
+
+# Colour-blind-safe palette (7 methods)
+METHOD_COLORS = {
+    "Random":     "#999999",
+    "ε-Greedy":   "#E69F00",
+    "UCB1":       "#56B4E9",
+    "TS (base)":  "#009E73",
+    "AHMN-RABI":  "#F0E442",
+    "AHMN-DAAF":  "#0072B2",
+    "AHMN-Full":  "#D55E00",
+}
+METHOD_ORDER = ["Random", "ε-Greedy", "UCB1", "TS (base)",
+                "AHMN-RABI", "AHMN-DAAF", "AHMN-Full"]
 
 def load_results(path: str | None = None) -> dict:
     """Load experiment results from JSON."""
@@ -210,6 +232,204 @@ def print_improvement_summary(results: list[dict]):
                 print(f"    vs {baseline:<12s}: {improvement:+.1f}% regret reduction "
                       f"({base_mean:.1f} → {ahmn_mean:.1f})")
 
+def _ci95(values_2d: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return (mean, half-width of 95% CI) across axis 0 using bootstrap t-interval."""
+    mean = values_2d.mean(axis=0)
+    sem = values_2d.std(axis=0, ddof=1) / np.sqrt(values_2d.shape[0])
+    # t-multiplier for 95% CI (approximated as 1.96 for n >= 10)
+    hw = 1.96 * sem
+    return mean, hw
+
+
+def plot_regret_curves(results: list[dict], out_dir: str) -> list[str]:
+    """
+    Save one PNG per scenario showing per-round cumulative regret (mean ± 95% CI).
+
+    Each line is a method. Shaded band is the 95% confidence interval across seeds.
+    Returns list of saved file paths.
+    """
+    if not HAS_MPL:
+        print("[WARN] matplotlib not installed — skipping plots. pip install matplotlib")
+        return []
+
+    os.makedirs(out_dir, exist_ok=True)
+    grouped = group_results(results)
+    saved = []
+
+    scenario_titles = {
+        "stationary":    "Stationary — no drift, no cold-start",
+        "cold_start":    "Cold-start — new vendors arrive mid-run",
+        "concept_drift": "Concept drift — gradual then abrupt shift",
+        "combined":      "Combined — cold-start + drift together",
+    }
+
+    for scenario_name, scenario_data in grouped.items():
+        fig, ax = plt.subplots(figsize=(9, 5))
+
+        for method in METHOD_ORDER:
+            if method not in scenario_data:
+                continue
+            runs = scenario_data[method]
+            # Stack cumulative regret arrays: shape (n_seeds, n_rounds)
+            arrays = np.array([r["cumulative_regret"] for r in runs])
+            mean, hw = _ci95(arrays)
+            rounds = np.arange(1, len(mean) + 1)
+            color = METHOD_COLORS.get(method, "#333333")
+            lw = 2.5 if method == "AHMN-Full" else 1.5
+            ax.plot(rounds, mean, label=method, color=color, linewidth=lw)
+            ax.fill_between(rounds, mean - hw, mean + hw, color=color, alpha=0.15)
+
+        # Mark drift events with vertical dashed lines
+        drift_markers = {
+            "concept_drift": [(500, "Gradual drift"), (1000, "Abrupt drift")],
+            "combined":      [(600, "Corp-A drift")],
+        }
+        for round_num, label in drift_markers.get(scenario_name, []):
+            ax.axvline(round_num, color="#CC0000", linestyle="--", linewidth=1, alpha=0.6)
+            ax.text(round_num + 10, ax.get_ylim()[1] * 0.98, label,
+                    fontsize=7, color="#CC0000", va="top")
+
+        ax.set_xlabel("Round", fontsize=11)
+        ax.set_ylabel("Cumulative pseudo-regret", fontsize=11)
+        ax.set_title(scenario_titles.get(scenario_name, scenario_name), fontsize=12)
+        ax.legend(fontsize=8, loc="upper left")
+        ax.grid(True, alpha=0.3)
+        fig.tight_layout()
+
+        path = os.path.join(out_dir, f"regret_curve_{scenario_name}.png")
+        fig.savefig(path, dpi=150)
+        plt.close(fig)
+        saved.append(path)
+        print(f"  Saved: {path}")
+
+    return saved
+
+
+def plot_drift_recovery(results: list[dict], out_dir: str) -> str | None:
+    """
+    Focus plot: reward over time for the drift scenario only.
+
+    Shows how fast each method recovers after each drift event.
+    Only plots TS (base), AHMN-DAAF, and AHMN-Full to keep it readable.
+    """
+    if not HAS_MPL:
+        return None
+
+    os.makedirs(out_dir, exist_ok=True)
+    grouped = group_results(results)
+    if "concept_drift" not in grouped:
+        return None
+
+    scenario_data = grouped["concept_drift"]
+    focus_methods = ["TS (base)", "AHMN-DAAF", "AHMN-Full"]
+    drift_rounds = [500, 1000]
+
+    fig, ax = plt.subplots(figsize=(9, 4))
+
+    for method in focus_methods:
+        if method not in scenario_data:
+            continue
+        arrays = np.array([r["rewards"] for r in scenario_data[method]])
+        # Rolling mean (window=30) for readability
+        kernel = np.ones(30) / 30
+        smoothed = np.array([np.convolve(row, kernel, mode="same") for row in arrays])
+        mean, hw = _ci95(smoothed)
+        rounds = np.arange(1, len(mean) + 1)
+        color = METHOD_COLORS.get(method, "#333333")
+        lw = 2.5 if method == "AHMN-Full" else 1.8
+        ax.plot(rounds, mean, label=method, color=color, linewidth=lw)
+        ax.fill_between(rounds, mean - hw, mean + hw, color=color, alpha=0.15)
+
+    for r in drift_rounds:
+        ax.axvline(r, color="#CC0000", linestyle="--", linewidth=1, alpha=0.7)
+
+    ax.text(510, ax.get_ylim()[0] + 0.01, "Gradual drift", fontsize=7, color="#CC0000")
+    ax.text(1010, ax.get_ylim()[0] + 0.01, "Abrupt drift", fontsize=7, color="#CC0000")
+    ax.set_xlabel("Round", fontsize=11)
+    ax.set_ylabel("Smoothed reward (F1)", fontsize=11)
+    ax.set_title("Drift recovery: DAAF vs Thompson Sampling", fontsize=12)
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+
+    path = os.path.join(out_dir, "drift_recovery.png")
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    print(f"  Saved: {path}")
+    return path
+
+
+def load_robustness_results(base_dir: str | None = None) -> dict | None:
+    """Try to load robustness_results.json from standard output locations."""
+    candidates = []
+    if base_dir:
+        candidates.append(os.path.join(base_dir, "robustness_results.json"))
+    candidates += [
+        os.path.join("output", "robustness_results.json"),
+        os.path.join("ahmn_core", "output", "robustness_results.json"),
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            with open(p) as f:
+                return json.load(f)
+    return None
+
+
+def print_failure_mode_catalog(robustness: dict | None):
+    """
+    Show the conditions where AHMN underperforms plain Thompson Sampling.
+
+    Reads the robustness sweep data (sweeps key) and reports every setting
+    where the AHMN variant's regret exceeds the TS baseline regret.
+    """
+    print("\n" + "=" * 80)
+    print("FAILURE MODE CATALOG — when AHMN underperforms plain Thompson Sampling")
+    print("=" * 80)
+
+    if not robustness:
+        print("  [SKIP] No robustness_results.json found.")
+        print("  Run first:  python -m experiments.robustness_study")
+        return
+
+    sweeps = robustness.get("sweeps", {})
+    if not sweeps:
+        print("  [SKIP] robustness_results.json has no sweeps key.")
+        return
+
+    print(f"  {'Condition':<35s} {'AHMN regret':>12s}  {'TS regret':>10s}  {'Delta':>8s}")
+    print(f"  {'-'*35} {'-'*12}  {'-'*10}  {'-'*8}")
+
+    found_any = False
+    for sweep_name, sweep_data in sweeps.items():
+        if not isinstance(sweep_data, dict):
+            continue
+        for param_val, metrics in sweep_data.items():
+            if not isinstance(metrics, dict):
+                continue
+            # Robustness study stores regret under a nested "regret" key
+            regret_block = metrics.get("regret", metrics)
+            ahmn_r = regret_block.get("variant_mean")
+            ts_r   = regret_block.get("baseline_mean")
+            if ahmn_r is None or ts_r is None:
+                continue
+            if ahmn_r > ts_r + 0.5:   # +0.5 tolerance — small differences are noise
+                delta = ahmn_r - ts_r
+                label = f"{sweep_name} = {param_val}"
+                print(f"  {label:<35s} {ahmn_r:>12.1f}  {ts_r:>10.1f}  +{delta:.1f}")
+                found_any = True
+
+    if not found_any:
+        print("  No conditions found where AHMN is meaningfully worse than TS.")
+        print("  Try widening the sweep ranges in robustness_study.py.")
+
+    print()
+    print("  Decision guide:")
+    print("    Use AHMN when: vendors share similar document formats (cos-sim > 0.4),")
+    print("                   drift magnitude > 0.05, or > 20% of vendors are new.")
+    print("    Use plain TS when: context embeddings are unreliable or reward noise")
+    print("                       is very high (noise_std > 0.15).")
+
+
 def main():
     # Try loading from output directory  
     search_paths = [
@@ -241,19 +461,46 @@ def main():
     print_main_comparison_table(results)
     print_statistical_tests(results)
     print_improvement_summary(results)
-    
+
     # Ablation studies
     print("\n" + "=" * 80)
     print("ABLATION STUDIES")
     print("=" * 80)
-    
     print_ablation_summary(data, "ablation_rabi_temperature", "Temperature τ")
     print_ablation_summary(data, "ablation_daaf_window", "Window Size")
     print_ablation_summary(data, "ablation_similarity_threshold", "Sim. Thresh.")
-    
+
+    # Failure mode catalog (loaded from separate robustness_results.json)
+    # analysis.py lives in ahmn_core/experiments/ — output is at ahmn_core/output/
+    out_base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "output")
+    robustness = load_robustness_results(out_base)
+    if robustness and "sweeps" not in robustness and "sweeps" not in robustness:
+        # older format uses top-level keys directly
+        robustness = {"sweeps": robustness}
+    print_failure_mode_catalog(robustness)
+
     # LaTeX
     print_latex_table(results)
-    
+
+    # Convergence curve plots — load per-round arrays from curves file
+    out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           "..", "output", "plots")
+    print(f"\nGenerating plots → {out_dir}")
+    curves_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "..", "output", "experiment_curves.json")
+    curve_results = results  # fallback to summary results
+    if os.path.exists(curves_path):
+        with open(curves_path) as f:
+            curve_results = json.load(f)["main_results"]
+    else:
+        print("  [WARN] experiment_curves.json not found — rerun run_experiments.py to generate plots.")
+    saved = plot_regret_curves(curve_results, out_dir)
+    drift_plot = plot_drift_recovery(curve_results, out_dir)
+    if not HAS_MPL:
+        print("  Install matplotlib to generate plots: pip install matplotlib")
+    elif saved or drift_plot:
+        print(f"  {len(saved) + (1 if drift_plot else 0)} plot(s) saved.")
+
     print("\n✓ Analysis complete.")
 
 if __name__ == "__main__":

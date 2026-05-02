@@ -1,0 +1,45 @@
+# Core pipeline
+numpy==1.26.4
+pillow==12.2.0
+requests==2.33.1
+pydantic==2.13.3
+
+# OCR — Tesseract (install binary separately, see SETUP.md)
+pytesseract==0.3.13
+pdf2image==1.17.0
+
+# OCR — PaddleOCR (CPU, Python 3.10 only — do NOT use Python 3.13)
+paddlepaddle==2.6.2
+paddleocr==2.9.1
+paddlex==3.5.0
+opencv-python==4.11.0.86
+lmdb==2.2.0
+protobuf==3.20.2
+lxml==6.1.0
+beautifulsoup4==4.14.3
+soupsieve==2.8.3
+rapidfuzz==3.14.5
+termcolor==3.3.0
+fire==0.7.1
+astor==0.8.1
+decorator==5.2.1
+imgaug==0.4.0
+albumentations==1.4.10
+python-docx==1.2.0
+
+# PDF
+pypdf==6.10.2
+
+# Frontend API server
+fastapi==0.136.0
+starlette==1.0.0
+uvicorn==0.45.0
+python-multipart==0.0.26
+httpx==0.28.1
+anyio==4.13.0
+
+# LLM clients (cloud fallback — Ollama is primary, install separately)
+openai==2.32.0
+
+# Optional extras
+openpyxl==3.1.5

@@ -15,7 +15,6 @@ import {
     SendHorizonal,
     Blocks,
     FlaskConical,
-    Target,
     Snowflake,
     Waves,
     Lock,
@@ -26,7 +25,7 @@ import {
     Crown,
     Zap,
     X,
-    History,
+    BarChart3,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -42,7 +41,8 @@ interface NavItem {
 
 const USER_NAV: NavItem[] = [
     { href: "/dashboard/idpo", label: "Doc Extraction", Icon: FileText, badge: "Core", color: "brand" },
-    { href: "/dashboard/history", label: "Processing History", Icon: History, color: "cyan" },
+    { href: "/dashboard/idpo/benchmark", label: "Benchmark Results", Icon: BarChart3, color: "cyan" },
+    { href: "/dashboard/idpo/presentation", label: "Run Walkthrough", Icon: Blocks, color: "cyan" },
     { href: "/dashboard/xai", label: "AI Q&A", Icon: MessageSquare, color: "violet" },
     { href: "/dashboard/guardrails", label: "Quality Checks", Icon: ShieldCheck, color: "emerald" },
     { href: "/dashboard/hitl", label: "Expert Review", Icon: UserCheck, color: "amber" },
@@ -196,7 +196,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                         <div className="flex-1 min-w-0">
                             <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Modular Doc AI</h2>
                             <p className="text-[10px] font-semibold tracking-wide uppercase bg-gradient-to-r from-brand-500 to-cyan-500 bg-clip-text text-transparent">
-                                {isAdmin ? "Admin Console" : "Processing Hub"}
+                                {isAdmin ? "Research Console" : "Research System"}
                             </p>
                         </div>
                     </Link>

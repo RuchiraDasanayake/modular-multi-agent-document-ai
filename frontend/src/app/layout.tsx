@@ -5,7 +5,7 @@ import { ToastProvider } from "@/components/toast";
 
 export const metadata: Metadata = {
     title: "Modular Document AI",
-    description: "Intelligent document processing with transparent AI, expert review, and built-in quality checks",
+    description: "Adaptive document extraction with policy-driven pipelines, reviewer-in-the-loop feedback, and validation guardrails.",
     keywords: ["document AI", "NLP", "machine learning", "explainable AI", "guardrails", "multi-agent"],
     authors: [{ name: "Modular Doc AI Team" }],
 };

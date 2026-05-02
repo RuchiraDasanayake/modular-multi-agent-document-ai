@@ -1,0 +1,13 @@
+{
+  "fields": [
+    {
+      "key": "statement_id",
+      "value": "ST-101",
+      "confidence_score": 0.9,
+      "confidence_type": "calibrated",
+      "extraction_method": "rule_based",
+      "evidence_span": [12, 18],
+      "page": 1
+    }
+  ]
+}

@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import sys
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -44,6 +45,10 @@ logging.basicConfig(
     format="%(asctime)s [%(name)s] %(levelname)s — %(message)s",
 )
 logger = logging.getLogger("xai_hitl")
+
+# psycopg async connections on Windows require Selector event loop.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # ---------------------------------------------------------------------------
 # Pydantic schemas (self-contained — no dependency on gateway schemas)
@@ -426,14 +431,22 @@ async def _load_feedback_from_db() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    """Pre-load XAI engine and hydrate feedback from Postgres at startup."""
-    if _engine_available:
+    """Hydrate feedback on boot; preload engine only when explicitly enabled."""
+    preload_engine = os.environ.get("XAI_PRELOAD_ENGINE", "0").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    if preload_engine and _engine_available:
         try:
-            logger.info("Pre-loading XAI engine at startup...")
+            logger.info("Pre-loading XAI engine at startup (XAI_PRELOAD_ENGINE=1)...")
             _get_engine()
             logger.info("XAI engine pre-loaded successfully")
         except Exception as exc:
             logger.warning("Engine pre-load failed (will retry on first request): %s", exc)
+    elif _engine_available:
+        logger.info("Skipping XAI engine preload at startup; engine stays lazy.")
     # Hydrate in-memory feedback from Postgres
     await _load_feedback_from_db()
     yield

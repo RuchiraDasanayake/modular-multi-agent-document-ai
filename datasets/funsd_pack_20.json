@@ -1,0 +1,366 @@
+{
+  "name": "funsd_labeled_20",
+  "description": "FUNSD testing forms \u2014 20 samples with DATE, TO, FROM fields.",
+  "batch_mode": "single_run_per_condition",
+  "shared_fields": {
+    "date": "The date on the form (as written). Extract exactly as it appears.",
+    "recipient": "The recipient name or department in the TO field.",
+    "sender": "The sender name or department in the FROM field."
+  },
+  "cases": [
+    {
+      "case_id": "funsd_82092117",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82092117.png",
+      "fields": {
+        "recipient": "The recipient name or department in the TO field.",
+        "date": "The date on the form (as written). Extract exactly as it appears."
+      },
+      "expected": {
+        "recipient": "George Baroody",
+        "date": "12 /10 /98"
+      }
+    },
+    {
+      "case_id": "funsd_82200067_0069",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82200067_0069.png",
+      "fields": {
+        "recipient": "The recipient name or department in the TO field.",
+        "sender": "The sender name or department in the FROM field."
+      },
+      "expected": {
+        "recipient": "K. A. Sparrow",
+        "sender": "T. D. Blachly"
+      }
+    },
+    {
+      "case_id": "funsd_82250337_0338",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82250337_0338.png",
+      "fields": {
+        "recipient": "The recipient name or department in the TO field.",
+        "sender": "The sender name or department in the FROM field.",
+        "date": "The date on the form (as written). Extract exactly as it appears."
+      },
+      "expected": {
+        "recipient": "Sam Zolot",
+        "sender": "D. J. Landro",
+        "date": "2- Dec- 97"
+      }
+    },
+    {
+      "case_id": "funsd_82252956_2958",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82252956_2958.png",
+      "fields": {
+        "recipient": "The recipient name or department in the TO field.",
+        "sender": "The sender name or department in the FROM field."
+      },
+      "expected": {
+        "recipient": "K. A. Sparrow",
+        "sender": "D. J. Landro"
+      }
+    },
+    {
+      "case_id": "funsd_82253058_3059",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82253058_3059.png",
+      "fields": {
+        "recipient": "The recipient name or department in the TO field.",
+        "sender": "The sender name or department in the FROM field.",
+        "date": "The date on the form (as written). Extract exactly as it appears."
+      },
+      "expected": {
+        "recipient": "MRS. K. A. SPARROW",
+        "sender": "R. G. Ryan",
+        "date": "12/ 10/ 96"
+      }
+    },
+    {
+      "case_id": "funsd_82253245_3247",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82253245_3247.png",
+      "fields": {
+        "recipient": "The recipient name or department in the TO field.",
+        "sender": "The sender name or department in the FROM field."
+      },
+      "expected": {
+        "recipient": "K. A. Sparrow",
+        "sender": "R. E. Lane"
+      }
+    },
+    {
+      "case_id": "funsd_82253362_3364",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82253362_3364.png",
+      "fields": {
+        "recipient": "The recipient name or department in the TO field.",
+        "sender": "The sender name or department in the FROM field."
+      },
+      "expected": {
+        "recipient": "K. A. Sparrow",
+        "sender": "J. L. McGinnis"
+      }
+    },
+    {
+      "case_id": "funsd_82254765",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82254765.png",
+      "fields": {
+        "recipient": "The recipient name or department in the TO field.",
+        "sender": "The sender name or department in the FROM field."
+      },
+      "expected": {
+        "recipient": "K. A. SPARROW",
+        "sender": "S. Reindel"
+      }
+    },
+    {
+      "case_id": "funsd_82562350",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82562350.png",
+      "fields": {
+        "recipient": "The recipient name or department in the TO field.",
+        "sender": "The sender name or department in the FROM field.",
+        "date": "The date on the form (as written). Extract exactly as it appears."
+      },
+      "expected": {
+        "recipient": "Mr. Randy Spell",
+        "sender": "Rick Redfield",
+        "date": "May 1, 2000"
+      }
+    },
+    {
+      "case_id": "funsd_82573104",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82573104.png",
+      "fields": {
+        "date": "The date on the form (as written). Extract exactly as it appears.",
+        "recipient": "The recipient name or department in the TO field.",
+        "sender": "The sender name or department in the FROM field."
+      },
+      "expected": {
+        "date": "December 9, 1999",
+        "recipient": "Haney H. Bell, Esq.",
+        "sender": "David H. Remes (202) 778 5212 - direct fax"
+      }
+    },
+    {
+      "case_id": "funsd_83443897",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/83443897.png",
+      "fields": {
+        "date": "The date on the form (as written). Extract exactly as it appears.",
+        "sender": "The sender name or department in the FROM field."
+      },
+      "expected": {
+        "date": "January 11, 1999",
+        "sender": "Andy Zausner and Rob Mangas"
+      }
+    },
+    {
+      "case_id": "funsd_83553333_3334",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/83553333_3334.png",
+      "fields": {
+        "date": "The date on the form (as written). Extract exactly as it appears.",
+        "recipient": "The recipient name or department in the TO field."
+      },
+      "expected": {
+        "date": "November 1999",
+        "recipient": "Thomas M. Sobol Joseph F. Rice Robert V. Costello Jeffrey D. Woolf Richard M. Heimann Michael P. Thornton"
+      }
+    },
+    {
+      "case_id": "funsd_83573282",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/83573282.png",
+      "fields": {
+        "date": "The date on the form (as written). Extract exactly as it appears.",
+        "sender": "The sender name or department in the FROM field."
+      },
+      "expected": {
+        "date": "January 14, 1999",
+        "sender": "Steve W. Berman"
+      }
+    },
+    {
+      "case_id": "funsd_83594639",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/83594639.png",
+      "fields": {
+        "date": "The date on the form (as written). Extract exactly as it appears.",
+        "recipient": "The recipient name or department in the TO field.",
+        "sender": "The sender name or department in the FROM field."
+      },
+      "expected": {
+        "date": "September 22, 1997",
+        "recipient": "Ron Milstein",
+        "sender": "\"JJ\" Klein"
+      }
+    },
+    {
+      "case_id": "funsd_83624198",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/83624198.png",
+      "fields": {
+        "date": "The date on the form (as written). Extract exactly as it appears.",
+        "sender": "The sender name or department in the FROM field."
+      },
+      "expected": {
+        "date": "February 25, 1998",
+        "sender": "Andy Zausner"
+      }
+    },
+    {
+      "case_id": "funsd_83635935",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/83635935.png",
+      "fields": {
+        "date": "The date on the form (as written). Extract exactly as it appears.",
+        "recipient": "The recipient name or department in the TO field.",
+        "sender": "The sender name or department in the FROM field."
+      },
+      "expected": {
+        "date": "June 4, 1997",
+        "recipient": "Dr. Spears/ A. J. Stevens/ R. Milstein",
+        "sender": "Barry Hirsch"
+      }
+    },
+    {
+      "case_id": "funsd_83641919_1921",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/83641919_1921.png",
+      "fields": {
+        "recipient": "The recipient name or department in the TO field.",
+        "sender": "The sender name or department in the FROM field."
+      },
+      "expected": {
+        "recipient": "S. P. ZOLOT",
+        "sender": "R. W. RICHARDSON"
+      }
+    },
+    {
+      "case_id": "funsd_83772145",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/83772145.png",
+      "fields": {
+        "recipient": "The recipient name or department in the TO field.",
+        "sender": "The sender name or department in the FROM field.",
+        "date": "The date on the form (as written). Extract exactly as it appears."
+      },
+      "expected": {
+        "recipient": "JACK REILLY",
+        "sender": "JIM DALEY",
+        "date": "JANUARY 31, 1997"
+      }
+    },
+    {
+      "case_id": "funsd_83823750",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/83823750.png",
+      "fields": {
+        "date": "The date on the form (as written). Extract exactly as it appears.",
+        "recipient": "The recipient name or department in the TO field."
+      },
+      "expected": {
+        "date": "November 11, 1997",
+        "recipient": "Robert H. Shaw, Esq."
+      }
+    },
+    {
+      "case_id": "funsd_83996357",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/83996357.png",
+      "fields": {
+        "recipient": "The recipient name or department in the TO field.",
+        "sender": "The sender name or department in the FROM field."
+      },
+      "expected": {
+        "recipient": "KELLI SCRUGGS",
+        "sender": "LEONARD JONES"
+      }
+    }
+  ]
+}

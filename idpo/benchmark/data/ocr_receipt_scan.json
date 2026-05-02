@@ -1,0 +1,20 @@
+{
+  "doc_id": "ocr_receipt_scan",
+  "source": "scanned",
+  "metadata": {
+    "vendor": "corner_market",
+    "dpi_est": 280,
+    "scan_profile": "receipt"
+  },
+  "pages": [
+    {
+      "number": 1,
+      "text": "Corner Market\nReceipt Number: RCPT-9912\nPurchase Date: 2026-03-03\nSubtotal: 44.95\nTax: 2.90\nTotal Amount: 47.85\nThank you for shopping with us.",
+      "raw_text": "Corner Market\nReceipt Number: RCPT-9912\nPurchase Date: 2026-03-03\nSubtotal: 44.95\nTax: 2.90\nTotal Amount: 47.85\nThank you for shopping with us.",
+      "image_path": "receipt_scan_001.png",
+      "metadata": {
+        "ocr_hint": "scan"
+      }
+    }
+  ]
+}

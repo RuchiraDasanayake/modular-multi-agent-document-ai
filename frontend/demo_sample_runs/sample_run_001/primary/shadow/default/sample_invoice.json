@@ -1,0 +1,6 @@
+{
+  "doc_id": "sample_invoice",
+  "policy_id": "forms",
+  "shadow_latency_ms": 44.1,
+  "canonical_latency_ms": 55.2
+}

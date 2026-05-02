@@ -11,6 +11,12 @@ Flow:
   5. IDPO → AHMN:  Log outcome metrics so bandit learns
 """
 
+# Research note:
+# This legacy integration path is not part of the canonical paper-facing
+# runtime. The active research path is the frontend job runner ->
+# ``idpo.cli process-inbox`` -> ``idpo.pipeline.inbox`` ->
+# ``idpo.pipeline.orchestrator``.
+
 from __future__ import annotations
 
 import atexit

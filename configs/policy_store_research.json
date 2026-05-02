@@ -1,0 +1,1247 @@
+{
+  "default_policy_id": "default",
+  "policies": [
+    {
+      "policy_id": "receipt_specialist",
+      "name": "Receipt Specialist Policy",
+      "conditions": {
+        "vendor_cluster": ["cord"],
+        "semantic_doc_type": ["receipt"]
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2,
+            "psm": 4,
+            "alt_psm": [
+              6,
+              11
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "standard"
+          },
+          "table_extract": {
+            "enabled": false
+          }
+        },
+        "execution_mode": "extraction_only",
+        "extraction": {
+          "explicit_entities": [
+            "total_amount",
+            "subtotal_amount",
+            "tax_amount",
+            "cash_amount",
+            "change_amount"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_receipt_specialist",
+          "per_field_extraction": true,
+          "use_thinking": false,
+          "extraction_context": "DOCUMENT TYPE: Point-of-sale receipt (Korean/Indonesian retail). This document contains transaction amounts in local currency. Amounts may use a dot as a thousands separator (e.g. 20.000 means twenty thousand, not twenty). Tax may be labeled PB1, VAT, or TAX. Focus exclusively on extracting the requested numeric amounts. Do NOT extract person names, organization names, letter metadata, or dates as field values unless specifically requested."
+        },
+        "recovery": {
+          "strategy": "regex"
+        },
+        "retrieval": {
+          "dense_k": 6,
+          "sparse_k": 6,
+          "final_k": 6,
+          "mmr_lambda": 0.58,
+          "metadata_boost": 0.06
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "receipt_specialist",
+        "family": "receipt extraction",
+        "variant": "specialist",
+        "when_used": "CORD receipts (vendor_cluster=cord). Numeric amount extraction from Korean/Indonesian receipts.",
+        "cost_profile": "low cost"
+      }
+    },
+    {
+      "policy_id": "correspondence_specialist",
+      "name": "Correspondence Specialist Policy",
+      "conditions": {
+        "vendor_cluster": ["funsd"],
+        "semantic_doc_type": ["correspondence"]
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2,
+            "psm": 3,
+            "alt_psm": [
+              4,
+              6
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "aggressive"
+          },
+          "table_extract": {
+            "enabled": false
+          }
+        },
+        "execution_mode": "extraction_only",
+        "extraction": {
+          "explicit_entities": [
+            "sender_name",
+            "recipient_name",
+            "document_date",
+            "letter_id"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_correspondence_specialist",
+          "per_field_extraction": true,
+          "use_thinking": false,
+          "extraction_context": "DOCUMENT TYPE: Scanned business correspondence (letter or internal memo). This document contains sender and recipient names, and a date. Names may be abbreviated (e.g. \"K.A.S\" for \"K.A. Sparrow\") or OCR-degraded. Look for To:/From: fields, salutation lines, and signature blocks. Extract the best available version of each name even if partially legible. Do NOT attempt to extract prices, totals, invoice numbers, or monetary amounts \u2014 this is not a financial document."
+        },
+        "recovery": {
+          "strategy": "regex"
+        },
+        "retrieval": {
+          "dense_k": 10,
+          "sparse_k": 10,
+          "final_k": 10,
+          "mmr_lambda": 0.6,
+          "metadata_boost": 0.1
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "correspondence_specialist",
+        "family": "correspondence extraction",
+        "variant": "specialist",
+        "when_used": "FUNSD business correspondence (vendor_cluster=funsd). Name and date extraction from scanned letters/memos.",
+        "cost_profile": "moderate local cost"
+      }
+    },
+    {
+      "policy_id": "unknown_vendor_safe",
+      "name": "Unknown Vendor Safe Policy",
+      "conditions": {
+        "vendor_cluster": [
+          "unknown",
+          "new",
+          "unseen"
+        ]
+      },
+      "actions": {
+        "execution_mode": "extraction_only",
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2,
+            "psm": 6,
+            "alt_psm": [
+              4,
+              11
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "standard"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "record_id",
+            "document_date",
+            "issuer_name",
+            "total_amount"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_unknown_vendor_safe"
+        },
+        "recovery": {
+          "strategy": "regex"
+        },
+        "chunking": {
+          "chunk_size": 300,
+          "chunk_overlap": 45,
+          "max_chunks": 96
+        },
+        "retrieval": {
+          "dense_k": 8,
+          "sparse_k": 8,
+          "final_k": 8,
+          "mmr_lambda": 0.6,
+          "metadata_boost": 0.08
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "unknown_vendor_safe",
+        "max_latency_ms": 180000,
+        "family": "unknown vendor intake",
+        "variant": "local",
+        "when_used": "Use first for unseen vendors or sparse context where the system needs a safe broad pass.",
+        "why": "Keeps extraction conservative while still trying OCR and table hints for unfamiliar layouts.",
+        "tradeoff": "Safe but less specialized. It may miss hard fields that need a more targeted family.",
+        "cost_profile": "low cost, broad coverage"
+      }
+    },
+    {
+      "policy_id": "table_heavy",
+      "name": "Table Heavy Research Policy",
+      "conditions": {
+        "content_profile": [
+          "table-heavy"
+        ],
+        "route_bin": [
+          "standard",
+          "heavy"
+        ]
+      },
+      "actions": {
+        "execution_mode": "extraction_only",
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2,
+            "psm": 6,
+            "alt_psm": [
+              4,
+              11
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "aggressive"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "invoice_number",
+            "supplier_name",
+            "total_amount",
+            "subtotal",
+            "tax",
+            "due_date"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_table"
+        },
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "chunking": {
+          "chunk_size": 260,
+          "chunk_overlap": 40,
+          "max_chunks": 160
+        },
+        "retrieval": {
+          "dense_k": 10,
+          "sparse_k": 16,
+          "final_k": 12,
+          "mmr_lambda": 0.8,
+          "metadata_boost": 0.2
+        },
+        "token_budget": {
+          "max_tokens": 1700,
+          "reserved_tokens": 220,
+          "strategy": "simple"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "table_precision",
+        "family": "table extraction",
+        "variant": "balanced-local",
+        "when_used": "Use first for table-heavy documents where layout is the main challenge but local extraction may still succeed.",
+        "why": "Pairs table extraction, stronger retrieval, and a table-oriented ruleset before paying cloud cost.",
+        "tradeoff": "Cheap first pass, but weak local extraction can miss fields buried in dense tables.",
+        "cost_profile": "low cost first pass",
+        "sibling_policy_id": "table_dense_local"
+      }
+    },
+    {
+      "policy_id": "table_dense_local",
+      "name": "Table Dense Local Policy",
+      "conditions": {
+        "content_profile": [
+          "table-heavy"
+        ],
+        "route_bin": [
+          "standard",
+          "heavy"
+        ]
+      },
+      "actions": {
+        "execution_mode": "extraction_only",
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 3,
+            "psm": 6,
+            "alt_psm": [
+              4,
+              6,
+              11
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "aggressive"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "invoice_number",
+            "supplier_name",
+            "total_amount",
+            "subtotal",
+            "tax",
+            "due_date"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_table_dense_local"
+        },
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "chunking": {
+          "chunk_size": 220,
+          "chunk_overlap": 32,
+          "max_chunks": 180
+        },
+        "retrieval": {
+          "dense_k": 14,
+          "sparse_k": 18,
+          "final_k": 14,
+          "mmr_lambda": 0.82,
+          "metadata_boost": 0.24
+        },
+        "token_budget": {
+          "max_tokens": 1850,
+          "reserved_tokens": 240,
+          "strategy": "simple"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "table_precision_dense_local",
+        "family": "table extraction",
+        "variant": "dense-local",
+        "when_used": "Use when table-heavy documents have dense rows, weak separators, or repeated local misses on compact tables.",
+        "why": "Smaller chunks, extra OCR attempts, and heavier retrieval help anchor fields that are crowded into dense tables.",
+        "tradeoff": "More local latency and retrieval cost than the balanced table policy.",
+        "cost_profile": "moderate local cost",
+        "sibling_policy_id": "table_heavy"
+      }
+    },
+    {
+      "policy_id": "forms",
+      "name": "Form Validation Research Policy",
+      "conditions": {
+        "content_profile": [
+          "form-centric"
+        ]
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 3,
+            "psm": 6,
+            "alt_psm": [
+              4,
+              6,
+              11
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "aggressive"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "claim_number",
+            "member_id",
+            "service_date",
+            "approval_code",
+            "total_amount"
+          ],
+          "field_descriptions": {
+            "approval_code": "Approval code required by form review workflows."
+          },
+          "model_tier": "local",
+          "ruleset": "research_forms"
+        },
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "escalation": {
+          "tier": "tier2"
+        },
+        "chunking": {
+          "chunk_size": 320,
+          "chunk_overlap": 45,
+          "max_chunks": 128
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "form_validation",
+        "family": "form extraction",
+        "variant": "balanced-local",
+        "when_used": "Use first for form-centric documents where key-value structure is strong enough for local extraction.",
+        "why": "Targets form fields directly and keeps the first run local so reviewed evidence decides if stronger extraction is needed.",
+        "tradeoff": "Cheaper than cloud, but brittle when handwriting, stamps, or dense forms reduce local accuracy.",
+        "cost_profile": "low cost first pass",
+        "sibling_policy_id": "forms_rescue_local"
+      }
+    },
+    {
+      "policy_id": "forms_rescue_local",
+      "name": "Forms Rescue Local Policy",
+      "conditions": {
+        "content_profile": [
+          "form-centric"
+        ]
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 4,
+            "psm": 6,
+            "alt_psm": [
+              4,
+              6,
+              11,
+              12
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "aggressive"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "claim_number",
+            "member_id",
+            "service_date",
+            "approval_code",
+            "total_amount"
+          ],
+          "field_descriptions": {
+            "approval_code": "Approval code required by form review workflows."
+          },
+          "model_tier": "local",
+          "ruleset": "research_forms_rescue_local"
+        },
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "escalation": {
+          "tier": "tier2"
+        },
+        "chunking": {
+          "chunk_size": 280,
+          "chunk_overlap": 40,
+          "max_chunks": 160
+        },
+        "retrieval": {
+          "dense_k": 12,
+          "sparse_k": 14,
+          "final_k": 12,
+          "mmr_lambda": 0.74,
+          "metadata_boost": 0.16
+        },
+        "token_budget": {
+          "max_tokens": 1750,
+          "reserved_tokens": 220,
+          "strategy": "simple"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "form_validation_rescue_local",
+        "family": "form extraction",
+        "variant": "rescue-local",
+        "when_used": "Use when form-centric documents stay local-only but need stronger OCR and retrieval after reviewed misses.",
+        "why": "Adds extra OCR passes and retrieval support for hard forms without leaving the free local path.",
+        "tradeoff": "Slower than the balanced form policy and more likely to over-process easy forms.",
+        "cost_profile": "moderate local cost",
+        "sibling_policy_id": "forms"
+      }
+    },
+    {
+      "policy_id": "receipt_fast_local",
+      "name": "Receipt Fast Local Policy",
+      "conditions": {
+        "doc_type": [
+          "scanned_document",
+          "text_document"
+        ],
+        "content_profile": [
+          "image-heavy",
+          "text-light"
+        ],
+        "route_bin": [
+          "light",
+          "standard",
+          "heavy"
+        ],
+        "structural_features.page_count": {
+          "max": 1.0
+        },
+        "structural_features.numeric_density": {
+          "min": 0.08
+        },
+        "quality_features.ocr_noise_ratio": {
+          "max": 0.18
+        }
+      },
+      "actions": {
+        "execution_mode": "extraction_only",
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2,
+            "psm": 4,
+            "alt_psm": [
+              6,
+              11
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "standard"
+          },
+          "table_extract": {
+            "enabled": false,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "receipt_id",
+            "document_date",
+            "merchant_name",
+            "subtotal_amount",
+            "tax_amount",
+            "total_amount",
+            "cash_amount",
+            "change_amount"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_receipt_fast_local"
+        },
+        "recovery": {
+          "strategy": "regex"
+        },
+        "chunking": {
+          "chunk_size": 220,
+          "chunk_overlap": 24,
+          "max_chunks": 48
+        },
+        "retrieval": {
+          "dense_k": 6,
+          "sparse_k": 6,
+          "final_k": 6,
+          "mmr_lambda": 0.58,
+          "metadata_boost": 0.06
+        },
+        "token_budget": {
+          "max_tokens": 1000,
+          "reserved_tokens": 140,
+          "strategy": "simple"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "receipt_fast_local",
+        "max_latency_ms": 180000,
+        "family": "receipt extraction",
+        "variant": "fast-local",
+        "when_used": "Use first for compact single-page receipts with strong numeric density and manageable OCR noise.",
+        "why": "Targets flat receipt totals with a short extraction-only path so easy receipts do not pay long-document costs.",
+        "tradeoff": "Fast on ordinary receipts, but weaker when OCR noise or currency formatting becomes severe.",
+        "cost_profile": "low cost first pass",
+        "sibling_policy_id": "receipt_rescue_local"
+      }
+    },
+    {
+      "policy_id": "receipt_rescue_local",
+      "name": "Receipt Rescue Local Policy",
+      "conditions": {
+        "doc_type": [
+          "scanned_document",
+          "text_document"
+        ],
+        "content_profile": [
+          "image-heavy",
+          "text-light"
+        ],
+        "route_bin": [
+          "light",
+          "standard",
+          "heavy"
+        ],
+        "structural_features.page_count": {
+          "max": 1.0
+        },
+        "structural_features.numeric_density": {
+          "min": 0.08
+        },
+        "quality_features.ocr_noise_ratio": {
+          "min": 0.12
+        }
+      },
+      "actions": {
+        "execution_mode": "extraction_only",
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 4,
+            "psm": 4,
+            "alt_psm": [
+              3,
+              4,
+              6,
+              11,
+              12
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "aggressive"
+          },
+          "table_extract": {
+            "enabled": false,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "receipt_id",
+            "document_date",
+            "merchant_name",
+            "subtotal_amount",
+            "tax_amount",
+            "total_amount",
+            "cash_amount",
+            "change_amount"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_receipt_rescue_local"
+        },
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "chunking": {
+          "chunk_size": 200,
+          "chunk_overlap": 28,
+          "max_chunks": 56
+        },
+        "retrieval": {
+          "dense_k": 8,
+          "sparse_k": 10,
+          "final_k": 8,
+          "mmr_lambda": 0.64,
+          "metadata_boost": 0.1
+        },
+        "token_budget": {
+          "max_tokens": 1200,
+          "reserved_tokens": 160,
+          "strategy": "simple"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "receipt_rescue_local",
+        "max_latency_ms": 180000,
+        "family": "receipt extraction",
+        "variant": "rescue-local",
+        "when_used": "Use when compact receipts are single-page but OCR noise or scan quality pushes the document off the fast path.",
+        "why": "Adds stronger OCR retries and conservative recovery to stabilize receipt totals before falling back to generic OCR rescue.",
+        "tradeoff": "Better recall on degraded receipts, but slower than the fast receipt policy.",
+        "cost_profile": "moderate local cost",
+        "sibling_policy_id": "receipt_fast_local"
+      }
+    },
+    {
+      "policy_id": "noisy_ocr_rescue",
+      "name": "Noisy OCR Rescue Policy",
+      "conditions": {
+        "quality_bin": [
+          "C"
+        ],
+        "quality_features.ocr_noise_ratio": {
+          "min": 0.12
+        }
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2,
+            "psm": 4,
+            "alt_psm": [
+              6,
+              11
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "aggressive"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "record_id",
+            "document_date",
+            "reference_code",
+            "total_amount"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_noisy_ocr_rescue"
+        },
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "chunking": {
+          "chunk_size": 280,
+          "chunk_overlap": 55,
+          "max_chunks": 120
+        },
+        "retrieval": {
+          "dense_k": 10,
+          "sparse_k": 10,
+          "final_k": 10,
+          "mmr_lambda": 0.78,
+          "metadata_boost": 0.18
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "noisy_ocr_rescue",
+        "max_latency_ms": 180000,
+        "family": "ocr rescue",
+        "variant": "recall-local",
+        "when_used": "Use first when OCR noise is high and the system should try stronger cleanup before moving to cloud.",
+        "why": "Extra OCR passes, aggressive denoise, and recovery logic attack recognition noise directly.",
+        "tradeoff": "Helps damaged scans, but local extraction can still fail after OCR cleanup on very degraded pages.",
+        "cost_profile": "moderate local cost",
+        "sibling_policy_id": "noisy_ocr_precision_local"
+      }
+    },
+    {
+      "policy_id": "noisy_ocr_precision_local",
+      "name": "Noisy OCR Precision Local Policy",
+      "conditions": {
+        "quality_bin": [
+          "C"
+        ],
+        "quality_features.ocr_noise_ratio": {
+          "min": 0.12
+        }
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 4,
+            "psm": 6,
+            "alt_psm": [
+              3,
+              4,
+              6,
+              11,
+              12
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "standard"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "record_id",
+            "document_date",
+            "reference_code",
+            "total_amount"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_noisy_ocr_precision_local"
+        },
+        "recovery": {
+          "strategy": "regex"
+        },
+        "chunking": {
+          "chunk_size": 240,
+          "chunk_overlap": 36,
+          "max_chunks": 96
+        },
+        "retrieval": {
+          "dense_k": 10,
+          "sparse_k": 18,
+          "final_k": 10,
+          "mmr_lambda": 0.7,
+          "metadata_boost": 0.22
+        },
+        "token_budget": {
+          "max_tokens": 1550,
+          "reserved_tokens": 200,
+          "strategy": "simple"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "noisy_ocr_precision_local",
+        "max_latency_ms": 180000,
+        "family": "ocr rescue",
+        "variant": "precision-local",
+        "when_used": "Use when noisy OCR contexts need a more conservative local path after aggressive rescue produces wrong values or hallucinations.",
+        "why": "Prefers conservative recovery, tighter chunks, and more alternate OCR layouts to improve precision on degraded pages.",
+        "tradeoff": "May miss fields that the recall-oriented noisy OCR policy would recover.",
+        "cost_profile": "moderate local cost",
+        "sibling_policy_id": "noisy_ocr_rescue"
+      }
+    },
+    {
+      "policy_id": "scanned_text",
+      "name": "Scanned Text Research Policy",
+      "conditions": {
+        "doc_type": [
+          "scanned_document",
+          "text_document"
+        ],
+        "content_profile": [
+          "image-heavy",
+          "text-heavy",
+          "text-light"
+        ]
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2,
+            "psm": 3,
+            "alt_psm": [
+              4,
+              6
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "aggressive"
+          },
+          "table_extract": {
+            "enabled": false,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "letter_id",
+            "document_date",
+            "sender_name",
+            "reference_code"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_scanned_text"
+        },
+        "recovery": {
+          "strategy": "regex"
+        },
+        "chunking": {
+          "chunk_size": 420,
+          "chunk_overlap": 60,
+          "max_chunks": 96
+        },
+        "retrieval": {
+          "dense_k": 14,
+          "sparse_k": 10,
+          "final_k": 10,
+          "mmr_lambda": 0.6,
+          "metadata_boost": 0.1
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "ocr_text",
+        "family": "scanned text",
+        "variant": "local",
+        "when_used": "Use for scanned or image-heavy text documents where OCR is required but the structure is mostly linear text.",
+        "why": "Optimizes OCR and chunking for text-heavy scans without over-weighting table logic.",
+        "tradeoff": "Strong on text scans, weaker on dense tables or forms mixed into the same document.",
+        "cost_profile": "moderate local cost"
+      }
+    },
+    {
+      "policy_id": "long_document_chunked",
+      "name": "Long Document Chunked Policy",
+      "conditions": {
+        "route_bin": [
+          "heavy"
+        ],
+        "complexity_bin": [
+          "3"
+        ],
+        "structural_features.line_length_cv": {
+          "max": 0.55
+        }
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2,
+            "psm": 3,
+            "alt_psm": [
+              4,
+              6
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "standard"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "agreement_id",
+            "effective_date",
+            "party_a",
+            "party_b",
+            "reference_code",
+            "total_value"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_long_document_chunked"
+        },
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "chunking": {
+          "chunk_size": 540,
+          "chunk_overlap": 110,
+          "max_chunks": 220
+        },
+        "retrieval": {
+          "dense_k": 16,
+          "sparse_k": 14,
+          "final_k": 14,
+          "mmr_lambda": 0.72,
+          "metadata_boost": 0.2
+        },
+        "token_budget": {
+          "max_tokens": 2200,
+          "reserved_tokens": 260,
+          "strategy": "simple"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "long_document_chunked",
+        "max_latency_ms": 180000,
+        "family": "long document",
+        "variant": "local",
+        "when_used": "Use first for long heavy-route documents where chunking and retrieval matter more than immediate cloud usage.",
+        "why": "Uses larger chunks and stronger retrieval to preserve document context before trying a stronger model.",
+        "tradeoff": "Good context coverage, but local extraction can still miss fields spread across many long sections.",
+        "cost_profile": "moderate local cost"
+      }
+    },
+    {
+      "policy_id": "mixed_content",
+      "name": "Mixed Content Research Policy",
+      "conditions": {
+        "content_profile": [
+          "mixed"
+        ]
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 2,
+            "psm": 3,
+            "alt_psm": [
+              4,
+              6
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "standard"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "agreement_id",
+            "effective_date",
+            "party_a",
+            "party_b",
+            "total_value"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_mixed"
+        },
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "chunking": {
+          "chunk_size": 380,
+          "chunk_overlap": 70,
+          "max_chunks": 150
+        },
+        "retrieval": {
+          "dense_k": 12,
+          "sparse_k": 12,
+          "final_k": 12,
+          "mmr_lambda": 0.7,
+          "metadata_boost": 0.15
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "balanced_multisection",
+        "family": "mixed content",
+        "variant": "local",
+        "when_used": "Use first for documents that mix tables, narrative, and forms without one dominant layout pattern.",
+        "why": "Balances preprocessing, retrieval, and extraction for mixed layouts while keeping the first attempt local.",
+        "tradeoff": "General-purpose but not strongest for any one structure. A later optional paid extension can add a stronger cloud path if needed.",
+        "cost_profile": "moderate local cost"
+      }
+    },
+    {
+      "policy_id": "fast_local_text",
+      "name": "Fast Local Text Policy",
+      "conditions": {
+        "content_profile": [
+          "text-heavy",
+          "text-light"
+        ],
+        "route_bin": [
+          "light",
+          "standard"
+        ],
+        "quality_features.ocr_noise_ratio": {
+          "max": 0.08
+        }
+      },
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 1,
+            "psm": 6,
+            "alt_psm": [
+              4
+            ]
+          },
+          "deskew": {
+            "enabled": false
+          },
+          "denoise": {
+            "enabled": false,
+            "strength": "standard"
+          },
+          "table_extract": {
+            "enabled": false,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "record_id",
+            "document_date",
+            "reference_code"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_fast_local_text"
+        },
+        "recovery": {
+          "strategy": "regex"
+        },
+        "chunking": {
+          "chunk_size": 260,
+          "chunk_overlap": 24,
+          "max_chunks": 72
+        },
+        "retrieval": {
+          "dense_k": 6,
+          "sparse_k": 6,
+          "final_k": 6,
+          "mmr_lambda": 0.58,
+          "metadata_boost": 0.06
+        },
+        "token_budget": {
+          "max_tokens": 900,
+          "reserved_tokens": 120,
+          "strategy": "simple"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "fast_local_text",
+        "max_latency_ms": 180000,
+        "family": "fast text",
+        "variant": "local",
+        "when_used": "Use for clean text-heavy documents where speed matters more than heavy preprocessing.",
+        "why": "Minimizes preprocessing and retrieval cost for straightforward text extraction.",
+        "tradeoff": "Fastest path, but weak when OCR noise, tables, or long context become important.",
+        "cost_profile": "lowest cost"
+      }
+    },
+    {
+      "policy_id": "default",
+      "name": "Safe Default Research Policy",
+      "conditions": {},
+      "actions": {
+        "preprocess": {
+          "ocr": {
+            "enabled": true,
+            "passes": 1,
+            "psm": 6,
+            "alt_psm": [
+              4
+            ]
+          },
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true,
+            "strength": "standard"
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
+        },
+        "extraction": {
+          "explicit_entities": [
+            "record_id",
+            "document_date",
+            "total_amount"
+          ],
+          "model_tier": "local",
+          "ruleset": "research_safe_default"
+        },
+        "recovery": {
+          "strategy": "regex"
+        },
+        "chunking": {
+          "chunk_size": 320,
+          "chunk_overlap": 50,
+          "max_chunks": 96
+        },
+        "retrieval": {
+          "dense_k": 10,
+          "sparse_k": 10,
+          "final_k": 10,
+          "mmr_lambda": 0.65,
+          "metadata_boost": 0.1
+        },
+        "token_budget": {
+          "max_tokens": 1400,
+          "reserved_tokens": 200,
+          "strategy": "simple"
+        }
+      },
+      "metadata": {
+        "owner": "idpo-research",
+        "regime": "safe_default",
+        "family": "safe default",
+        "variant": "local",
+        "when_used": "Use when nothing else matches well enough and the system still needs a conservative extraction attempt.",
+        "why": "Provides a broad local-first baseline with light retrieval and no family-specific assumptions.",
+        "tradeoff": "Safe but generic. It is a starting point, not the strongest policy for specialized documents.",
+        "cost_profile": "low cost baseline"
+      }
+    }
+  ]
+}

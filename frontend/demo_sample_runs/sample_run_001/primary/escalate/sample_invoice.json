@@ -1,0 +1,12 @@
+{
+  "escalated": true,
+  "details": {
+    "fields": [
+      "total_amount"
+    ],
+    "reason": "field_level_escalation",
+    "target_model": "flagship-sim",
+    "cost_estimate": 0.5,
+    "latency_estimate_ms": 900
+  }
+}

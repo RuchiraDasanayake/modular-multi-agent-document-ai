@@ -1,0 +1,86 @@
+{
+  "results": [
+    {
+      "doc_id": "sample_invoice",
+      "path": "input/sample_invoice.txt",
+      "doc_type": "scanned_document",
+      "vendor_cluster": "acme",
+      "complexity_bin": "2",
+      "route_bin": "standard",
+      "latency_ms": 55.2,
+      "policy_id": "default",
+      "escalated": true,
+      "validation_issues": [
+        {
+          "field": "total_amount",
+          "issue": "low_confidence",
+          "severity": "medium"
+        }
+      ],
+      "extracted_fields": [
+        {
+          "key": "invoice_id",
+          "value": "INV-7001",
+          "confidence_score": 0.88,
+          "confidence_type": "calibrated",
+          "extraction_method": "rule_based",
+          "evidence_span": [
+            14,
+            22
+          ],
+          "page": 1
+        },
+        {
+          "key": "total_amount",
+          "value": "1200.00",
+          "confidence_score": 0.62,
+          "confidence_type": "heuristic",
+          "extraction_method": "rule_based",
+          "evidence_span": [
+            56,
+            63
+          ],
+          "page": 1
+        }
+      ],
+      "shadow_comparisons": [
+        {
+          "doc_id": "sample_invoice",
+          "policy_id": "forms",
+          "canonical_latency_ms": 55.2,
+          "shadow_latency_ms": 44.1,
+          "canonical_quality_proxy": 0.72,
+          "shadow_quality_proxy": 0.75,
+          "canonical_retrieval_proxy": 0.2,
+          "shadow_retrieval_proxy": 0.22
+        }
+      ]
+    },
+    {
+      "doc_id": "sample_statement",
+      "path": "input/sample_statement.txt",
+      "doc_type": "table_document",
+      "vendor_cluster": "globex",
+      "complexity_bin": "1",
+      "route_bin": "light",
+      "latency_ms": 30.8,
+      "policy_id": "table_heavy",
+      "escalated": false,
+      "validation_issues": [],
+      "extracted_fields": [
+        {
+          "key": "statement_id",
+          "value": "ST-101",
+          "confidence_score": 0.9,
+          "confidence_type": "calibrated",
+          "extraction_method": "rule_based",
+          "evidence_span": [
+            12,
+            18
+          ],
+          "page": 1
+        }
+      ]
+    }
+  ]
+}

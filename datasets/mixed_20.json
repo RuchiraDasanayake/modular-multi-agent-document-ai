@@ -1,0 +1,408 @@
+{
+  "name": "Mixed Document Type Pack (CORD + FUNSD)",
+  "description": "10 CORD Korean/Indonesian receipts + 10 FUNSD business correspondence. Tests adaptive policy routing across document types. Each case carries only type-specific fields.",
+  "cases": [
+    {
+      "case_id": "cord_validation_0000",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0000.png",
+      "fields": {
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
+      },
+      "expected": {
+        "total_amount": "28,000",
+        "cash_amount": "28,000",
+        "subtotal_amount": "28,000"
+      }
+    },
+    {
+      "case_id": "cord_validation_0001",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0001.png",
+      "fields": {
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
+      },
+      "expected": {
+        "total_amount": "39.600",
+        "subtotal_amount": "36.000",
+        "tax_amount": "3.600"
+      }
+    },
+    {
+      "case_id": "cord_validation_0002",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0002.png",
+      "fields": {
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
+      },
+      "expected": {
+        "total_amount": "308,000",
+        "subtotal_amount": "280,000",
+        "tax_amount": "28,000"
+      }
+    },
+    {
+      "case_id": "cord_validation_0003",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0003.png",
+      "fields": {
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
+      },
+      "expected": {
+        "total_amount": "24,000",
+        "cash_amount": "24,000"
+      }
+    },
+    {
+      "case_id": "cord_validation_0004",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0004.png",
+      "fields": {
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
+      },
+      "expected": {
+        "total_amount": "6.000",
+        "subtotal_amount": "6.000"
+      }
+    },
+    {
+      "case_id": "cord_validation_0005",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0005.png",
+      "fields": {
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
+      },
+      "expected": {
+        "total_amount": "304,326",
+        "subtotal_amount": "261,000",
+        "tax_amount": "27,666"
+      }
+    },
+    {
+      "case_id": "cord_validation_0006",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0006.png",
+      "fields": {
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
+      },
+      "expected": {
+        "total_amount": "70,000",
+        "cash_amount": "70,000",
+        "subtotal_amount": "63,636",
+        "tax_amount": "6,364"
+      }
+    },
+    {
+      "case_id": "cord_validation_0007",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0007.png",
+      "fields": {
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
+      },
+      "expected": {
+        "total_amount": "20,000",
+        "cash_amount": "100,000",
+        "change_amount": "80,000"
+      }
+    },
+    {
+      "case_id": "cord_validation_0008",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0008.png",
+      "fields": {
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
+      },
+      "expected": {
+        "total_amount": "379,500",
+        "subtotal_amount": "345,000",
+        "tax_amount": "34,500"
+      }
+    },
+    {
+      "case_id": "cord_validation_0009",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0009.png",
+      "fields": {
+        "total_amount": "Amount the customer owed for their purchase. This is NOT the cash paid and NOT the change returned. Extract the number as-is including separators.",
+        "subtotal_amount": "Sum of items before tax. Usually slightly less than total_amount. Extract the number as-is.",
+        "tax_amount": "Tax or service charge added on top of subtotal. Usually a small fraction of subtotal_amount. Extract the number as-is.",
+        "cash_amount": "Payment made by the customer. Should be greater than or equal to total_amount. Extract the number as-is.",
+        "change_amount": "Amount returned to the customer after payment. Equals cash_amount minus total_amount. Extract the number as-is."
+      },
+      "expected": {
+        "total_amount": "22,000",
+        "cash_amount": "22,000"
+      }
+    },
+    {
+      "case_id": "funsd_82092117",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82092117.png",
+      "fields": {
+        "recipient": "Name of the person or organization this letter is addressed to.",
+        "sender": "Name of the person or organization who wrote or signed this letter.",
+        "date": "Date the letter was written. Extract exactly as it appears in the document."
+      },
+      "expected": {
+        "recipient": "George Baroody",
+        "date": "12 /10 /98"
+      }
+    },
+    {
+      "case_id": "funsd_82200067_0069",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82200067_0069.png",
+      "fields": {
+        "recipient": "Name of the person or organization this letter is addressed to.",
+        "sender": "Name of the person or organization who wrote or signed this letter.",
+        "date": "Date the letter was written. Extract exactly as it appears in the document."
+      },
+      "expected": {
+        "recipient": "K. A. Sparrow",
+        "sender": "T. D. Blachly"
+      }
+    },
+    {
+      "case_id": "funsd_82250337_0338",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82250337_0338.png",
+      "fields": {
+        "recipient": "Name of the person or organization this letter is addressed to.",
+        "sender": "Name of the person or organization who wrote or signed this letter.",
+        "date": "Date the letter was written. Extract exactly as it appears in the document."
+      },
+      "expected": {
+        "recipient": "Sam Zolot",
+        "sender": "D. J. Landro",
+        "date": "2- Dec- 97"
+      }
+    },
+    {
+      "case_id": "funsd_82252956_2958",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82252956_2958.png",
+      "fields": {
+        "recipient": "Name of the person or organization this letter is addressed to.",
+        "sender": "Name of the person or organization who wrote or signed this letter.",
+        "date": "Date the letter was written. Extract exactly as it appears in the document."
+      },
+      "expected": {
+        "recipient": "K. A. Sparrow",
+        "sender": "D. J. Landro"
+      }
+    },
+    {
+      "case_id": "funsd_82253058_3059",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82253058_3059.png",
+      "fields": {
+        "recipient": "Name of the person or organization this letter is addressed to.",
+        "sender": "Name of the person or organization who wrote or signed this letter.",
+        "date": "Date the letter was written. Extract exactly as it appears in the document."
+      },
+      "expected": {
+        "recipient": "MRS. K. A. SPARROW",
+        "sender": "R. G. Ryan",
+        "date": "12/ 10/ 96"
+      }
+    },
+    {
+      "case_id": "funsd_82253245_3247",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82253245_3247.png",
+      "fields": {
+        "recipient": "Name of the person or organization this letter is addressed to.",
+        "sender": "Name of the person or organization who wrote or signed this letter.",
+        "date": "Date the letter was written. Extract exactly as it appears in the document."
+      },
+      "expected": {
+        "recipient": "K. A. Sparrow",
+        "sender": "R. E. Lane"
+      }
+    },
+    {
+      "case_id": "funsd_82253362_3364",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82253362_3364.png",
+      "fields": {
+        "recipient": "Name of the person or organization this letter is addressed to.",
+        "sender": "Name of the person or organization who wrote or signed this letter.",
+        "date": "Date the letter was written. Extract exactly as it appears in the document."
+      },
+      "expected": {
+        "recipient": "K. A. Sparrow",
+        "sender": "J. L. McGinnis"
+      }
+    },
+    {
+      "case_id": "funsd_82254765",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82254765.png",
+      "fields": {
+        "recipient": "Name of the person or organization this letter is addressed to.",
+        "sender": "Name of the person or organization who wrote or signed this letter.",
+        "date": "Date the letter was written. Extract exactly as it appears in the document."
+      },
+      "expected": {
+        "recipient": "K. A. SPARROW",
+        "sender": "S. Reindel"
+      }
+    },
+    {
+      "case_id": "funsd_82562350",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82562350.png",
+      "fields": {
+        "recipient": "Name of the person or organization this letter is addressed to.",
+        "sender": "Name of the person or organization who wrote or signed this letter.",
+        "date": "Date the letter was written. Extract exactly as it appears in the document."
+      },
+      "expected": {
+        "recipient": "Mr. Randy Spell",
+        "sender": "Rick Redfield",
+        "date": "May 1, 2000"
+      }
+    },
+    {
+      "case_id": "funsd_82573104",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82573104.png",
+      "fields": {
+        "recipient": "Name of the person or organization this letter is addressed to.",
+        "sender": "Name of the person or organization who wrote or signed this letter.",
+        "date": "Date the letter was written. Extract exactly as it appears in the document."
+      },
+      "expected": {
+        "date": "December 9, 1999",
+        "recipient": "Haney H. Bell, Esq.",
+        "sender": "David H. Remes (202) 778 5212 - direct fax"
+      }
+    }
+  ]
+}

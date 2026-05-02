@@ -1,0 +1,9 @@
+{
+  "rollback_events": 0,
+  "policy_health": {
+    "default": {
+      "p95_latency_ms": 55.2,
+      "validation_pass_rate": 0.5
+    }
+  }
+}

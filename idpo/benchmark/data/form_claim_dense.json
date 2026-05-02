@@ -1,0 +1,15 @@
+{
+  "doc_id": "form_claim_dense",
+  "source": "digital",
+  "metadata": {
+    "vendor": "meridian_health",
+    "document_kind": "claim_form"
+  },
+  "pages": [
+    {
+      "number": 1,
+      "text": "Medical Claim Form\nClaim Number: CLM-77019\nMember ID: M-44591\nPatient Name: Jane Rowan\nProvider Name: Meridian Health Clinic\nService Date: 2026-02-27\nClaim Type: Outpatient\nDiagnosis Code: J20.9\nBilled Amount: 325.00\nApproved Amount: 289.70",
+      "raw_text": "Medical Claim Form\nClaim Number: CLM-77019\nMember ID: M-44591\nPatient Name: Jane Rowan\nProvider Name: Meridian Health Clinic\nService Date: 2026-02-27\nClaim Type: Outpatient\nDiagnosis Code: J20.9\nBilled Amount: 325.00\nApproved Amount: 289.70"
+    }
+  ]
+}

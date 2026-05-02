@@ -1,0 +1,5 @@
+{"event_id":"e1","event_type":"DAEOutput","agent":"document_analysis","timestamp":1772400000.0,"latency_ms":0.4,"cost_units":0.0,"inputs":{"doc_id":"sample_invoice"},"outputs":{"route_bin":"standard"},"parameters":{}}
+{"event_id":"e2","event_type":"PolicyAdvice","agent":"policy_advisor","timestamp":1772400000.2,"latency_ms":0.1,"cost_units":0.0,"inputs":{"doc_id":"sample_invoice"},"outputs":{"policy_id":"default"},"parameters":{}}
+{"event_id":"e3","event_type":"RecoveryAction","agent":"recovery","timestamp":1772400000.8,"latency_ms":1.2,"cost_units":0.0,"inputs":{"doc_id":"sample_invoice"},"outputs":{"recovered":["total_amount"]},"parameters":{}}
+{"event_id":"e4","event_type":"EscalationAction","agent":"escalation","timestamp":1772400001.0,"latency_ms":0.1,"cost_units":0.5,"inputs":{"doc_id":"sample_invoice"},"outputs":{"escalated":true},"parameters":{}}
+{"event_id":"e5","event_type":"ShadowComparison","agent":"shadow_runner","timestamp":1772400001.2,"latency_ms":0.4,"cost_units":0.0,"inputs":{"doc_id":"sample_invoice"},"outputs":{"policy_id":"forms"},"parameters":{}}

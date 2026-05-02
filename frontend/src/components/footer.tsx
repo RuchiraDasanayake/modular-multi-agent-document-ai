@@ -54,8 +54,7 @@ export function Footer() {
                             </span>
                         </div>
                         <p className="text-sm text-slate-600 dark:text-gray-400 leading-relaxed max-w-sm">
-                            Next-generation document intelligence powered by adaptive AI.
-                            Extract, validate, and understand complex documents with precision.
+                            Adaptive document extraction built on AHMN policy learning and IDPO runtime orchestration.
                         </p>
                         <div className="flex items-center gap-3 pt-2">
                             {socialLinks.map((social) => (

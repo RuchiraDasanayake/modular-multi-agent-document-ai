@@ -1,0 +1,387 @@
+{
+  "name": "research_batch_5",
+  "description": "Permanent research batch 5 - 20 random docs (10 CORD + 10 FUNSD) post-reward-fix",
+  "cases": [
+    {
+      "case_id": "funsd_82504862",
+      "tags": [
+        "funsd",
+        "correspondence"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82504862.png",
+      "fields": {
+        "date": "Date of the document"
+      },
+      "expected": {
+        "date": "August 3, 1998"
+      }
+    },
+    {
+      "case_id": "cord_validation_0056",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0056.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "20.000",
+        "cash_amount": "20.000",
+        "change_amount": "0",
+        "subtotal_amount": "20.000"
+      }
+    },
+    {
+      "case_id": "cord_validation_0081",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0081.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "276,000",
+        "subtotal_amount": "250,909",
+        "tax_amount": "25,091"
+      }
+    },
+    {
+      "case_id": "funsd_86244113",
+      "tags": [
+        "funsd",
+        "correspondence"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/86244113.png",
+      "fields": {
+        "brand": "BRAND",
+        "note": "NOTE:"
+      },
+      "expected": {
+        "brand": "STYLE LIGHT 100'S STYLE LIGHT MENTHOL 100'S STYLE LIGHT BOX 100'S STYLE MEN. LIGHT BOX 100'S STYLE SLIM LIGHT 100's STYLE SLIM MEN. LT. 100's",
+        "note": "REPORT STYLE INVENTORY ONLY. SUBMIT REPORT ONLY IF STYLE IS STILL ON HAND IN THIS ACCOUNT."
+      }
+    },
+    {
+      "case_id": "cord_validation_0082",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0082.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "35.000",
+        "cash_amount": "100.000",
+        "change_amount": "65.000",
+        "subtotal_amount": "35.000"
+      }
+    },
+    {
+      "case_id": "cord_validation_0054",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0054.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "40.000",
+        "cash_amount": "50.000",
+        "change_amount": "10.000"
+      }
+    },
+    {
+      "case_id": "funsd_85240939",
+      "tags": [
+        "funsd",
+        "correspondence"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/85240939.png",
+      "fields": {
+        "company": "Company or organization name",
+        "date": "Date of the document"
+      },
+      "expected": {
+        "company": "Lorillard",
+        "date": "2/18/80 7:00 P. M."
+      }
+    },
+    {
+      "case_id": "funsd_92380595",
+      "tags": [
+        "funsd",
+        "correspondence"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/92380595.png",
+      "fields": {
+        "date": "Date of the document",
+        "recipient_name": "Name of the person this is addressed to"
+      },
+      "expected": {
+        "date": "12- 13- 89",
+        "recipient_name": "LORILLARD, INC. ONE PARK AVENUE 18TH FL NEW YORK, N. Y. 10016"
+      }
+    },
+    {
+      "case_id": "cord_validation_0062",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0062.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "62,000",
+        "cash_amount": "100,000",
+        "change_amount": "38,000",
+        "subtotal_amount": "56,364",
+        "tax_amount": "5,636"
+      }
+    },
+    {
+      "case_id": "cord_validation_0090",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0090.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "change_amount": "The change amount returned to the customer. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "70000.00",
+        "change_amount": "0.00"
+      }
+    },
+    {
+      "case_id": "cord_validation_0087",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0087.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "29,000",
+        "cash_amount": "30,000",
+        "change_amount": "1,000",
+        "subtotal_amount": "29,000",
+        "tax_amount": "0"
+      }
+    },
+    {
+      "case_id": "cord_validation_0025",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0025.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "207,900",
+        "subtotal_amount": "180,000",
+        "tax_amount": "18,900"
+      }
+    },
+    {
+      "case_id": "funsd_82200067_0069",
+      "tags": [
+        "funsd",
+        "correspondence"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82200067_0069.png",
+      "fields": {
+        "recipient_name": "Name of the person this is addressed to",
+        "sender_name": "Name of the person who sent this"
+      },
+      "expected": {
+        "recipient_name": "K. A. Sparrow",
+        "sender_name": "T. D. Blachly"
+      }
+    },
+    {
+      "case_id": "funsd_87147607",
+      "tags": [
+        "funsd",
+        "correspondence"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/87147607.png",
+      "fields": {},
+      "expected": {}
+    },
+    {
+      "case_id": "funsd_83996357",
+      "tags": [
+        "funsd",
+        "correspondence"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/83996357.png",
+      "fields": {
+        "recipient_name": "Name of the person this is addressed to",
+        "sender_name": "Name of the person who sent this",
+        "date": "Date of the document"
+      },
+      "expected": {
+        "recipient_name": "KELLI SCRUGGS",
+        "sender_name": "LEONARD JONES",
+        "date": "OCTOBER 1999"
+      }
+    },
+    {
+      "case_id": "funsd_87125460",
+      "tags": [
+        "funsd",
+        "correspondence"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/87125460.png",
+      "fields": {
+        "date": "Date of the document",
+        "recipient_name": "Name of the person this is addressed to"
+      },
+      "expected": {
+        "date": "08/ 14/ 87 08/ 14/ 87",
+        "recipient_name": "Page 14 and Table 4 Page 14 and Table 4"
+      }
+    },
+    {
+      "case_id": "funsd_85629964",
+      "tags": [
+        "funsd",
+        "correspondence"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/85629964.png",
+      "fields": {},
+      "expected": {}
+    },
+    {
+      "case_id": "cord_validation_0045",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0045.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "287,760",
+        "subtotal_amount": "240,000",
+        "tax_amount": "26,160"
+      }
+    },
+    {
+      "case_id": "cord_validation_0067",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0067.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "76,000",
+        "subtotal_amount": "69,091",
+        "tax_amount": "6,909"
+      }
+    },
+    {
+      "case_id": "funsd_87528380",
+      "tags": [
+        "funsd",
+        "correspondence"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/87528380.png",
+      "fields": {},
+      "expected": {}
+    }
+  ]
+}
