@@ -31,6 +31,7 @@ USER node
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/runner.config.docker.json ./runner.config.json
 
 EXPOSE 3000
 

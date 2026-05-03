@@ -1,0 +1,35 @@
+{
+  "workspaceRoot": ".",
+  "runsDir": "/idpo-data/runs",
+  "uploadsDir": "/idpo-data/frontend/uploads",
+  "jobsDir": "/idpo-data/frontend/jobs",
+  "demoSampleRunsDir": "./demo_sample_runs",
+  "maxUploadMb": 25,
+  "allowedExtensions": [
+    ".pdf",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".txt",
+    ".json"
+  ],
+  "defaultCommandId": "idpo_process_inbox",
+  "commands": [
+    {
+      "id": "idpo_process_inbox",
+      "description": "Run IDPO inbox pipeline over uploaded files",
+      "program": "echo",
+      "args": ["delegated to IDPO microservice"],
+      "cwd": ".",
+      "env": {}
+    }
+  ],
+  "backendChecks": [
+    {
+      "id": "idpo-service",
+      "kind": "http",
+      "url": "http://idpo:8004/health",
+      "timeoutMs": 5000
+    }
+  ]
+}
