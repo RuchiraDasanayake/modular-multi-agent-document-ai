@@ -1,28 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { useState } from "react";
-import {
-    BookOpen,
-    Code2,
-    Terminal,
-    Layers,
-    ArrowRight,
-    Copy,
-    Check,
-    FileJson,
-    Cpu,
-    Shield,
-    Zap,
-    GitBranch,
-} from "lucide-react";
 
 const sections = [
-    { id: "quickstart", label: "Getting Started", icon: <Zap className="w-4 h-4" /> },
-    { id: "api", label: "Integration", icon: <Code2 className="w-4 h-4" /> },
-    { id: "architecture", label: "How It Works", icon: <Layers className="w-4 h-4" /> },
-    { id: "modules", label: "Capabilities", icon: <Cpu className="w-4 h-4" /> },
+    { id: "quickstart", label: "Getting Started" },
+    { id: "api", label: "Integration" },
+    { id: "architecture", label: "How It Works" },
+    { id: "modules", label: "Capabilities" },
 ];
 
 const apiEndpoints = [
@@ -48,22 +34,18 @@ const apiEndpoints = [
 
 const modules = [
     {
-        icon: <Cpu className="w-6 h-6 text-brand-500" />,
         name: "Extraction Engine",
         desc: "Intelligent document processing with multi-level understanding and adaptive learning that improves over time.",
     },
     {
-        icon: <GitBranch className="w-6 h-6 text-violet-500" />,
         name: "Transparency & Review",
         desc: "AI explanations and expert review workflows for transparent, auditable document processing.",
     },
     {
-        icon: <Shield className="w-6 h-6 text-amber-500" />,
         name: "Quality Assurance",
         desc: "Multi-layered validation with format checking, consistency verification, and configurable business rules.",
     },
     {
-        icon: <Layers className="w-6 h-6 text-emerald-500" />,
         name: "Secure Gateway",
         desc: "Unified entry point with authentication, rate limiting, and intelligent request routing.",
     },
@@ -86,7 +68,6 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
                     onClick={handleCopy}
                     className="text-xs text-slate-400 hover:text-white flex items-center gap-1.5 transition-colors"
                 >
-                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     {copied ? "Copied!" : "Copy"}
                 </button>
             </div>
@@ -112,7 +93,6 @@ export default function DocsPage() {
                         transition={{ duration: 0.5 }}
                         className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-blue-700 dark:text-blue-300 text-sm font-medium mb-6"
                     >
-                        <BookOpen className="w-4 h-4" />
                         Documentation
                     </motion.div>
                     <motion.h1
@@ -153,7 +133,7 @@ export default function DocsPage() {
                                     : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5"
                                     }`}
                             >
-                                {s.icon}
+
                                 {s.label}
                             </button>
                         ))}
@@ -171,7 +151,6 @@ export default function DocsPage() {
                         viewport={{ once: true }}
                     >
                         <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-4 flex items-center gap-3">
-                            <Terminal className="w-8 h-8 text-brand-500" />
                             Getting Started
                         </h2>
                         <p className="text-slate-600 dark:text-gray-400 mb-8 text-lg leading-relaxed max-w-3xl">
@@ -231,7 +210,6 @@ Navigate to Document Extraction to start processing.`}
                         viewport={{ once: true }}
                     >
                         <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-4 flex items-center gap-3">
-                            <FileJson className="w-8 h-8 text-blue-500" />
                             Integration Guide
                         </h2>
                         <p className="text-slate-600 dark:text-gray-400 mb-8 text-lg leading-relaxed max-w-3xl">
@@ -284,7 +262,6 @@ curl http://localhost:8000/api/dashboard/stats \\
                         viewport={{ once: true }}
                     >
                         <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-4 flex items-center gap-3">
-                            <Layers className="w-8 h-8 text-violet-500" />
                             How It Works
                         </h2>
                         <p className="text-slate-600 dark:text-gray-400 mb-8 text-lg leading-relaxed max-w-3xl">
@@ -342,7 +319,6 @@ curl http://localhost:8000/api/dashboard/stats \\
                         viewport={{ once: true }}
                     >
                         <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-4 flex items-center gap-3">
-                            <Cpu className="w-8 h-8 text-emerald-500" />
                             Platform Capabilities
                         </h2>
                         <p className="text-slate-600 dark:text-gray-400 mb-8 text-lg leading-relaxed max-w-3xl">
@@ -362,7 +338,7 @@ curl http://localhost:8000/api/dashboard/stats \\
                                     <div className="flex items-center justify-between mb-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 flex items-center justify-center">
-                                                {mod.icon}
+
                                             </div>
                                             <h3 className="text-lg font-bold text-slate-900 dark:text-white">{mod.name}</h3>
                                         </div>
@@ -386,7 +362,7 @@ curl http://localhost:8000/api/dashboard/stats \\
                     </p>
                     <div className="flex items-center justify-center gap-4 flex-wrap">
                         <Link href="/signup" className="px-8 py-4 glass-button rounded-xl text-lg flex items-center gap-2">
-                            Start Building <ArrowRight className="w-5 h-5" />
+                            Start Building
                         </Link>
                         <Link href="/contact" className="px-8 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-xl text-lg font-medium transition-all shadow-sm">
                             Contact Support

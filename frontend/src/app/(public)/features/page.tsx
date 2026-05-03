@@ -1,26 +1,10 @@
 "use client";
 
-import { motion } from "framer-motion";
 import Link from "next/link";
-import {
-    Brain,
-    Shield,
-    Zap,
-    BarChart3,
-    Globe,
-    Lock,
-    ArrowRight,
-    Cpu,
-    Layers,
-    GitBranch,
-    Eye,
-    RefreshCw,
-    Database,
-} from "lucide-react";
+import { motion } from "framer-motion";
 
 const coreFeatures = [
     {
-        icon: <Brain className="w-8 h-8" />,
         color: "text-brand-500",
         bgColor: "bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/20",
         title: "Explainable AI",
@@ -33,7 +17,6 @@ const coreFeatures = [
         ],
     },
     {
-        icon: <Shield className="w-8 h-8" />,
         color: "text-violet-500",
         bgColor: "bg-violet-50 dark:bg-violet-500/10 border-violet-200 dark:border-violet-500/20",
         title: "Intelligent Quality Checks",
@@ -46,7 +29,6 @@ const coreFeatures = [
         ],
     },
     {
-        icon: <Zap className="w-8 h-8" />,
         color: "text-amber-500",
         bgColor: "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20",
         title: "Expert Review Workflow",
@@ -59,7 +41,6 @@ const coreFeatures = [
         ],
     },
     {
-        icon: <Cpu className="w-8 h-8" />,
         color: "text-emerald-500",
         bgColor: "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20",
         title: "Adaptive Learning Engine",
@@ -72,7 +53,6 @@ const coreFeatures = [
         ],
     },
     {
-        icon: <GitBranch className="w-8 h-8" />,
         color: "text-blue-500",
         bgColor: "bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20",
         title: "Smart Model Selection",
@@ -85,7 +65,6 @@ const coreFeatures = [
         ],
     },
     {
-        icon: <Layers className="w-8 h-8" />,
         color: "text-rose-500",
         bgColor: "bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/20",
         title: "Layout-Aware Processing",
@@ -100,12 +79,12 @@ const coreFeatures = [
 ];
 
 const technicalSpecs = [
-    { icon: <Database className="w-5 h-5" />, label: "Processing", value: "Multiple formats" },
-    { icon: <RefreshCw className="w-5 h-5" />, label: "Throughput", value: "High throughput" },
-    { icon: <Eye className="w-5 h-5" />, label: "Accuracy", value: "High accuracy" },
-    { icon: <Globe className="w-5 h-5" />, label: "Languages", value: "Multi-language" },
-    { icon: <Lock className="w-5 h-5" />, label: "Security", value: "Enterprise-grade" },
-    { icon: <BarChart3 className="w-5 h-5" />, label: "Speed", value: "Low latency" },
+    { label: "Processing", value: "Multiple formats" },
+    { label: "Throughput", value: "High throughput" },
+    { label: "Accuracy", value: "High accuracy" },
+    { label: "Languages", value: "Multi-language" },
+    { label: "Security", value: "Enterprise-grade" },
+    { label: "Speed", value: "Low latency" },
 ];
 
 export default function FeaturesPage() {
@@ -121,7 +100,6 @@ export default function FeaturesPage() {
                         transition={{ duration: 0.5 }}
                         className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 text-violet-700 dark:text-violet-300 text-sm font-medium mb-6"
                     >
-                        <Layers className="w-4 h-4" />
                         Platform Capabilities
                     </motion.div>
                     <motion.h1
@@ -161,7 +139,7 @@ export default function FeaturesPage() {
                                 className="flex items-center gap-3"
                             >
                                 <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-gray-800 border border-slate-200 dark:border-gray-700 flex items-center justify-center text-brand-500 dark:text-brand-400 shrink-0">
-                                    {spec.icon}
+
                                 </div>
                                 <div>
                                     <div className="text-xs text-slate-500 dark:text-gray-500 uppercase tracking-wider">{spec.label}</div>
@@ -190,7 +168,7 @@ export default function FeaturesPage() {
                                 {/* Content */}
                                 <div className="flex-1 space-y-5">
                                     <div className={`inline-flex items-center gap-2.5 px-4 py-2 rounded-xl border ${feature.bgColor} ${feature.color}`}>
-                                        {feature.icon}
+
                                         <span className="font-semibold">{feature.title}</span>
                                     </div>
                                     <p className="text-slate-600 dark:text-gray-400 leading-relaxed text-lg">
@@ -213,7 +191,7 @@ export default function FeaturesPage() {
                                         <div className={`${feature.color} opacity-20 dark:opacity-10`}>
                                             {/* Clone icon at large size */}
                                             <div className="w-32 h-32 flex items-center justify-center">
-                                                {feature.icon}
+
                                             </div>
                                         </div>
                                     </div>
@@ -235,7 +213,7 @@ export default function FeaturesPage() {
                     </p>
                     <div className="flex items-center justify-center gap-4 flex-wrap">
                         <Link href="/signup" className="px-8 py-4 glass-button rounded-xl text-lg flex items-center gap-2">
-                            Get Started Free <ArrowRight className="w-5 h-5" />
+                            Get Started Free
                         </Link>
                         <Link href="/pricing" className="px-8 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-xl text-lg font-medium transition-all shadow-sm">
                             View Pricing

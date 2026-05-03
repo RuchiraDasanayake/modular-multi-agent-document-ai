@@ -6,34 +6,15 @@ import { api } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import { useToast } from "@/components/toast";
 import type { IDPORun } from "@/types";
-import {
-    History,
-    FileText,
-    Clock,
-    CheckCircle2,
-    XCircle,
-    Download,
-    RefreshCw,
-    ChevronDown,
-    ChevronUp,
-    AlertTriangle,
-    Timer,
-    Files,
-    Search,
-    ArrowUpDown,
-    BarChart3,
-    Package,
-    Loader2,
-    CalendarDays,
-    ArrowDownWideNarrow,
-    ArrowUpWideNarrow,
-} from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  Helpers                                                                  */
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Use rewrite proxy if available, otherwise fall back to external API URL
+const API_BASE = typeof window === "undefined"
+    ? (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000")
+    : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000");
 
 function formatDate(raw?: string | number): string {
     if (!raw && raw !== 0) return "—";
@@ -99,14 +80,12 @@ type SortDir = "asc" | "desc";
 
 function StatusBadge({ status }: { status: string }) {
     const cfg = {
-        completed: { icon: CheckCircle2, bg: "bg-emerald-50 dark:bg-emerald-500/10", text: "text-emerald-700 dark:text-emerald-400", border: "border-emerald-200 dark:border-emerald-500/20" },
-        failed: { icon: XCircle, bg: "bg-red-50 dark:bg-red-500/10", text: "text-red-700 dark:text-red-400", border: "border-red-200 dark:border-red-500/20" },
-        running: { icon: Loader2, bg: "bg-blue-50 dark:bg-blue-500/10", text: "text-blue-700 dark:text-blue-400", border: "border-blue-200 dark:border-blue-500/20" },
-    }[status] ?? { icon: Clock, bg: "bg-slate-50 dark:bg-slate-500/10", text: "text-slate-600 dark:text-slate-400", border: "border-slate-200 dark:border-slate-500/20" };
-    const Icon = cfg.icon;
+        completed: { bg: "bg-emerald-50 dark:bg-emerald-500/10", text: "text-emerald-700 dark:text-emerald-400", border: "border-emerald-200 dark:border-emerald-500/20" },
+        failed: { bg: "bg-red-50 dark:bg-red-500/10", text: "text-red-700 dark:text-red-400", border: "border-red-200 dark:border-red-500/20" },
+        running: { bg: "bg-blue-50 dark:bg-blue-500/10", text: "text-blue-700 dark:text-blue-400", border: "border-blue-200 dark:border-blue-500/20" },
+    }[status] ?? { bg: "bg-slate-50 dark:bg-slate-500/10", text: "text-slate-600 dark:text-slate-400", border: "border-slate-200 dark:border-slate-500/20" };
     return (
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wider border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
-            <Icon className={`w-3 h-3 ${status === "running" ? "animate-spin" : ""}`} />
+        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wider border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
             {status}
         </span>
     );
@@ -239,16 +218,12 @@ export default function HistoryPage() {
             <button
                 onClick={() => toggleSort(field)}
                 className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${active
-                        ? "bg-brand-500 text-white shadow-sm shadow-brand-500/25"
-                        : "text-slate-500 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800"
+                    ? "bg-brand-500 text-white shadow-sm shadow-brand-500/25"
+                    : "text-slate-500 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800"
                     }`}
             >
                 {label}
-                {active ? (
-                    sortDir === "desc" ? <ArrowDownWideNarrow className="w-3 h-3" /> : <ArrowUpWideNarrow className="w-3 h-3" />
-                ) : (
-                    <ArrowUpDown className="w-3 h-3 opacity-40" />
-                )}
+                {active ? (sortDir === "desc" ? "Desc" : "Asc") : ""}
             </button>
         );
     };
@@ -258,14 +233,6 @@ export default function HistoryPage() {
             {/* ═══ Header ═══ */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-center gap-4">
-                    <div className="relative">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500 to-brand-600 flex items-center justify-center shadow-xl shadow-cyan-500/25">
-                            <History className="w-7 h-7 text-white" strokeWidth={2} />
-                        </div>
-                        <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white dark:bg-gray-900 flex items-center justify-center border-2 border-cyan-400 shadow-sm">
-                            <span className="text-[9px] font-black text-cyan-600 dark:text-cyan-400">{totalRuns}</span>
-                        </div>
-                    </div>
                     <div>
                         <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
                             Processing History
@@ -280,7 +247,6 @@ export default function HistoryPage() {
                         href="/dashboard/idpo"
                         className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-brand-500 to-cyan-500 text-white text-sm font-semibold shadow-lg shadow-brand-500/25 hover:shadow-xl hover:shadow-brand-500/40 transition-all hover:scale-[1.02] active:scale-[0.98]"
                     >
-                        <FileText className="w-4 h-4" />
                         New Extraction
                     </Link>
                     <button
@@ -288,7 +254,7 @@ export default function HistoryPage() {
                         disabled={loading}
                         className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-700 text-sm font-medium text-slate-600 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 transition-all shadow-sm disabled:opacity-50"
                     >
-                        <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+                        Refresh
                     </button>
                 </div>
             </div>
@@ -296,11 +262,11 @@ export default function HistoryPage() {
             {/* ═══ Stats Cards ═══ */}
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                 {[
-                    { label: "Total Runs", value: totalRuns, icon: BarChart3, iconColor: "text-brand-500", bgColor: "bg-brand-50 dark:bg-brand-500/10", borderColor: "border-brand-200/50 dark:border-brand-500/20" },
-                    { label: "Completed", value: completedRuns, icon: CheckCircle2, iconColor: "text-emerald-500", bgColor: "bg-emerald-50 dark:bg-emerald-500/10", borderColor: "border-emerald-200/50 dark:border-emerald-500/20" },
-                    { label: "Failed", value: failedRuns, icon: AlertTriangle, iconColor: "text-red-500", bgColor: "bg-red-50 dark:bg-red-500/10", borderColor: "border-red-200/50 dark:border-red-500/20" },
-                    { label: "Documents", value: totalDocs, icon: Files, iconColor: "text-cyan-500", bgColor: "bg-cyan-50 dark:bg-cyan-500/10", borderColor: "border-cyan-200/50 dark:border-cyan-500/20" },
-                    { label: "Avg Duration", value: formatDuration(avgDuration), icon: Timer, iconColor: "text-amber-500", bgColor: "bg-amber-50 dark:bg-amber-500/10", borderColor: "border-amber-200/50 dark:border-amber-500/20" },
+                    { label: "Total Runs", value: totalRuns, borderColor: "border-brand-200/50 dark:border-brand-500/20" },
+                    { label: "Completed", value: completedRuns, borderColor: "border-emerald-200/50 dark:border-emerald-500/20" },
+                    { label: "Failed", value: failedRuns, borderColor: "border-red-200/50 dark:border-red-500/20" },
+                    { label: "Documents", value: totalDocs, borderColor: "border-cyan-200/50 dark:border-cyan-500/20" },
+                    { label: "Avg Duration", value: formatDuration(avgDuration), borderColor: "border-amber-200/50 dark:border-amber-500/20" },
                 ].map((stat) => (
                     <div
                         key={stat.label}
@@ -315,9 +281,6 @@ export default function HistoryPage() {
                                     {stat.value}
                                 </p>
                             </div>
-                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${stat.bgColor}`}>
-                                <stat.icon className={`w-4.5 h-4.5 ${stat.iconColor}`} />
-                            </div>
                         </div>
                     </div>
                 ))}
@@ -328,13 +291,12 @@ export default function HistoryPage() {
                 <div className="flex flex-col lg:flex-row gap-3">
                     {/* Search */}
                     <div className="relative flex-1">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         <input
                             type="text"
                             placeholder="Search by run ID, config path..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-gray-800/50 border border-slate-200/60 dark:border-gray-700/60 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 transition-all outline-none"
+                            className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-gray-800/50 border border-slate-200/60 dark:border-gray-700/60 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 transition-all outline-none"
                         />
                     </div>
 
@@ -353,8 +315,8 @@ export default function HistoryPage() {
                                 key={s}
                                 onClick={() => setStatusFilter(s)}
                                 className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold capitalize transition-all ${statusFilter === s
-                                        ? "bg-white dark:bg-gray-700 text-slate-900 dark:text-white shadow-sm"
-                                        : "text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200"
+                                    ? "bg-white dark:bg-gray-700 text-slate-900 dark:text-white shadow-sm"
+                                    : "text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200"
                                     }`}
                             >
                                 {s === "all" ? `All (${totalRuns})` : s === "completed" ? `✓ ${completedRuns}` : `✗ ${failedRuns}`}
@@ -369,7 +331,6 @@ export default function HistoryPage() {
                 <div className="flex flex-col items-center justify-center py-24">
                     <div className="relative">
                         <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500/20 to-cyan-500/20 flex items-center justify-center">
-                            <Loader2 className="w-8 h-8 text-brand-500 animate-spin" />
                         </div>
                     </div>
                     <p className="mt-4 text-sm font-medium text-slate-500 dark:text-gray-400">Loading processing history...</p>
@@ -377,7 +338,6 @@ export default function HistoryPage() {
             ) : filtered.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-24 text-center">
                     <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-50 dark:from-gray-800 dark:to-gray-900 flex items-center justify-center mb-5 shadow-inner">
-                        <Package className="w-10 h-10 text-slate-300 dark:text-gray-600" />
                     </div>
                     <h3 className="text-lg font-bold text-slate-700 dark:text-gray-300 mb-2">
                         {runs.length === 0 ? "No processing runs yet" : "No matching runs"}
@@ -392,7 +352,6 @@ export default function HistoryPage() {
                             href="/dashboard/idpo"
                             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-500 to-cyan-500 text-white text-sm font-semibold shadow-lg shadow-brand-500/25 hover:shadow-xl transition-all"
                         >
-                            <FileText className="w-4 h-4" />
                             Start Extracting
                         </Link>
                     )}
@@ -430,7 +389,6 @@ export default function HistoryPage() {
                                                 {run.run_id.substring(0, 8)}
                                             </p>
                                             <p className="text-[11px] text-slate-400 dark:text-gray-500 flex items-center gap-1 mt-0.5">
-                                                <CalendarDays className="w-3 h-3" />
                                                 {relativeTime(run.started_at)}
                                             </p>
                                         </div>
@@ -438,7 +396,6 @@ export default function HistoryPage() {
                                         {/* Docs + Duration */}
                                         <div className="hidden sm:flex items-center gap-4">
                                             <span className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-gray-400">
-                                                <Files className="w-3.5 h-3.5 text-slate-400" />
                                                 <span className="font-semibold text-slate-700 dark:text-gray-300">{run.doc_count ?? 0}</span>
                                                 doc{(run.doc_count ?? 0) !== 1 ? "s" : ""}
                                             </span>
@@ -450,24 +407,19 @@ export default function HistoryPage() {
                                         </div>
 
                                         <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500 dark:text-gray-400">
-                                            <Timer className="w-3.5 h-3.5 text-slate-400" />
                                             {formatDuration(run.duration_ms)}
                                         </div>
                                     </div>
 
-                                    {/* Export indicators + expand chevron */}
                                     <div className="flex items-center gap-2 flex-shrink-0">
                                         {hasExports && (
                                             <span className="hidden md:flex items-center gap-1 px-2 py-1 rounded-md bg-brand-50 dark:bg-brand-500/10 text-[10px] font-bold text-brand-600 dark:text-brand-400 border border-brand-200/40 dark:border-brand-500/20">
-                                                <Download className="w-3 h-3" />
                                                 Exports
                                             </span>
                                         )}
-                                        {isExpanded ? (
-                                            <ChevronUp className="w-4 h-4 text-slate-400 dark:text-gray-500" />
-                                        ) : (
-                                            <ChevronDown className="w-4 h-4 text-slate-300 dark:text-gray-600 group-hover:text-slate-500 dark:group-hover:text-gray-400 transition-colors" />
-                                        )}
+                                        <span className="text-xs font-semibold text-slate-400 dark:text-gray-500">
+                                            {isExpanded ? "Collapse" : "Details"}
+                                        </span>
                                     </div>
                                 </button>
 
@@ -506,12 +458,7 @@ export default function HistoryPage() {
                                                     disabled={downloading === `${run.run_id}_docs`}
                                                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 text-white text-xs font-semibold shadow-md shadow-brand-500/20 hover:shadow-lg hover:shadow-brand-500/30 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
                                                 >
-                                                    {downloading === `${run.run_id}_docs` ? (
-                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                    ) : (
-                                                        <Download className="w-3.5 h-3.5" />
-                                                    )}
-                                                    Documents (.xlsx)
+                                                    {downloading === `${run.run_id}_docs` ? "Downloading..." : "Documents (.xlsx)"}
                                                 </button>
                                             )}
                                             {run.has_entities_export && (
@@ -520,12 +467,7 @@ export default function HistoryPage() {
                                                     disabled={downloading === `${run.run_id}_entities`}
                                                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-semibold shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/30 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
                                                 >
-                                                    {downloading === `${run.run_id}_entities` ? (
-                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                    ) : (
-                                                        <Download className="w-3.5 h-3.5" />
-                                                    )}
-                                                    Entities (.xlsx)
+                                                    {downloading === `${run.run_id}_entities` ? "Downloading..." : "Entities (.xlsx)"}
                                                 </button>
                                             )}
                                             {run.has_text_export && (
@@ -534,17 +476,11 @@ export default function HistoryPage() {
                                                     disabled={downloading === `${run.run_id}_full_text`}
                                                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 text-white text-xs font-semibold shadow-md shadow-cyan-500/20 hover:shadow-lg hover:shadow-cyan-500/30 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
                                                 >
-                                                    {downloading === `${run.run_id}_full_text` ? (
-                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                    ) : (
-                                                        <Download className="w-3.5 h-3.5" />
-                                                    )}
-                                                    Full Text (.txt)
+                                                    {downloading === `${run.run_id}_full_text` ? "Downloading..." : "Full Text (.txt)"}
                                                 </button>
                                             )}
                                             {!hasExports && (
                                                 <p className="text-xs text-slate-400 dark:text-gray-500 italic flex items-center gap-1.5 py-2">
-                                                    <AlertTriangle className="w-3.5 h-3.5" />
                                                     No export files available for this run
                                                 </p>
                                             )}
@@ -561,16 +497,13 @@ export default function HistoryPage() {
             {!loading && filtered.length > 0 && (
                 <div className="flex items-center justify-between px-5 py-3 rounded-2xl bg-white/60 dark:bg-gray-900/40 border border-slate-200/40 dark:border-gray-800/40 text-xs text-slate-400 dark:text-gray-500">
                     <span className="flex items-center gap-1.5">
-                        <Package className="w-3.5 h-3.5" />
                         Showing {filtered.length} of {totalRuns} run{totalRuns !== 1 ? "s" : ""}
                     </span>
                     <span className="flex items-center gap-3">
                         <span className="flex items-center gap-1">
-                            <Files className="w-3.5 h-3.5" />
                             {totalDocs} total doc{totalDocs !== 1 ? "s" : ""}
                         </span>
                         <span className="hidden sm:flex items-center gap-1">
-                            <Timer className="w-3.5 h-3.5" />
                             Avg: {formatDuration(avgDuration)}
                         </span>
                     </span>
