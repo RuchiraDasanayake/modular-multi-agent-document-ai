@@ -21,14 +21,14 @@ COPY ahmn_core/ ./ahmn_core/
 # Copy seed/reset scripts (needed for fresh_deploy.py)
 COPY scripts/ ./scripts/
 
-# Run as non-root user
+# Create non-root user
 RUN useradd --create-home --shell /bin/bash appuser \
-    && chown -R appuser:appuser /app/.cache
-USER appuser
+    && mkdir -p ahmn_core/output \
+    && chown -R appuser:appuser /app/.cache /app/ahmn_core/output
 
 EXPOSE 8001
 
 HEALTHCHECK --interval=10s --timeout=10s --start-period=90s --retries=8 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"
 
-CMD ["uvicorn", "ahmn_core.main:app", "--host", "0.0.0.0", "--port", "8001"]
+ENTRYPOINT ["sh", "-c", "chown -R appuser:appuser ahmn_core/output 2>/dev/null; exec su -s /bin/sh appuser -c 'uvicorn ahmn_core.main:app --host 0.0.0.0 --port 8001'"]

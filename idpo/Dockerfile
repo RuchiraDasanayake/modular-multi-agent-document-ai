@@ -16,15 +16,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY idpo/ ./idpo/
 COPY configs/ ./configs/
 
-# Create necessary directories and non-root user
+# Create non-root user
 RUN useradd --create-home --shell /bin/bash appuser \
     && mkdir -p inputs/inbox runs \
     && chown -R appuser:appuser /app
-USER appuser
 
 EXPOSE 8004
 
 HEALTHCHECK --interval=10s --timeout=10s --start-period=30s --retries=8 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8004/health')" || exit 1
 
-CMD ["uvicorn", "idpo.ui.app:app", "--host", "0.0.0.0", "--port", "8004"]
+# Start as root to fix volume permissions, then drop to appuser
+ENTRYPOINT ["sh", "-c", "chown -R appuser:appuser inputs runs 2>/dev/null; mkdir -p inputs/inbox runs; chown -R appuser:appuser inputs runs; exec su -s /bin/sh appuser -c 'uvicorn idpo.ui.app:app --host 0.0.0.0 --port 8004'"]
