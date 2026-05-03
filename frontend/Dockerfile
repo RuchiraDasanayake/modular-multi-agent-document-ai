@@ -15,6 +15,10 @@ COPY . .
 ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
+# Internal API URL for server-side rewrites (baked at build time)
+ARG INTERNAL_API_URL=http://gateway:8000
+ENV INTERNAL_API_URL=$INTERNAL_API_URL
+
 RUN npm run build
 
 FROM node:20-alpine AS runner
