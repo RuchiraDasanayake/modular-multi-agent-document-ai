@@ -14,6 +14,11 @@ import type {
 
 const API_BASE = "";
 
+function getGatewayBase(): string {
+  if (typeof window === "undefined") return "";
+  return `${window.location.protocol}//${window.location.hostname}:8000`;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
@@ -187,7 +192,7 @@ export const api = {
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
-    const res = await fetch(`${API_BASE}/api/idpo/run`, {
+    const res = await fetch(`${getGatewayBase()}/api/idpo/run`, {
       method: "POST",
       headers,
       body: formData,
@@ -205,7 +210,7 @@ export const api = {
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
-    const res = await fetch(`${API_BASE}/api/idpo/runs/${runId}/${file}`, { headers });
+    const res = await fetch(`${getGatewayBase()}/api/idpo/runs/${runId}/${file}`, { headers });
     if (!res.ok) throw new Error(`Download failed: ${res.status}`);
     return res.blob();
   },

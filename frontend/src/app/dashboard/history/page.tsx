@@ -33,7 +33,10 @@ import {
 /*  Helpers                                                                  */
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
-const API_BASE = "";
+function getGatewayBase(): string {
+  if (typeof window === "undefined") return "";
+  return `${window.location.protocol}//${window.location.hostname}:8000`;
+}
 
 function formatDate(raw?: string | number): string {
     if (!raw && raw !== 0) return "—";
@@ -206,7 +209,7 @@ export default function HistoryPage() {
         try {
             const token = getToken();
             const filename = type === "full_text" ? "full_text.txt" : `${type}.xlsx`;
-            const res = await fetch(`${API_BASE}/api/idpo/runs/${runId}/${filename}`, {
+            const res = await fetch(`${getGatewayBase()}/api/idpo/runs/${runId}/${filename}`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             if (!res.ok) {
