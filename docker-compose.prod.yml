@@ -163,7 +163,7 @@ services:
       resources:
         limits:
           memory: 6g
-          cpus: "3.0"
+          cpus: "2.0"
     logging:
       driver: json-file
       options:
