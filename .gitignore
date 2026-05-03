@@ -48,6 +48,7 @@ venv.bak/
 .env
 .env.local
 .env.*.local
+.env.production
 
 # Node.js / Frontend
 node_modules/

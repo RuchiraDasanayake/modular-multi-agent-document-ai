@@ -72,7 +72,7 @@ services:
     container_name: docai_ahmn
     restart: always
     env_file:
-      - path: .env
+      - path: .env.production
         required: false
     environment:
       POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-ahmn_db}
@@ -112,7 +112,7 @@ services:
     container_name: docai_guardrails
     restart: always
     env_file:
-      - path: .env
+      - path: .env.production
         required: false
     environment:
       POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-ahmn_db}
@@ -146,7 +146,7 @@ services:
     container_name: docai_xai_hitl
     restart: always
     env_file:
-      - path: .env
+      - path: .env.production
         required: false
     environment:
       POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-ahmn_db}
@@ -180,7 +180,7 @@ services:
     container_name: docai_idpo
     restart: always
     env_file:
-      - path: .env
+      - path: .env.production
         required: false
     environment:
       AHMN_SERVICE_URL: http://ahmn:8001
@@ -224,7 +224,7 @@ services:
     container_name: docai_gateway
     restart: always
     env_file:
-      - path: .env
+      - path: .env.production
         required: false
     environment:
       POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-ahmn_db}
