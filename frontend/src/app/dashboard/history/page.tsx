@@ -33,7 +33,7 @@ import {
 /*  Helpers                                                                  */
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = "";
 
 function formatDate(raw?: string | number): string {
     if (!raw && raw !== 0) return "—";

@@ -233,6 +233,7 @@ services:
       GUARDRAILS_SERVICE_URL: http://guardrails:8002
       XAI_HITL_SERVICE_URL: http://xai-hitl:8003
       IDPO_SERVICE_URL: http://idpo:8004
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-*}
     ports:
       - "0.0.0.0:${GATEWAY_PORT:-8000}:8000"  # Exposed to external
     depends_on:
@@ -273,11 +274,11 @@ services:
     build:
       context: ./frontend
       args:
-        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-}
     container_name: docai_frontend
     restart: always
     environment:
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-}
       - INTERNAL_API_URL=http://gateway:8000
       - HOSTNAME=0.0.0.0
     ports:

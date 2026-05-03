@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 h
 
     # ── CORS ──
-    BACKEND_CORS_ORIGINS: str = "http://localhost:3000"
+    BACKEND_CORS_ORIGINS: str = "*"
 
     def validate_jwt_secret(self) -> None:
         """Ensure a stable JWT secret across restarts.
