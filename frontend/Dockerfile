@@ -24,6 +24,7 @@ LABEL maintainer="Modular Document AI Frontend"
 LABEL description="Next.js frontend for Modular Document AI platform"
 WORKDIR /app
 ENV NODE_ENV=production
+RUN mkdir -p /idpo-data/frontend/uploads /idpo-data/frontend/jobs /idpo-data/runs && chown -R node:node /idpo-data
 USER node
 
 # Copy built application
