@@ -1,0 +1,6 @@
+{
+  "queue_depth_by_partition": {
+    "scanned_document|acme": 1,
+    "table_document|globex": 0
+  }
+}

@@ -1,37 +1,22 @@
 "use client";
 
-import { motion } from "framer-motion";
 import Link from "next/link";
-import {
-    ArrowRight,
-    FileText,
-    Target,
-    Lightbulb,
-    Users,
-    Code2,
-    GraduationCap,
-    Shield,
-    Rocket,
-} from "lucide-react";
+import { motion } from "framer-motion";
 
 const values = [
     {
-        icon: <Target className="w-6 h-6 text-brand-500" />,
         title: "Precision First",
         desc: "We believe every extraction should be accurate, verified, and trustworthy. No guesswork.",
     },
     {
-        icon: <Lightbulb className="w-6 h-6 text-amber-500" />,
         title: "Transparent AI",
         desc: "AI decisions should be explainable. We make every model output interpretable and auditable.",
     },
     {
-        icon: <Users className="w-6 h-6 text-violet-500" />,
         title: "Human-Centered",
         desc: "Technology empowers people, not replaces them. Humans and AI work better together.",
     },
     {
-        icon: <Code2 className="w-6 h-6 text-emerald-500" />,
         title: "Open & Modular",
         desc: "Built with a modular architecture so you can use what you need and extend as you grow.",
     },
@@ -65,7 +50,6 @@ export default function AboutPage() {
                             transition={{ duration: 0.5 }}
                             className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 text-sm font-medium mb-6"
                         >
-                            <GraduationCap className="w-4 h-4" />
                             4th Year Research Project
                         </motion.div>
                         <motion.h1
@@ -105,7 +89,6 @@ export default function AboutPage() {
                             className="glass-panel rounded-3xl p-10"
                         >
                             <div className="w-14 h-14 rounded-xl bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 flex items-center justify-center mb-6">
-                                <Rocket className="w-7 h-7 text-brand-500" />
                             </div>
                             <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">Research Objective</h2>
                             <p className="text-slate-600 dark:text-gray-400 leading-relaxed text-lg">
@@ -122,7 +105,6 @@ export default function AboutPage() {
                             className="glass-panel rounded-3xl p-10"
                         >
                             <div className="w-14 h-14 rounded-xl bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 flex items-center justify-center mb-6">
-                                <GraduationCap className="w-7 h-7 text-violet-500" />
                             </div>
                             <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">Academic Contribution</h2>
                             <p className="text-slate-600 dark:text-gray-400 leading-relaxed text-lg">
@@ -160,7 +142,7 @@ export default function AboutPage() {
                                 className="glass-card rounded-2xl p-8 text-center"
                             >
                                 <div className="w-14 h-14 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 flex items-center justify-center mb-5 mx-auto shadow-sm">
-                                    {value.icon}
+
                                 </div>
                                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{value.title}</h3>
                                 <p className="text-sm text-slate-600 dark:text-gray-400 leading-relaxed">{value.desc}</p>
@@ -277,7 +259,7 @@ export default function AboutPage() {
                     </p>
                     <div className="flex items-center justify-center gap-4 flex-wrap">
                         <Link href="/signup" className="px-8 py-4 glass-button rounded-xl text-lg flex items-center gap-2">
-                            Try the Demo <ArrowRight className="w-5 h-5" />
+                            Try the Demo
                         </Link>
                         <Link href="/docs" className="px-8 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-xl text-lg font-medium transition-all shadow-sm">
                             Read the Paper

@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { api } from "@/lib/api";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { ArrowLeft, Mail, CheckCircle } from "lucide-react";
-import Link from "next/link";
 
 export default function ForgotPasswordPage() {
     const router = useRouter();
@@ -37,8 +36,7 @@ export default function ForgotPasswordPage() {
         <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-950 px-4 relative overflow-hidden transition-colors duration-300">
             {/* Top Bar */}
             <div className="absolute top-6 left-6 z-50">
-                <Link href="/login" className="flex items-center gap-2 text-sm text-slate-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white transition-colors font-medium">
-                    <ArrowLeft className="w-4 h-4" />
+                <Link href="/login" className="text-sm text-slate-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white transition-colors font-medium">
                     Back to Login
                 </Link>
             </div>
@@ -53,8 +51,8 @@ export default function ForgotPasswordPage() {
             <div className="w-full max-w-md relative z-10">
                 {/* Logo */}
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white dark:bg-gray-900 border border-amber-500/20 dark:border-amber-500/30 mb-4 shadow-xl shadow-slate-200/50 dark:shadow-amber-500/10 backdrop-blur-md">
-                        <Mail className="w-7 h-7 text-amber-500" />
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white dark:bg-gray-900 border border-amber-500/20 dark:border-amber-500/30 mb-4 text-amber-600 dark:text-amber-300 text-lg font-bold shadow-xl shadow-slate-200/50 dark:shadow-amber-500/10 backdrop-blur-md">
+                        AI
                     </div>
                     <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Forgot Password</h1>
                     <p className="text-slate-500 dark:text-gray-400 mt-2 font-medium">
@@ -64,7 +62,6 @@ export default function ForgotPasswordPage() {
 
                 {submitted ? (
                     <div className="glass-panel rounded-2xl p-8 text-center space-y-4">
-                        <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto" />
                         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Check Your Email</h2>
                         <p className="text-slate-500 dark:text-gray-400 text-sm">
                             If an account exists with that email, we&apos;ve sent a password reset link.

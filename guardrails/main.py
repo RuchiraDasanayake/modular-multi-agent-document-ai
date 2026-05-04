@@ -13,6 +13,7 @@ import time
 import uuid
 import json
 import logging
+import sys
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from collections import defaultdict
@@ -25,6 +26,10 @@ from pydantic import BaseModel, Field
 from .models import DocumentType, GuardrailDocumentContext, RAGInput
 from .core.ensemble import run_validation_ensemble
 from .config import guardrail_settings
+
+# psycopg async connections on Windows require Selector event loop.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(

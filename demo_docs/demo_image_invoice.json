@@ -1,0 +1,25 @@
+[
+  {
+    "doc_id": "demo_image_invoice",
+    "source": "scanned",
+    "metadata": {
+      "vendor": "acme",
+      "domain": "finance",
+      "skew_angle": 5.5,
+      "guardrail_flags": [
+        "approval_code"
+      ]
+    },
+    "pages": [
+      {
+        "number": 1,
+        "text": "Inv0ice ID: INV-1001\nCustomer Name: Alice Doe\nTotal Amount USD 1200.00\nDue Date 03/10/2026\nPlease process urgently.",
+        "raw_text": "Invoice ID: INV-1001\nCustomer Name: Alice Doe\nTotal Amount: USD 1200.00\nDue Date: 03/10/2026\nPlease process urgently.",
+        "image_path": "scan_invoice.png",
+        "metadata": {
+          "dpi": 220
+        }
+      }
+    ]
+  }
+]

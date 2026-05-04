@@ -1,0 +1,38 @@
+[
+    {
+        "name":  "ahmn",
+        "pid":  22020,
+        "out":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\ahmn.out.log",
+        "err":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\ahmn.err.log"
+    },
+    {
+        "name":  "guardrails",
+        "pid":  35300,
+        "out":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\guardrails.out.log",
+        "err":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\guardrails.err.log"
+    },
+    {
+        "name":  "xai_hitl",
+        "pid":  7600,
+        "out":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\xai_hitl.out.log",
+        "err":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\xai_hitl.err.log"
+    },
+    {
+        "name":  "idpo",
+        "pid":  41256,
+        "out":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\idpo.out.log",
+        "err":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\idpo.err.log"
+    },
+    {
+        "name":  "gateway",
+        "pid":  35608,
+        "out":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\gateway.out.log",
+        "err":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\gateway.err.log"
+    },
+    {
+        "name":  "frontend",
+        "pid":  26656,
+        "out":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\frontend.out.log",
+        "err":  "E:\\Research Project\\Code\\IDPO\\.local\\logs\\frontend.err.log"
+    }
+]

@@ -1,0 +1,4 @@
+# Root .gitignore has a global `runs/` rule.
+# Keep dashboard route segment `/dashboard/idpo/runs` tracked in frontend.
+!runs/
+!runs/**

@@ -3,20 +3,6 @@
 import Link from "next/link";
 import { motion, useMotionValue, useTransform, useSpring } from "framer-motion";
 import { useEffect, useState } from "react";
-import {
-    FileText,
-    ScanLine,
-    Sparkles,
-    ArrowRight,
-    Shield,
-    Eye,
-    Zap,
-    BarChart3,
-    Globe,
-    Workflow,
-    CheckCircle2,
-    ChevronRight,
-} from "lucide-react";
 
 const stats = [
     { value: "13", label: "Extraction Agents" },
@@ -27,32 +13,26 @@ const stats = [
 
 const features = [
     {
-        icon: <Eye className="w-7 h-7 text-brand-500" />,
         title: "Transparent Results",
         desc: "Every extraction comes with SHAP/LIME explanations and confidence scores — full explainability for every decision.",
     },
     {
-        icon: <Shield className="w-7 h-7 text-violet-500" />,
         title: "5-Layer Validation",
         desc: "Guardrails ensemble validates coherence, hallucination, PII, format, and semantics across all extracted entities.",
     },
     {
-        icon: <Zap className="w-7 h-7 text-amber-500" />,
         title: "Human-in-the-Loop",
         desc: "Uncertain results are flagged for expert review with ranked priority queues and annotation tools.",
     },
     {
-        icon: <BarChart3 className="w-7 h-7 text-emerald-500" />,
         title: "Adaptive Learning",
         desc: "Thompson Sampling bandits with RABI cold-start and DAAF drift detection continuously improve policy selection.",
     },
     {
-        icon: <Globe className="w-7 h-7 text-blue-500" />,
         title: "Multi-Format Support",
         desc: "Process PDFs, scanned images, invoices, contracts, and more — all through a unified extraction pipeline.",
     },
     {
-        icon: <Workflow className="w-7 h-7 text-rose-500" />,
         title: "Modular Architecture",
         desc: "8 Docker microservices with independent scaling, health monitoring, and graceful fault isolation.",
     },
@@ -135,8 +115,7 @@ export default function HomePage() {
                             transition={{ duration: 0.5, delay: 0.2 }}
                             className="text-lg text-slate-600 dark:text-gray-400 max-w-2xl mx-auto lg:mx-0 leading-relaxed"
                         >
-                            Extract, validate, and learn from any document with our multi-agent AI pipeline.
-                            Powered by explainable AI, smart validation, and continuous adaptive learning.
+                            A multi-agent document extraction pipeline that chooses its processing policy per document via contextual bandit learning, validates outputs against schema and source grounding, and learns from reviewer corrections.
                         </motion.p>
 
                         <motion.div
@@ -149,7 +128,7 @@ export default function HomePage() {
                                 href="/signup"
                                 className="w-full sm:w-auto px-8 py-4 glass-button rounded-xl text-lg flex items-center justify-center gap-2"
                             >
-                                Start Extracting <ArrowRight className="w-5 h-5" />
+                                Start Extracting
                             </Link>
                             <Link
                                 href="/features"
@@ -175,29 +154,13 @@ export default function HomePage() {
                                 style={{ transform: "translateZ(60px)" }}
                                 className="relative w-40 h-52 bg-white dark:bg-gray-900/80 border border-brand-500/20 dark:border-brand-500/30 rounded-2xl shadow-xl shadow-slate-200/50 dark:shadow-2xl flex items-center justify-center overflow-hidden"
                             >
-                                <FileText className="w-20 h-20 text-brand-500 dark:text-brand-400/80" strokeWidth={1.5} />
-                                <motion.div
-                                    animate={{ top: ["-10%", "110%"] }}
-                                    transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
-                                    className="absolute left-0 right-0 h-0.5 bg-brand-400 shadow-[0_0_15px_3px_rgba(56,189,248,0.6)] dark:shadow-[0_0_15px_3px_rgba(56,189,248,0.8)] z-10"
-                                />
-                                <motion.div
-                                    animate={{ top: ["-10%", "110%"] }}
-                                    transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
-                                    className="absolute left-0 right-0 h-24 bg-gradient-to-b from-transparent to-brand-500/10 dark:to-brand-500/20 -translate-y-full"
-                                />
+                                <span className="text-4xl font-bold text-brand-500 dark:text-brand-400/80">AI</span>
                             </motion.div>
 
                             <motion.div style={{ transform: "translateZ(40px)" }} className="mt-10 text-center w-full">
                                 <div className="h-2 w-3/4 bg-slate-200 dark:bg-gray-800 rounded-full mx-auto mb-3 overflow-hidden">
-                                    <motion.div
-                                        animate={{ width: ["0%", "100%"] }}
-                                        transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
-                                        className="h-full bg-brand-500 rounded-full"
-                                    />
                                 </div>
                                 <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-wide flex items-center justify-center gap-2">
-                                    <ScanLine className="w-5 h-5 text-brand-500 dark:text-brand-400" />
                                     Processing Document
                                 </h2>
                                 <p className="text-sm text-slate-500 dark:text-gray-400 mt-2">
@@ -272,7 +235,7 @@ export default function HomePage() {
                                 className="glass-card rounded-2xl p-8"
                             >
                                 <div className="w-14 h-14 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 flex items-center justify-center mb-6 shadow-sm">
-                                    {feature.icon}
+
                                 </div>
                                 <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">{feature.title}</h3>
                                 <p className="text-slate-600 dark:text-gray-400 leading-relaxed">{feature.desc}</p>
@@ -320,9 +283,6 @@ export default function HomePage() {
                                 </div>
                                 <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{step.title}</h3>
                                 <p className="text-slate-600 dark:text-gray-400 leading-relaxed">{step.desc}</p>
-                                {i < steps.length - 1 && (
-                                    <ChevronRight className="hidden lg:block absolute top-8 -right-4 w-6 h-6 text-slate-300 dark:text-gray-700" />
-                                )}
                             </motion.div>
                         ))}
                     </div>
@@ -354,7 +314,7 @@ export default function HomePage() {
                                 href="/signup"
                                 className="w-full sm:w-auto px-8 py-4 glass-button rounded-xl text-lg flex items-center justify-center gap-2"
                             >
-                                Get Started Free <ArrowRight className="w-5 h-5" />
+                                Get Started Free
                             </Link>
                             <Link
                                 href="/contact"
@@ -364,9 +324,9 @@ export default function HomePage() {
                             </Link>
                         </div>
                         <div className="mt-8 flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-sm text-slate-500 dark:text-gray-500">
-                            <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Free tier available</span>
-                            <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> No credit card required</span>
-                            <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Setup in 5 minutes</span>
+                            <span className="flex items-center gap-1.5"> Free tier available</span>
+                            <span className="flex items-center gap-1.5"> No credit card required</span>
+                            <span className="flex items-center gap-1.5"> Setup in 5 minutes</span>
                         </div>
                     </motion.div>
                 </div>

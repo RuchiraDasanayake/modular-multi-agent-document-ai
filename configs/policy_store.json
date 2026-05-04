@@ -5,113 +5,323 @@
       "policy_id": "forms",
       "name": "Form Extraction Policy",
       "conditions": {
-        "content_profile": ["form-centric"],
-        "doc_type": ["form_document"]
+        "content_profile": [
+          "form-centric"
+        ],
+        "doc_type": [
+          "form_document"
+        ]
       },
       "actions": {
         "preprocess": {
           "ocr": {
-            "enabled": true, "engine": "tesseract", "passes": 2,
-            "lang": "eng", "psm": 6, "oem": 3, "dpi": 300, "alt_psm": [4, 11]
+            "enabled": true,
+            "engine": "tesseract",
+            "passes": 2,
+            "lang": "eng",
+            "psm": 6,
+            "oem": 3,
+            "dpi": 300,
+            "alt_psm": [
+              4,
+              11
+            ]
           },
-          "deskew": { "enabled": true },
-          "denoise": { "enabled": true },
-          "table_extract": { "enabled": true, "type": "heuristic" }
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
         },
         "extraction": {
-          "explicit_entities": ["record_id", "document_date", "total_amount", "customer_name"],
-          "model_tier": "cloud"
+          "explicit_entities": [
+            "record_id",
+            "document_date",
+            "total_amount",
+            "customer_name"
+          ],
+          "model_tier": "local"
         },
-        "recovery": { "strategy": "alternate_rules" },
-        "chunking": { "chunk_size": 350, "chunk_overlap": 60, "max_chunks": 128 },
-        "retrieval": { "dense_k": 12, "sparse_k": 12, "final_k": 12, "mmr_lambda": 0.7, "metadata_boost": 0.15 },
-        "token_budget": { "max_tokens": 1600, "reserved_tokens": 200, "strategy": "simple" }
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "chunking": {
+          "chunk_size": 350,
+          "chunk_overlap": 60,
+          "max_chunks": 128
+        },
+        "retrieval": {
+          "dense_k": 12,
+          "sparse_k": 12,
+          "final_k": 12,
+          "mmr_lambda": 0.7,
+          "metadata_boost": 0.15
+        },
+        "token_budget": {
+          "max_tokens": 1600,
+          "reserved_tokens": 200,
+          "strategy": "simple"
+        }
       },
-      "metadata": { "owner": "policy-team" }
+      "metadata": {
+        "owner": "policy-team",
+        "family": "form extraction",
+        "variant": "local",
+        "when_used": "Use first for form-centric documents.",
+        "why": "Local first for structured forms.",
+        "tradeoff": "Cheaper but weaker than cloud on hard forms.",
+        "cost_profile": "low cost first pass"
+      }
     },
     {
       "policy_id": "scanned_text",
       "name": "Scanned Text Document Policy",
       "conditions": {
-        "content_profile": ["text-heavy", "narrative"],
-        "doc_type": ["scanned_document", "report", "article", "letter"]
+        "content_profile": [
+          "text-heavy",
+          "narrative"
+        ],
+        "doc_type": [
+          "scanned_document",
+          "report",
+          "article",
+          "letter"
+        ]
       },
       "actions": {
         "preprocess": {
           "ocr": {
-            "enabled": true, "engine": "tesseract", "passes": 1,
-            "lang": "eng", "psm": 3, "oem": 3, "dpi": 300, "alt_psm": []
+            "enabled": true,
+            "engine": "tesseract",
+            "passes": 1,
+            "lang": "eng",
+            "psm": 3,
+            "oem": 3,
+            "dpi": 300,
+            "alt_psm": []
           },
-          "deskew": { "enabled": true },
-          "denoise": { "enabled": true },
-          "table_extract": { "enabled": false, "type": "heuristic" }
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true
+          },
+          "table_extract": {
+            "enabled": false,
+            "type": "heuristic"
+          }
         },
         "extraction": {
-          "explicit_entities": ["title", "author", "date", "summary"],
-          "model_tier": "cloud"
+          "explicit_entities": [
+            "title",
+            "author",
+            "date",
+            "summary"
+          ],
+          "model_tier": "local"
         },
-        "recovery": { "strategy": "regex" },
-        "chunking": { "chunk_size": 500, "chunk_overlap": 80, "max_chunks": 128 },
-        "retrieval": { "dense_k": 15, "sparse_k": 10, "final_k": 12, "mmr_lambda": 0.6, "metadata_boost": 0.1 },
-        "token_budget": { "max_tokens": 2000, "reserved_tokens": 200, "strategy": "simple" }
+        "recovery": {
+          "strategy": "regex"
+        },
+        "chunking": {
+          "chunk_size": 500,
+          "chunk_overlap": 80,
+          "max_chunks": 128
+        },
+        "retrieval": {
+          "dense_k": 15,
+          "sparse_k": 10,
+          "final_k": 12,
+          "mmr_lambda": 0.6,
+          "metadata_boost": 0.1
+        },
+        "token_budget": {
+          "max_tokens": 2000,
+          "reserved_tokens": 200,
+          "strategy": "simple"
+        }
       },
-      "metadata": { "owner": "policy-team" }
+      "metadata": {
+        "owner": "policy-team",
+        "family": "scanned text",
+        "variant": "local",
+        "when_used": "Use for scanned text documents.",
+        "why": "OCR-focused local path for text scans.",
+        "tradeoff": "Can miss fields in noisier scans.",
+        "cost_profile": "moderate local cost"
+      }
     },
     {
       "policy_id": "table_heavy",
       "name": "Table-Heavy Document Policy",
       "conditions": {
-        "content_profile": ["tabular", "table-centric", "table-heavy", "spreadsheet"],
-        "doc_type": ["invoice", "financial_statement", "ledger", "receipt", "table_document"]
+        "content_profile": [
+          "tabular",
+          "table-centric",
+          "table-heavy",
+          "spreadsheet"
+        ],
+        "doc_type": [
+          "invoice",
+          "financial_statement",
+          "ledger",
+          "receipt",
+          "table_document"
+        ]
       },
       "actions": {
         "preprocess": {
           "ocr": {
-            "enabled": true, "engine": "tesseract", "passes": 2,
-            "lang": "eng", "psm": 6, "oem": 3, "dpi": 300, "alt_psm": [4]
+            "enabled": true,
+            "engine": "tesseract",
+            "passes": 2,
+            "lang": "eng",
+            "psm": 6,
+            "oem": 3,
+            "dpi": 300,
+            "alt_psm": [
+              4
+            ]
           },
-          "deskew": { "enabled": true },
-          "denoise": { "enabled": true },
-          "table_extract": { "enabled": true, "type": "heuristic" }
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
         },
         "extraction": {
-          "explicit_entities": ["total_amount", "subtotal", "tax", "date", "invoice_number", "vendor_name"],
-          "model_tier": "cloud"
+          "explicit_entities": [
+            "total_amount",
+            "subtotal",
+            "tax",
+            "date",
+            "invoice_number",
+            "vendor_name"
+          ],
+          "model_tier": "local"
         },
-        "recovery": { "strategy": "alternate_rules" },
-        "chunking": { "chunk_size": 300, "chunk_overlap": 50, "max_chunks": 200 },
-        "retrieval": { "dense_k": 10, "sparse_k": 15, "final_k": 12, "mmr_lambda": 0.8, "metadata_boost": 0.2 },
-        "token_budget": { "max_tokens": 1800, "reserved_tokens": 200, "strategy": "simple" }
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "chunking": {
+          "chunk_size": 300,
+          "chunk_overlap": 50,
+          "max_chunks": 200
+        },
+        "retrieval": {
+          "dense_k": 10,
+          "sparse_k": 15,
+          "final_k": 12,
+          "mmr_lambda": 0.8,
+          "metadata_boost": 0.2
+        },
+        "token_budget": {
+          "max_tokens": 1800,
+          "reserved_tokens": 200,
+          "strategy": "simple"
+        }
       },
-      "metadata": { "owner": "policy-team" }
+      "metadata": {
+        "owner": "policy-team",
+        "family": "table extraction",
+        "variant": "local",
+        "when_used": "Use first for table-heavy documents.",
+        "why": "Table-aware local extraction before cloud.",
+        "tradeoff": "Cheaper but weaker on dense tables.",
+        "cost_profile": "low cost first pass"
+      }
     },
     {
       "policy_id": "mixed_content",
       "name": "Mixed Content Document Policy",
       "conditions": {
-        "content_profile": ["mixed", "multi-section"],
-        "doc_type": ["contract", "agreement", "manual", "specification", "mixed_document"]
+        "content_profile": [
+          "mixed",
+          "multi-section"
+        ],
+        "doc_type": [
+          "contract",
+          "agreement",
+          "manual",
+          "specification",
+          "mixed_document"
+        ]
       },
       "actions": {
         "preprocess": {
           "ocr": {
-            "enabled": true, "engine": "tesseract", "passes": 2,
-            "lang": "eng", "psm": 3, "oem": 3, "dpi": 300, "alt_psm": [6]
+            "enabled": true,
+            "engine": "tesseract",
+            "passes": 2,
+            "lang": "eng",
+            "psm": 3,
+            "oem": 3,
+            "dpi": 300,
+            "alt_psm": [
+              6
+            ]
           },
-          "deskew": { "enabled": true },
-          "denoise": { "enabled": true },
-          "table_extract": { "enabled": true, "type": "heuristic" }
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
         },
         "extraction": {
-          "explicit_entities": ["title", "date", "parties", "effective_date", "total_value"],
-          "model_tier": "cloud"
+          "explicit_entities": [
+            "title",
+            "date",
+            "parties",
+            "effective_date",
+            "total_value"
+          ],
+          "model_tier": "local"
         },
-        "recovery": { "strategy": "alternate_rules" },
-        "chunking": { "chunk_size": 400, "chunk_overlap": 70, "max_chunks": 150 },
-        "retrieval": { "dense_k": 12, "sparse_k": 12, "final_k": 12, "mmr_lambda": 0.7, "metadata_boost": 0.15 },
-        "token_budget": { "max_tokens": 1800, "reserved_tokens": 200, "strategy": "simple" }
+        "recovery": {
+          "strategy": "alternate_rules"
+        },
+        "chunking": {
+          "chunk_size": 400,
+          "chunk_overlap": 70,
+          "max_chunks": 150
+        },
+        "retrieval": {
+          "dense_k": 12,
+          "sparse_k": 12,
+          "final_k": 12,
+          "mmr_lambda": 0.7,
+          "metadata_boost": 0.15
+        },
+        "token_budget": {
+          "max_tokens": 1800,
+          "reserved_tokens": 200,
+          "strategy": "simple"
+        }
       },
-      "metadata": { "owner": "policy-team" }
+      "metadata": {
+        "owner": "policy-team",
+        "family": "mixed content",
+        "variant": "local",
+        "when_used": "Use first for mixed-layout documents.",
+        "why": "Balanced local path before cloud.",
+        "tradeoff": "General but not the strongest on hard mixed docs.",
+        "cost_profile": "moderate local cost"
+      }
     },
     {
       "policy_id": "default",
@@ -120,23 +330,63 @@
       "actions": {
         "preprocess": {
           "ocr": {
-            "enabled": true, "engine": "tesseract", "passes": 2,
-            "lang": "eng", "psm": 6, "oem": 3, "dpi": 300, "alt_psm": [4, 11]
+            "enabled": true,
+            "engine": "tesseract",
+            "passes": 2,
+            "lang": "eng",
+            "psm": 6,
+            "oem": 3,
+            "dpi": 300,
+            "alt_psm": [
+              4,
+              11
+            ]
           },
-          "deskew": { "enabled": true },
-          "denoise": { "enabled": true },
-          "table_extract": { "enabled": true, "type": "heuristic" }
+          "deskew": {
+            "enabled": true
+          },
+          "denoise": {
+            "enabled": true
+          },
+          "table_extract": {
+            "enabled": true,
+            "type": "heuristic"
+          }
         },
         "extraction": {
           "explicit_entities": [],
-          "model_tier": "cloud"
+          "model_tier": "local"
         },
-        "recovery": { "strategy": "regex" },
-        "chunking": { "chunk_size": 350, "chunk_overlap": 60, "max_chunks": 128 },
-        "retrieval": { "dense_k": 12, "sparse_k": 12, "final_k": 12, "mmr_lambda": 0.7, "metadata_boost": 0.15 },
-        "token_budget": { "max_tokens": 1600, "reserved_tokens": 200, "strategy": "simple" }
+        "recovery": {
+          "strategy": "regex"
+        },
+        "chunking": {
+          "chunk_size": 350,
+          "chunk_overlap": 60,
+          "max_chunks": 128
+        },
+        "retrieval": {
+          "dense_k": 12,
+          "sparse_k": 12,
+          "final_k": 12,
+          "mmr_lambda": 0.7,
+          "metadata_boost": 0.15
+        },
+        "token_budget": {
+          "max_tokens": 1600,
+          "reserved_tokens": 200,
+          "strategy": "simple"
+        }
       },
-      "metadata": { "owner": "policy-team" }
+      "metadata": {
+        "owner": "policy-team",
+        "family": "safe default",
+        "variant": "local",
+        "when_used": "Use when nothing else matches.",
+        "why": "Conservative baseline.",
+        "tradeoff": "Generic.",
+        "cost_profile": "low cost baseline"
+      }
     }
   ]
 }

@@ -1,0 +1,16 @@
+[
+  {
+    "doc_id": "demo_table_statement",
+    "source": "digital",
+    "metadata": {
+      "vendor": "globex",
+      "domain": "operations"
+    },
+    "pages": [
+      {
+        "number": 1,
+        "text": "Statement ID: ST-8891\nDate: 02/15/2026\nItem | Qty | Unit Price | Total\nWidget A | 10 | 15.00 | 150.00\nWidget B | 4 | 20.00 | 80.00\nTotal Amount: 230.00\n"
+      }
+    ]
+  }
+]

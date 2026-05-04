@@ -11,6 +11,7 @@ from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 from idpo.ui.app import app, _safe_filename, _safe_run_dir
+from idpo.pipeline.inbox import process_inbox
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -156,6 +157,27 @@ def test_download_full_text_builds_export_from_doc_ocr(client, tmp_path):
     assert "Document 1: sample.pdf" in resp.text
     assert "--- Page 1 ---" in resp.text
     assert "Second page" in resp.text
+
+
+def test_read_api_surfaces_run_created_by_process_inbox(client, tmp_path, monkeypatch):
+    runtime_root = tmp_path / "idpo-data"
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("IDPO_DATA_DIR", str(runtime_root))
+
+    doc_path = workspace / "invoice.txt"
+    doc_path.write_text("Invoice Number: INV-77\nTotal Amount: 44.00\n", encoding="utf-8")
+    result = process_inbox(root=workspace, file_paths=[str(doc_path)])
+
+    with patch("idpo.ui.app.RUNS_ROOT", runtime_root / "runs"):
+        list_resp = client.get("/idpo/runs")
+        assert list_resp.status_code == 200
+        runs_payload = list_resp.json()
+        assert any(run["run_id"] == result["run_id"] for run in runs_payload["runs"])
+
+        full_text_resp = client.get(f"/idpo/runs/{result['run_id']}/full_text.txt")
+        assert full_text_resp.status_code == 200
+        assert "Invoice Number: INV-77" in full_text_resp.text
 
 # ═══════════════════════════════════════════════════════════════
 # Integration Data Classes

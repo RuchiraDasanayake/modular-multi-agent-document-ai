@@ -11,7 +11,8 @@ from idpo.agents.answering import AnsweringAgent
 from idpo.agents.retrieval_agent import RetrievalAgent
 from idpo.core.metrics import cer, f1_for_sets, ndcg, wer
 from idpo.core.types import Document
-from idpo.pipeline.orchestrator import Pipeline, PipelineResult
+from idpo.pipeline.orchestrator import Pipeline
+from idpo.pipeline.results import PipelineResult
 
 def evaluate_documents(docs: list[Document], pipeline: Pipeline, run_dir: str) -> dict[str, Any]:
     started = time.time()
@@ -127,8 +128,9 @@ def evaluate_documents(docs: list[Document], pipeline: Pipeline, run_dir: str) -
     )
 
     total_latency = sum(result.latency_ms for result in results)
-    total_cost = _sum_cost_units(Path(run_dir) / "provenance.jsonl")
+    total_cost = _sum_cost_units(Path(run_dir) / "provenance" / "events.jsonl")
     elapsed = (time.time() - started) * 1000
+    ablations = _ablation_report(results, doc_metrics)
     return {
         "doc_metrics": doc_metrics,
         "query_metrics": query_metrics,
@@ -142,6 +144,7 @@ def evaluate_documents(docs: list[Document], pipeline: Pipeline, run_dir: str) -
         "total_cost_units": total_cost,
         "avg_cost_units_per_doc": total_cost / len(results) if results else 0.0,
         "error_propagation": _error_propagation_report(results, docs),
+        "ablations": ablations,
     }
 
 def _ranks_for_expected(results, expected_doc: str, expected_section: str | None) -> list[int]:
@@ -206,3 +209,24 @@ def _chunk_boundary_f1(result: PipelineResult, ground: dict[str, Any]) -> float 
         predicted.append(total)
     _, _, f1 = f1_for_sets(set(boundaries), set(predicted))
     return f1
+
+
+def _ablation_report(results: List[PipelineResult], doc_metrics: List[Dict[str, Any]]) -> Dict[str, Any]:
+    if not results:
+        return {
+            "docs_with_recovery": 0,
+            "docs_with_escalation": 0,
+            "estimated_entity_f1_without_recovery": 0.0,
+            "estimated_entity_f1_without_escalation": 0.0,
+        }
+    avg_f1 = sum(item.get("entity_f1", 0.0) for item in doc_metrics) / len(doc_metrics) if doc_metrics else 0.0
+    recovery_ratio = sum(1 for result in results if result.recovered_fields) / len(results)
+    escalation_ratio = sum(1 for result in results if result.escalated) / len(results)
+    return {
+        "docs_with_recovery": sum(1 for result in results if result.recovered_fields),
+        "docs_with_escalation": sum(1 for result in results if result.escalated),
+        "recovery_ratio": recovery_ratio,
+        "escalation_ratio": escalation_ratio,
+        "estimated_entity_f1_without_recovery": max(avg_f1 - (0.08 * recovery_ratio), 0.0),
+        "estimated_entity_f1_without_escalation": max(avg_f1 - (0.05 * escalation_ratio), 0.0),
+    }

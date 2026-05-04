@@ -5,7 +5,8 @@ Database pool for the gateway (auth tables only).
 import logging
 from typing import AsyncGenerator
 
-from psycopg_pool import AsyncConnectionPool
+from fastapi import HTTPException, status
+from psycopg_pool import AsyncConnectionPool, PoolTimeout
 
 from .config import settings
 
@@ -37,7 +38,30 @@ class DatabasePool:
             cls._pool = None
             logger.info("Gateway database pool closed")
 
+    @classmethod
+    async def reset_pool(cls) -> AsyncConnectionPool:
+        await cls.close_pool()
+        return await cls.get_pool()
+
 async def get_db_connection() -> AsyncGenerator:
-    pool = await DatabasePool.get_pool()
-    async with pool.connection() as conn:
-        yield conn
+    attempts = (
+        ("existing", DatabasePool.get_pool),
+        ("reset", DatabasePool.reset_pool),
+    )
+
+    for label, pool_factory in attempts:
+        try:
+            pool = await pool_factory()
+            async with pool.connection() as conn:
+                yield conn
+                return
+        except PoolTimeout:
+            logger.warning(
+                "Gateway database pool timed out while acquiring a connection (%s pool).",
+                label,
+            )
+
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Gateway database temporarily unavailable",
+    )

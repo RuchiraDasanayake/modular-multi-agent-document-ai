@@ -1,0 +1,9 @@
+{
+  "issues": [
+    {
+      "field": "total_amount",
+      "issue": "low_confidence",
+      "severity": "medium"
+    }
+  ]
+}

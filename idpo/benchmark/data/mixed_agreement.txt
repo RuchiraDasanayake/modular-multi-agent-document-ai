@@ -1,0 +1,12 @@
+Agreement ID: AGR-2048
+Effective Date: 2026-02-15
+Party A: Northwind Systems
+Party B: Blue River Logistics
+Total Value: 125000.00
+
+Milestone | Due Date   | Amount
+Design    | 2026-03-01 | 25000.00
+Delivery  | 2026-04-15 | 50000.00
+Support   | 2026-06-01 | 50000.00
+
+This agreement includes service milestones, payment terms, and compliance checkpoints.

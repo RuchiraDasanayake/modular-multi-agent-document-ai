@@ -112,7 +112,7 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     norm = np.linalg.norm(a) * np.linalg.norm(b)
     return float(dot / max(norm, 1e-10))
 
-POLICY_IDS = ["ocr_tesseract", "ocr_easyocr", "ocr_azure_cv"]
+POLICY_IDS = ["table_heavy", "forms", "scanned_text", "mixed_content", "default"]
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SCENARIO 1: STATIONARY (baseline)
@@ -121,44 +121,62 @@ POLICY_IDS = ["ocr_tesseract", "ocr_easyocr", "ocr_azure_cv"]
 def create_stationary_scenario(n_rounds: int = 1000) -> Scenario:
     """
     Stationary environment — no drift, no cold-start.
-    
-    Tests pure bandit learning. 4 vendors, each with a different optimal policy.
-    RABI and DAAF should have minimal (neutral) impact here.
+
+    Tests pure bandit learning. 4 vendors with different document types,
+    each best served by the policy whose extraction surface matches the
+    document structure. RABI and DAAF should have minimal (neutral) impact.
+
+    True-mean calibration rationale:
+    - A policy whose expected fields/preprocessing match the doc type scores ~0.85-0.92
+    - A mismatched but generic policy (default) scores ~0.55-0.70
+    - A mismatched specialized policy scores ~0.45-0.65
     """
     vendors = [
+        # Invoice vendor → table_heavy wins (tabular line items, totals, tax)
         VendorProfile(
             vendor_id="vendor_A", doc_type="invoice",
             policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.88, noise_std=0.05),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.72, noise_std=0.06),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.80, noise_std=0.04),
+                "table_heavy":    PolicyConfig(true_mean=0.88, noise_std=0.05),
+                "forms":          PolicyConfig(true_mean=0.62, noise_std=0.07),
+                "scanned_text":   PolicyConfig(true_mean=0.55, noise_std=0.07),
+                "mixed_content":  PolicyConfig(true_mean=0.72, noise_std=0.06),
+                "default":        PolicyConfig(true_mean=0.68, noise_std=0.06),
             },
             embedding=_make_cluster_embedding(1, 0),
         ),
+        # Form vendor → forms wins (structured key-value layout)
         VendorProfile(
-            vendor_id="vendor_B", doc_type="invoice",
+            vendor_id="vendor_B", doc_type="form_document",
             policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.70, noise_std=0.06),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.90, noise_std=0.04),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.75, noise_std=0.05),
+                "table_heavy":    PolicyConfig(true_mean=0.65, noise_std=0.06),
+                "forms":          PolicyConfig(true_mean=0.90, noise_std=0.04),
+                "scanned_text":   PolicyConfig(true_mean=0.58, noise_std=0.07),
+                "mixed_content":  PolicyConfig(true_mean=0.70, noise_std=0.06),
+                "default":        PolicyConfig(true_mean=0.66, noise_std=0.06),
             },
             embedding=_make_cluster_embedding(2, 0),
         ),
+        # Receipt vendor → table_heavy wins (tabular item lists)
         VendorProfile(
             vendor_id="vendor_C", doc_type="receipt",
             policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.82, noise_std=0.05),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.78, noise_std=0.05),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.92, noise_std=0.03),
+                "table_heavy":    PolicyConfig(true_mean=0.86, noise_std=0.05),
+                "forms":          PolicyConfig(true_mean=0.60, noise_std=0.07),
+                "scanned_text":   PolicyConfig(true_mean=0.64, noise_std=0.06),
+                "mixed_content":  PolicyConfig(true_mean=0.72, noise_std=0.06),
+                "default":        PolicyConfig(true_mean=0.67, noise_std=0.06),
             },
             embedding=_make_cluster_embedding(3, 0),
         ),
+        # Contract vendor → mixed_content wins (multi-section legal text)
         VendorProfile(
             vendor_id="vendor_D", doc_type="contract",
             policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.85, noise_std=0.04),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.65, noise_std=0.07),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.78, noise_std=0.05),
+                "table_heavy":    PolicyConfig(true_mean=0.55, noise_std=0.07),
+                "forms":          PolicyConfig(true_mean=0.52, noise_std=0.07),
+                "scanned_text":   PolicyConfig(true_mean=0.78, noise_std=0.05),
+                "mixed_content":  PolicyConfig(true_mean=0.87, noise_std=0.04),
+                "default":        PolicyConfig(true_mean=0.65, noise_std=0.06),
             },
             embedding=_make_cluster_embedding(4, 0),
         ),
@@ -185,102 +203,83 @@ def create_cold_start_scenario(n_rounds: int = 1500) -> Scenario:
     so RABI can transfer knowledge. New vendors get higher sampling weight (3x)
     to concentrate evaluation on the cold-start period.
     """
+    # Invoice cluster (cluster_id=1) → table_heavy best
+    invoice_policies = lambda: {
+        "table_heavy":    PolicyConfig(true_mean=0.87, noise_std=0.04),
+        "forms":          PolicyConfig(true_mean=0.62, noise_std=0.07),
+        "scanned_text":   PolicyConfig(true_mean=0.55, noise_std=0.07),
+        "mixed_content":  PolicyConfig(true_mean=0.71, noise_std=0.06),
+        "default":        PolicyConfig(true_mean=0.66, noise_std=0.06),
+    }
+    # Receipt cluster (cluster_id=2) → table_heavy best (tabular items)
+    receipt_policies = lambda: {
+        "table_heavy":    PolicyConfig(true_mean=0.85, noise_std=0.05),
+        "forms":          PolicyConfig(true_mean=0.60, noise_std=0.07),
+        "scanned_text":   PolicyConfig(true_mean=0.64, noise_std=0.06),
+        "mixed_content":  PolicyConfig(true_mean=0.72, noise_std=0.06),
+        "default":        PolicyConfig(true_mean=0.67, noise_std=0.06),
+    }
+
     vendors = [
         # ── Established vendors (knowledge base) ──
         VendorProfile(
             vendor_id="established_inv_1", doc_type="invoice",
-            policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.88, noise_std=0.04),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.70, noise_std=0.06),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.78, noise_std=0.05),
-            },
+            policies=invoice_policies(),
             embedding=_make_cluster_embedding(1, 0, spread=0.05),
             weight=1.0,
         ),
         VendorProfile(
             vendor_id="established_inv_2", doc_type="invoice",
-            policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.86, noise_std=0.05),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.72, noise_std=0.06),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.80, noise_std=0.04),
-            },
+            policies=invoice_policies(),
             embedding=_make_cluster_embedding(1, 1, spread=0.05),
             weight=1.0,
         ),
         VendorProfile(
             vendor_id="established_rct_1", doc_type="receipt",
-            policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.72, noise_std=0.06),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.75, noise_std=0.05),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.90, noise_std=0.03),
-            },
+            policies=receipt_policies(),
             embedding=_make_cluster_embedding(2, 0, spread=0.05),
             weight=1.0,
         ),
-        
+
         # ── New vendors (cold-start, similar to established) ──
         VendorProfile(
             vendor_id="new_inv_1", doc_type="invoice",
-            policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.87, noise_std=0.04),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.71, noise_std=0.06),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.79, noise_std=0.05),
-            },
+            policies=invoice_policies(),
             embedding=_make_cluster_embedding(1, 2, spread=0.05),
             appears_at_round=300,
             weight=3.0,
         ),
         VendorProfile(
             vendor_id="new_inv_2", doc_type="invoice",
-            policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.85, noise_std=0.05),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.73, noise_std=0.06),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.81, noise_std=0.04),
-            },
+            policies=invoice_policies(),
             embedding=_make_cluster_embedding(1, 3, spread=0.05),
             appears_at_round=450,
             weight=3.0,
         ),
         VendorProfile(
             vendor_id="new_rct_1", doc_type="receipt",
-            policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.70, noise_std=0.06),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.74, noise_std=0.05),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.89, noise_std=0.03),
-            },
+            policies=receipt_policies(),
             embedding=_make_cluster_embedding(2, 1, spread=0.05),
             appears_at_round=600,
             weight=3.0,
         ),
         VendorProfile(
             vendor_id="new_inv_3", doc_type="invoice",
-            policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.84, noise_std=0.05),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.69, noise_std=0.06),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.77, noise_std=0.05),
-            },
+            policies=invoice_policies(),
             embedding=_make_cluster_embedding(1, 4, spread=0.05),
             appears_at_round=750,
             weight=3.0,
         ),
         VendorProfile(
             vendor_id="new_rct_2", doc_type="receipt",
-            policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.73, noise_std=0.06),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.76, noise_std=0.05),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.91, noise_std=0.03),
-            },
+            policies=receipt_policies(),
             embedding=_make_cluster_embedding(2, 2, spread=0.05),
             appears_at_round=900,
             weight=3.0,
         ),
         VendorProfile(
             vendor_id="new_inv_4", doc_type="invoice",
-            policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.86, noise_std=0.04),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.72, noise_std=0.06),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.80, noise_std=0.04),
-            },
+            policies=invoice_policies(),
             embedding=_make_cluster_embedding(1, 5, spread=0.05),
             appears_at_round=1050,
             weight=3.0,
@@ -311,12 +310,17 @@ def create_drift_scenario(n_rounds: int = 1500) -> Scenario:
     - Round 1000: Abrupt drift (best policy completely shifts)
     """
     vendors = [
+        # Drifting vendor: starts as invoice (table_heavy best), templates
+        # redesigned to narrative layout (mixed_content best), then fully
+        # scanned noisy forms (scanned_text best).
         VendorProfile(
             vendor_id="drifting_vendor", doc_type="invoice",
             policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.90, noise_std=0.04),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.70, noise_std=0.06),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.75, noise_std=0.05),
+                "table_heavy":    PolicyConfig(true_mean=0.88, noise_std=0.04),
+                "forms":          PolicyConfig(true_mean=0.62, noise_std=0.07),
+                "scanned_text":   PolicyConfig(true_mean=0.55, noise_std=0.07),
+                "mixed_content":  PolicyConfig(true_mean=0.72, noise_std=0.06),
+                "default":        PolicyConfig(true_mean=0.68, noise_std=0.06),
             },
             embedding=_make_cluster_embedding(5, 0),
             weight=9.0,  # 90% of rounds
@@ -324,34 +328,40 @@ def create_drift_scenario(n_rounds: int = 1500) -> Scenario:
         VendorProfile(
             vendor_id="stable_vendor", doc_type="invoice",
             policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.82, noise_std=0.05),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.85, noise_std=0.04),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.80, noise_std=0.05),
+                "table_heavy":    PolicyConfig(true_mean=0.82, noise_std=0.05),
+                "forms":          PolicyConfig(true_mean=0.65, noise_std=0.06),
+                "scanned_text":   PolicyConfig(true_mean=0.60, noise_std=0.06),
+                "mixed_content":  PolicyConfig(true_mean=0.75, noise_std=0.05),
+                "default":        PolicyConfig(true_mean=0.70, noise_std=0.06),
             },
             embedding=_make_cluster_embedding(6, 0),
             weight=1.0,
         ),
     ]
-    
+
     drift_events = [
-        # Gradual drift at round 500: Tesseract degrades, EasyOCR improves
+        # Gradual drift at round 500: tables deteriorate, layout goes mixed
         DriftEvent(
             vendor_id="drifting_vendor",
             at_round=500,
             new_policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.75, noise_std=0.06),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.82, noise_std=0.05),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.76, noise_std=0.05),
+                "table_heavy":    PolicyConfig(true_mean=0.72, noise_std=0.06),
+                "forms":          PolicyConfig(true_mean=0.60, noise_std=0.07),
+                "scanned_text":   PolicyConfig(true_mean=0.65, noise_std=0.06),
+                "mixed_content":  PolicyConfig(true_mean=0.85, noise_std=0.04),
+                "default":        PolicyConfig(true_mean=0.72, noise_std=0.06),
             },
         ),
-        # Abrupt drift at round 1000: complete reversal — Azure becomes dominant
+        # Abrupt drift at round 1000: documents are now low-quality scanned narrative text
         DriftEvent(
             vendor_id="drifting_vendor",
             at_round=1000,
             new_policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.55, noise_std=0.08),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.60, noise_std=0.07),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.92, noise_std=0.03),
+                "table_heavy":    PolicyConfig(true_mean=0.50, noise_std=0.08),
+                "forms":          PolicyConfig(true_mean=0.55, noise_std=0.07),
+                "scanned_text":   PolicyConfig(true_mean=0.90, noise_std=0.04),
+                "mixed_content":  PolicyConfig(true_mean=0.72, noise_std=0.06),
+                "default":        PolicyConfig(true_mean=0.64, noise_std=0.07),
             },
         ),
     ]
@@ -376,74 +386,71 @@ def create_combined_scenario(n_rounds: int = 2000) -> Scenario:
     2 established vendors, 3 new arrivals, and drift on one established vendor.
     Tests the full system: RABI handles cold-start, DAAF handles drift.
     """
+    invoice_policies = lambda: {
+        "table_heavy":    PolicyConfig(true_mean=0.87, noise_std=0.04),
+        "forms":          PolicyConfig(true_mean=0.62, noise_std=0.07),
+        "scanned_text":   PolicyConfig(true_mean=0.55, noise_std=0.07),
+        "mixed_content":  PolicyConfig(true_mean=0.72, noise_std=0.06),
+        "default":        PolicyConfig(true_mean=0.66, noise_std=0.06),
+    }
+    receipt_policies = lambda: {
+        "table_heavy":    PolicyConfig(true_mean=0.85, noise_std=0.05),
+        "forms":          PolicyConfig(true_mean=0.60, noise_std=0.07),
+        "scanned_text":   PolicyConfig(true_mean=0.64, noise_std=0.06),
+        "mixed_content":  PolicyConfig(true_mean=0.72, noise_std=0.06),
+        "default":        PolicyConfig(true_mean=0.67, noise_std=0.06),
+    }
+
     vendors = [
         # ── Established ──
         VendorProfile(
             vendor_id="corp_A", doc_type="invoice",
-            policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.88, noise_std=0.04),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.72, noise_std=0.06),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.80, noise_std=0.05),
-            },
+            policies=invoice_policies(),
             embedding=_make_cluster_embedding(1, 0, spread=0.05),
             weight=3.0,
         ),
         VendorProfile(
             vendor_id="corp_B", doc_type="receipt",
-            policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.72, noise_std=0.06),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.76, noise_std=0.05),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.90, noise_std=0.03),
-            },
+            policies=receipt_policies(),
             embedding=_make_cluster_embedding(2, 0, spread=0.05),
             weight=2.0,
         ),
-        
+
         # ── Cold-start arrivals ──
         VendorProfile(
             vendor_id="new_C", doc_type="invoice",
-            policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.86, noise_std=0.04),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.71, noise_std=0.06),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.82, noise_std=0.04),
-            },
+            policies=invoice_policies(),
             embedding=_make_cluster_embedding(1, 1, spread=0.05),
             appears_at_round=400,
             weight=4.0,
         ),
         VendorProfile(
             vendor_id="new_D", doc_type="receipt",
-            policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.70, noise_std=0.06),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.74, noise_std=0.05),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.88, noise_std=0.04),
-            },
+            policies=receipt_policies(),
             embedding=_make_cluster_embedding(2, 1, spread=0.05),
             appears_at_round=800,
             weight=4.0,
         ),
         VendorProfile(
             vendor_id="new_E", doc_type="invoice",
-            policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.85, noise_std=0.05),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.73, noise_std=0.06),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.81, noise_std=0.04),
-            },
+            policies=invoice_policies(),
             embedding=_make_cluster_embedding(1, 2, spread=0.05),
             appears_at_round=1200,
             weight=4.0,
         ),
     ]
-    
+
     drift_events = [
-        # corp_A redesigns templates at round 600
+        # corp_A redesigns templates at round 600 to narrative mixed-content form
         DriftEvent(
             vendor_id="corp_A",
             at_round=600,
             new_policies={
-                "ocr_tesseract":  PolicyConfig(true_mean=0.62, noise_std=0.07),
-                "ocr_easyocr":    PolicyConfig(true_mean=0.84, noise_std=0.05),
-                "ocr_azure_cv":   PolicyConfig(true_mean=0.80, noise_std=0.05),
+                "table_heavy":    PolicyConfig(true_mean=0.60, noise_std=0.07),
+                "forms":          PolicyConfig(true_mean=0.58, noise_std=0.07),
+                "scanned_text":   PolicyConfig(true_mean=0.70, noise_std=0.06),
+                "mixed_content":  PolicyConfig(true_mean=0.86, noise_std=0.04),
+                "default":        PolicyConfig(true_mean=0.70, noise_std=0.06),
             },
         ),
     ]

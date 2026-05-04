@@ -1,0 +1,15 @@
+{
+  "nodes": [
+    {"id": "dae"},
+    {"id": "extract"},
+    {"id": "validate"},
+    {"id": "recover"},
+    {"id": "shadow"}
+  ],
+  "edges": [
+    {"source": "dae", "target": "extract"},
+    {"source": "extract", "target": "validate"},
+    {"source": "validate", "target": "recover"},
+    {"source": "recover", "target": "shadow"}
+  ]
+}

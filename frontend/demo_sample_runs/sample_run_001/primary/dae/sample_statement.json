@@ -1,0 +1,9 @@
+{
+  "sample_statement": {
+    "doc_type": "table_document",
+    "vendor_cluster": "globex",
+    "complexity_bin": "1",
+    "route_bin": "light",
+    "layout_cluster_id": "layout:sample-b"
+  }
+}

@@ -1,11 +1,11 @@
 "use client";
 
+
 import { useState } from "react";
 import Sidebar from "@/components/sidebar";
 import LoadingScreen from "@/components/loading-screen";
 import { useUser } from "@/hooks/use-user";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Menu, Zap } from "lucide-react";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
     const { loading } = useUser();
@@ -36,13 +36,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <button
                     onClick={() => setSidebarOpen(true)}
                     aria-label="Open navigation"
-                    className="w-9 h-9 rounded-lg flex items-center justify-center bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-gray-700 transition-colors"
+                    className="px-3 h-9 rounded-lg flex items-center justify-center bg-slate-100 dark:bg-gray-800 text-xs font-semibold text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-gray-700 transition-colors"
                 >
-                    <Menu className="w-5 h-5" />
+                    Menu
                 </button>
                 <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-cyan-500 flex items-center justify-center shadow-md shadow-brand-500/30">
-                        <Zap className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-cyan-500 flex items-center justify-center text-white text-[10px] font-bold shadow-md shadow-brand-500/30">
+                        AI
                     </div>
                     <span className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Modular Doc AI</span>
                 </div>

@@ -1,0 +1,21 @@
+{
+  "doc_id": "noisy_low_quality_invoice",
+  "source": "scanned",
+  "metadata": {
+    "vendor": "apex_field_services",
+    "skew_angle": 7.5,
+    "blur_score": 0.42,
+    "dpi_est": 190
+  },
+  "pages": [
+    {
+      "number": 1,
+      "text": "APEX FIELD SERVlCES\nInvoice Number : INV-9045\nDue Date : 2026-04-01\nService Addr ess : 41 Lake Rd\nSub Total : 850.00\nTax : 54.50\nTotal Amount : 904.50\nNotes : OCR style noisy sample with uneven spacing.",
+      "raw_text": "APEX FIELD SERVlCES\nInvoice Number : INV-9045\nDue Date : 2026-04-01\nService Addr ess : 41 Lake Rd\nSub Total : 850.00\nTax : 54.50\nTotal Amount : 904.50\nNotes : OCR style noisy sample with uneven spacing.",
+      "image_path": "invoice_scan_9045.png",
+      "metadata": {
+        "ocr_hint": "noisy_scan"
+      }
+    }
+  ]
+}

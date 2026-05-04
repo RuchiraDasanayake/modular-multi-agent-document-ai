@@ -1,0 +1,74 @@
+{
+  "name": "cord_mini_3",
+  "description": "CORD 3-doc debug pack",
+  "batch_mode": "single_run_per_condition",
+  "shared_fields": {
+    "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+    "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+    "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+    "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+    "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
+  },
+  "cases": [
+    {
+      "case_id": "cord_validation_0000",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0000.png",
+      "fields": {
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
+        "cash_amount": "Cash paid by customer. Number only.",
+        "subtotal_amount": "Subtotal before tax. Number only."
+      },
+      "expected": {
+        "total_amount": "28,000",
+        "cash_amount": "28,000",
+        "subtotal_amount": "28,000"
+      }
+    },
+    {
+      "case_id": "cord_validation_0001",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0001.png",
+      "fields": {
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
+        "subtotal_amount": "Subtotal before tax. Number only.",
+        "tax_amount": "Tax amount. Number only."
+      },
+      "expected": {
+        "total_amount": "39.600",
+        "subtotal_amount": "36.000",
+        "tax_amount": "3.600"
+      }
+    },
+    {
+      "case_id": "cord_validation_0002",
+      "tags": [
+        "noisy_ocr",
+        "table",
+        "scanned",
+        "receipt"
+      ],
+      "path": "datasets/derived/cord_validation_20_seed17/images/cord_validation_0002.png",
+      "fields": {
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
+        "subtotal_amount": "Subtotal before tax. Number only.",
+        "tax_amount": "Tax amount. Number only."
+      },
+      "expected": {
+        "total_amount": "308,000",
+        "subtotal_amount": "280,000",
+        "tax_amount": "28,000"
+      }
+    }
+  ]
+}
