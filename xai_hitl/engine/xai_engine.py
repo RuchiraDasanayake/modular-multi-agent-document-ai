@@ -1325,20 +1325,14 @@ class XAIEngine:
         numeric_valid, numeric_reason = AnswerValidator.validate_numeric_answer(answer, context)
         if not numeric_valid:
             logger.warning("Numeric validation failed: %s", numeric_reason)
-            _calc_kw = re.search(
-                r'(?:percentage|percent|share|ratio|proportion|rate)\b|%',
-                q_lower,
-            )
-            if _calc_kw:
-                logger.warning("Calculation/percentage question with fabricated numbers — marking unanswerable")
-                self._unanswerable_reason = f"Numeric values in the generated answer do not exist in the document ({numeric_reason})"
-                return base_conf, True
-            base_conf = min(base_conf, 0.3)
+            self._unanswerable_reason = f"Numeric values in the generated answer do not exist in the document ({numeric_reason})"
+            return base_conf, True
 
         # Check for digit swapping (common hallucination pattern)
         if AnswerValidator.check_digit_swap(answer, context):
             logger.warning("Potential digit swap detected in answer: %s", answer)
-            base_conf = min(base_conf, 0.2)
+            self._unanswerable_reason = "Numbers in the answer appear to be digit-swapped versions of values in the document"
+            return base_conf, True
 
         # Check if answer appears in context (exact or partial match)
         answer_in_context = answer.lower() in context.lower()
