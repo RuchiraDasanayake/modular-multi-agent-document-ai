@@ -317,6 +317,12 @@ async def get_advice(context: DocumentContext, request: Request):
             )
             rows = await cur.fetchall()
 
+    # Minimum similarity for a neighbor to be considered relevant.
+    # Below this, AHMN falls back to the default policy (cold-start guard).
+    MIN_RELEVANCE_SIMILARITY = 0.55
+    # Confidence floor: if best confidence < this, override to default
+    MIN_CONFIDENCE_THRESHOLD = 0.40
+
     if rows:
         neighbors = [
             NeighborInfo(
@@ -333,40 +339,62 @@ async def get_advice(context: DocumentContext, request: Request):
         rabi_used = True
         n_neighbors_used = prior.n_neighbors
 
-        # Create a deterministic seed from the input context so that
-        # identical requests always produce identical Thompson Sampling draws.
-        ctx_seed = int(hashlib.sha256(context_str.encode()).hexdigest(), 16) % (2**31)
-        ts_rng = random.Random(ctx_seed)
+        # Check if best neighbor is actually relevant
+        best_similarity = max(r[5] for r in rows)
 
-        best_score = -1.0
-        for row in rows:
-            _pid, _pdata, alpha, beta, _chash, sim = row
-            blended_alpha = max(0.1, prior.alpha + (alpha - 1) * sim)
-            blended_beta = max(0.1, prior.beta + (beta - 1) * sim)
-
-            if explore:
-                # Thompson Sampling (exploratory) — seeded for reproducibility
-                score = ts_rng.betavariate(blended_alpha, blended_beta)
-            else:
-                # Deterministic: use expected value E[θ] = α / (α + β)
-                score = blended_alpha / (blended_alpha + blended_beta)
-
-            if score > best_score:
-                best_score = score
-                selected_row = row
-
-        if selected_row:
-            policy_id = selected_row[0]
-            policy_data = selected_row[1]
-            # Confidence from RABI prior + contextual similarity
-            # Higher with more evidence (alpha+beta) and better match (similarity)
-            alpha_sel, beta_sel = selected_row[2], selected_row[3]
-            evidence_strength = min(1.0, (alpha_sel + beta_sel) / 20.0)  # Saturates at 20 observations
-            similarity_score = selected_row[5]
-            confidence = min(
-                0.95,
-                prior.confidence * 0.3 + similarity_score * 0.35 + evidence_strength * 0.35
+        if best_similarity < MIN_RELEVANCE_SIMILARITY:
+            # Cold-start: no sufficiently similar context in LTM
+            logger.info(
+                "Cold-start detected (best_sim=%.3f < %.2f) for %s — using default policy",
+                best_similarity, MIN_RELEVANCE_SIMILARITY, context.doc_type,
             )
+            policy_id = "default"
+            policy_data = {"action": "default_processing", "reason": "cold_start"}
+            confidence = round(best_similarity * 0.5, 3)
+        else:
+            # Create a deterministic seed from the input context so that
+            # identical requests always produce identical Thompson Sampling draws.
+            ctx_seed = int(hashlib.sha256(context_str.encode()).hexdigest(), 16) % (2**31)
+            ts_rng = random.Random(ctx_seed)
+
+            best_score = -1.0
+            for row in rows:
+                _pid, _pdata, alpha, beta, _chash, sim = row
+                # Skip neighbors below relevance threshold to avoid dense-cluster attraction
+                if sim < MIN_RELEVANCE_SIMILARITY:
+                    continue
+                blended_alpha = max(0.1, prior.alpha + (alpha - 1) * sim)
+                blended_beta = max(0.1, prior.beta + (beta - 1) * sim)
+
+                if explore:
+                    score = ts_rng.betavariate(blended_alpha, blended_beta)
+                else:
+                    score = blended_alpha / (blended_alpha + blended_beta)
+
+                if score > best_score:
+                    best_score = score
+                    selected_row = row
+
+            if selected_row:
+                policy_id = selected_row[0]
+                policy_data = selected_row[1]
+                alpha_sel, beta_sel = selected_row[2], selected_row[3]
+                evidence_strength = min(1.0, (alpha_sel + beta_sel) / 20.0)
+                similarity_score = selected_row[5]
+                confidence = min(
+                    0.95,
+                    prior.confidence * 0.3 + similarity_score * 0.35 + evidence_strength * 0.35
+                )
+
+                # Final confidence guard: if confidence is too low, fall back to default
+                if confidence < MIN_CONFIDENCE_THRESHOLD:
+                    logger.info(
+                        "Low confidence (%.3f < %.2f) for %s → %s — overriding to default",
+                        confidence, MIN_CONFIDENCE_THRESHOLD, context.doc_type, policy_id,
+                    )
+                    policy_id = "default"
+                    policy_data = {"action": "default_processing", "reason": "low_confidence"}
+                    confidence = round(confidence, 3)
 
     advice_id = uuid.uuid4()
     await _rds().setex(
