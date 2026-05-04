@@ -74,6 +74,8 @@ class HighlightSpan(BaseModel):
 class SHAPExplanation(BaseModel):
     shap_values: list[tuple[str, float]]
     base_value: float
+    question_tokens: list[tuple[str, float]] = []
+    context_tokens: list[tuple[str, float]] = []
 
 class LIMEExplanation(BaseModel):
     word_weights: list[tuple[str, float]]
@@ -273,6 +275,8 @@ def _engine_explanation_to_schema(exp: Any) -> XAIExplanation:
         shap_explanation=SHAPExplanation(
             shap_values=exp.shap_explanation.shap_values,
             base_value=exp.shap_explanation.base_value,
+            question_tokens=exp.shap_explanation.question_tokens,
+            context_tokens=exp.shap_explanation.context_tokens,
         ),
         lime_explanation=LIMEExplanation(
             word_weights=exp.lime_explanation.word_weights,
@@ -568,6 +572,8 @@ async def generate_xai_only(body: XAIRequest):
             shap_explanation=SHAPExplanation(
                 shap_values=shap_exp.shap_values,
                 base_value=shap_exp.base_value,
+                question_tokens=shap_exp.question_tokens,
+                context_tokens=shap_exp.context_tokens,
             ),
             lime_explanation=LIMEExplanation(
                 word_weights=lime_exp.word_weights,

@@ -98,6 +98,8 @@ export interface HighlightSpan {
 export interface SHAPExplanation {
   shap_values: Array<[string, number]>;
   base_value: number;
+  question_tokens?: Array<[string, number]>;
+  context_tokens?: Array<[string, number]>;
 }
 
 export interface LIMEExplanation {
