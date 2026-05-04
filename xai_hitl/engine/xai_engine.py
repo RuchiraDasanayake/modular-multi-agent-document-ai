@@ -2254,6 +2254,127 @@ class XAIEngine:
             model_prediction=None,
         )
 
+    def _detect_legal_yes_no(
+        self, paragraph: str, question: str, include_xai: bool = False
+    ) -> XAIExplanation | None:
+        """Detect explicit prohibition/permission statements for yes/no questions.
+
+        Legal and regulatory documents typically use formulaic language to answer
+        yes/no questions:
+        - Prohibitions: "No X shall...", "shall not", "is prohibited", "guilty of an offence"
+        - Requirements: "shall", "is required to", "must"
+        - Permissions: "may", "is permitted", "is entitled to"
+
+        We use TF-IDF to find the sentences most relevant to the question, then check
+        for these patterns. This bypasses BART for cases where it tends to hallucinate
+        the opposite of what the document says.
+        """
+        import re
+
+        # Get top relevant sentences via TF-IDF
+        relevant = self._get_sentence_relevance_scores(paragraph, question)
+        if not relevant:
+            return None
+        candidates = [(s, score) for s, score in relevant[:6] if score > 0.05]
+        if not candidates:
+            return None
+
+        # Patterns indicating prohibition (answer = "No")
+        prohibition_patterns = [
+            r"\bno\s+\w+\s+shall\b",          # "No Institution shall"
+            r"\bshall\s+not\b",                # "shall not"
+            r"\bis\s+prohibited\b",
+            r"\bare\s+prohibited\b",
+            r"\bis\s+guilty\s+of\s+an\s+offence\b",
+            r"\bshall\s+be\s+punishable\b",
+            r"\bis\s+an\s+offence\b",
+            r"\bnot\s+permitted\b",
+            r"\bnothing\s+.*?\s+shall\s+\w+\s+disclose\b",
+            r"\bshall\s+not\s+disclose\b",
+        ]
+        # Patterns indicating requirement / affirmative (answer = "Yes")
+        permission_patterns = [
+            r"\bshall\s+(?:be\s+)?required\s+to\b",
+            r"\bis\s+required\s+to\b",
+            r"\bare\s+required\s+to\b",
+            r"\bmust\b",
+            r"\bis\s+permitted\b",
+            r"\bmay\s+\w+\b",
+            r"\bshall\s+(?:appoint|maintain|establish|conduct|report|disclose|verify|identify)\b",
+            r"\bevery\s+\w+\s+shall\b",      # "Every Institution shall"
+        ]
+
+        prohibition_re = re.compile("|".join(prohibition_patterns), re.IGNORECASE)
+        permission_re = re.compile("|".join(permission_patterns), re.IGNORECASE)
+
+        # Score each top sentence
+        best_sentence = None
+        best_polarity = None  # "yes" / "no"
+        best_score = 0.0
+        for sent, tfidf_score in candidates:
+            has_prohibition = bool(prohibition_re.search(sent))
+            has_permission = bool(permission_re.search(sent))
+            # Strong prohibition wins (legal documents are explicit)
+            if has_prohibition and not has_permission:
+                if tfidf_score > best_score:
+                    best_score = tfidf_score
+                    best_sentence = sent
+                    best_polarity = "no"
+            elif has_permission and not has_prohibition:
+                if tfidf_score > best_score:
+                    best_score = tfidf_score
+                    best_sentence = sent
+                    best_polarity = "yes"
+            elif has_prohibition and has_permission:
+                # Mixed — prefer prohibition since it's usually the stricter rule
+                if tfidf_score > best_score:
+                    best_score = tfidf_score
+                    best_sentence = sent
+                    best_polarity = "no"
+
+        if not best_sentence or not best_polarity:
+            return None
+
+        # Build a clean natural-language answer using the source sentence
+        clean_sent = re.sub(r"\s+", " ", best_sentence).strip()
+        if best_polarity == "no":
+            answer = f"No. According to the document: \"{clean_sent}\""
+        else:
+            answer = f"Yes. According to the document: \"{clean_sent}\""
+        confidence = min(0.95, 0.7 + best_score)
+
+        logger.info("Legal Yes/No: %s (TF-IDF=%.3f, sentence: %s)",
+                    best_polarity.upper(), best_score, clean_sent[:80])
+
+        if include_xai:
+            shap_exp, lime_exp = self.generate_xai_for_answer(paragraph, question, answer)
+        else:
+            shap_exp = SHAPExplanation(base_value=0.5, shap_values=[], feature_names=[])
+            lime_exp = LIMEExplanation(word_weights=[], prediction_proba=confidence)
+
+        return XAIExplanation(
+            paragraph=paragraph,
+            question=question,
+            answer=answer,
+            highlighted_spans=[],
+            shap_explanation=shap_exp,
+            lime_explanation=lime_exp,
+            derivation_tree=DerivationTree(
+                question=question,
+                steps=[
+                    DerivationStep(1, "⚖️ Question Analysis", "Detected yes/no question with legal/regulatory polarity", "Rule-Extracted", 0.95),
+                    DerivationStep(2, "🔍 TF-IDF Retrieval", "Found relevant sentences", f"Top score: {best_score:.3f}", 0.9),
+                    DerivationStep(3, "📜 Pattern Detection", f"Detected {'prohibition' if best_polarity == 'no' else 'permission'} pattern", clean_sent[:80], confidence),
+                    DerivationStep(4, "💬 Answer Synthesis", "Returned answer grounded in source sentence", best_polarity.upper(), confidence),
+                ],
+                final_answer=answer,
+                overall_confidence=confidence,
+            ),
+            confidence_score=confidence,
+            evidence_sentences=[clean_sent],
+            model_prediction=None,
+        )
+
     def _handle_yes_no_question(
         self, paragraph: str, question: str, include_xai: bool = False
     ) -> XAIExplanation | None:
@@ -2271,6 +2392,15 @@ class XAIEngine:
             return None
 
         logger.info("Detected yes/no question about: '%s'", target)
+
+        # ═══ Try prohibition/permission pattern detection first ═══
+        # Legal/regulatory documents often answer yes/no via explicit statements like
+        # "No Institution shall...", "X is prohibited", "X is required to..." etc.
+        # Detect these patterns deterministically before BART (which can hallucinate
+        # the opposite of what the document says).
+        legal_response = self._detect_legal_yes_no(paragraph, question, include_xai)
+        if legal_response:
+            return legal_response
 
         # First, try to find the relevant information
         # Use table reconstruction to detect values
