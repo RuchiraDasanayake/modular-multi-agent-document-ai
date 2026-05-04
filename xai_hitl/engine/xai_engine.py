@@ -1269,12 +1269,27 @@ class XAIEngine:
         if self._check_unanswerable(question, answer, context, base_conf):
             return base_conf, True
 
-        # ═══ NEW: AnswerValidator checks ═══
+        # Year-mismatch detection: if question asks about a specific year
+        # that doesn't appear in the context, mark unanswerable
+        q_years = set(re.findall(r'\b((?:19|20)\d{2})\b', question))
+        if q_years:
+            ctx_years = set(re.findall(r'\b((?:19|20)\d{2})\b', context))
+            if q_years and not q_years.intersection(ctx_years):
+                logger.warning("Question asks about year(s) %s not found in document (has %s)", q_years, ctx_years)
+                return base_conf, True
+
+        # ═══ AnswerValidator checks ═══
         # Verify numeric values exist in original text (prevent hallucinations)
         numeric_valid, numeric_reason = AnswerValidator.validate_numeric_answer(answer, context)
         if not numeric_valid:
             logger.warning("Numeric validation failed: %s", numeric_reason)
-            # Don't mark as unanswerable, but reduce confidence
+            _calc_kw = re.search(
+                r'(?:percentage|percent|share|ratio|proportion|rate)\b|%',
+                q_lower,
+            )
+            if _calc_kw:
+                logger.warning("Calculation/percentage question with fabricated numbers — marking unanswerable")
+                return base_conf, True
             base_conf = min(base_conf, 0.3)
 
         # Check for digit swapping (common hallucination pattern)
