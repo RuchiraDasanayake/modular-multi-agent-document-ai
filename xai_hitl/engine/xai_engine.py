@@ -1036,7 +1036,7 @@ class XAIEngine:
             # Reduced to 15-20 samples for fast response while maintaining
             # meaningful local explanations. LIME's linear surrogate converges
             # quickly for focused Q&A tasks.
-            num_samples = min(20, max(15, len(paragraph.split()) // 5))
+            num_samples = min(8, max(6, len(paragraph.split()) // 10))
             exp = self.lime_explainer.explain_instance(
                 paragraph, predict_fn,
                 num_features=num_features,

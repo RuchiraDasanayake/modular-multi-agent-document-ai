@@ -1,4 +1,4 @@
-# Production VPS Deployment with Docker Compose
+# Production VPS Deployment with Docker Compose (t3.large: 2 vCPUs, 8GB RAM)
 # Use with: docker-compose -f docker-compose.prod.yml up -d
 
 version: '3.8'
@@ -14,7 +14,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
       POSTGRES_DB: ${POSTGRES_DB:-ahmn_db}
     ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"  # Keep internal only
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
       - postgres_data:/var/lib/postgresql/data
@@ -26,8 +26,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2g
-          cpus: "2.0"
+          memory: 256m
+          cpus: "0.5"
     logging:
       driver: json-file
       options:
@@ -43,7 +43,7 @@ services:
     restart: always
     command: redis-server --requirepass ${REDIS_PASSWORD:-docai_redis_secret} --appendonly yes
     ports:
-      - "127.0.0.1:${REDIS_PORT:-6379}:6379"  # Keep internal only
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -54,8 +54,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
-          cpus: "1.0"
+          memory: 64m
+          cpus: "0.25"
     logging:
       driver: json-file
       options:
@@ -94,8 +94,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2g
-          cpus: "2.0"
+          memory: 512m
+          cpus: "0.5"
     logging:
       driver: json-file
       options:
@@ -128,8 +128,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 3g
-          cpus: "2.0"
+          memory: 896m
+          cpus: "0.5"
     logging:
       driver: json-file
       options:
@@ -162,7 +162,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 6g
+          memory: 4g
           cpus: "2.0"
     logging:
       driver: json-file
@@ -206,8 +206,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2g
-          cpus: "2.0"
+          memory: 512m
+          cpus: "0.5"
     logging:
       driver: json-file
       options:
@@ -235,7 +235,7 @@ services:
       IDPO_SERVICE_URL: http://idpo:8004
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-*}
     ports:
-      - "0.0.0.0:${GATEWAY_PORT:-8000}:8000"  # Exposed to external
+      - "0.0.0.0:${GATEWAY_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -258,8 +258,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1g
-          cpus: "1.0"
+          memory: 256m
+          cpus: "0.5"
     logging:
       driver: json-file
       options:
@@ -282,7 +282,7 @@ services:
       - INTERNAL_API_URL=http://gateway:8000
       - HOSTNAME=0.0.0.0
     ports:
-      - "0.0.0.0:${FRONTEND_PORT:-3000}:3000"  # Exposed to external
+      - "0.0.0.0:${FRONTEND_PORT:-3000}:3000"
     depends_on:
       gateway:
         condition: service_healthy
@@ -295,8 +295,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1g
-          cpus: "1.0"
+          memory: 256m
+          cpus: "0.25"
     logging:
       driver: json-file
       options:
@@ -308,9 +308,9 @@ services:
 networks:
   internal:
     driver: bridge
-    internal: true          # No internet access — services talk only to each other
+    internal: true
   external:
-    driver: bridge          # Frontend + Gateway face the internet
+    driver: bridge
 
 volumes:
   postgres_data:
