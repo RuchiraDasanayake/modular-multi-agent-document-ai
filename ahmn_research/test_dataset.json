@@ -1,0 +1,357 @@
+{
+  "metadata": {
+    "name": "AHMN Policy Selection Benchmark",
+    "description": "Ground-truth (document context → expected policy) mappings used to evaluate the Adaptive Hierarchical Memory Network's routing accuracy. Tests cover three regimes: (1) seen contexts that match LTM seeds verbatim, (2) unseen contexts that share semantic similarity with seeds (RABI generalisation test), and (3) cold-start unknown contexts.",
+    "total_cases": 30,
+    "regimes": {
+      "seen": "Document context exactly matches an LTM seed → expect the seeded policy with high confidence",
+      "near_neighbor": "Document context not in LTM but semantically similar to a seed → tests RABI's k-NN generalisation in vector space",
+      "cold_start": "Document context with no semantic neighbour in LTM → tests safe fallback to the default policy"
+    },
+    "policies": ["table_heavy", "forms", "scanned_text", "mixed_content", "default"],
+    "scoring": {
+      "policy_match": "Selected policy_id equals expected_policy_id",
+      "rabi_used": "rabi_used=true expected for seen and near_neighbor regimes",
+      "confidence_calibrated": "Confidence ≥ 0.6 for seen, ≥ 0.4 for near_neighbor, ≤ 0.5 for cold_start"
+    },
+    "author": "Pathirana M.M. and team",
+    "version": "1.0"
+  },
+  "cases": [
+    {
+      "id": "c01",
+      "regime": "seen",
+      "doc_type": "invoice",
+      "vendor": "acme_corp",
+      "content_profile": "table-heavy",
+      "expected_policy": "table_heavy",
+      "min_confidence": 0.6,
+      "expect_rabi": true,
+      "rationale": "Exact LTM seed match for invoice + table-heavy"
+    },
+    {
+      "id": "c02",
+      "regime": "seen",
+      "doc_type": "receipt",
+      "vendor": "starbucks",
+      "content_profile": "table-heavy",
+      "expected_policy": "table_heavy",
+      "min_confidence": 0.6,
+      "expect_rabi": true,
+      "rationale": "Seeded receipt → table_heavy"
+    },
+    {
+      "id": "c03",
+      "regime": "seen",
+      "doc_type": "table_document",
+      "vendor": "internal",
+      "content_profile": "table-heavy",
+      "expected_policy": "table_heavy",
+      "min_confidence": 0.6,
+      "expect_rabi": true,
+      "rationale": "Seeded table_document → table_heavy"
+    },
+    {
+      "id": "c04",
+      "regime": "seen",
+      "doc_type": "form_document",
+      "vendor": "irs",
+      "content_profile": "form-centric",
+      "expected_policy": "forms",
+      "min_confidence": 0.6,
+      "expect_rabi": true,
+      "rationale": "Seeded form_document → forms"
+    },
+    {
+      "id": "c05",
+      "regime": "seen",
+      "doc_type": "scanned_document",
+      "vendor": "fax_system",
+      "content_profile": "scanned",
+      "expected_policy": "scanned_text",
+      "min_confidence": 0.5,
+      "expect_rabi": true,
+      "rationale": "Seeded scanned_document → scanned_text"
+    },
+    {
+      "id": "c06",
+      "regime": "seen",
+      "doc_type": "mixed_document",
+      "vendor": "varied",
+      "content_profile": "mixed",
+      "expected_policy": "mixed_content",
+      "min_confidence": 0.5,
+      "expect_rabi": true,
+      "rationale": "Seeded mixed_document → mixed_content"
+    },
+    {
+      "id": "c07",
+      "regime": "seen",
+      "doc_type": "contract",
+      "vendor": "legal",
+      "content_profile": "mixed",
+      "expected_policy": "mixed_content",
+      "min_confidence": 0.5,
+      "expect_rabi": true,
+      "rationale": "Seeded contract → mixed_content"
+    },
+    {
+      "id": "c08",
+      "regime": "seen",
+      "doc_type": "financial_statement",
+      "vendor": "annual_report",
+      "content_profile": "table-heavy",
+      "expected_policy": "table_heavy",
+      "min_confidence": 0.5,
+      "expect_rabi": true,
+      "rationale": "Seeded financial_statement → table_heavy"
+    },
+    {
+      "id": "c09",
+      "regime": "seen",
+      "doc_type": "text_document",
+      "vendor": "memo",
+      "content_profile": "text-heavy",
+      "expected_policy": "scanned_text",
+      "min_confidence": 0.5,
+      "expect_rabi": true,
+      "rationale": "Seeded text_document → scanned_text"
+    },
+    {
+      "id": "c10",
+      "regime": "seen",
+      "doc_type": "clinical_summary",
+      "vendor": "hospital",
+      "content_profile": "form-centric",
+      "expected_policy": "forms",
+      "min_confidence": 0.5,
+      "expect_rabi": true,
+      "rationale": "Seeded clinical_summary → forms"
+    },
+    {
+      "id": "c11",
+      "regime": "seen",
+      "doc_type": "medical_record",
+      "vendor": "clinic",
+      "content_profile": "form-centric",
+      "expected_policy": "forms",
+      "min_confidence": 0.5,
+      "expect_rabi": true,
+      "rationale": "Seeded medical_record → forms"
+    },
+    {
+      "id": "c12",
+      "regime": "near_neighbor",
+      "doc_type": "purchase_order",
+      "vendor": "vendor_x",
+      "content_profile": "table-heavy",
+      "expected_policy": "table_heavy",
+      "min_confidence": 0.4,
+      "expect_rabi": true,
+      "rationale": "Purchase orders are tabular like invoices → should route to table_heavy via vector similarity"
+    },
+    {
+      "id": "c13",
+      "regime": "near_neighbor",
+      "doc_type": "bank_statement",
+      "vendor": "hsbc",
+      "content_profile": "table-heavy",
+      "expected_policy": "table_heavy",
+      "min_confidence": 0.4,
+      "expect_rabi": true,
+      "rationale": "Bank statements are columnar → nearest neighbour is invoice/financial_statement"
+    },
+    {
+      "id": "c14",
+      "regime": "near_neighbor",
+      "doc_type": "tax_form",
+      "vendor": "ird",
+      "content_profile": "form-centric",
+      "expected_policy": "forms",
+      "min_confidence": 0.4,
+      "expect_rabi": true,
+      "rationale": "Tax forms are fillable forms → should match form_document by similarity"
+    },
+    {
+      "id": "c15",
+      "regime": "near_neighbor",
+      "doc_type": "passport_scan",
+      "vendor": "immigration",
+      "content_profile": "scanned",
+      "expected_policy": "scanned_text",
+      "min_confidence": 0.4,
+      "expect_rabi": true,
+      "rationale": "Scanned passport image → nearest neighbour is scanned_document"
+    },
+    {
+      "id": "c16",
+      "regime": "near_neighbor",
+      "doc_type": "lab_report",
+      "vendor": "pathology",
+      "content_profile": "form-centric",
+      "expected_policy": "forms",
+      "min_confidence": 0.4,
+      "expect_rabi": true,
+      "rationale": "Structured medical lab report → nearest neighbour is clinical_summary or medical_record"
+    },
+    {
+      "id": "c17",
+      "regime": "near_neighbor",
+      "doc_type": "credit_note",
+      "vendor": "supplier",
+      "content_profile": "table-heavy",
+      "expected_policy": "table_heavy",
+      "min_confidence": 0.4,
+      "expect_rabi": true,
+      "rationale": "Credit notes mirror invoice structure → should match invoice cluster"
+    },
+    {
+      "id": "c18",
+      "regime": "near_neighbor",
+      "doc_type": "service_agreement",
+      "vendor": "saas_co",
+      "content_profile": "mixed",
+      "expected_policy": "mixed_content",
+      "min_confidence": 0.4,
+      "expect_rabi": true,
+      "rationale": "Service agreements share structure with contracts"
+    },
+    {
+      "id": "c19",
+      "regime": "near_neighbor",
+      "doc_type": "insurance_claim",
+      "vendor": "insurer",
+      "content_profile": "form-centric",
+      "expected_policy": "forms",
+      "min_confidence": 0.4,
+      "expect_rabi": true,
+      "rationale": "Claim forms are form-centric → should match form_document"
+    },
+    {
+      "id": "c20",
+      "regime": "near_neighbor",
+      "doc_type": "income_tax_return",
+      "vendor": "ird",
+      "content_profile": "form-centric",
+      "expected_policy": "forms",
+      "min_confidence": 0.4,
+      "expect_rabi": true,
+      "rationale": "Tax returns are highly structured forms"
+    },
+    {
+      "id": "c21",
+      "regime": "near_neighbor",
+      "doc_type": "cash_voucher",
+      "vendor": "petty_cash",
+      "content_profile": "table-heavy",
+      "expected_policy": "table_heavy",
+      "min_confidence": 0.4,
+      "expect_rabi": true,
+      "rationale": "Cash vouchers carry numeric amount data like receipts"
+    },
+    {
+      "id": "c22",
+      "regime": "near_neighbor",
+      "doc_type": "scanned_letter",
+      "vendor": "post_office",
+      "content_profile": "scanned",
+      "expected_policy": "scanned_text",
+      "min_confidence": 0.4,
+      "expect_rabi": true,
+      "rationale": "Faxed/scanned correspondence → nearest neighbour scanned_document"
+    },
+    {
+      "id": "c23",
+      "regime": "near_neighbor",
+      "doc_type": "noisy_invoice",
+      "vendor": "dirty_scan",
+      "content_profile": "scanned",
+      "expected_policy": "scanned_text",
+      "min_confidence": 0.4,
+      "expect_rabi": true,
+      "rationale": "Image-only invoice with poor OCR → should route to scanned_text rather than table_heavy"
+    },
+    {
+      "id": "c24",
+      "regime": "near_neighbor",
+      "doc_type": "memorandum",
+      "vendor": "internal",
+      "content_profile": "text-heavy",
+      "expected_policy": "scanned_text",
+      "min_confidence": 0.4,
+      "expect_rabi": true,
+      "rationale": "Memos are pure text → nearest neighbour text_document"
+    },
+    {
+      "id": "c25",
+      "regime": "near_neighbor",
+      "doc_type": "financial_disclosure",
+      "vendor": "regulator",
+      "content_profile": "table-heavy",
+      "expected_policy": "table_heavy",
+      "min_confidence": 0.4,
+      "expect_rabi": true,
+      "rationale": "Regulatory financial disclosure with tables"
+    },
+    {
+      "id": "c26",
+      "regime": "cold_start",
+      "doc_type": "completely_novel_xyz",
+      "vendor": "unknown",
+      "content_profile": "unknown",
+      "expected_policy": "default",
+      "min_confidence": 0.0,
+      "max_confidence": 0.7,
+      "expect_rabi": true,
+      "rationale": "Novel doc type → should fall back to default policy with low confidence"
+    },
+    {
+      "id": "c27",
+      "regime": "cold_start",
+      "doc_type": "blueprint_drawing",
+      "vendor": "architect",
+      "content_profile": "image-only",
+      "expected_policy": "default",
+      "min_confidence": 0.0,
+      "max_confidence": 0.7,
+      "expect_rabi": true,
+      "rationale": "No semantic neighbour in seed set — should not over-confidently pick a wrong specialist"
+    },
+    {
+      "id": "c28",
+      "regime": "cold_start",
+      "doc_type": "music_score",
+      "vendor": "publisher",
+      "content_profile": "image-only",
+      "expected_policy": "default",
+      "min_confidence": 0.0,
+      "max_confidence": 0.7,
+      "expect_rabi": true,
+      "rationale": "Music notation has no analogue in document AI seeds"
+    },
+    {
+      "id": "c29",
+      "regime": "cold_start",
+      "doc_type": "dna_sequence",
+      "vendor": "lab",
+      "content_profile": "data-only",
+      "expected_policy": "default",
+      "min_confidence": 0.0,
+      "max_confidence": 0.7,
+      "expect_rabi": true,
+      "rationale": "Pure data sequence — no LTM neighbour"
+    },
+    {
+      "id": "c30",
+      "regime": "cold_start",
+      "doc_type": "satellite_imagery",
+      "vendor": "noaa",
+      "content_profile": "image-only",
+      "expected_policy": "default",
+      "min_confidence": 0.0,
+      "max_confidence": 0.7,
+      "expect_rabi": true,
+      "rationale": "Imagery has no document-AI analogue"
+    }
+  ]
+}
