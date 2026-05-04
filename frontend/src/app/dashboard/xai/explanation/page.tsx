@@ -119,16 +119,22 @@ export default function ExplanationPage() {
                     </div>
                     <p className="text-slate-700 dark:text-gray-200">{explanation.answer}</p>
                     <div className="mt-3">
-                        <span
-                            className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${explanation.confidence_score >= 0.7
-                                ? "bg-green-500/20 text-green-400"
-                                : explanation.confidence_score >= 0.4
-                                    ? "bg-yellow-500/20 text-yellow-400"
-                                    : "bg-red-500/20 text-red-400"
-                                }`}
-                        >
-                            Confidence: {(explanation.confidence_score * 100).toFixed(0)}%
-                        </span>
+                        {explanation.confidence_score < 0 ? (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-slate-500/20 text-slate-400">
+                                Information not found in document
+                            </span>
+                        ) : (
+                            <span
+                                className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${explanation.confidence_score >= 0.7
+                                    ? "bg-green-500/20 text-green-400"
+                                    : explanation.confidence_score >= 0.4
+                                        ? "bg-yellow-500/20 text-yellow-400"
+                                        : "bg-red-500/20 text-red-400"
+                                    }`}
+                            >
+                                Confidence: {(explanation.confidence_score * 100).toFixed(0)}%
+                            </span>
+                        )}
                     </div>
                 </div>
             </div>
@@ -188,7 +194,11 @@ export default function ExplanationPage() {
                         isLoadingXAI ? (
                             <LoadingXAI label="Loading Feature Importance..." />
                         ) : (
-                            <SHAPAnalysis values={explanation.shap_explanation.shap_values} />
+                            <SHAPAnalysis
+                                values={explanation.shap_explanation.shap_values}
+                                questionTokens={explanation.shap_explanation.question_tokens}
+                                contextTokens={explanation.shap_explanation.context_tokens}
+                            />
                         )
                     )}
                     {activeTab === "lime" && (
@@ -249,36 +259,93 @@ function HighlightedParagraph({
     );
 }
 
-function SHAPAnalysis({ values }: { values: Array<[string, number]> }) {
-    const maxValue = Math.max(...values.map(([, v]) => Math.abs(v)));
+function TokenBarChart({ tokens, color }: { tokens: Array<[string, number]>; color: "blue" | "green" }) {
+    const maxValue = Math.max(...tokens.map(([, v]) => Math.abs(v)), 0.001);
+    const colorClass = color === "blue" ? "bg-blue-500" : "bg-emerald-500";
+    const textClass = color === "blue" ? "text-blue-400" : "text-emerald-400";
 
+    return (
+        <div className="space-y-2.5">
+            {tokens.slice(0, 10).map(([word, value], idx) => (
+                <div key={idx} className="flex items-center gap-3">
+                    <span className="w-24 text-sm text-slate-600 dark:text-gray-300 font-medium truncate">{word}</span>
+                    <div className="flex-1 h-5 bg-slate-100 dark:bg-gray-800 rounded-full overflow-hidden relative">
+                        <div
+                            className={`h-full rounded-full transition-all ${colorClass}`}
+                            style={{ width: `${(Math.abs(value) / maxValue) * 100}%` }}
+                        />
+                    </div>
+                    <span className={`w-16 text-sm font-mono ${textClass}`}>
+                        {value >= 0 ? "+" : ""}{value.toFixed(3)}
+                    </span>
+                </div>
+            ))}
+            {tokens.length === 0 && (
+                <p className="text-slate-400 dark:text-gray-500 text-sm italic">No tokens found</p>
+            )}
+        </div>
+    );
+}
+
+function SHAPAnalysis({ values, questionTokens, contextTokens }: {
+    values: Array<[string, number]>;
+    questionTokens?: Array<[string, number]>;
+    contextTokens?: Array<[string, number]>;
+}) {
+    const hasSplit = (questionTokens && questionTokens.length > 0) || (contextTokens && contextTokens.length > 0);
+
+    if (hasSplit) {
+        return (
+            <div>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">Feature Importance</h3>
+                <p className="text-slate-500 dark:text-gray-400 text-sm mb-5">
+                    Cross-attention analysis: what the model searched for vs what it found in the document.
+                </p>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                    <div>
+                        <div className="flex items-center gap-2 mb-3">
+                            <span className="w-3 h-3 rounded-full bg-blue-500" />
+                            <h4 className="text-sm font-semibold text-slate-700 dark:text-gray-200">What the Model Searched For</h4>
+                        </div>
+                        <p className="text-xs text-slate-400 dark:text-gray-500 mb-3">Question tokens the model focused on</p>
+                        <TokenBarChart tokens={questionTokens || []} color="blue" />
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-2 mb-3">
+                            <span className="w-3 h-3 rounded-full bg-emerald-500" />
+                            <h4 className="text-sm font-semibold text-slate-700 dark:text-gray-200">What It Found in the Document</h4>
+                        </div>
+                        <p className="text-xs text-slate-400 dark:text-gray-500 mb-3">Document tokens that matched the query</p>
+                        <TokenBarChart tokens={contextTokens || []} color="green" />
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    const maxValue = Math.max(...values.map(([, v]) => Math.abs(v)), 0.001);
     return (
         <div>
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">Feature Importance</h3>
             <p className="text-slate-500 dark:text-gray-400 text-sm mb-4">
                 Shows how each feature contributes to the prediction.
             </p>
-
             <div className="space-y-3">
                 {values.slice(0, 10).map(([word, value], idx) => (
                     <div key={idx} className="flex items-center gap-3">
                         <span className="w-24 text-sm text-slate-600 dark:text-gray-300 font-medium truncate">{word}</span>
                         <div className="flex-1 h-6 bg-slate-100 dark:bg-gray-800 rounded-full overflow-hidden relative">
                             <div
-                                className={`h-full rounded-full transition-all ${value >= 0 ? "bg-green-500" : "bg-red-500"
-                                    }`}
+                                className={`h-full rounded-full transition-all ${value >= 0 ? "bg-green-500" : "bg-red-500"}`}
                                 style={{
                                     width: `${(Math.abs(value) / maxValue) * 100}%`,
                                     marginLeft: value < 0 ? "auto" : 0,
                                 }}
                             />
                         </div>
-                        <span
-                            className={`w-16 text-sm font-mono ${value >= 0 ? "text-green-400" : "text-red-400"
-                                }`}
-                        >
-                            {value >= 0 ? "+" : ""}
-                            {value.toFixed(3)}
+                        <span className={`w-16 text-sm font-mono ${value >= 0 ? "text-green-400" : "text-red-400"}`}>
+                            {value >= 0 ? "+" : ""}{value.toFixed(3)}
                         </span>
                     </div>
                 ))}
@@ -356,7 +423,13 @@ function DerivationLogic({
                             <span className="font-semibold text-slate-900 dark:text-white">
                                 Step {step.step_number}: {step.action}
                             </span>
-                            <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">
+                            <span className={`px-2 py-0.5 text-xs rounded-full ${
+                                step.confidence >= 0.5
+                                    ? "bg-green-500/20 text-green-400"
+                                    : step.confidence > 0
+                                        ? "bg-yellow-500/20 text-yellow-400"
+                                        : "bg-red-500/20 text-red-400"
+                            }`}>
                                 {(step.confidence * 100).toFixed(0)}%
                             </span>
                         </div>

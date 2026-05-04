@@ -158,6 +158,14 @@ class SHAPExplanation:
     base_value: float
     shap_values: list[tuple[str, float]]
     feature_names: list[str]
+    question_tokens: list[tuple[str, float]] = None
+    context_tokens: list[tuple[str, float]] = None
+
+    def __post_init__(self):
+        if self.question_tokens is None:
+            self.question_tokens = []
+        if self.context_tokens is None:
+            self.context_tokens = []
 
     def to_dict(self) -> dict:
         return {
@@ -394,9 +402,16 @@ class GenerativeQAModel:
         the decoder attends to when generating each output token.
         We average cross-attention across the first few generated tokens.
         """
+        result = self.get_token_importance_split(context, question)
+        combined = {}
+        combined.update(result.get("question", {}))
+        combined.update(result.get("context", {}))
+        return combined
+
+    def get_token_importance_split(self, context: str, question: str) -> dict[str, dict[str, float]]:
+        """Extract token importance split into question tokens and context tokens."""
         input_text = self._format_input(question, context)
 
-        # Tokenize input (encoder side)
         inputs = self.tokenizer(
             input_text,
             return_tensors="pt",
@@ -404,15 +419,9 @@ class GenerativeQAModel:
             truncation=True,
         )
 
-        # Generate with cross-attention output
         with torch.no_grad():
-            # First, get encoder outputs
             encoder_outputs = self.model.get_encoder()(**inputs)
-
-            # Prepare decoder input (start token)
             decoder_input_ids = torch.tensor([[self.model.config.decoder_start_token_id]])
-
-            # Forward pass with cross-attention output
             outputs = self.model(
                 encoder_outputs=encoder_outputs,
                 decoder_input_ids=decoder_input_ids,
@@ -420,46 +429,52 @@ class GenerativeQAModel:
                 return_dict=True,
             )
 
-        # Extract cross-attention weights
-        # Shape: (num_layers, batch, num_heads, decoder_seq_len, encoder_seq_len)
         cross_attn = None
         if hasattr(outputs, 'cross_attentions') and outputs.cross_attentions:
-            cross_attn = outputs.cross_attentions[-1]  # Last layer
+            cross_attn = outputs.cross_attentions[-1]
 
         if cross_attn is not None:
-            # Use last layer cross-attention, average across heads
-            attn_weights = cross_attn.mean(dim=1).mean(dim=1)[0]  # [encoder_seq_len]
+            attn_weights = cross_attn.mean(dim=1).mean(dim=1)[0]
         elif hasattr(outputs, 'encoder_attentions') and outputs.encoder_attentions:
-            # Fallback: use encoder self-attention
             enc_attn = outputs.encoder_attentions[-1]
             if enc_attn is not None:
                 attn_weights = enc_attn.mean(dim=1).mean(dim=1)[0]
             else:
-                return {}
+                return {"question": {}, "context": {}}
         else:
-            # No attention available, return empty
-            return {}
+            return {"question": {}, "context": {}}
 
-        # Map attention weights to tokens
         encoder_tokens = self.tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
         attn_weights_np = attn_weights.numpy()
 
-        importance_dict: dict[str, float] = {}
+        # Find the boundary between question and context tokens
+        # Input format: "question: {Q} context: {C}"
+        context_boundary = None
+        for i, token in enumerate(encoder_tokens):
+            clean = token.replace("Ġ", "").lower()
+            if clean == "context" and i + 1 < len(encoder_tokens):
+                next_clean = encoder_tokens[i + 1].replace("Ġ", "")
+                if next_clean == ":":
+                    context_boundary = i
+                    break
+
         special_tokens = {"<s>", "</s>", "<pad>", "Ġ", "question", ":", "context"}
+        question_dict: dict[str, float] = {}
+        context_dict: dict[str, float] = {}
 
-        for token, score in zip(encoder_tokens, attn_weights_np):
-            # Clean BART's byte-level BPE tokens (Ġ prefix = space)
+        for idx, (token, score) in enumerate(zip(encoder_tokens, attn_weights_np)):
             clean_token = token.replace("Ġ", "").lower()
-
             if clean_token in special_tokens or len(clean_token) < 2:
                 continue
 
-            if clean_token in importance_dict:
-                importance_dict[clean_token] = max(importance_dict[clean_token], float(score))
-            else:
-                importance_dict[clean_token] = float(score)
+            target = context_dict if (context_boundary and idx > context_boundary) else question_dict
 
-        return importance_dict
+            if clean_token in target:
+                target[clean_token] = max(target[clean_token], float(score))
+            else:
+                target[clean_token] = float(score)
+
+        return {"question": question_dict, "context": context_dict}
 
     def get_token_importance_with_positions(
         self, context: str, question: str
@@ -1013,17 +1028,35 @@ class XAIEngine:
     def _get_shap_explanation(
         self, paragraph: str, question: str, prediction: ModelPrediction
     ) -> SHAPExplanation:
-        token_importance = self.qa_model.get_token_importance(paragraph, question)
+        split = self.qa_model.get_token_importance_split(paragraph, question)
+
+        all_tokens = {}
+        all_tokens.update(split.get("question", {}))
+        all_tokens.update(split.get("context", {}))
+
         shap_values = sorted(
-            token_importance.items(), key=lambda x: abs(x[1]), reverse=True
+            all_tokens.items(), key=lambda x: abs(x[1]), reverse=True
         )[:20]
-        if shap_values:
-            max_score = max(abs(s) for _, s in shap_values)
-            shap_values = [(w, s / max_score) for w, s in shap_values]
+
+        # Normalize all three lists by the same global max
+        global_max = max((abs(s) for _, s in shap_values), default=0)
+
+        def _normalize(items: dict[str, float], top_n: int = 10) -> list[tuple[str, float]]:
+            ranked = sorted(items.items(), key=lambda x: abs(x[1]), reverse=True)[:top_n]
+            if global_max > 0:
+                ranked = [(w, s / global_max) for w, s in ranked]
+            return ranked
+
+        shap_values = _normalize(all_tokens, 20)
+        q_tokens = _normalize(split.get("question", {}))
+        c_tokens = _normalize(split.get("context", {}))
+
         return SHAPExplanation(
             base_value=0.5,
             shap_values=shap_values,
             feature_names=[w for w, _ in shap_values],
+            question_tokens=q_tokens,
+            context_tokens=c_tokens,
         )
 
     # ─── LIME ────────────────────────────────────────────────
@@ -1254,19 +1287,24 @@ class XAIEngine:
         answer = prediction.answer.strip()
         base_conf = prediction.confidence
 
+        self._unanswerable_reason = None
+
         # Check model's native unanswerable detection (SQuAD 2.0)
         if prediction.is_unanswerable or answer == "[NO ANSWER]":
             logger.debug("Model detected unanswerable question")
+            self._unanswerable_reason = "BART model detected no valid answer in the document context"
             return base_conf, True
 
         # First validate the answer
         is_valid, reason = self._validate_answer(question, answer, context)
         if not is_valid:
             logger.debug("Answer validation failed: %s", reason)
+            self._unanswerable_reason = f"Answer validation failed: {reason}"
             return base_conf, True  # Mark as unanswerable
 
         # Check if question is unanswerable using keyword detection
         if self._check_unanswerable(question, answer, context, base_conf):
+            self._unanswerable_reason = "Key terms from the question were not found in the document"
             return base_conf, True
 
         # Year-mismatch detection: if question asks about a specific year
@@ -1275,7 +1313,10 @@ class XAIEngine:
         if q_years:
             ctx_years = set(re.findall(r'\b((?:19|20)\d{2})\b', context))
             if q_years and not q_years.intersection(ctx_years):
+                missing = ', '.join(sorted(q_years - ctx_years))
+                available = ', '.join(sorted(ctx_years)) if ctx_years else 'none'
                 logger.warning("Question asks about year(s) %s not found in document (has %s)", q_years, ctx_years)
+                self._unanswerable_reason = f"Year(s) {missing} not found in document (document contains: {available})"
                 return base_conf, True
 
         # ═══ AnswerValidator checks ═══
@@ -1289,6 +1330,7 @@ class XAIEngine:
             )
             if _calc_kw:
                 logger.warning("Calculation/percentage question with fabricated numbers — marking unanswerable")
+                self._unanswerable_reason = f"Numeric values in the generated answer do not exist in the document ({numeric_reason})"
                 return base_conf, True
             base_conf = min(base_conf, 0.3)
 
@@ -1858,15 +1900,30 @@ class XAIEngine:
 
         if is_unanswerable:
             logger.info("Question unanswerable: %s", question[:50])
+            reason = getattr(self, '_unanswerable_reason', None) or "Information not found in document"
+
+            unanswerable_steps = [
+                DerivationStep(1, "Question Analysis", f"Analyzed: {question}", "Model-Generated (BART)", 0.95),
+                DerivationStep(2, "Document Search", "Searched document context for relevant information", reason, 0.0),
+                DerivationStep(3, "Anti-Hallucination Guard", reason, "Blocked fabricated answer to prevent misinformation", 0.0),
+            ]
+
+            if include_xai:
+                shap_exp = self._get_shap_explanation(paragraph, question, prediction)
+                lime_exp = self._get_lime_explanation(paragraph, question)
+            else:
+                shap_exp = SHAPExplanation(base_value=0.5, shap_values=[], feature_names=[])
+                lime_exp = LIMEExplanation(word_weights=[], prediction_proba=0.0)
+
             return XAIExplanation(
                 paragraph=paragraph,
                 question=question,
                 answer=answer,
                 highlighted_spans=[],
-                shap_explanation=SHAPExplanation(base_value=0.5, shap_values=[], feature_names=[]),
-                lime_explanation=LIMEExplanation(word_weights=[], prediction_proba=0.0),
+                shap_explanation=shap_exp,
+                lime_explanation=lime_exp,
                 derivation_tree=DerivationTree(
-                    question=question, steps=[], final_answer=answer, overall_confidence=0.0
+                    question=question, steps=unanswerable_steps, final_answer=answer, overall_confidence=0.0
                 ),
                 confidence_score=-1.0,
                 evidence_sentences=[],
@@ -2548,27 +2605,16 @@ class XAIEngine:
         """
         self._cached_answer = answer  # Cache for LIME sequence probability
 
-        # Cross-attention based token importance
-        token_importance = self.qa_model.get_token_importance(paragraph, question)
-        shap_values = sorted(
-            token_importance.items(), key=lambda x: abs(x[1]), reverse=True
-        )[:20]
-        if shap_values:
-            max_score = max(abs(s) for _, s in shap_values)
-            if max_score > 0:
-                shap_values = [(w, s / max_score) for w, s in shap_values]
-
-        shap_exp = SHAPExplanation(
-            base_value=0.5,
-            shap_values=shap_values,
-            feature_names=[w for w, _ in shap_values],
-        )
+        # Use a dummy prediction for _get_shap_explanation
+        dummy_pred = ModelPrediction(answer=answer, confidence=0.0, start_index=-1, end_index=-1, top_k_answers=[])
+        shap_exp = self._get_shap_explanation(paragraph, question, dummy_pred)
 
         # LIME explanation
         lime_exp = self._get_lime_explanation(paragraph, question)
 
-        logger.info("XAI generated: %d SHAP features, %d LIME features",
-                    len(shap_values), len(lime_exp.word_weights))
+        logger.info("XAI generated: %d SHAP features (%d question, %d context), %d LIME features",
+                    len(shap_exp.shap_values), len(shap_exp.question_tokens),
+                    len(shap_exp.context_tokens), len(lime_exp.word_weights))
 
         return shap_exp, lime_exp
 
