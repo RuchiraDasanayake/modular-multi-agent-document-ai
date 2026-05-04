@@ -21,8 +21,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1g
-          cpus: "1.0"
+          memory: 128m
+          cpus: "0.25"
     logging:
       driver: json-file
       options:
@@ -49,8 +49,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256m
-          cpus: "0.5"
+          memory: 32m
+          cpus: "0.1"
     logging:
       driver: json-file
       options:
@@ -89,8 +89,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1g
-          cpus: "1.0"
+          memory: 512m
+          cpus: "0.5"
     logging:
       driver: json-file
       options:
@@ -124,7 +124,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1536m
+          memory: 896m
           cpus: "0.5"
     logging:
       driver: json-file
@@ -159,8 +159,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4096m  # BART (bart_lfqa) + LIME requires more memory
-          cpus: "2.0"
+          memory: 5g
+          cpus: "6.0"
     logging:
       driver: json-file
       options:
@@ -204,8 +204,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1g
-          cpus: "1.0"
+          memory: 512m
+          cpus: "0.5"
     logging:
       driver: json-file
       options:
@@ -232,7 +232,7 @@ services:
       XAI_HITL_SERVICE_URL: http://xai-hitl:8003
       IDPO_SERVICE_URL: http://idpo:8004
     ports:
-      - "127.0.0.1:${GATEWAY_PORT:-8000}:8000"
+      - "0.0.0.0:${GATEWAY_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -255,8 +255,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
-          cpus: "0.5"
+          memory: 128m
+          cpus: "0.25"
     logging:
       driver: json-file
       options:
@@ -279,7 +279,7 @@ services:
       - INTERNAL_API_URL=http://gateway:8000
       - HOSTNAME=0.0.0.0
     ports:
-      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
+      - "0.0.0.0:${FRONTEND_PORT:-3000}:3000"
     depends_on:
       gateway:
         condition: service_healthy
@@ -292,8 +292,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
-          cpus: "0.5"
+          memory: 256m
+          cpus: "0.25"
     logging:
       driver: json-file
       options:
