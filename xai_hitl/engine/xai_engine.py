@@ -2301,21 +2301,17 @@ class XAIEngine:
         # Also check if target keyword exists in document at all
         target_in_doc = target_lower in paragraph.lower() if target else False
 
-        # Generate natural response
+        # Generate natural response only when we have a strong label-value match.
+        # For conceptual yes/no questions ("Can a customer open an anonymous account?")
+        # the rule-based handler can't reason — fall through to BART instead of
+        # returning a misleading "No, I couldn't find any..." answer.
         if found_value:
             answer = f"Yes, the {found_label or target} is {found_value}."
             confidence = 0.85
             is_yes = True
-        elif target_in_doc:
-            # Target mentioned but no clear value
-            answer = f"Yes, {target} is mentioned in the document, but I couldn't extract a specific value."
-            confidence = 0.6
-            is_yes = True
         else:
-            # Not found
-            answer = f"No, I couldn't find any {target or 'matching information'} in this document."
-            confidence = 0.75
-            is_yes = False
+            logger.info("Yes/No handler found no label-value match; falling through to BART for conceptual reasoning")
+            return None
 
         logger.info("Yes/No answer: %s (found_value=%s)", "Yes" if is_yes else "No", found_value)
 
