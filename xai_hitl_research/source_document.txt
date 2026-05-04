@@ -1,0 +1,91 @@
+FINANCIAL TRANSACTIONS REPORTING ACT, No. 6 OF 2006
+
+PARLIAMENT OF THE DEMOCRATIC SOCIALIST REPUBLIC OF SRI LANKA
+
+AN ACT TO PROVIDE FOR THE COLLECTION OF DATA RELATING TO SUSPICIOUS FINANCIAL TRANSACTIONS TO FACILITATE THE PREVENTION, DETECTION, INVESTIGATION AND PROSECUTION OF THE OFFENCES OF MONEY LAUNDERING AND THE FINANCING OF TERRORISM RESPECTIVELY.
+
+1. This Act may be cited as the Financial Transactions Reporting Act, No. 6 of 2006.
+
+PART I — DUTIES OF INSTITUTIONS
+
+2. (1) No Institution shall open, operate or maintain an account, where the holder of such account cannot be identified, including any anonymous account or any account identified by number only, or any account which to the knowledge of the Institution is being operated in a fictitious or false name.
+
+(2) An Institution shall identify each customer and verify their customer identification data on the basis of any official document or other reliable and independent source document verifying the identity of the customer, in cases where the Institution enters into a continuing business relationship, or conducts any transaction with any customer, or detects an electronic funds transfer, or entertains a suspicion relating to an unlawful activity.
+
+(5) The provisions of subsection (2) shall not apply if any person has been a customer of the Institution prior to the enactment of this Act, subject to a phase-in period which shall not exceed three years.
+
+3. If satisfactory evidence of identity is not submitted to an Institution, the Institution shall not proceed any further with the transaction unless directed to do so by the Financial Intelligence Unit, and shall report the attempted transaction as a suspicious transaction under section 7.
+
+4. (1) Every Institution shall be required to maintain records of transactions and of correspondence relating to transactions and records of all reports furnished to the Financial Intelligence Unit for a period of six years from the date of the transaction, correspondence or the furnishing of the report. Records of identity obtained in terms of section 2 shall be maintained for a period of six years from the date of closure of the account or cessation of the business relationship.
+
+(2) Records required to be maintained shall contain particulars sufficient to identify the name, address and occupation of each person conducting the transaction and where applicable on whose behalf the transaction is being conducted, the nature and date of the transaction, the type and amount of currency involved, the parties to the transaction, the name and address of the employee who prepares the record, and such other information as may be specified in rules issued by the Financial Intelligence Unit.
+
+(3) Where any record is required to be maintained under this Act, it shall be maintained in a manner and form that will enable an Institution to comply immediately with requests for information from the Financial Intelligence Unit. A copy may be kept in machine-readable form if a paper copy can be readily produced from it, or in an electronic form if a paper copy can be readily produced and an electronic signature of the person who keeps the records is retained for purposes of verification.
+
+5. An Institution shall conduct ongoing due diligence on the business relationship with its customer and conduct ongoing scrutiny of any transaction undertaken throughout the course of the business relationship.
+
+6. An Institution shall report to the Financial Intelligence Unit any transaction of an amount in cash exceeding such sum as shall be prescribed by the Minister by Order published in the Gazette, and any electronic funds transfer at the request of a customer exceeding such sum as shall be prescribed by regulation.
+
+7. (1) Where an Institution has reasonable grounds to suspect that any transaction or attempted transaction may be related to the commission of any unlawful activity, the Institution shall, as soon as practicable, after forming that suspicion or receiving the information, but no later than two working days therefrom, report the transaction or attempted transaction or the information to the Financial Intelligence Unit.
+
+(2) A report under subsection (1) shall be in writing and may be given by way of mail, telephone to be followed up in writing within twenty-four hours, fax or electronic mail or such other manner as may be determined by the Financial Intelligence Unit. It shall contain a statement of the grounds on which the Institution holds the suspicion, and be signed or otherwise authenticated by the Institution.
+
+8. Every Institution shall, in relation to any person conducting transactions with such institution, forthwith disclose to the Financial Intelligence Unit the existence of any property in its possession or control which it reasonably suspects is property derived from the commission of any terrorist activity.
+
+PART II — PROVISIONS APPLICABLE TO INSTITUTIONS AND OTHER PERSONS
+
+9. (1) A person shall not disclose to any other person that a report has been made or information provided to the Financial Intelligence Unit, that any suspicion has been formed, or any other information from which a person could reasonably infer that a suspicion has been formed or that a report has been made.
+
+10. (1) A person shall not disclose any information that will identify the person who has handled, prepared, or reported a suspicious transaction.
+
+11. Subject to the provisions of this Act, nothing contained in section 9 or 10 shall prevent the disclosure of any information in the course of proceedings before a Court.
+
+12. (1) No civil, criminal or disciplinary proceedings shall lie against an Institution, an auditor or supervisory authority of an Institution, or a director, partner, an officer, employee or agent acting in the course of that person's employment, in relation to any action carried out in terms of this Act in good faith or in compliance with regulations, rules or directions given by the Financial Intelligence Unit.
+
+13. (1) Nothing contained in sections 4, 5, 6, 7 or 8 of this Act shall be construed as requiring a lawyer to disclose any privileged communication, only if it is a confidential communication passing between a lawyer or legal advisor in his professional capacity and another lawyer or his client, made for the purpose of obtaining or giving legal advice or assistance, and not made or brought into existence for the purpose of committing or furthering the commission of some illegal or unlawful act.
+
+14. (1) Every Institution shall be required to appoint a Compliance Officer who shall be responsible for ensuring the Institution's compliance with the requirements of this Act, establish and maintain procedures and systems to implement customer identification, record keeping, monitoring, reporting requirements, make its officers and employees aware of the laws relating to money laundering and financing of terrorism, screen all persons before hiring them as employees, establish an audit function, and train its officers, employees and agents to recognize suspicious transaction.
+
+(3) An Institution shall ensure that its foreign branches and subsidiaries adopt and observe measures consistent with Parts I, II and III of this Act to the extent that local laws and regulations permit.
+
+PART III — POWERS AND FUNCTIONS OF THE FINANCIAL INTELLIGENCE UNIT
+
+15. (1) The Financial Intelligence Unit shall receive reports made in terms of the provisions of this Act and information provided to the Financial Intelligence Unit by any agency of another country, by a law enforcement agency or a government institution or agency, and other information voluntarily provided about suspicions of an act constituting an unlawful activity. The Unit shall collect any information that the Financial Intelligence Unit considers relevant to an act constituting an unlawful activity. It may analyze and assess all reports and information. It shall destroy a suspicious transaction report on the expiry of six years from the date of receipt or collection of the report, if there has been no further activity or information relating to the report.
+
+(3) The Financial Intelligence Unit may make an ex-parte application to the High Court of the Western Province, holden in Colombo, for an extension of the period of time stipulated in subsection (2) setting out the grounds for such application.
+
+16. The Financial Intelligence Unit may disclose any report or information to an institution or agency of a foreign state on such terms and conditions as are set out in the agreement.
+
+17. (1) The Financial Intelligence Unit may, with the approval of the Minister, enter into an agreement with an institution or agency of a foreign State or international organization, and a foreign law enforcement agency or supervisory authority.
+
+18. (1) The Financial Intelligence Unit or any person authorised by it may examine the records and inquire into the business and affairs of an Institution for the purpose of ensuring compliance with the Act, and may at any reasonable time enter any premises in which the Financial Intelligence Unit believes there are records relevant to ensuring compliance with the provisions of Parts I, II and III of this Act, use or cause to be used any computer system or data processing system found in the premises to examine any data, reproduce any record from the data in the form of a printout or other intelligible output, and use or cause to be used any copying equipment in the premises to make copies of any record.
+
+19. (1) A person required to conform to the requirements prescribed by or under Parts I and II of this Act, who fails to so conform, shall be liable to a penalty as may be prescribed taking into consideration the nature and gravity of relevant non-compliance, provided however such penalty shall not exceed a sum of rupees one million in any given case.
+
+(2) The Financial Intelligence Unit shall be responsible for the collection of a penalty imposed by this section and the money so collected shall be credited to the Consolidated Fund.
+
+PART IV — FUNCTIONS OF SUPERVISORY AUTHORITY OF AN INSTITUTION AND AUDITORS
+
+22. (1) Where a supervisory authority or an auditor of an Institution has reasonable grounds to suspect that information that it has concerning any transaction or attempted transaction may be relevant to an investigation, may be of assistance in the enforcement of the provisions of the Prevention of Money Laundering Act, the supervisory authority or the auditor shall report the transaction or attempted transaction to the Financial Intelligence Unit.
+
+PART V — CURRENCY REPORTING AT THE BORDER
+
+24. (1) Where a person is about to leave Sri Lanka or has arrived in Sri Lanka, an authorised officer may examine any article which a person has with him or in his luggage, and search the person if the officer has reasonable grounds to suspect that an offence under section 27 of this Act may have been or is being committed.
+
+25. An authorised officer may seize any cash or negotiable bearer instruments which is being imported into or exported from Sri Lanka if he has reasonable grounds for suspecting that it is derived from the commission of any unlawful activity, intended for use in the commission of an unlawful activity, or intended to be used in connection with an offence connected with the financing of terrorism.
+
+26. (1) Cash and negotiable bearer instruments seized under section 24 or section 25 shall not be detained for more than five working days after seizure, unless the High Court for the Western Province holden in Colombo, on application made to it, grants an Order of continued detention for a period not exceeding three months from the date of seizure.
+
+(2) The Court may subsequently Order the continued detention of the cash and negotiable bearer instruments if satisfied of the matters mentioned in subsection (1) but the total period of detention shall not exceed two years from the date of the Order.
+
+PART VI — OFFENCES AND LIABILITIES
+
+27. Any person who leaves or arrives in Sri Lanka with more than the prescribed sum in cash or negotiable bearer instruments without first having reported the fact to the relevant authority is guilty of an offence and shall be punishable on conviction with a fine not exceeding one hundred thousand rupees or imprisonment of either description for a term not exceeding one year, or to both such fine and imprisonment.
+
+28. (1) A person who in making a report under sections 6, 7, 8 or subsection (1) of section 22 makes any statement that the person knows is false or misleading in a material particular is guilty of an offence punishable on conviction to a fine not exceeding one hundred thousand rupees or imprisonment of either description for a term not exceeding one year, or to both such fine and imprisonment.
+
+(2) If a person contravenes subsection (1) of section 9 or subsection (1) of section 10 with intent to prejudice an investigation, the person is guilty of an offence punishable on conviction to a fine not exceeding five hundred thousand rupees or imprisonment of either description for a term not exceeding two years, or to both such fine and imprisonment.
+
+PART VII — MISCELLANEOUS
+
+32. In the event of any inconsistency between the Sinhala and Tamil texts of this Act, the Sinhala text shall prevail.

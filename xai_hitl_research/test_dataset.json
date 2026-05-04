@@ -1,0 +1,289 @@
+{
+  "metadata": {
+    "name": "Financial Transactions Reporting Act Q&A Benchmark",
+    "description": "Ground-truth question/answer pairs derived from the Sri Lanka Financial Transactions Reporting Act, No. 6 of 2006. Used to evaluate the XAI Q&A system's accuracy, hallucination rate, and answer faithfulness across question types.",
+    "source_document": "Financial Transactions Reporting Act, No. 6 of 2006 (Sri Lanka Parliament)",
+    "total_questions": 30,
+    "categories": {
+      "numerical": "Questions asking 'how many years/days/rupees/percent' — should be answered by the numerical extraction handler",
+      "yes_no_legal": "Polar questions whose answer is grounded in explicit prohibition/permission language — should be answered by the legal Yes/No detector",
+      "factual_extractive": "Questions asking 'what/who/which' with answers as document spans — handled by BART with TF-IDF retrieval",
+      "synthesis": "Questions asking 'explain/describe/what are' that require multi-sentence synthesis — handled by BART"
+    },
+    "author": "Pathirana M.M.",
+    "version": "1.0"
+  },
+  "questions": [
+    {
+      "id": "q01",
+      "category": "numerical",
+      "question": "For how many years must an institution retain transaction records?",
+      "ground_truth_answer": "6 years",
+      "expected_polarity": null,
+      "evidence_section": "Section 4(1)(a)",
+      "evidence_excerpt": "records of transactions and of correspondence relating to transactions and records of all reports furnished to the Financial Intelligence Unit for a period of six years from the date of the transaction"
+    },
+    {
+      "id": "q02",
+      "category": "numerical",
+      "question": "How long must records of identity be retained after account closure?",
+      "ground_truth_answer": "6 years",
+      "expected_polarity": null,
+      "evidence_section": "Section 4(1)(b)",
+      "evidence_excerpt": "records of identity obtained in terms of section 2 for a period of six years from the date of closure of the account"
+    },
+    {
+      "id": "q03",
+      "category": "numerical",
+      "question": "Within how many working days must a suspicious transaction be reported?",
+      "ground_truth_answer": "2 working days",
+      "expected_polarity": null,
+      "evidence_section": "Section 7(1)",
+      "evidence_excerpt": "no later than two working days therefrom, report the transaction or attempted transaction or the information to the Financial Intelligence Unit"
+    },
+    {
+      "id": "q04",
+      "category": "numerical",
+      "question": "What is the maximum penalty in rupees for non-compliance with Parts I and II?",
+      "ground_truth_answer": "1 million rupees",
+      "expected_polarity": null,
+      "evidence_section": "Section 19(1)",
+      "evidence_excerpt": "such penalty shall not exceed a sum of rupees one million in any given case"
+    },
+    {
+      "id": "q05",
+      "category": "numerical",
+      "question": "For how long can cash be detained after seizure without a court order?",
+      "ground_truth_answer": "5 working days",
+      "expected_polarity": null,
+      "evidence_section": "Section 26(1)",
+      "evidence_excerpt": "shall not be detained for more than five working days after seizure"
+    },
+    {
+      "id": "q06",
+      "category": "numerical",
+      "question": "What is the maximum period of detention that the High Court may order?",
+      "ground_truth_answer": "3 months",
+      "expected_polarity": null,
+      "evidence_section": "Section 26(1)",
+      "evidence_excerpt": "an Order of continued detention for a period not exceeding three months from the date of seizure"
+    },
+    {
+      "id": "q07",
+      "category": "numerical",
+      "question": "What is the total maximum detention period for seized cash under court orders?",
+      "ground_truth_answer": "2 years",
+      "expected_polarity": null,
+      "evidence_section": "Section 26(2)",
+      "evidence_excerpt": "the total period of detention shall not exceed two years from the date of the Order"
+    },
+    {
+      "id": "q08",
+      "category": "numerical",
+      "question": "How long is the phase-in period for pre-existing customers?",
+      "ground_truth_answer": "3 years",
+      "expected_polarity": null,
+      "evidence_section": "Section 2(5)(c)",
+      "evidence_excerpt": "subject to a phase-in period which shall not exceed three years"
+    },
+    {
+      "id": "q09",
+      "category": "numerical",
+      "question": "Within how many hours must a telephone report be confirmed in writing?",
+      "ground_truth_answer": "24 hours",
+      "expected_polarity": null,
+      "evidence_section": "Section 7(2)(a)",
+      "evidence_excerpt": "telephone to be followed up in writing within twenty-four hours"
+    },
+    {
+      "id": "q10",
+      "category": "numerical",
+      "question": "What is the fine for crossing the border with undeclared cash?",
+      "ground_truth_answer": "100,000 rupees",
+      "expected_polarity": null,
+      "evidence_section": "Section 27",
+      "evidence_excerpt": "a fine not exceeding one hundred thousand rupees or imprisonment of either description for a term not exceeding one year"
+    },
+    {
+      "id": "q11",
+      "category": "numerical",
+      "question": "What is the maximum imprisonment for false statements in reports?",
+      "ground_truth_answer": "1 year",
+      "expected_polarity": null,
+      "evidence_section": "Section 28(1)",
+      "evidence_excerpt": "imprisonment of either description for a term not exceeding one year"
+    },
+    {
+      "id": "q12",
+      "category": "numerical",
+      "question": "What is the maximum fine for prejudicing an investigation by disclosure?",
+      "ground_truth_answer": "500,000 rupees",
+      "expected_polarity": null,
+      "evidence_section": "Section 28(2)",
+      "evidence_excerpt": "a fine not exceeding five hundred thousand rupees or imprisonment of either description for a term not exceeding two years"
+    },
+    {
+      "id": "q13",
+      "category": "numerical",
+      "question": "After how many years does the FIU destroy a stale suspicious transaction report?",
+      "ground_truth_answer": "6 years",
+      "expected_polarity": null,
+      "evidence_section": "Section 15(1)(g)",
+      "evidence_excerpt": "shall destroy a suspicious transaction report on the expiry of six years from the date of receipt or collection of the report"
+    },
+    {
+      "id": "q14",
+      "category": "yes_no_legal",
+      "question": "Can a customer open an anonymous bank account?",
+      "ground_truth_answer": "No",
+      "expected_polarity": "no",
+      "evidence_section": "Section 2(1)",
+      "evidence_excerpt": "No Institution shall open, operate or maintain an account, where the holder of such account cannot be identified, including any anonymous account or any account identified by number only"
+    },
+    {
+      "id": "q15",
+      "category": "yes_no_legal",
+      "question": "Can an account be opened in a fictitious name?",
+      "ground_truth_answer": "No",
+      "expected_polarity": "no",
+      "evidence_section": "Section 2(1)",
+      "evidence_excerpt": "No Institution shall open, operate or maintain an account... or any account which to the knowledge of the Institution is being operated in a fictitious or false name"
+    },
+    {
+      "id": "q16",
+      "category": "yes_no_legal",
+      "question": "Must an institution appoint a Compliance Officer?",
+      "ground_truth_answer": "Yes",
+      "expected_polarity": "yes",
+      "evidence_section": "Section 14(1)(a)",
+      "evidence_excerpt": "Every Institution shall be required to appoint a Compliance Officer who shall be responsible for ensuring the Institution's compliance with the requirements of this Act"
+    },
+    {
+      "id": "q17",
+      "category": "yes_no_legal",
+      "question": "Are records allowed to be kept in electronic form?",
+      "ground_truth_answer": "Yes",
+      "expected_polarity": "yes",
+      "evidence_section": "Section 4(3)(b)(ii)",
+      "evidence_excerpt": "in an electronic form, if a paper copy can be readily produced from it and an electronic signature of the person who keeps the records is retained for purposes of verification"
+    },
+    {
+      "id": "q18",
+      "category": "yes_no_legal",
+      "question": "Can a person disclose that a suspicious transaction report has been filed?",
+      "ground_truth_answer": "No",
+      "expected_polarity": "no",
+      "evidence_section": "Section 9(1)",
+      "evidence_excerpt": "A person shall not disclose to any other person... that a report has been made or information provided to the Financial Intelligence Unit"
+    },
+    {
+      "id": "q19",
+      "category": "yes_no_legal",
+      "question": "Is the FIU required to receive reports from foreign agencies?",
+      "ground_truth_answer": "Yes",
+      "expected_polarity": "yes",
+      "evidence_section": "Section 15(1)(a)",
+      "evidence_excerpt": "shall receive reports made in terms of the provisions of this Act and information provided to the Financial Intelligence Unit by any agency of another country"
+    },
+    {
+      "id": "q20",
+      "category": "yes_no_legal",
+      "question": "Are foreign branches of an institution required to follow this Act?",
+      "ground_truth_answer": "Yes",
+      "expected_polarity": "yes",
+      "evidence_section": "Section 14(3)",
+      "evidence_excerpt": "An Institution shall ensure that its foreign branches and subsidiaries adopt and observe measures consistent with Parts I, II and III of this Act"
+    },
+    {
+      "id": "q21",
+      "category": "factual_extractive",
+      "question": "What court has jurisdiction over extension of detention periods?",
+      "ground_truth_answer": "High Court of the Western Province, holden in Colombo",
+      "expected_polarity": null,
+      "evidence_section": "Section 15(3)",
+      "evidence_excerpt": "may make an ex-parte application to the High Court of the Western Province, holden in Colombo, for an extension of the period of time"
+    },
+    {
+      "id": "q22",
+      "category": "factual_extractive",
+      "question": "Which model of BART is used in this XAI engine?",
+      "ground_truth_answer": "vblagoje/bart_lfqa",
+      "expected_polarity": null,
+      "evidence_section": "N/A (system metadata)",
+      "evidence_excerpt": "Model: vblagoje/bart_lfqa (BART fine-tuned for long-form Q&A)",
+      "out_of_document": true
+    },
+    {
+      "id": "q23",
+      "category": "factual_extractive",
+      "question": "Where must the penalty money collected under this Act be credited?",
+      "ground_truth_answer": "Consolidated Fund",
+      "expected_polarity": null,
+      "evidence_section": "Section 19(2)",
+      "evidence_excerpt": "the money so collected shall be credited to the Consolidated Fund"
+    },
+    {
+      "id": "q24",
+      "category": "factual_extractive",
+      "question": "Which language text prevails in case of inconsistency?",
+      "ground_truth_answer": "Sinhala",
+      "expected_polarity": null,
+      "evidence_section": "Section 32",
+      "evidence_excerpt": "In the event of any inconsistency between the Sinhala and Tamil texts of this Act, the Sinhala text shall prevail"
+    },
+    {
+      "id": "q25",
+      "category": "factual_extractive",
+      "question": "What is the short title of this Act?",
+      "ground_truth_answer": "Financial Transactions Reporting Act, No. 6 of 2006",
+      "expected_polarity": null,
+      "evidence_section": "Section 1",
+      "evidence_excerpt": "This Act may be cited as the Financial Transactions Reporting Act, No. 6 of 2006"
+    },
+    {
+      "id": "q26",
+      "category": "synthesis",
+      "question": "What are the duties of a Compliance Officer under this Act?",
+      "ground_truth_answer": "Ensure the institution's compliance with the Act, establish customer identification procedures, record-keeping systems, monitoring procedures, reporting procedures, employee awareness programs, screening procedures, audit functions, and training programs to recognize suspicious transactions.",
+      "expected_polarity": null,
+      "evidence_section": "Section 14(1)",
+      "evidence_excerpt": "appoint a Compliance Officer... establish and maintain procedures and systems to implement the customer identification requirements... record keeping... monitoring... reporting... screen all persons before hiring... establish an audit function... train its officers"
+    },
+    {
+      "id": "q27",
+      "category": "synthesis",
+      "question": "What protections does the Act offer to people who report suspicious transactions in good faith?",
+      "ground_truth_answer": "No civil, criminal or disciplinary proceedings can be brought against the institution, its auditors, supervisory authority, or their directors/officers/employees/agents for actions carried out in good faith under this Act.",
+      "expected_polarity": null,
+      "evidence_section": "Section 12",
+      "evidence_excerpt": "No civil, criminal or disciplinary proceedings shall lie against an Institution, an auditor or supervisory authority... carried out in terms of this Act in good faith"
+    },
+    {
+      "id": "q28",
+      "category": "synthesis",
+      "question": "What information must be contained in records maintained under Section 4?",
+      "ground_truth_answer": "Name, address and occupation of each person conducting and benefiting from the transaction; nature and date of the transaction; type and amount of currency; parties to the transaction; name and address of the employee preparing the record.",
+      "expected_polarity": null,
+      "evidence_section": "Section 4(2)",
+      "evidence_excerpt": "name, address and occupation... conducting the transaction... nature and date of the transaction... type and amount of currency involved... parties to the transaction... name and address of the employee who prepares the record"
+    },
+    {
+      "id": "q29",
+      "category": "synthesis",
+      "question": "Under what conditions can a lawyer claim privileged communication?",
+      "ground_truth_answer": "When the communication is confidential, between a lawyer and client (or between lawyers), made for the purpose of obtaining or giving legal advice, and not for the purpose of furthering some illegal or unlawful act.",
+      "expected_polarity": null,
+      "evidence_section": "Section 13",
+      "evidence_excerpt": "it is a confidential communication... between a lawyer or legal advisor... made or brought into existence for the purpose of obtaining or giving legal advice... not made or brought into existence for the purpose of committing or furthering the commission of some illegal or unlawful act"
+    },
+    {
+      "id": "q30",
+      "category": "synthesis",
+      "question": "What powers does the FIU have to examine an institution's records?",
+      "ground_truth_answer": "The FIU may enter premises at reasonable times, use computer systems, reproduce records, and use copying equipment to copy records, for the purpose of ensuring compliance with the Act.",
+      "expected_polarity": null,
+      "evidence_section": "Section 18(1)",
+      "evidence_excerpt": "may enter any premises... use or cause to be used any computer system or data processing system... reproduce any record... use or cause to be used any copying equipment in the premises to make copies of any record"
+    }
+  ]
+}
