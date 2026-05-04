@@ -72,13 +72,17 @@ export default function XAIPage() {
                             saveMessages(updated);
                             return updated;
                         });
-                        setCurrentExplanation(response.explanation);
-                        sessionStorage.setItem("xai_explanation", JSON.stringify(response.explanation));
-                        sessionStorage.setItem("xai_question", question);
-                        sessionStorage.setItem("xai_paragraph", paragraph);
-                        localStorage.setItem("xai_explanation", JSON.stringify(response.explanation));
-                        localStorage.setItem("xai_question", question);
-                        localStorage.setItem("xai_paragraph", paragraph);
+                        const isFallbackError = response.confidence === -1.0 &&
+                            response.answer.startsWith("I'm having trouble processing");
+                        if (!isFallbackError) {
+                            setCurrentExplanation(response.explanation);
+                            sessionStorage.setItem("xai_explanation", JSON.stringify(response.explanation));
+                            sessionStorage.setItem("xai_question", question);
+                            sessionStorage.setItem("xai_paragraph", paragraph);
+                            localStorage.setItem("xai_explanation", JSON.stringify(response.explanation));
+                            localStorage.setItem("xai_question", question);
+                            localStorage.setItem("xai_paragraph", paragraph);
+                        }
                     }).catch((err) => {
                         const errorMessage: ChatMessage = {
                             id: (parseInt(userMessageId) + 1).toString(),
@@ -189,16 +193,24 @@ export default function XAIPage() {
             currentMsgs.push(botMessage);
             saveMessages(currentMsgs);
 
-            sessionStorage.setItem("xai_explanation", JSON.stringify(response.explanation));
-            sessionStorage.setItem("xai_question", userMessage.content);
-            sessionStorage.setItem("xai_paragraph", activeParagraph);
-            localStorage.setItem("xai_explanation", JSON.stringify(response.explanation));
-            localStorage.setItem("xai_question", userMessage.content);
-            localStorage.setItem("xai_paragraph", activeParagraph);
+            // Detect XAI engine fallback (timeout/failure produces this exact message + confidence -1)
+            const isFallbackError = response.confidence === -1.0 &&
+                response.answer.startsWith("I'm having trouble processing");
+
+            if (!isFallbackError) {
+                sessionStorage.setItem("xai_explanation", JSON.stringify(response.explanation));
+                sessionStorage.setItem("xai_question", userMessage.content);
+                sessionStorage.setItem("xai_paragraph", activeParagraph);
+                localStorage.setItem("xai_explanation", JSON.stringify(response.explanation));
+                localStorage.setItem("xai_question", userMessage.content);
+                localStorage.setItem("xai_paragraph", activeParagraph);
+            }
 
             if (mountedRef.current) {
                 setMessages((prev) => [...prev, botMessage]);
-                setCurrentExplanation(response.explanation);
+                if (!isFallbackError) {
+                    setCurrentExplanation(response.explanation);
+                }
                 if (response.confidence >= 0) {
                     addToast({ type: "success", title: "Answer received", message: `Confidence: ${(response.confidence * 100).toFixed(0)}%` });
                 }
