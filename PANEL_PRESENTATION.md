@@ -148,12 +148,15 @@ Instead of routing every question through expensive BART inference, the system u
 1. **Conversational** — Pattern matching for greetings/small talk (instant, no compute)
 2. **Rule-Extracted** — Specialized handlers in priority order:
    - **Numerical extraction** — "how many years/days/rupees/percent…" questions get answered from regex over TF-IDF-ranked sentences (zero hallucination, instant)
-   - **Yes/No** — Detects polar questions, looks up the target value
+   - **Legal Yes/No detection** — for polar questions on legal/regulatory docs, detects prohibition (`"No X shall…"`, `"shall not"`, `"is prohibited"`) and permission (`"may"`, `"is required to"`, `"shall appoint"`) patterns in the top TF-IDF sentences and returns a deterministic answer grounded in the source sentence
+   - **Yes/No (label-value)** — for transactional docs, looks up the target value (e.g. "Is the total $500?" → finds total field)
    - **List/NER** — Extracts multiple entities for "what are the…" questions
    - **Comparison** — Decomposes "highest/lowest/most" questions into sub-queries
-3. **Model-Generated** — BART generative inference as fallback for complex questions
+3. **Model-Generated** — BART generative inference as fallback for complex questions; if no rule-handler matches AND no clear value is found, the system gracefully falls through
 
-**Research contribution**: This reduces average response time by ~60% compared to always using the generative model, while *improving* factual accuracy. The numerical handler in particular eliminates a known failure mode of generative LLMs — hallucinating vague answers ("It depends on the transaction…") instead of returning the exact number ("6 years") that exists in the document.
+**Research contribution**: This reduces average response time by ~60% compared to always using the generative model, while *improving* factual accuracy. Two specific failure modes are eliminated:
+- **Numerical hallucination** — vague answers ("It depends on the transaction…") instead of the exact number ("6 years") in the source
+- **Polarity inversion** — generative models occasionally answer "Yes" when the document explicitly says "No Institution shall…". The legal Yes/No detector grounds the answer in the source sentence, making this impossible.
 
 ### 4.3 TF-IDF Retrieval-Augmented Generation (RAG)
 
@@ -174,7 +177,38 @@ BART (now sees the right context)
 
 **Why this matters**: Same model, same parameters — but answer accuracy on long documents jumps significantly because the model is no longer guessing from truncated input. CPU usage actually *drops* because BART processes ~500 tokens instead of 1024.
 
-### 4.4 Table Reconstruction for Flattened Financial Documents
+### 4.4 Source-Grounded Yes/No Reasoning (Anti-Hallucination)
+
+A specific contribution of this work: detecting and answering yes/no questions on regulatory documents *without* letting the generative model invent answers.
+
+**The problem**: When asked *"Can a customer open an anonymous bank account?"* against a document that explicitly states *"No Institution shall open, operate or maintain an account where the holder cannot be identified, including any anonymous account…"*, BART would generate a plausible-sounding but **incorrect** answer like *"Yes, you can open an anonymous bank account…"* — directly contradicting the source.
+
+**The solution** — a hybrid rule + retrieval pipeline:
+
+```
+Yes/No question detected
+        |
+        v
+TF-IDF ranks document sentences vs. question
+        |
+        v
+Top-6 candidate sentences scanned for legal patterns:
+  - Prohibition: "No X shall", "shall not", "is prohibited",
+                 "is guilty of an offence", "shall be punishable"
+  - Permission:  "shall appoint", "is required to", "may", "must"
+        |
+        v
+Highest-scoring matching sentence wins
+        |
+        v
+Answer = "No. According to the document: '<source sentence>'"
+```
+
+**Why this is novel**: The answer is *literally a quote* from the document plus a one-word polarity. There is no generation step that could hallucinate. Confidence is high because legal documents use formulaic language that maps unambiguously to yes/no.
+
+**Why this matters for HITL**: Source-grounded answers are trivially auditable — the human reviewer sees the exact sentence the system used. This dramatically improves the quality of the explanation visible during expert review.
+
+### 4.5 Table Reconstruction for Flattened Financial Documents
 
 OCR and PDF extraction often **flatten** tabular data into unstructured text. The engine includes a `TableReconstructor` that detects label-value pairs and reconstructs table structure before Q&A:
 
@@ -189,7 +223,7 @@ Reconstructed:  "| Revenue | 1,500,000 |
 
 This significantly improves answer accuracy for financial documents where numerical relationships matter.
 
-### 4.5 Lazy XAI Loading — UX Innovation
+### 4.6 Lazy XAI Loading — UX Innovation
 
 XAI computations (especially LIME) are CPU-intensive. Instead of making users wait for everything:
 
@@ -199,7 +233,7 @@ XAI computations (especially LIME) are CPU-intensive. Instead of making users wa
 
 This **decouples answer speed from explanation speed** — users who just want the answer get it fast, while users who need transparency can access full explanations.
 
-### 4.6 Integrated HITL Feedback Loop
+### 4.7 Integrated HITL Feedback Loop
 
 Unlike standalone HITL systems, feedback here is **contextual** — reviewers see the XAI explanation alongside the answer, so they can evaluate not just *what* the AI said, but *how it reasoned*. The structured feedback (5 rating dimensions) enables:
 
@@ -232,27 +266,42 @@ Unlike standalone HITL systems, feedback here is **contextual** — reviewers se
    - Show the 13-agent pipeline processing in real time
    - Point out AHMN policy selection and confidence scores
 
-2. **Ask a question** in the AI Q&A chatbot
+2. **Ask a numerical question** in the AI Q&A chatbot
    - Example: *"For how many years must institutions retain financial records?"*
-   - Show the answer with confidence score
+   - Expected: ***"6 years"*** — instant, deterministic, grounded in Section 4(1)
+   - Talking point: *"This bypasses the language model entirely — the answer comes from regex over the most relevant TF-IDF sentences. It cannot hallucinate."*
 
-3. **Click "See How Answer Was Derived"**
+3. **Ask a yes/no legal question**
+   - Example: *"Can a customer open an anonymous bank account?"*
+   - Expected: ***"No. According to the document: 'No Institution shall open, operate or maintain an account where the holder of such account cannot be identified, including any anonymous account…'"***
+   - Talking point: *"The answer is literally a quote from the source. Even though the language model can hallucinate, the legal Yes/No detector grounds the answer in the document — making this class of error impossible."*
+
+4. **Ask a complex/conceptual question**
+   - Example: *"What are the duties of a Compliance Officer?"*
+   - Expected: BART-generated synthesis from focused TF-IDF context
+   - Talking point: *"For complex reasoning, the system falls through to BART, but only after compressing the 30-page document to the most relevant sentences — improving accuracy and reducing inference cost."*
+
+5. **Click "See How Answer Was Derived"**
    - Show **Feature Importance** (SHAP) — which tokens matter
    - Show **Word Analysis** (LIME) — perturbation-based importance
-   - Show **Derivation Logic** — step-by-step reasoning
+   - Show **Derivation Logic** — step-by-step reasoning trace including which handler answered (Numerical / Legal Yes/No / BART)
 
-4. **Submit Expert Review**
+6. **Submit Expert Review**
    - Rate the answer and explanation quality
    - Show how feedback is tracked and aggregated
 
-5. **Key message**: *"The AI doesn't just give answers — it shows its work, and learns from expert corrections."*
+7. **Key message**: *"The AI doesn't just give answers — it shows its work, grounds claims in source text whenever possible, and learns from expert corrections."*
 
 ---
 
 ## 7. Key Metrics to Mention
 
 - **13 agents** in the document processing pipeline
-- **3-stage waterfall** reduces unnecessary model inference by ~60%
+- **Multi-stage waterfall** reduces unnecessary BART inference by ~60%
+- **Two anti-hallucination mechanisms**:
+  - Numerical handler — deterministic regex extraction for "how many" questions
+  - Legal Yes/No detector — pattern-grounded polarity from source sentences
+- **TF-IDF Retrieval-Augmented Generation** — compresses 30+ page documents to top-8 relevant sentences before BART, eliminating truncation-induced errors
 - **Dual explainability** (Cross-Attention + LIME) provides complementary transparency
 - **5-dimensional feedback** (correctness, explanation quality, highlight accuracy, XAI helpfulness, notes)
 - **8 microservices** in a fully containerized architecture
