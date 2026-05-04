@@ -12,20 +12,94 @@ interface ExtractedDoc {
     text: string;
 }
 
+const XAI_MESSAGES_KEY = "xai_chat_messages";
+const XAI_PENDING_KEY = "xai_pending_request";
+const XAI_LOADING_KEY = "xai_chat_loading";
+
+function saveMessages(msgs: ChatMessage[]) {
+    try { sessionStorage.setItem(XAI_MESSAGES_KEY, JSON.stringify(msgs)); } catch { /* */ }
+}
+
 export default function XAIPage() {
     const { addToast } = useToast();
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [messages, setMessages] = useState<ChatMessage[]>(() => {
+        if (typeof window === "undefined") return [];
+        try {
+            const stored = sessionStorage.getItem(XAI_MESSAGES_KEY);
+            return stored ? JSON.parse(stored) : [];
+        } catch { return []; }
+    });
     const [input, setInput] = useState("");
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(() => {
+        if (typeof window === "undefined") return false;
+        return sessionStorage.getItem(XAI_LOADING_KEY) === "true";
+    });
     const [showParagraph, setShowParagraph] = useState(false);
     const [currentExplanation, setCurrentExplanation] = useState<XAIExplanation | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const mountedRef = useRef(true);
 
     // Document context management - only from IDPO extractions
     const [extractedDocs, setExtractedDocs] = useState<ExtractedDoc[]>([]);
     const [selectedDocId, setSelectedDocId] = useState<string>("");
     const [customText, setCustomText] = useState("");
     const [showDocSelector, setShowDocSelector] = useState(false);
+
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => { mountedRef.current = false; };
+    }, []);
+
+    // On mount, check if a background request completed while we were away
+    useEffect(() => {
+        try {
+            const pending = sessionStorage.getItem(XAI_PENDING_KEY);
+            if (pending) {
+                const { paragraph, question, userMessageId } = JSON.parse(pending);
+                // Re-fire the request if still pending
+                if (sessionStorage.getItem(XAI_LOADING_KEY) === "true") {
+                    setIsLoading(true);
+                    api.askQuestion(paragraph, question).then((response) => {
+                        const botMessage: ChatMessage = {
+                            id: (parseInt(userMessageId) + 1).toString(),
+                            role: "bot",
+                            content: response.answer,
+                            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                            confidence: response.confidence,
+                        };
+                        setMessages((prev) => {
+                            const updated = [...prev, botMessage];
+                            saveMessages(updated);
+                            return updated;
+                        });
+                        setCurrentExplanation(response.explanation);
+                        sessionStorage.setItem("xai_explanation", JSON.stringify(response.explanation));
+                        sessionStorage.setItem("xai_question", question);
+                        sessionStorage.setItem("xai_paragraph", paragraph);
+                        localStorage.setItem("xai_explanation", JSON.stringify(response.explanation));
+                        localStorage.setItem("xai_question", question);
+                        localStorage.setItem("xai_paragraph", paragraph);
+                    }).catch((err) => {
+                        const errorMessage: ChatMessage = {
+                            id: (parseInt(userMessageId) + 1).toString(),
+                            role: "bot",
+                            content: `Unable to process your question. Error: ${err instanceof Error ? err.message : "Unknown error"}`,
+                            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                        };
+                        setMessages((prev) => {
+                            const updated = [...prev, errorMessage];
+                            saveMessages(updated);
+                            return updated;
+                        });
+                    }).finally(() => {
+                        setIsLoading(false);
+                        sessionStorage.removeItem(XAI_PENDING_KEY);
+                        sessionStorage.removeItem(XAI_LOADING_KEY);
+                    });
+                }
+            }
+        } catch { /* */ }
+    }, []);
 
     // Load extracted documents from sessionStorage (saved by IDPO page after processing)
     useEffect(() => {
@@ -81,12 +155,25 @@ export default function XAIPage() {
             timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         };
 
-        setMessages((prev) => [...prev, userMessage]);
+        const activeParagraph = getActiveParagraph();
+
+        setMessages((prev) => {
+            const updated = [...prev, userMessage];
+            saveMessages(updated);
+            return updated;
+        });
         setInput("");
         setIsLoading(true);
 
+        // Save pending request so it can be resumed if user navigates away
+        sessionStorage.setItem(XAI_PENDING_KEY, JSON.stringify({
+            paragraph: activeParagraph,
+            question: userMessage.content,
+            userMessageId: userMessage.id,
+        }));
+        sessionStorage.setItem(XAI_LOADING_KEY, "true");
+
         try {
-            const activeParagraph = getActiveParagraph();
             const response = await api.askQuestion(activeParagraph, userMessage.content);
 
             const botMessage: ChatMessage = {
@@ -97,33 +184,47 @@ export default function XAIPage() {
                 confidence: response.confidence,
             };
 
-            setMessages((prev) => [...prev, botMessage]);
-            setCurrentExplanation(response.explanation);
-            // Only show confidence toast for document Q&A (not conversations)
-            if (response.confidence >= 0) {
-                addToast({ type: "success", title: "Answer received", message: `Confidence: ${(response.confidence * 100).toFixed(0)}%` });
-            }
+            // Always persist to storage (even if unmounted)
+            const currentMsgs = JSON.parse(sessionStorage.getItem(XAI_MESSAGES_KEY) || "[]");
+            currentMsgs.push(botMessage);
+            saveMessages(currentMsgs);
 
-            // Store in sessionStorage for the explanation page
             sessionStorage.setItem("xai_explanation", JSON.stringify(response.explanation));
             sessionStorage.setItem("xai_question", userMessage.content);
             sessionStorage.setItem("xai_paragraph", activeParagraph);
-            // Also persist to localStorage so HITL page works across tabs/reloads
             localStorage.setItem("xai_explanation", JSON.stringify(response.explanation));
             localStorage.setItem("xai_question", userMessage.content);
             localStorage.setItem("xai_paragraph", activeParagraph);
+
+            if (mountedRef.current) {
+                setMessages((prev) => [...prev, botMessage]);
+                setCurrentExplanation(response.explanation);
+                if (response.confidence >= 0) {
+                    addToast({ type: "success", title: "Answer received", message: `Confidence: ${(response.confidence * 100).toFixed(0)}%` });
+                }
+            }
         } catch (err) {
-            // Show error when API is unavailable
             const errorMessage: ChatMessage = {
                 id: (Date.now() + 1).toString(),
                 role: "bot",
                 content: `Unable to process your question. Please ensure the XAI service is running. Error: ${err instanceof Error ? err.message : "Unknown error"}`,
                 timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
             };
-            setMessages((prev) => [...prev, errorMessage]);
-            addToast({ type: "error", title: "XAI Error", message: "Could not get answer from XAI service" });
+
+            const currentMsgs = JSON.parse(sessionStorage.getItem(XAI_MESSAGES_KEY) || "[]");
+            currentMsgs.push(errorMessage);
+            saveMessages(currentMsgs);
+
+            if (mountedRef.current) {
+                setMessages((prev) => [...prev, errorMessage]);
+                addToast({ type: "error", title: "XAI Error", message: "Could not get answer from XAI service" });
+            }
         } finally {
-            setIsLoading(false);
+            sessionStorage.removeItem(XAI_PENDING_KEY);
+            sessionStorage.removeItem(XAI_LOADING_KEY);
+            if (mountedRef.current) {
+                setIsLoading(false);
+            }
         }
     };
 

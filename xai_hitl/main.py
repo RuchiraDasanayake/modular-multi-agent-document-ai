@@ -477,8 +477,7 @@ async def ask_question(body: QARequest):
     if _engine_available:
         try:
             engine = _get_engine()
-            # Timeout: 120s for fast mode (long docs), 180s for full XAI
-            timeout = 180.0 if body.include_xai else 120.0
+            timeout = 300.0 if body.include_xai else 180.0
             exp = await asyncio.wait_for(
                 asyncio.to_thread(
                     engine.generate_explanation,
@@ -497,7 +496,7 @@ async def ask_question(body: QARequest):
             _explanation_cache[qa_id] = response
             return response
         except asyncio.TimeoutError:
-            timeout_str = "180s" if body.include_xai else "60s"
+            timeout_str = "300s" if body.include_xai else "180s"
             logger.warning("Engine timed out after %s, falling back to demo", timeout_str)
         except Exception as exc:
             logger.error("Engine failed, falling back to demo: %s", exc)

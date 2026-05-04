@@ -115,21 +115,52 @@ export const api = {
 
   // ── XAI ──
 
-  askQuestion: (paragraph: string, question: string, includeXAI: boolean = false) =>
-    request<QAResponse>("/api/xai/ask", {
+  askQuestion: async (paragraph: string, question: string, includeXAI: boolean = false) => {
+    const token = getToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const res = await fetch(`${getGatewayBase()}/api/xai/ask`, {
       method: "POST",
+      headers,
       body: JSON.stringify({ paragraph, question, include_xai: includeXAI }),
-    }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail || `API ${res.status}`);
+    }
+    return res.json() as Promise<QAResponse>;
+  },
 
-  getExplanation: (questionId: string) =>
-    request<QAResponse>(`/api/xai/explanation/${questionId}`),
+  getExplanation: async (questionId: string) => {
+    const token = getToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  // Lazy XAI: Fetch explanations for an already-answered question
-  fetchXAIExplanation: (paragraph: string, question: string, answer: string) =>
-    request<{ shap_explanation: { shap_values: [string, number][]; base_value: number }; lime_explanation: { word_weights: [string, number][]; prediction_proba: number } }>("/api/xai/explain", {
+    const res = await fetch(`${getGatewayBase()}/api/xai/explanation/${questionId}`, { headers });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail || `API ${res.status}`);
+    }
+    return res.json() as Promise<QAResponse>;
+  },
+
+  fetchXAIExplanation: async (paragraph: string, question: string, answer: string) => {
+    const token = getToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const res = await fetch(`${getGatewayBase()}/api/xai/explain`, {
       method: "POST",
+      headers,
       body: JSON.stringify({ paragraph, question, answer }),
-    }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail || `API ${res.status}`);
+    }
+    return res.json() as Promise<{ shap_explanation: { shap_values: [string, number][]; base_value: number }; lime_explanation: { word_weights: [string, number][]; prediction_proba: number } }>;
+  },
 
   // ── HITL ──
 
