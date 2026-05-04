@@ -1286,6 +1286,7 @@ class XAIEngine:
         import re
         answer = prediction.answer.strip()
         base_conf = prediction.confidence
+        q_lower = question.lower()
 
         self._unanswerable_reason = None
 
