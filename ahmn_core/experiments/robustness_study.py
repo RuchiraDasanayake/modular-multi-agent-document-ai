@@ -114,11 +114,9 @@ def sweep_neighbor_similarity(verbose: bool = True) -> dict:
             established.append(VendorProfile(
                 vendor_id=f"est_{i}", doc_type="invoice",
                 policies={
-                    "table_heavy": PolicyConfig(true_mean=0.88, noise_std=0.05),
-                    "forms":   PolicyConfig(true_mean=0.70, noise_std=0.06),
-                    "scanned_text":  PolicyConfig(true_mean=0.65, noise_std=0.06),
-                    "mixed_content":  PolicyConfig(true_mean=0.78, noise_std=0.05),
-                    "default":       PolicyConfig(true_mean=0.72, noise_std=0.05),
+                    "ocr_tesseract": PolicyConfig(true_mean=0.88, noise_std=0.05),
+                    "ocr_easyocr":   PolicyConfig(true_mean=0.70, noise_std=0.06),
+                    "ocr_azure_cv":  PolicyConfig(true_mean=0.78, noise_std=0.05),
                 },
                 embedding=_make_cluster_embedding(1, i, spread=spread),
                 weight=1.0,
@@ -130,11 +128,9 @@ def sweep_neighbor_similarity(verbose: bool = True) -> dict:
                 vendor_id=f"new_{i}", doc_type="invoice",
                 policies={
                     # Similar reward structure — RABI SHOULD help if embeddings are close
-                    "table_heavy": PolicyConfig(true_mean=0.86, noise_std=0.05),
-                    "forms":   PolicyConfig(true_mean=0.72, noise_std=0.06),
-                    "scanned_text":  PolicyConfig(true_mean=0.65, noise_std=0.06),
-                    "mixed_content":  PolicyConfig(true_mean=0.80, noise_std=0.05),
-                    "default":       PolicyConfig(true_mean=0.72, noise_std=0.05),
+                    "ocr_tesseract": PolicyConfig(true_mean=0.86, noise_std=0.05),
+                    "ocr_easyocr":   PolicyConfig(true_mean=0.72, noise_std=0.06),
+                    "ocr_azure_cv":  PolicyConfig(true_mean=0.80, noise_std=0.05),
                 },
                 embedding=_make_cluster_embedding(1, 3 + i, spread=spread),
                 appears_at_round=300 + i * 200,
@@ -214,11 +210,9 @@ def sweep_drift_magnitude(verbose: bool = True) -> dict:
         vendor = VendorProfile(
             vendor_id="vendor_main", doc_type="invoice",
             policies={
-                "table_heavy": PolicyConfig(true_mean=base_mean_tess, noise_std=0.05),
-                "forms":   PolicyConfig(true_mean=0.70, noise_std=0.06),
-                "scanned_text":  PolicyConfig(true_mean=0.65, noise_std=0.06),
-                "mixed_content":  PolicyConfig(true_mean=base_mean_azure, noise_std=0.05),
-                "default":       PolicyConfig(true_mean=0.72, noise_std=0.05),
+                "ocr_tesseract": PolicyConfig(true_mean=base_mean_tess, noise_std=0.05),
+                "ocr_easyocr":   PolicyConfig(true_mean=0.70, noise_std=0.06),
+                "ocr_azure_cv":  PolicyConfig(true_mean=base_mean_azure, noise_std=0.05),
             },
             embedding=_make_cluster_embedding(1, 0),
             weight=1.0,
@@ -230,11 +224,9 @@ def sweep_drift_magnitude(verbose: bool = True) -> dict:
                 vendor_id="vendor_main",
                 at_round=500,
                 new_policies={
-                    "table_heavy": PolicyConfig(true_mean=post_tess, noise_std=0.05),
-                    "forms":   PolicyConfig(true_mean=0.70, noise_std=0.06),
-                    "scanned_text":  PolicyConfig(true_mean=0.65, noise_std=0.06),
-                    "mixed_content":  PolicyConfig(true_mean=post_azure, noise_std=0.05),
-                    "default":       PolicyConfig(true_mean=0.72, noise_std=0.05),
+                    "ocr_tesseract": PolicyConfig(true_mean=post_tess, noise_std=0.05),
+                    "ocr_easyocr":   PolicyConfig(true_mean=0.70, noise_std=0.06),
+                    "ocr_azure_cv":  PolicyConfig(true_mean=post_azure, noise_std=0.05),
                 },
             ))
 
@@ -308,11 +300,9 @@ def sweep_cold_start_fraction(verbose: bool = True) -> dict:
             vendors.append(VendorProfile(
                 vendor_id=f"est_{i}", doc_type="invoice",
                 policies={
-                    "table_heavy": PolicyConfig(true_mean=0.85 + 0.01 * i, noise_std=0.05),
-                    "forms":   PolicyConfig(true_mean=0.70, noise_std=0.06),
-                    "scanned_text":  PolicyConfig(true_mean=0.65, noise_std=0.06),
-                    "mixed_content":  PolicyConfig(true_mean=0.78, noise_std=0.05),
-                    "default":       PolicyConfig(true_mean=0.72, noise_std=0.05),
+                    "ocr_tesseract": PolicyConfig(true_mean=0.85 + 0.01 * i, noise_std=0.05),
+                    "ocr_easyocr":   PolicyConfig(true_mean=0.70, noise_std=0.06),
+                    "ocr_azure_cv":  PolicyConfig(true_mean=0.78, noise_std=0.05),
                 },
                 embedding=_make_cluster_embedding(1, i, spread=0.05),
                 weight=1.0,
@@ -322,11 +312,9 @@ def sweep_cold_start_fraction(verbose: bool = True) -> dict:
             vendors.append(VendorProfile(
                 vendor_id=f"new_{i}", doc_type="invoice",
                 policies={
-                    "table_heavy": PolicyConfig(true_mean=0.84 + 0.01 * i, noise_std=0.05),
-                    "forms":   PolicyConfig(true_mean=0.71, noise_std=0.06),
-                    "scanned_text":  PolicyConfig(true_mean=0.65, noise_std=0.06),
-                    "mixed_content":  PolicyConfig(true_mean=0.79, noise_std=0.05),
-                    "default":       PolicyConfig(true_mean=0.72, noise_std=0.05),
+                    "ocr_tesseract": PolicyConfig(true_mean=0.84 + 0.01 * i, noise_std=0.05),
+                    "ocr_easyocr":   PolicyConfig(true_mean=0.71, noise_std=0.06),
+                    "ocr_azure_cv":  PolicyConfig(true_mean=0.79, noise_std=0.05),
                 },
                 embedding=_make_cluster_embedding(1, n_est + i, spread=0.05),
                 appears_at_round=500 + i * 100,
@@ -393,11 +381,9 @@ def sweep_vendor_count(verbose: bool = True) -> dict:
             vendors.append(VendorProfile(
                 vendor_id=f"vendor_{i}", doc_type="invoice",
                 policies={
-                    "table_heavy": PolicyConfig(true_mean=0.88, noise_std=0.05),
-                    "forms":   PolicyConfig(true_mean=0.70, noise_std=0.06),
-                    "scanned_text":  PolicyConfig(true_mean=0.65, noise_std=0.06),
-                    "mixed_content":  PolicyConfig(true_mean=0.75, noise_std=0.05),
-                    "default":       PolicyConfig(true_mean=0.72, noise_std=0.05),
+                    "ocr_tesseract": PolicyConfig(true_mean=0.88, noise_std=0.05),
+                    "ocr_easyocr":   PolicyConfig(true_mean=0.70, noise_std=0.06),
+                    "ocr_azure_cv":  PolicyConfig(true_mean=0.75, noise_std=0.05),
                 },
                 embedding=_make_cluster_embedding(i, 0),
                 weight=1.0,  # EQUAL weight — no artificial concentration
@@ -408,11 +394,9 @@ def sweep_vendor_count(verbose: bool = True) -> dict:
             vendor_id="vendor_0",
             at_round=500,
             new_policies={
-                "table_heavy": PolicyConfig(true_mean=0.55, noise_std=0.07),
-                "forms":   PolicyConfig(true_mean=0.60, noise_std=0.06),
-                "scanned_text":  PolicyConfig(true_mean=0.65, noise_std=0.06),
-                "mixed_content":  PolicyConfig(true_mean=0.90, noise_std=0.04),
-                "default":       PolicyConfig(true_mean=0.72, noise_std=0.05),
+                "ocr_tesseract": PolicyConfig(true_mean=0.55, noise_std=0.07),
+                "ocr_easyocr":   PolicyConfig(true_mean=0.60, noise_std=0.06),
+                "ocr_azure_cv":  PolicyConfig(true_mean=0.90, noise_std=0.04),
             },
         )]
 
@@ -486,11 +470,9 @@ def sweep_reward_mismatch(verbose: bool = True) -> dict:
             established.append(VendorProfile(
                 vendor_id=f"est_{i}", doc_type="invoice",
                 policies={
-                    "table_heavy": PolicyConfig(true_mean=0.88, noise_std=0.05),
-                    "forms":   PolicyConfig(true_mean=0.65, noise_std=0.06),
-                    "scanned_text":  PolicyConfig(true_mean=0.65, noise_std=0.06),
-                    "mixed_content":  PolicyConfig(true_mean=0.70, noise_std=0.05),
-                    "default":       PolicyConfig(true_mean=0.72, noise_std=0.05),
+                    "ocr_tesseract": PolicyConfig(true_mean=0.88, noise_std=0.05),
+                    "ocr_easyocr":   PolicyConfig(true_mean=0.65, noise_std=0.06),
+                    "ocr_azure_cv":  PolicyConfig(true_mean=0.70, noise_std=0.05),
                 },
                 embedding=_make_cluster_embedding(1, i, spread=0.05),
                 weight=1.0,
@@ -501,18 +483,16 @@ def sweep_reward_mismatch(verbose: bool = True) -> dict:
         # At mismatch=1: Tesseract=0.60, Azure=0.90 (reversed)
         new_tess = 0.88 - mismatch * 0.28   # 0.88→0.60
         new_azure = 0.70 + mismatch * 0.20  # 0.70→0.90
-        new_best = "table_heavy" if new_tess > new_azure else "mixed_content"
+        new_best = "ocr_tesseract" if new_tess > new_azure else "ocr_azure_cv"
 
         new_vendors = []
         for i in range(3):
             new_vendors.append(VendorProfile(
                 vendor_id=f"new_{i}", doc_type="invoice",
                 policies={
-                    "table_heavy": PolicyConfig(true_mean=new_tess, noise_std=0.05),
-                    "forms":   PolicyConfig(true_mean=0.65, noise_std=0.06),
-                    "scanned_text":  PolicyConfig(true_mean=0.65, noise_std=0.06),
-                    "mixed_content":  PolicyConfig(true_mean=new_azure, noise_std=0.05),
-                    "default":       PolicyConfig(true_mean=0.72, noise_std=0.05),
+                    "ocr_tesseract": PolicyConfig(true_mean=new_tess, noise_std=0.05),
+                    "ocr_easyocr":   PolicyConfig(true_mean=0.65, noise_std=0.06),
+                    "ocr_azure_cv":  PolicyConfig(true_mean=new_azure, noise_std=0.05),
                 },
                 # HIGH similarity to established — RABI will definitely try to transfer
                 embedding=_make_cluster_embedding(1, 3 + i, spread=0.05),
@@ -635,7 +615,7 @@ def print_summary(all_results: dict):
                 crossover = float(key)
             if float(key) in [0.0, 0.3, 0.5, 0.7, 1.0]:
                 print(f"   Mismatch={float(key):.1f}: {'+' if imp > 0 else ''}{imp:.1f}% "
-                      f"(new best={v['new_best_policy']})")
+                      f"(new best={v['new_best_policy'].replace('ocr_', '')})")
         if crossover is not None:
             print(f"   ⚠ RABI starts HURTING at mismatch ≈ {crossover:.1f}")
 
@@ -672,7 +652,7 @@ def main():
 
     # Save results
     output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                              "output")
+                              "ahmn_core", "output")
     os.makedirs(output_dir, exist_ok=True)
     out_path = os.path.join(output_dir, "robustness_results.json")
 

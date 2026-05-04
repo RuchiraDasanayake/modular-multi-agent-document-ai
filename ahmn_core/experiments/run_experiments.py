@@ -104,7 +104,7 @@ class RunResult:
         return None
     
     def to_summary(self) -> dict:
-        """Compact summary for JSON output (scalars only)."""
+        """Compact summary for JSON output."""
         return {
             "method": self.method,
             "scenario": self.scenario,
@@ -114,15 +114,6 @@ class RunResult:
             "policy_accuracy": round(self.policy_accuracy, 4),
             "convergence_round": self.convergence_round,
             "n_rounds": self.n_rounds,
-        }
-
-    def to_full(self) -> dict:
-        """Full record including per-round arrays — for curve plotting."""
-        return {
-            **self.to_summary(),
-            "cumulative_regret": [round(v, 4) for v in self.cumulative_regret],
-            "rewards": [round(v, 4) for v in self.rewards],
-            "oracle_rewards": [round(v, 4) for v in self.oracle_rewards],
         }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -184,7 +175,7 @@ class RandomRunner(MethodRunner):
 
 class EpsilonGreedyRunner(MethodRunner):
     def __init__(self, policy_ids: list[str]):
-        super().__init__("e-Greedy", policy_ids)
+        super().__init__("ε-Greedy", policy_ids)
         self.strategy = EpsilonGreedyStrategy(
             epsilon_0=1.0, decay_rate=0.003, epsilon_min=0.01
         )
@@ -484,19 +475,16 @@ def run_single(
         cfg = vendor_policies[vendor.vendor_id][policy_id]
         reward = float(np.clip(rng.normal(cfg.true_mean, cfg.noise_std), 0.0, 1.0))
         
-        # Oracle: best policy by true mean for this vendor right now
+        # Oracle reward (best possible for this vendor right now)
         best_pid = max(vendor_policies[vendor.vendor_id],
                        key=lambda p: vendor_policies[vendor.vendor_id][p].true_mean)
         oracle_reward = vendor_policies[vendor.vendor_id][best_pid].true_mean
-
-        # Update method with the observed (noisy) reward
+        
+        # Update method
         method.update(vendor, policy_id, reward, t)
-
-        # Pseudo-regret: difference in TRUE expected rewards, noise-free on both sides.
-        # Standard definition in bandit literature — avoids comparing a noisy sample
-        # against a noise-free oracle, which overstates regret.
-        chosen_true_mean = vendor_policies[vendor.vendor_id][policy_id].true_mean
-        regret = oracle_reward - chosen_true_mean
+        
+        # Record metrics
+        regret = oracle_reward - reward
         running_regret += max(0.0, regret)
         
         rewards.append(reward)
@@ -600,7 +588,7 @@ def run_ablation_rabi_temperature(n_seeds: int = 30, verbose: bool = True) -> di
     
     if verbose:
         print(f"\n{'='*70}")
-        print("Ablation: RABI Temperature (tau)")
+        print("Ablation: RABI Temperature (τ)")
         print(f"{'='*70}")
     
     for tau in temperatures:
@@ -620,7 +608,7 @@ def run_ablation_rabi_temperature(n_seeds: int = 30, verbose: bool = True) -> di
         }
         
         if verbose:
-            print(f"  tau={tau:.1f} | Regret: {np.mean(regrets):7.1f} +/- {np.std(regrets):5.1f} | "
+            print(f"  τ={tau:.1f} | Regret: {np.mean(regrets):7.1f} ± {np.std(regrets):5.1f} | "
                   f"Final F1: {np.mean(final_rewards):.3f} | "
                   f"Conv: {int(np.mean(conv)) if conv else 'N/A'}")
     
@@ -701,10 +689,10 @@ def run_ablation_similarity_threshold(n_seeds: int = 30, verbose: bool = True) -
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def main():
-    print("=" * 70)
-    print("AHMN Experimental Evaluation Framework")
-    print("30 seeds x 7 methods x 4 scenarios")
-    print("=" * 70)
+    print("╔══════════════════════════════════════════════════════════════════╗")
+    print("║         AHMN Experimental Evaluation Framework                  ║")
+    print("║         30 seeds × 7 methods × 4 scenarios                     ║")
+    print("╚══════════════════════════════════════════════════════════════════╝")
     
     t_start = time.time()
     
@@ -725,7 +713,7 @@ def main():
     output = {
         "experiment_config": {
             "n_seeds": 30,
-            "methods": ["Random", "e-Greedy", "UCB1", "TS (base)",
+            "methods": ["Random", "ε-Greedy", "UCB1", "TS (base)",
                         "AHMN-RABI", "AHMN-DAAF", "AHMN-Full"],
             "scenarios": ["stationary", "cold_start", "concept_drift", "combined"],
             "total_time_seconds": round(elapsed, 1),
@@ -739,11 +727,6 @@ def main():
     out_path = os.path.join(output_dir, "experiment_results.json")
     with open(out_path, "w") as f:
         json.dump(output, f, indent=2)
-
-    # Save per-round arrays separately for curve plotting (larger file)
-    curves_path = os.path.join(output_dir, "experiment_curves.json")
-    with open(curves_path, "w") as f:
-        json.dump({"main_results": [r.to_full() for r in results]}, f, indent=2)
     
     print(f"\n{'='*70}")
     print(f"Done in {elapsed:.1f}s. Results saved to output/experiment_results.json")

@@ -40,14 +40,7 @@ class DAEOutput:
     content_profile: str
     quality_score: float
     complexity_score: float
-    layout_cluster_id: str = "unknown"
-    route_bin: str = "standard"
-    analysis_confidence: float = 0.0
-    confidence_type: str = "heuristic"
-    quality_features: dict[str, float] = field(default_factory=dict)
-    structural_features: dict[str, float] = field(default_factory=dict)
     signals: dict[str, float] = field(default_factory=dict)
-    semantic_doc_type: str = "unknown"
 
 @dataclass(frozen=True)
 class Entity:

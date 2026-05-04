@@ -6,7 +6,6 @@ import os
 import re
 import shutil
 import time
-import uuid
 from pathlib import Path
 
 from idpo.agents.base import Agent, AgentContext
@@ -19,14 +18,6 @@ def normalize_text(text: str) -> str:
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
-
-
-def _save_processed_image(ctx: AgentContext, doc_id: str, page_number: int, stage: str, image) -> str:
-    image_root = Path(ctx.artifact_store.root) / "derived_images"
-    image_root.mkdir(parents=True, exist_ok=True)
-    image_path = image_root / f"{doc_id}_p{page_number}_{stage}_{uuid.uuid4().hex[:8]}.png"
-    image.save(image_path, format="PNG")
-    return str(image_path)
 
 def mock_ocr(text: str, passes: int = 1) -> str:
     cleaned = text
@@ -76,62 +67,13 @@ class OcrAgent(Agent):
         cleaned_pages: list[Page] = []
         failure_reason = None
         used_image_ocr = False
-        rerun_attempted_pages = 0
-        rerun_used_pages = 0
-        rerun_min_gain = max(0.0, float(getattr(ctx.config.preprocessing, "ocr_rerun_min_score_gain", 0.03)))
         for page in doc.pages:
             raw = page.raw_text or page.text
             page_failure = None
             is_garbled_page = page.metadata.get("garbled_pdf", False) or is_garbled(raw)
             if page.image_path:
-                native_text = normalize_text(raw)
-                if native_text and not is_garbled_page and self._looks_like_native_text(native_text):
-                    ocr_text = native_text
-                    page_used = False
-                    ocr_meta = {
-                        "ocr_lang": lang,
-                        "ocr_psm": psm,
-                        "ocr_oem": oem,
-                        "ocr_variant": "native_text_short_circuit",
-                        "ocr_confidence": 99.0,
-                        "ocr_rotation_applied": 0,
-                        "ocr_engine_used": "native_text",
-                    }
-                else:
-                    ocr_text, page_used, page_failure, ocr_meta = self._ocr_image(page, settings, engine_name=str(engine))
+                ocr_text, page_used, page_failure, ocr_meta = self._ocr_image(page, settings)
                 used_image_ocr = used_image_ocr or page_used
-                initial_conf = self._safe_confidence(ocr_meta.get("ocr_confidence"))
-                initial_noise_ratio = self._ocr_noise_ratio(ocr_text)
-                rerun_reason = self._ocr_rerun_reason(ocr_text, initial_conf, ctx)
-                if (
-                    page_used
-                    and not page_failure
-                    and ocr_text
-                    and rerun_reason is not None
-                    and int(ctx.config.preprocessing.ocr_max_reruns_per_page) > 0
-                ):
-                    rerun_attempted_pages += 1
-                    retry_settings = self._build_retry_settings(settings, ctx)
-                    retry_text, _, retry_failure, retry_meta = self._ocr_image(
-                        page, retry_settings, engine_name=str(engine)
-                    )
-                    retry_conf = self._safe_confidence(retry_meta.get("ocr_confidence"))
-                    current_score = self._score_ocr_candidate(ocr_text, initial_conf)
-                    retry_score = self._score_ocr_candidate(retry_text, retry_conf) if retry_text else -1.0
-                    if retry_text and not retry_failure and retry_score > current_score + rerun_min_gain:
-                        ocr_text = retry_text
-                        ocr_meta = dict(retry_meta)
-                        page_failure = None
-                        rerun_used_pages += 1
-                    ocr_meta["ocr_rerun_reason"] = rerun_reason
-                    ocr_meta["ocr_noise_ratio"] = initial_noise_ratio
-                    ocr_meta["ocr_rerun_attempted"] = True
-                    ocr_meta["ocr_rerun_used"] = bool(retry_text and retry_score > current_score + rerun_min_gain)
-                else:
-                    ocr_meta["ocr_rerun_reason"] = rerun_reason
-                    ocr_meta["ocr_noise_ratio"] = initial_noise_ratio
-                    ocr_meta["ocr_rerun_attempted"] = False
-                    ocr_meta["ocr_rerun_used"] = False
                 if page_failure and failure_reason is None:
                     failure_reason = page_failure
                 if not ocr_text:
@@ -146,26 +88,8 @@ class OcrAgent(Agent):
                     # OCR returned text but it's still garbled — degarble it
                     ocr_text = degarble(ocr_text)
             else:
-                native_text = normalize_text(raw)
-                if native_text and self._looks_like_native_text(native_text):
-                    ocr_meta = {
-                        "ocr_lang": lang,
-                        "ocr_psm": psm,
-                        "ocr_oem": oem,
-                        "ocr_variant": "native_text_no_image",
-                        "ocr_confidence": 99.0,
-                        "ocr_engine_used": "native_text",
-                    }
-                    ocr_text = native_text
-                else:
-                    ocr_meta = {
-                        "ocr_lang": lang,
-                        "ocr_psm": psm,
-                        "ocr_oem": oem,
-                        "ocr_variant": "mock",
-                        "ocr_engine_used": "mock",
-                    }
-                    ocr_text = mock_ocr(raw, passes=passes)
+                ocr_meta = {"ocr_lang": lang, "ocr_psm": psm, "ocr_oem": oem, "ocr_variant": "mock"}
+                ocr_text = mock_ocr(raw, passes=passes)
             cleaned_pages.append(
                 Page(
                     number=page.number,
@@ -180,14 +104,7 @@ class OcrAgent(Agent):
                         "ocr_psm": ocr_meta.get("ocr_psm", psm),
                         "ocr_oem": ocr_meta.get("ocr_oem", oem),
                         "ocr_variant": ocr_meta.get("ocr_variant", "unknown"),
-                        "ocr_confidence": ocr_meta.get("ocr_confidence"),
-                        "ocr_rotation_applied": ocr_meta.get("ocr_rotation_applied", 0),
-                        "ocr_rerun_attempted": ocr_meta.get("ocr_rerun_attempted", False),
-                        "ocr_rerun_used": ocr_meta.get("ocr_rerun_used", False),
-                        "ocr_rerun_reason": ocr_meta.get("ocr_rerun_reason"),
-                        "ocr_noise_ratio": ocr_meta.get("ocr_noise_ratio"),
                         "ocr_dpi": dpi,
-                        "ocr_engine_used": ocr_meta.get("ocr_engine_used", engine),
                     },
                 )
             )
@@ -236,19 +153,7 @@ class OcrAgent(Agent):
         )
         ocr_text = "\n".join(page.text for page in doc.pages)
         alpha_ratio = sum(1 for ch in ocr_text if ch.isalnum()) / max(len(ocr_text), 1)
-        ocr_conf_values: list[float] = []
-        for page in doc.pages:
-            raw_conf = page.metadata.get("ocr_confidence")
-            if raw_conf is None:
-                continue
-            try:
-                ocr_conf_values.append(float(raw_conf))
-            except Exception:
-                continue
-        avg_ocr_conf = sum(ocr_conf_values) / len(ocr_conf_values) if ocr_conf_values else 0.0
         confidence = 0.4 + 0.5 * alpha_ratio
-        if avg_ocr_conf > 0:
-            confidence = max(confidence, min(avg_ocr_conf / 100.0, 0.95))
         signal = StageSignal(
             stage=self.name,
             confidence=min(confidence, 0.95) if not failure_reason else 0.35,
@@ -263,10 +168,6 @@ class OcrAgent(Agent):
                 "oem": oem,
                 "dpi": dpi,
                 "alt_psm": alt_psm_list,
-                "avg_ocr_confidence": avg_ocr_conf,
-                "rerun_attempted_pages": rerun_attempted_pages,
-                "rerun_used_pages": rerun_used_pages,
-                "rerun_min_score_gain": rerun_min_gain,
             },
         )
         self._record(
@@ -290,39 +191,22 @@ class OcrAgent(Agent):
         )
         return AgentResult(artifacts={"document": doc, "artifact_id": artifact.artifact_id, "signal": signal})
 
-    def _ocr_image(
-        self,
-        page: Page,
-        settings: dict[str, object],
-        engine_name: str = "paddle",
-    ) -> tuple[str, bool, str | None, dict[str, object]]:
+    def _ocr_image(self, page: Page, settings: dict[str, object]) -> tuple[str, bool, str | None, dict[str, object]]:
         path = page.image_path or ""
         try:
             from PIL import Image, ImageFilter, ImageOps, ImageSequence
         except Exception:
             return "", False, "pillow_not_available", {}
-        lang = str(settings.get("lang") or "eng")
-        psm = int(settings.get("psm") or 6)
-        oem = int(settings.get("oem") or 3)
-        alt_psm = settings.get("alt_psm") or []
-        dpi = int(settings.get("dpi") or 300)
-        requested_engine = (engine_name or "").strip().lower()
-        if requested_engine in {"paddle", "paddleocr"}:
-            paddle_text, paddle_used, paddle_failure, paddle_meta = self._ocr_image_paddle(path, lang)
-            if paddle_used and paddle_text:
-                paddle_meta.setdefault("ocr_psm", psm)
-                paddle_meta.setdefault("ocr_oem", oem)
-                paddle_meta.setdefault("ocr_rotation_applied", 0)
-                paddle_meta["ocr_engine_used"] = "paddleocr"
-                return paddle_text.strip(), True, None, paddle_meta
-            # Fallback to Tesseract path below if PaddleOCR is unavailable or fails.
-            if paddle_meta:
-                paddle_meta["ocr_engine_used"] = "tesseract_fallback"
         try:
             import pytesseract
         except Exception:
             return "", False, "tesseract_not_available", {}
         tessdata_dir = self._configure_tesseract(pytesseract)
+        lang = str(settings.get("lang") or "eng")
+        psm = int(settings.get("psm") or 6)
+        oem = int(settings.get("oem") or 3)
+        alt_psm = settings.get("alt_psm") or []
+        dpi = int(settings.get("dpi") or 300)
 
         try:
             if path.lower().endswith(".pdf"):
@@ -341,11 +225,9 @@ class OcrAgent(Agent):
                 )
                 if failure:
                     return "", True, failure, {}
-                meta["ocr_engine_used"] = "tesseract"
                 return text.strip(), True, None, meta
             with Image.open(path) as img:
                 cleaned = self._normalize_image(img, Image, ImageOps, ImageFilter)
-                cleaned, rotation = self._apply_orientation_correction(cleaned, pytesseract, lang)
                 text, meta = self._run_ocr_variants(
                     cleaned,
                     pytesseract,
@@ -355,128 +237,13 @@ class OcrAgent(Agent):
                     oem,
                     alt_psm,
                     ImageOps,
-                    ImageFilter,
                 )
-                meta["ocr_rotation_applied"] = rotation
-                meta["ocr_engine_used"] = "tesseract"
             return text.strip(), True, None, meta
         except Exception as exc:
             message = str(exc)
             if "TESSDATA_PREFIX" in message or "tessdata" in message:
                 return "", True, "tessdata_missing", {}
             return "", True, "ocr_failed", {}
-
-    def _preprocess_for_paddle(self, path: str) -> str:
-        """Enhance image quality before PaddleOCR — upscale, contrast stretch, sharpen.
-
-        Returns path to a temp enhanced image, or original path if preprocessing fails.
-        Degraded fax/scan images benefit significantly from this before OCR.
-        """
-        try:
-            from PIL import Image, ImageFilter, ImageOps
-        except Exception:
-            return path
-        try:
-            img = Image.open(path)
-            if img.mode not in {"RGB", "L"}:
-                img = img.convert("RGB")
-            # Upscale small images — PaddleOCR text detection struggles below ~150 DPI
-            w, h = img.size
-            if max(w, h) < 1600:
-                scale = 1600 / max(w, h)
-                img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
-            # Grayscale + autocontrast to normalise fax scan brightness range
-            gray = ImageOps.grayscale(img)
-            gray = ImageOps.autocontrast(gray, cutoff=2)
-            # Mild sharpening to recover edges lost in fax compression
-            gray = gray.filter(ImageFilter.UnsharpMask(radius=1.5, percent=120, threshold=2))
-            # Save to temp file
-            tmp_path = path + "_paddle_enhanced.png"
-            gray.save(tmp_path, format="PNG")
-            return tmp_path
-        except Exception:
-            return path
-
-    def _ocr_image_paddle(self, path: str, lang: str) -> tuple[str, bool, str | None, dict[str, object]]:
-        try:
-            from paddleocr import PaddleOCR
-        except Exception:
-            return "", False, "paddleocr_not_available", {}
-
-        model_lang = self._paddle_lang(lang)
-        enhanced_path = self._preprocess_for_paddle(path)
-        try:
-            # Lower det_db_thresh catches more text in degraded/low-contrast scans.
-            # det_db_box_thresh set lower to avoid dropping partial characters.
-            # use_angle_cls handles rotated/skewed fax pages.
-            ocr = PaddleOCR(
-                use_angle_cls=True,
-                lang=model_lang,
-                show_log=False,
-                det_db_thresh=0.2,
-                det_db_box_thresh=0.4,
-                det_db_unclip_ratio=1.8,
-            )
-            result = ocr.ocr(enhanced_path, cls=True)
-        except Exception as exc:
-            return "", True, f"paddleocr_failed:{str(exc)[:80]}", {"ocr_variant": "paddle"}
-        finally:
-            # Clean up temp enhanced image
-            if enhanced_path != path:
-                try:
-                    import os as _os
-                    _os.remove(enhanced_path)
-                except Exception:
-                    pass
-
-        text, confidence = self._extract_paddle_text(result)
-        if not text:
-            return "", True, "paddleocr_empty", {"ocr_variant": "paddle", "ocr_confidence": confidence}
-        return (
-            self._postprocess_ocr(text),
-            True,
-            None,
-            {
-                "ocr_variant": "paddle",
-                "ocr_confidence": confidence,
-                "ocr_lang": model_lang,
-                "ocr_enhanced": enhanced_path != path,
-            },
-        )
-
-    def _extract_paddle_text(self, result: object) -> tuple[str, float]:
-        lines: list[str] = []
-        confs: list[float] = []
-        if not isinstance(result, list):
-            return "", 0.0
-
-        for page in result:
-            if not isinstance(page, list):
-                continue
-            for item in page:
-                if not isinstance(item, (list, tuple)) or len(item) < 2:
-                    continue
-                payload = item[1]
-                if not isinstance(payload, (list, tuple)) or not payload:
-                    continue
-                text = str(payload[0] or "").strip()
-                if not text:
-                    continue
-                lines.append(text)
-                if len(payload) > 1:
-                    try:
-                        confs.append(float(payload[1]) * 100.0)
-                    except Exception:
-                        continue
-
-        avg_conf = sum(confs) / len(confs) if confs else 0.0
-        return "\n".join(lines), avg_conf
-
-    def _paddle_lang(self, lang: str) -> str:
-        normalized = (lang or "eng").strip().lower()
-        if normalized in {"eng", "en"}:
-            return "en"
-        return normalized or "en"
 
     def _ocr_pdf_page(
         self,
@@ -507,7 +274,6 @@ class OcrAgent(Agent):
                 from PIL import ImageFilter, ImageOps
 
                 cleaned = self._normalize_image(images[0], Image, ImageOps, ImageFilter)
-                cleaned, rotation = self._apply_orientation_correction(cleaned, pytesseract, lang)
                 text, meta = self._run_ocr_variants(
                     cleaned,
                     pytesseract,
@@ -517,9 +283,7 @@ class OcrAgent(Agent):
                     oem,
                     alt_psm,
                     ImageOps,
-                    ImageFilter,
                 )
-                meta["ocr_rotation_applied"] = rotation
                 return text, None, meta
         except Exception:
             pass
@@ -532,7 +296,6 @@ class OcrAgent(Agent):
                         from PIL import ImageFilter, ImageOps
 
                         cleaned = self._normalize_image(frame, Image, ImageOps, ImageFilter)
-                        cleaned, rotation = self._apply_orientation_correction(cleaned, pytesseract, lang)
                         text, meta = self._run_ocr_variants(
                             cleaned,
                             pytesseract,
@@ -542,9 +305,7 @@ class OcrAgent(Agent):
                             oem,
                             alt_psm,
                             ImageOps,
-                            ImageFilter,
                         )
-                        meta["ocr_rotation_applied"] = rotation
                         texts.append(text)
                         break
             if texts:
@@ -626,23 +387,6 @@ class OcrAgent(Agent):
             return normalized
         return []
 
-    def _safe_confidence(self, value: object) -> float:
-        try:
-            return float(value)
-        except Exception:
-            return 0.0
-
-    def _build_retry_settings(self, settings: dict[str, object], ctx: AgentContext) -> dict[str, object]:
-        psm = int(settings.get("psm") or ctx.config.preprocessing.ocr_psm)
-        retry_settings = dict(settings)
-        retry_settings["dpi"] = max(
-            int(settings.get("dpi") or ctx.config.preprocessing.ocr_dpi),
-            int(ctx.config.preprocessing.ocr_retry_dpi),
-        )
-        retry_psm = [psm] + list(ctx.config.preprocessing.ocr_retry_alt_psm or [])
-        retry_settings["alt_psm"] = self._normalize_alt_psm(retry_psm, passes=2)
-        return retry_settings
-
     def _normalize_image(self, img, Image, ImageOps, ImageFilter):
         try:
             if img.mode not in {"RGB", "L"}:
@@ -666,7 +410,6 @@ class OcrAgent(Agent):
         oem: int,
         alt_psm: list[int],
         ImageOps,
-        ImageFilter,
     ) -> tuple[str, dict[str, object]]:
         variants = [("base", img)]
         # Only add inverted variant if we have alt_psm (i.e. multi-pass mode)
@@ -675,125 +418,26 @@ class OcrAgent(Agent):
                 variants.append(("invert", ImageOps.invert(img.convert("RGB")).convert("L")))
             except Exception:
                 pass
-        # Thresholding and median smoothing improve OCR on noisy scans.
-        try:
-            binary = img.convert("L").point(lambda px: 255 if px > 170 else 0, mode="1").convert("L")
-            variants.append(("binary", binary))
-        except Exception:
-            pass
-        try:
-            median = img.convert("L").filter(ImageFilter.MedianFilter(size=3))
-            variants.append(("median", median))
-        except Exception:
-            pass
         psm_values = [psm] + [value for value in alt_psm if value != psm]
         best_text = ""
         best_score = -1.0
-        best_meta = {"ocr_psm": psm, "ocr_oem": oem, "ocr_variant": "base", "ocr_confidence": 0.0}
+        best_meta = {"ocr_psm": psm, "ocr_oem": oem, "ocr_variant": "base"}
         for variant_name, variant_img in variants:
             for psm_value in psm_values:
                 config = self._tessdata_config(tessdata_dir, psm_value, oem)
-                text, ocr_confidence = self._extract_with_confidence(
-                    pytesseract,
-                    variant_img,
-                    lang,
-                    config,
-                )
-                if not text:
+                try:
+                    text = pytesseract.image_to_string(variant_img, lang=lang, config=config)
+                except Exception:
                     continue
-                score = self._score_ocr_candidate(text, ocr_confidence)
+                score = self._score_text(text)
                 if score > best_score:
                     best_score = score
                     best_text = text
-                    best_meta = {
-                        "ocr_psm": psm_value,
-                        "ocr_oem": oem,
-                        "ocr_variant": variant_name,
-                        "ocr_confidence": ocr_confidence,
-                    }
+                    best_meta = {"ocr_psm": psm_value, "ocr_oem": oem, "ocr_variant": variant_name}
                     # Early exit: if first variant scores well, skip rest
-                    if best_score > 0.78 and ocr_confidence >= 70 and not alt_psm:
+                    if best_score > 0.65 and not alt_psm:
                         return self._postprocess_ocr(best_text), best_meta
         return self._postprocess_ocr(best_text), best_meta
-
-    def _extract_with_confidence(self, pytesseract, image, lang: str, config: str) -> tuple[str, float]:
-        try:
-            text = pytesseract.image_to_string(image, lang=lang, config=config)
-        except Exception:
-            return "", 0.0
-        confidences: list[float] = []
-        try:
-            data = pytesseract.image_to_data(image, lang=lang, config=config, output_type=pytesseract.Output.DICT)
-            for value in data.get("conf", []):
-                try:
-                    score = float(value)
-                except Exception:
-                    continue
-                if score >= 0:
-                    confidences.append(score)
-        except Exception:
-            pass
-        avg_conf = sum(confidences) / len(confidences) if confidences else 0.0
-        return text, avg_conf
-
-    def _score_ocr_candidate(self, text: str, ocr_confidence: float) -> float:
-        text_quality = self._score_text(text)
-        conf_quality = max(0.0, min(ocr_confidence, 100.0)) / 100.0
-        return (text_quality * 0.65) + (conf_quality * 0.35)
-
-    def _ocr_rerun_reason(self, text: str, ocr_confidence: float, ctx: AgentContext) -> str | None:
-        if ocr_confidence < float(ctx.config.preprocessing.ocr_min_confidence):
-            return "low_confidence"
-        if self._ocr_noise_ratio(text) >= 0.12:
-            return "noisy_text"
-        return None
-
-    def _ocr_noise_ratio(self, text: str) -> float:
-        if not text:
-            return 1.0
-        suspicious = 0
-        tokens = text.split()
-        for token in tokens:
-            stripped = token.strip()
-            if not stripped:
-                continue
-            alpha = sum(1 for ch in stripped if ch.isalpha())
-            digit = sum(1 for ch in stripped if ch.isdigit())
-            punct = sum(1 for ch in stripped if not ch.isalnum())
-            if punct >= max(alpha + digit, 1):
-                suspicious += 1
-            elif len(stripped) >= 6 and alpha > 0 and digit > 0 and (alpha + digit) == len(stripped):
-                suspicious += 1
-            elif len(stripped) >= 8 and alpha >= 5 and punct >= 2:
-                suspicious += 1
-        total_tokens = max(len(tokens), 1)
-        return min(suspicious / total_tokens, 1.0)
-
-    def _apply_orientation_correction(self, img, pytesseract, lang: str) -> tuple[object, int]:
-        rotation = self._detect_rotation_degrees(img, pytesseract, lang)
-        if rotation in {90, 180, 270}:
-            try:
-                return img.rotate(-rotation, expand=True), rotation
-            except Exception:
-                return img, 0
-        return img, 0
-
-    def _detect_rotation_degrees(self, img, pytesseract, lang: str) -> int:
-        try:
-            osd = pytesseract.image_to_osd(
-                img,
-                config=f"--psm 0 -l {lang}",
-            )
-        except Exception:
-            return 0
-        match = re.search(r"Rotate:\s*(\d+)", osd or "")
-        if not match:
-            return 0
-        try:
-            value = int(match.group(1))
-        except Exception:
-            return 0
-        return value if value in {90, 180, 270} else 0
 
     def _postprocess_ocr(self, text: str) -> str:
         """Clean common OCR artifacts from extracted text."""
@@ -819,14 +463,6 @@ class OcrAgent(Agent):
         alpha_ratio = sum(1 for ch in cleaned if ch.isalnum()) / max(len(cleaned), 1)
         length_score = min(len(cleaned), 2000) / 2000
         return (alpha_ratio * 0.7) + (length_score * 0.3)
-
-    def _looks_like_native_text(self, text: str) -> bool:
-        cleaned = text.strip()
-        if len(cleaned) < 25:
-            return False
-        alnum_ratio = sum(1 for ch in cleaned if ch.isalnum() or ch.isspace()) / max(len(cleaned), 1)
-        word_count = len([w for w in cleaned.split() if w.strip()])
-        return alnum_ratio >= 0.75 and word_count >= 4
 
     def _short_path(self, path: str) -> str:
         if os.name != "nt":
@@ -864,26 +500,9 @@ class DenoiseAgent(Agent):
             return AgentResult(artifacts={"document": doc, "signal": signal})
         input_text = "\n".join(page.text for page in doc.pages)
         updated = []
-        denoised_image_pages = 0
         for page in doc.pages:
             text = normalize_text(page.text)
-            image_path = page.image_path
-            metadata = dict(page.metadata or {})
-            if image_path and Path(image_path).exists():
-                processed_path = self._denoise_image(image_path, page.number, doc.doc_id, ctx)
-                if processed_path:
-                    image_path = processed_path
-                    metadata["denoise_applied"] = True
-                    denoised_image_pages += 1
-            updated.append(
-                Page(
-                    number=page.number,
-                    text=text,
-                    raw_text=page.raw_text,
-                    image_path=image_path,
-                    metadata=metadata,
-                )
-            )
+            updated.append(Page(number=page.number, text=text, raw_text=page.raw_text, image_path=page.image_path))
         doc.pages = updated
         input_artifact = ctx.artifact_store.save_text(
             f"{doc.doc_id}_denoise_input.txt",
@@ -911,12 +530,7 @@ class DenoiseAgent(Agent):
                 "source_artifacts": [input_artifact.artifact_id],
             },
         )
-        signal = StageSignal(
-            stage=self.name,
-            confidence=0.85 if denoised_image_pages else 0.75,
-            uncertainty=0.15 if denoised_image_pages else 0.25,
-            metadata={"denoised_image_pages": denoised_image_pages},
-        )
+        signal = StageSignal(stage=self.name, confidence=0.8, uncertainty=0.2)
         self._record(
             ctx,
             inputs={"doc_id": doc.doc_id},
@@ -928,20 +542,6 @@ class DenoiseAgent(Agent):
             started=started,
         )
         return AgentResult(artifacts={"document": doc, "artifact_id": artifact.artifact_id, "signal": signal})
-
-    def _denoise_image(self, image_path: str, page_number: int, doc_id: str, ctx: AgentContext) -> str | None:
-        try:
-            from PIL import Image, ImageFilter, ImageOps
-        except Exception:
-            return None
-        try:
-            with Image.open(image_path) as img:
-                gray = ImageOps.grayscale(img)
-                smooth = gray.filter(ImageFilter.MedianFilter(size=3))
-                enhanced = ImageOps.autocontrast(smooth)
-                return _save_processed_image(ctx, doc_id, page_number, "denoise", enhanced)
-        except Exception:
-            return None
 
 class DeskewAgent(Agent):
     name = "deskew"
@@ -964,31 +564,6 @@ class DeskewAgent(Agent):
                 started=started,
             )
             return AgentResult(artifacts={"document": doc, "signal": signal})
-
-        updated_pages: list[Page] = []
-        deskewed_image_pages = 0
-        for page in doc.pages:
-            image_path = page.image_path
-            metadata = dict(page.metadata or {})
-            angle = self._resolve_skew_angle(page, doc)
-            if image_path and Path(image_path).exists() and abs(angle) >= 0.3:
-                processed_path = self._deskew_image(image_path, angle, page.number, doc.doc_id, ctx)
-                if processed_path:
-                    image_path = processed_path
-                    metadata["deskew_applied"] = True
-                    metadata["deskew_angle"] = angle
-                    deskewed_image_pages += 1
-            updated_pages.append(
-                Page(
-                    number=page.number,
-                    text=page.text,
-                    raw_text=page.raw_text,
-                    image_path=image_path,
-                    metadata=metadata,
-                )
-            )
-        doc.pages = updated_pages
-
         input_artifact = ctx.artifact_store.save_text(
             f"{doc.doc_id}_deskew_input.txt",
             "\n".join(page.text for page in doc.pages),
@@ -1015,12 +590,7 @@ class DeskewAgent(Agent):
                 "source_artifacts": [input_artifact.artifact_id],
             },
         )
-        signal = StageSignal(
-            stage=self.name,
-            confidence=0.82 if deskewed_image_pages else 0.7,
-            uncertainty=0.18 if deskewed_image_pages else 0.3,
-            metadata={"deskewed_image_pages": deskewed_image_pages},
-        )
+        signal = StageSignal(stage=self.name, confidence=0.75, uncertainty=0.25)
         self._record(
             ctx,
             inputs={"doc_id": doc.doc_id},
@@ -1032,32 +602,6 @@ class DeskewAgent(Agent):
             started=started,
         )
         return AgentResult(artifacts={"document": doc, "artifact_id": artifact.artifact_id, "signal": signal})
-
-    def _resolve_skew_angle(self, page: Page, doc: Document) -> float:
-        candidates = [
-            page.metadata.get("skew_angle"),
-            doc.metadata.get("skew_angle"),
-        ]
-        for value in candidates:
-            if value is None:
-                continue
-            try:
-                return float(value)
-            except Exception:
-                continue
-        return 0.0
-
-    def _deskew_image(self, image_path: str, angle: float, page_number: int, doc_id: str, ctx: AgentContext) -> str | None:
-        try:
-            from PIL import Image
-        except Exception:
-            return None
-        try:
-            with Image.open(image_path) as img:
-                rotated = img.rotate(-angle, expand=True, fillcolor="white")
-                return _save_processed_image(ctx, doc_id, page_number, "deskew", rotated)
-        except Exception:
-            return None
 
 class TableFormAgent(Agent):
     name = "table_form"
@@ -1119,3 +663,101 @@ class TableFormAgent(Agent):
         )
         return AgentResult(artifacts={"tables": tables, "artifact_id": artifact.artifact_id, "signal": signal})
 
+class PreprocessingRouter(Agent):
+    name = "preprocess_router"
+    version = "v1"
+    input_contract = {"document": "Document", "analysis": "dict", "input_artifact_id": "str|None", "policy": "ExtractionPolicy|None"}
+    output_contract = {
+        "document": "Document",
+        "artifacts": "list",
+        "route": "list",
+        "signals": "list",
+    }
+
+    def __init__(self) -> None:
+        self.ocr = OcrAgent()
+        self.denoise = DenoiseAgent()
+        self.deskew = DeskewAgent()
+        self.table_form = TableFormAgent()
+
+    def run(self, payload: AgentMessage, ctx: AgentContext) -> AgentResult:
+        started = time.time()
+        doc: Document = payload["document"]
+        analysis = payload.get("analysis", {})
+        input_artifact_id = payload.get("input_artifact_id")
+        policy = payload.get("policy")
+        result = AgentResult(artifacts={"document": doc})
+        route = self._route(doc, analysis, ctx, policy)
+        artifacts = []
+        signals = []
+        current_artifact_id = input_artifact_id
+        if "ocr" in route:
+            ocr_result = self.ocr.run({"document": doc, "input_artifact_id": current_artifact_id}, ctx)
+            result = result.merge(ocr_result)
+            current_artifact_id = ocr_result.artifacts.get("artifact_id")
+            artifacts.append(current_artifact_id)
+            signals.append(ocr_result.artifacts.get("signal"))
+        if "deskew" in route:
+            deskew_result = self.deskew.run({"document": doc, "input_artifact_id": current_artifact_id}, ctx)
+            result = result.merge(deskew_result)
+            current_artifact_id = deskew_result.artifacts.get("artifact_id")
+            artifacts.append(current_artifact_id)
+            signals.append(deskew_result.artifacts.get("signal"))
+        if "denoise" in route:
+            denoise_result = self.denoise.run({"document": doc, "input_artifact_id": current_artifact_id}, ctx)
+            result = result.merge(denoise_result)
+            current_artifact_id = denoise_result.artifacts.get("artifact_id")
+            artifacts.append(current_artifact_id)
+            signals.append(denoise_result.artifacts.get("signal"))
+        if "table_form" in route:
+            table_result = self.table_form.run({"document": doc, "input_artifact_id": current_artifact_id}, ctx)
+            result = result.merge(table_result)
+            artifacts.append(table_result.artifacts.get("artifact_id"))
+            signals.append(table_result.artifacts.get("signal"))
+
+        self._record(
+            ctx,
+            inputs={"doc_id": doc.doc_id, "profile": doc.profile},
+            outputs={"route": route, "artifact_count": len(artifacts)},
+            parameters={
+                "quality_score": analysis.get("quality_score", doc.quality_score),
+                "complexity": analysis.get("complexity_score", doc.complexity_score),
+            },
+            started=started,
+        )
+        result.artifacts["route"] = route
+        result.artifacts["signals"] = [signal for signal in signals if signal]
+        result.artifacts["artifact_ids"] = [art for art in artifacts if art]
+        return result
+
+    def _route(self, doc: Document, analysis: dict[str, float], ctx: AgentContext, policy) -> list[str]:
+        route = []
+        if doc.source in {"scanned", "synthetic"}:
+            route.append("ocr")
+        quality = analysis.get("quality_score", doc.quality_score or 0.0)
+        complexity = analysis.get("complexity_score", doc.complexity_score or 0.0)
+        if doc.profile in {"image-heavy", "table-heavy"} or quality < ctx.config.routing.quality_threshold:
+            route.append("deskew")
+            route.append("denoise")
+        if doc.profile in {"table-heavy", "form-centric"} or complexity > ctx.config.routing.complexity_threshold:
+            route.append("table_form")
+        if doc.profile not in {"image-heavy"} and "denoise" not in route:
+            route.append("denoise")
+        route = self._apply_policy(route, policy)
+        return self._order_route(route)
+
+    def _apply_policy(self, route: list[str], policy) -> list[str]:
+        if not policy:
+            return route
+        updated = [step for step in route if step not in policy.preprocess_skip]
+        for step in policy.preprocess_force:
+            if step not in updated:
+                updated.append(step)
+        return updated
+
+    def _order_route(self, route: list[str]) -> list[str]:
+        ordered = []
+        for step in ["ocr", "deskew", "denoise", "table_form"]:
+            if step in route:
+                ordered.append(step)
+        return ordered

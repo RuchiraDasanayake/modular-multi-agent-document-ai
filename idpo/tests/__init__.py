@@ -1,1 +1,0 @@
-# IDPO tests package.

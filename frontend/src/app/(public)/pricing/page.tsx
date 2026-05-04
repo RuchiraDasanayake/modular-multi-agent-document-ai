@@ -1,12 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { motion } from "framer-motion";
+import Link from "next/link";
+import { ArrowRight, Check, Sparkles, Building2, Zap } from "lucide-react";
 import { useState } from "react";
 
 const plans = [
     {
         name: "Community",
+        icon: <Zap className="w-6 h-6" />,
         description: "Perfect for individuals and small projects getting started with document AI.",
         monthlyPrice: "Free",
         yearlyPrice: "Free",
@@ -25,6 +27,7 @@ const plans = [
     },
     {
         name: "Pro",
+        icon: <Sparkles className="w-6 h-6" />,
         description: "For growing teams that need advanced features and higher throughput.",
         monthlyPrice: "$49",
         yearlyPrice: "$39",
@@ -46,6 +49,7 @@ const plans = [
     },
     {
         name: "Enterprise",
+        icon: <Building2 className="w-6 h-6" />,
         description: "Custom solutions for organizations with complex requirements at scale.",
         monthlyPrice: "Custom",
         yearlyPrice: "Custom",
@@ -180,7 +184,7 @@ export default function PricingPage() {
                                         : "bg-slate-100 dark:bg-gray-800 border-slate-200 dark:border-gray-700"
                                         } border flex items-center justify-center ${plan.popular ? "text-brand-500" : "text-slate-600 dark:text-gray-400"
                                         }`}>
-
+                                        {plan.icon}
                                     </div>
                                     <h3 className="text-xl font-bold text-slate-900 dark:text-white">{plan.name}</h3>
                                 </div>
@@ -202,11 +206,12 @@ export default function PricingPage() {
                                         : "bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-gray-700 border border-slate-200 dark:border-gray-700"
                                         }`}
                                 >
-                                    {plan.cta}
+                                    {plan.cta} <ArrowRight className="w-4 h-4" />
                                 </Link>
                                 <div className="mt-8 pt-8 border-t border-slate-200/60 dark:border-white/10 space-y-3">
                                     {plan.features.map((feature, j) => (
                                         <div key={j} className="flex items-center gap-3 text-sm text-slate-700 dark:text-gray-300">
+                                            <Check className="w-4 h-4 text-emerald-500 shrink-0" />
                                             {feature}
                                         </div>
                                     ))}

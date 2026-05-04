@@ -1,9 +1,4 @@
-"""Extraction agent for requested fields and fallback key-value recovery.
-
-This module currently contains both orchestration and implementation details.
-During cleanup it should trend toward a thinner agent entrypoint with provider,
-prompt, parsing, and heuristic logic split into smaller modules.
-"""
+"""LLM-based entity and key-value extraction agent."""
 
 from __future__ import annotations
 
@@ -11,66 +6,39 @@ import json
 import os
 import re
 import time
+import urllib.error
+import urllib.request
 from collections import Counter
 
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except Exception:
+    OPENAI_AVAILABLE = False
+
+try:
+    from anthropic import Anthropic
+    ANTHROPIC_AVAILABLE = True
+except Exception:
+    ANTHROPIC_AVAILABLE = False
+
 from idpo.agents.base import Agent, AgentContext
-from idpo.agents.extraction_descriptions import (
-    normalize_field_descriptions as normalize_extraction_field_descriptions,
-    refine_field_descriptions as refine_extraction_field_descriptions,
-)
-from idpo.agents.extraction_parsing import (
-    canonicalize_entities,
-    clean_candidate_value,
-    filter_to_explicit_keys,
-    merge_by_key,
-    normalize_key,
-    parse_entities_response,
-    parse_json_payload,
-)
-from idpo.agents.extraction_heuristics import (
-    extract_by_label_anchor,
-    field_label_variants,
-    smart_field_extract,
-    span_for_line,
-)
-from idpo.agents.extraction_generic_kv import (
-    generic_kv_entities,
-    parse_amount_line,
-    parse_kv_line,
-    parse_multi_kv_line,
-)
-from idpo.agents.extraction_prompts import (
-    build_chat_messages,
-    build_extraction_input,
-    build_prompt,
-    build_single_field_messages,
-    build_single_field_prompt,
-)
-from idpo.agents.extraction_rules import (
-    best_generic_match,
-    extract_explicit_entities,
-    is_valid_candidate_value,
-    regex_fallback,
-    tokenize,
-)
-from idpo.agents.extraction_providers import (
-    anthropic_messages_completion,
-    ollama_chat_detailed,
-    ollama_generate,
-    ollama_generate_detailed,
-    openai_chat_completion,
-)
 from idpo.core.contracts import AgentMessage
 from idpo.core.types import AgentResult, Document, Entity, ExtractionPolicy, ModelDecision, StageSignal
 
-_RE_BULLET_PREFIX = re.compile(r"^(?:[-*]|\u2022|\u25E6|\u25CF|\u25CB|\u25AA|\u25A0|\u25A1)+")
-_NAME_LIKE_KEY_RE = re.compile(r"(?:^|_)(?:name|author|person|party|customer|vendor|title)(?:$|_)")
-_ALPHA_RE = re.compile(r"[A-Za-z]{2,}")
+# Pre-compiled regex patterns for performance
+_RE_KV_COLON = re.compile(r"^([A-Za-z][A-Za-z0-9 #/&()._-]{1,40})\s*[:=\-]\s*(.+)$")
+_RE_KV_SPACE = re.compile(r"^([A-Za-z][A-Za-z0-9 #/&()._-]{1,40})\s{2,}(.+)$")
+_RE_MULTI_KV = re.compile(
+    r"(?P<label>[A-Za-z][A-Za-z0-9 #/&()._-]{1,40})\s*[:=]\s*"
+    r"(?P<value>.*?)(?=(?:[A-Za-z][A-Za-z0-9 #/&()._-]{1,40}\s*[:=])|$)"
+)
+_RE_AMOUNT = re.compile(r"((?:\$|usd\s*)?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)")
+_RE_NORMALIZE_KEY = re.compile(r"[^a-z0-9]+")
 
 class LLMExtractionAgent(Agent):
     name = "llm_extraction"
     version = "v1"
-    _description_refinement_cache: dict[str, dict[str, str]] = {}
     input_contract = {
         "document": "Document",
         "policy": "ExtractionPolicy|None",
@@ -84,8 +52,6 @@ class LLMExtractionAgent(Agent):
         "default_entities": "list",
         "entities": "list",
         "explicit_source": "str",
-        "requested_field_status": "dict",
-        "llm_diagnostics": "dict",
         "signal": "StageSignal",
     }
 
@@ -97,92 +63,47 @@ class LLMExtractionAgent(Agent):
         input_artifact_id = payload.get("input_artifact_id")
         explicit_override = payload.get("explicit_entities")
         field_descriptions = payload.get("field_descriptions")
-        normalized_descriptions = self._normalize_field_descriptions(field_descriptions)
 
         generic_entities = self._generic_kv_entities(doc)
         explicit_keys, explicit_source = self._explicit_keys(policy, ctx, generic_entities, explicit_override)
-        explicit_key_set = {self._normalize_key(key) for key in explicit_keys if self._normalize_key(key)}
-        normalized_descriptions, description_refinement = self._refine_field_descriptions(
-            explicit_keys,
-            normalized_descriptions,
-            ctx,
-        )
 
-        explicit_entities = self._canonicalize_entities(
-            self._extract_explicit(doc, explicit_keys, generic_entities, ctx, policy, model),
-            explicit_keys,
-            normalized_descriptions,
-        )
-        explicit_entities = self._filter_implausible_entities(explicit_entities)
-        llm_diagnostics = self._initial_llm_diagnostics(model, description_refinement)
-        extraction_context = ""
-        per_field_extraction = False
-        use_thinking = False
-        if policy:
-            extraction_actions = (policy.actions or {}).get("extraction", {})
-            extraction_context = str(extraction_actions.get("extraction_context", "") or "")
-            per_field_extraction = bool(extraction_actions.get("per_field_extraction", False))
-            use_thinking = bool(extraction_actions.get("use_thinking", False))
-        # Allow executor to pass these directly when policy object is not in payload
-        if payload.get("per_field_extraction"):
-            per_field_extraction = True
-        if payload.get("use_thinking"):
-            use_thinking = True
-        llm_entities = self._extract_llm_entities(
-            doc,
-            explicit_keys,
-            explicit_entities,
-            normalized_descriptions,
-            model,
-            ctx,
-            llm_diagnostics,
-            extraction_context=extraction_context,
-            per_field_extraction=per_field_extraction,
-            use_thinking=use_thinking,
-        )
-
+        explicit_entities = self._extract_explicit(doc, explicit_keys, generic_entities, ctx, policy, model)
+        llm_entities: list[Entity] = []
+        if ctx.config.llm.use_extraction and model:
+            if model.mode == "local":
+                llm_entities = self._llm_extract(
+                    doc,
+                    explicit_keys,
+                    model.model_name,
+                    ctx,
+                    field_descriptions=field_descriptions,
+                )
+                if not llm_entities and ctx.config.llm.allow_cloud_fallback:
+                    llm_entities = self._cloud_extract(
+                        doc,
+                        explicit_keys,
+                        ctx.config.llm.cloud_model,
+                        ctx,
+                        field_descriptions=field_descriptions,
+                    )
+            elif model.mode == "cloud":
+                llm_entities = self._cloud_extract(
+                    doc,
+                    explicit_keys,
+                    model.model_name,
+                    ctx,
+                    field_descriptions=field_descriptions,
+                )
         heuristic_entities = self._heuristic_schema_fill(
             doc,
             explicit_keys,
-            normalized_descriptions,
+            field_descriptions or {},
             generic_entities,
             explicit_entities + llm_entities,
         )
-        explicit_entities = self._merge_by_key(
-            self._canonicalize_entities(
-                explicit_entities + llm_entities + heuristic_entities,
-                explicit_keys,
-                normalized_descriptions,
-            )
-        )
-        explicit_entities = self._filter_implausible_entities(explicit_entities)
-        explicit_entities = self._filter_to_explicit_keys(explicit_entities, explicit_key_set)
+        explicit_entities = self._merge_by_key(explicit_entities + llm_entities + heuristic_entities)
         default_entities = self._dedupe_entities(generic_entities)
-        suppressed_defaults = 0
-        if explicit_key_set:
-            allowed_defaults = []
-            for entity in default_entities:
-                if self._normalize_key(entity.key) in explicit_key_set:
-                    allowed_defaults.append(entity)
-                else:
-                    suppressed_defaults += 1
-            default_entities = allowed_defaults
-            # For explicit-field extraction, return only the requested-field entity set.
-            combined_entities = self._merge_by_key(explicit_entities)
-        else:
-            combined_entities = self._merge_entities(explicit_entities, default_entities)
-        requested_field_status = self._requested_field_status(
-            explicit_keys,
-            explicit_entities,
-            ctx.config.validation.min_confidence,
-        )
-        unresolved_keys = sorted(
-            key for key, item in requested_field_status.items() if str(item.get("status", "")).strip() != "extracted"
-        )
-        llm_diagnostics["unresolved_keys"] = unresolved_keys
-        llm_diagnostics["unresolved_count"] = len(unresolved_keys)
-        llm_diagnostics["resolved_count"] = max(len(requested_field_status) - len(unresolved_keys), 0)
-        llm_diagnostics["generic_defaults_suppressed"] = suppressed_defaults
+        combined_entities = self._merge_entities(explicit_entities, default_entities)
 
         payload_json = {
             "doc_id": doc.doc_id,
@@ -191,9 +112,6 @@ class LLMExtractionAgent(Agent):
             "model_name": model.model_name if model else None,
             "model_mode": model.mode if model else None,
             "explicit_source": explicit_source,
-            "requested_fields": explicit_keys,
-            "requested_field_status": requested_field_status,
-            "llm_diagnostics": llm_diagnostics,
             "explicit_entities": [entity.__dict__ for entity in explicit_entities],
             "llm_entities": [entity.__dict__ for entity in llm_entities],
             "default_entities": [entity.__dict__ for entity in default_entities],
@@ -223,13 +141,6 @@ class LLMExtractionAgent(Agent):
                 "default_count": len(default_entities),
                 "llm_count": len(llm_entities),
                 "model": model.model_name if model else None,
-                "requested_fields": len(explicit_keys),
-                "missing_fields": sum(
-                    1
-                    for item in requested_field_status.values()
-                    if item.get("status") == "missing"
-                ),
-                "llm_diagnostics": llm_diagnostics,
             },
         )
         self._record(
@@ -240,8 +151,6 @@ class LLMExtractionAgent(Agent):
                 "default_count": len(default_entities),
                 "artifact_id": artifact.artifact_id,
                 "explicit_source": explicit_source,
-                "requested_field_status": requested_field_status,
-                "llm_diagnostics": llm_diagnostics,
             },
             parameters={
                 "model": model.model_name if model else None,
@@ -261,323 +170,10 @@ class LLMExtractionAgent(Agent):
                 "entities": combined_entities,
                 "explicit_source": explicit_source,
                 "llm_entities": llm_entities,
-                "requested_field_status": requested_field_status,
-                "llm_diagnostics": llm_diagnostics,
                 "structured_artifact": artifact,
                 "signal": signal,
             }
         )
-
-    def _initial_llm_diagnostics(
-        self,
-        model: ModelDecision | None,
-        description_refinement: dict[str, object],
-    ) -> dict[str, object]:
-        return {
-            "enabled": False if model is None else None,
-            "requested_mode": model.mode if model else None,
-            "strategy": "local_first_cloud_cascade",
-            "local_attempted": False,
-            "local_succeeded": False,
-            "local_failure_reason": None,
-            "local_call": {},
-            "cloud_attempted": False,
-            "cloud_succeeded": False,
-            "cloud_failure_reason": None,
-            "cloud_calls": [],
-            "cloud_usage": {
-                "prompt_tokens": 0,
-                "completion_tokens": 0,
-                "total_tokens": 0,
-                "estimated_cost_usd": 0.0,
-            },
-            "flagship_attempted": False,
-            "flagship_succeeded": False,
-            "flagship_model": None,
-            "flagship_failure_reason": None,
-            "fallback_keys": [],
-            "description_refinement": description_refinement,
-        }
-
-    def _extract_llm_entities(
-        self,
-        doc: Document,
-        explicit_keys: list[str],
-        explicit_entities: list[Entity],
-        field_descriptions: dict[str, str],
-        model: ModelDecision | None,
-        ctx: AgentContext,
-        diagnostics: dict[str, object],
-        extraction_context: str = "",
-        per_field_extraction: bool = False,
-        use_thinking: bool = False,
-    ) -> list[Entity]:
-        diagnostics["enabled"] = bool(ctx.config.llm.use_extraction)
-        if not ctx.config.llm.use_extraction:
-            diagnostics["local_failure_reason"] = "llm_extraction_disabled"
-            return []
-        if not model:
-            diagnostics["local_failure_reason"] = "no_model_decision"
-            return []
-        if model.mode == "local":
-            return self._run_local_first_extraction(
-                doc,
-                explicit_keys,
-                explicit_entities,
-                field_descriptions,
-                model,
-                ctx,
-                diagnostics,
-                extraction_context=extraction_context,
-                per_field_extraction=per_field_extraction,
-                use_thinking=use_thinking,
-            )
-        if model.mode == "cloud":
-            return self._run_cloud_first_extraction(
-                doc,
-                explicit_keys,
-                explicit_entities,
-                field_descriptions,
-                model,
-                ctx,
-                diagnostics,
-            )
-        return []
-
-    def _run_local_first_extraction(
-        self,
-        doc: Document,
-        explicit_keys: list[str],
-        explicit_entities: list[Entity],
-        field_descriptions: dict[str, str],
-        model: ModelDecision,
-        ctx: AgentContext,
-        diagnostics: dict[str, object],
-        extraction_context: str = "",
-        per_field_extraction: bool = False,
-        use_thinking: bool = False,
-    ) -> list[Entity]:
-        llm_entities = self._attempt_local_extraction(
-            doc,
-            explicit_keys,
-            model.model_name,
-            field_descriptions,
-            ctx,
-            diagnostics,
-            failure_reason="empty_or_unavailable",
-            extraction_context=extraction_context,
-            per_field_extraction=per_field_extraction,
-            use_thinking=use_thinking,
-        )
-        fallback_keys = self._fallback_keys_for_cloud(
-            explicit_keys,
-            explicit_entities + llm_entities,
-            ctx.config.validation.min_confidence,
-            max_fields=ctx.config.llm.max_cloud_fields_per_call,
-        )
-        diagnostics["fallback_keys"] = list(fallback_keys)
-        if not fallback_keys:
-            return llm_entities
-        if not ctx.config.llm.allow_cloud_fallback:
-            diagnostics["cloud_failure_reason"] = "cloud_fallback_disabled"
-            return llm_entities
-
-        llm_entities.extend(
-            self._attempt_cloud_extraction(
-                doc,
-                fallback_keys,
-                explicit_keys,
-                ctx.config.llm.cloud_model,
-                field_descriptions,
-                ctx,
-                diagnostics,
-                failure_field="cloud_failure_reason",
-                mark_primary_success=True,
-            )
-        )
-        unresolved = self._fallback_keys_for_cloud(
-            explicit_keys,
-            explicit_entities + llm_entities,
-            ctx.config.validation.min_confidence,
-            max_fields=ctx.config.llm.max_cloud_fields_per_call,
-        )
-        llm_entities.extend(
-            self._attempt_flagship_fallback(
-                doc,
-                unresolved,
-                explicit_keys,
-                ctx.config.llm.cloud_model,
-                field_descriptions,
-                ctx,
-                diagnostics,
-            )
-        )
-        return llm_entities
-
-    def _run_cloud_first_extraction(
-        self,
-        doc: Document,
-        explicit_keys: list[str],
-        explicit_entities: list[Entity],
-        field_descriptions: dict[str, str],
-        model: ModelDecision,
-        ctx: AgentContext,
-        diagnostics: dict[str, object],
-    ) -> list[Entity]:
-        llm_entities = self._attempt_cloud_extraction(
-            doc,
-            explicit_keys,
-            explicit_keys,
-            model.model_name,
-            field_descriptions,
-            ctx,
-            diagnostics,
-            failure_field="cloud_failure_reason",
-            mark_primary_success=True,
-        )
-        fallback_keys = self._fallback_keys_for_cloud(
-            explicit_keys,
-            explicit_entities + llm_entities,
-            ctx.config.validation.min_confidence,
-            max_fields=ctx.config.llm.max_cloud_fields_per_call,
-        )
-        diagnostics["fallback_keys"] = list(fallback_keys)
-        llm_entities.extend(
-            self._attempt_flagship_fallback(
-                doc,
-                fallback_keys,
-                explicit_keys,
-                model.model_name,
-                field_descriptions,
-                ctx,
-                diagnostics,
-            )
-        )
-        if llm_entities:
-            return llm_entities
-
-        llm_entities.extend(
-            self._attempt_local_extraction(
-                doc,
-                explicit_keys,
-                ctx.config.llm.local_model,
-                field_descriptions,
-                ctx,
-                diagnostics,
-                failure_reason="cloud_failed_and_local_unavailable",
-            )
-        )
-        return llm_entities
-
-    def _attempt_local_extraction(
-        self,
-        doc: Document,
-        explicit_keys: list[str],
-        model_name: str,
-        field_descriptions: dict[str, str],
-        ctx: AgentContext,
-        diagnostics: dict[str, object],
-        failure_reason: str,
-        extraction_context: str = "",
-        per_field_extraction: bool = False,
-        use_thinking: bool = False,
-    ) -> list[Entity]:
-        diagnostics["local_attempted"] = True
-        diagnostics["per_field_extraction"] = per_field_extraction
-        diagnostics["use_thinking"] = use_thinking
-        if per_field_extraction and explicit_keys:
-            local_entities = self._llm_extract_per_field(
-                doc,
-                explicit_keys,
-                model_name,
-                ctx,
-                field_descriptions=field_descriptions,
-                extraction_context=extraction_context,
-                use_thinking=use_thinking,
-            )
-            local_meta: dict[str, object] = {"per_field": True, "field_count": len(explicit_keys)}
-        else:
-            local_raw, local_meta = self._unpack_extraction_call(
-                self._llm_extract(
-                    doc,
-                    explicit_keys,
-                    model_name,
-                    ctx,
-                    field_descriptions=field_descriptions,
-                    extraction_context=extraction_context,
-                    use_thinking=use_thinking,
-                )
-            )
-            local_entities = self._canonicalize_entities(local_raw, explicit_keys, field_descriptions)
-        diagnostics["local_call"] = local_meta
-        if local_entities:
-            diagnostics["local_succeeded"] = True
-        else:
-            diagnostics["local_failure_reason"] = failure_reason
-        return local_entities
-
-    def _attempt_cloud_extraction(
-        self,
-        doc: Document,
-        requested_keys: list[str],
-        canonical_keys: list[str],
-        model_name: str,
-        field_descriptions: dict[str, str],
-        ctx: AgentContext,
-        diagnostics: dict[str, object],
-        failure_field: str,
-        mark_primary_success: bool = False,
-    ) -> list[Entity]:
-        diagnostics["cloud_attempted"] = True
-        cloud_raw, cloud_meta = self._unpack_extraction_call(
-            self._cloud_extract(
-                doc,
-                requested_keys,
-                model_name,
-                ctx,
-                field_descriptions=field_descriptions,
-            )
-        )
-        self._record_cloud_call(diagnostics, cloud_meta)
-        cloud_entities = self._canonicalize_entities(cloud_raw, canonical_keys, field_descriptions)
-        if cloud_entities:
-            if mark_primary_success:
-                diagnostics["cloud_succeeded"] = True
-        else:
-            diagnostics[failure_field] = cloud_meta.get("error", "empty_or_unavailable")
-        return cloud_entities
-
-    def _attempt_flagship_fallback(
-        self,
-        doc: Document,
-        unresolved_keys: list[str],
-        explicit_keys: list[str],
-        current_model_name: str,
-        field_descriptions: dict[str, str],
-        ctx: AgentContext,
-        diagnostics: dict[str, object],
-    ) -> list[Entity]:
-        if not self._should_use_flagship_fallback(ctx, unresolved_keys):
-            return []
-        flagship_model = self._resolve_flagship_model(ctx)
-        diagnostics["flagship_model"] = flagship_model
-        if not flagship_model or flagship_model == current_model_name:
-            return []
-        diagnostics["flagship_attempted"] = True
-        flagship_entities = self._attempt_cloud_extraction(
-            doc,
-            unresolved_keys,
-            explicit_keys,
-            flagship_model,
-            field_descriptions,
-            ctx,
-            diagnostics,
-            failure_field="flagship_failure_reason",
-        )
-        if flagship_entities:
-            diagnostics["flagship_succeeded"] = True
-            diagnostics["cloud_succeeded"] = True
-        return flagship_entities
 
     def _explicit_keys(
         self,
@@ -600,28 +196,6 @@ class LLMExtractionAgent(Agent):
         inferred = self._infer_explicit_keys(generic_entities)
         return inferred, "inferred"
 
-    def _normalize_field_descriptions(self, field_descriptions: object) -> dict[str, str]:
-        return normalize_extraction_field_descriptions(
-            field_descriptions,
-            normalize_key=self._normalize_key,
-        )
-
-    def _refine_field_descriptions(
-        self,
-        explicit_keys: list[str],
-        field_descriptions: dict[str, str],
-        ctx: AgentContext,
-    ) -> tuple[dict[str, str], dict[str, object]]:
-        return refine_extraction_field_descriptions(
-            explicit_keys,
-            field_descriptions,
-            ctx,
-            normalize_key=self._normalize_key,
-            parse_json_payload=self._parse_json_payload,
-            cache=self._description_refinement_cache,
-            generate=ollama_generate,
-        )
-
     def _extract_explicit(
         self,
         doc: Document,
@@ -631,17 +205,188 @@ class LLMExtractionAgent(Agent):
         policy: ExtractionPolicy | None,
         model: ModelDecision | None,
     ) -> list[Entity]:
-        return extract_explicit_entities(
-            doc,
-            explicit_keys,
-            generic_entities,
-            ctx.config.structuring.extraction_rules,
-            policy.policy_id if policy else None,
-            model.model_name if model else None,
-        )
+        rule_map = {self._normalize_key(rule.key): rule for rule in ctx.config.structuring.extraction_rules}
+        explicit_map: dict[str, Entity] = {}
+        for key in explicit_keys:
+            rule = rule_map.get(key)
+            if rule:
+                match_value, page_num, span = self._match_rule_in_pages(doc, rule.pattern)
+                if match_value:
+                    entity = Entity(
+                        key=rule.key,
+                        value=match_value,
+                        confidence=0.82,
+                        page=page_num,
+                        span=span,
+                        metadata={
+                            "explicit": True,
+                            "source": "rule",
+                            "label": rule.label,
+                            "policy_id": policy.policy_id if policy else None,
+                            "model": model.model_name if model else None,
+                        },
+                    )
+                    self._pick_best(explicit_map, entity)
+
+        explicit_set = {self._normalize_key(key) for key in explicit_keys}
+        for entity in generic_entities:
+            if self._normalize_key(entity.key) in explicit_set:
+                candidate = Entity(
+                    key=entity.key,
+                    value=entity.value,
+                    confidence=max(entity.confidence, 0.62),
+                    page=entity.page,
+                    span=entity.span,
+                    metadata={**entity.metadata, "explicit": True, "source": "generic_kv"},
+                )
+                self._pick_best(explicit_map, candidate)
+
+        return list(explicit_map.values())
 
     def _generic_kv_entities(self, doc: Document) -> list[Entity]:
-        return generic_kv_entities(doc, self._span_for_line)
+        """Extract key-value entities from document text using heuristic parsing.
+
+        Applies multi-layer noise filtering to prevent garbage entities:
+        - Key constraints: length 3-50 chars, max 5 words, no digits, no noise prefixes
+        - Value constraints: length 2-100 chars, no bullets/brackets/arrows/orphan quotes
+        - Rejects sentence-like values, single common words, and unmatched parens
+        - Confidence scoring: 0.72 for numeric, 0.75 for dates, 0.70 for IDs, 0.35 for long text
+        """
+        _SINGLE_WORD_NOISE = {
+            "member", "shows", "role", "logic", "type", "name",
+            "value", "label", "model", "sensor", "step", "code",
+            "data", "text", "note", "item", "page", "line",
+            "file", "path", "info", "mode", "size", "count",
+            "list", "link", "icon", "view", "form", "test",
+            "soil", "temp", "light", "tank", "water", "task",
+            "software", "hardware", "physical", "widget", "color",
+            "alert", "prediction", "reason", "scenario", "output",
+            "input", "transmission", "execution", "rain", "system",
+            "actuation", "run", "class", "prob", "context",
+            "phase", "stage", "layer", "source", "target",
+            "status", "action", "result", "process", "method",
+            "signal", "event", "state", "table", "field",
+            "section", "header", "footer", "title", "body",
+            "group", "category", "block", "segment", "unit",
+            "level", "scope", "range", "margin", "padding",
+            "width", "height", "depth", "weight", "length",
+            "measure", "metric", "factor", "ratio", "scale",
+            "device", "module", "component", "element", "object",
+            "feature", "option", "setting", "config", "param",
+            "error", "warning", "debug", "trace", "log",
+        }
+        _NOISE_PREFIXES = {
+            "e", "o", "the", "a", "an", "if", "but", "and", "or",
+            "so", "yet", "nor", "for", "it", "this", "that", "what",
+            "how", "why", "when", "where", "who", "which", "result",
+            "note", "example", "step", "concept", "twist",
+            "s_special", "e_logic", "e_why", "shows", "tells",
+            "circular", "line", "sun", "member", "role",
+            "sensing", "context", "run", "actuation", "execution",
+            "members", "scenario", "watering", "model", "rain",
+            "system", "here", "there", "where", "our", "my",
+        }
+        _SINGLE_VALUE_NOISE = {
+            "sensor", "model", "label", "value", "moisture",
+            "humidity", "resistor", "gauge", "graph", "icon",
+            "yes", "no", "true", "false", "none", "null",
+            "stop", "start", "high", "low", "medium",
+        }
+        _SENTENCE_STARTS = (
+            "the ", "a ", "an ", "it ", "this ", "that ", "these ",
+            "those ", "we ", "you ", "they ", "he ", "she ", "normal ",
+            "before ", "your ", "shows ", "tells ", "will ", "can ",
+            "should ", "would ", "could ", "may ", "might ",
+            "set ", "make ", "find ", "get ", "put ", "do ",
+            "write ", "read ", "build ", "create ", "handle ",
+            "large ", "small ", "how ", "what ", "if ", "when ",
+            "○ ", "● ", "■ ",
+        )
+
+        entities: list[Entity] = []
+        for page in doc.pages:
+            for line in page.text.splitlines():
+                normalized = line.replace("\u2013", "-").replace("\u2014", "-").replace("\u2212", "-")
+                parsed_pairs = self._parse_multi_kv_line(normalized)
+                if not parsed_pairs:
+                    parsed = self._parse_kv_line(normalized)
+                    parsed_pairs = [parsed] if parsed else []
+                if not parsed_pairs:
+                    parsed = self._parse_amount_line(normalized)
+                    parsed_pairs = [parsed] if parsed else []
+                for parsed in parsed_pairs:
+                    if not parsed:
+                        continue
+                    key, value = parsed
+                    if not key or not value:
+                        continue
+
+                    if len(key) < 3 or len(key) > 50:
+                        continue
+                    if len(value) > 100:
+                        continue
+                    key_words = key.replace("_", " ").split()
+                    if len(key_words) > 5:
+                        continue
+                    if len(key_words) == 1 and key_words[0].lower() in _SINGLE_WORD_NOISE:
+                        continue
+                    first_word = key_words[0].lower() if key_words else ""
+                    if first_word in _NOISE_PREFIXES:
+                        continue
+                    if re.search(r'\d', key):
+                        continue
+
+                    if len(value.strip()) <= 1:
+                        continue
+                    value_stripped = value.strip()
+                    if value_stripped and value_stripped[0] in '○●■□▪▸►▶•–—':
+                        continue
+                    if value_stripped.startswith('[') or value_stripped.startswith('{'):
+                        continue
+                    if '->' in value or '=>' in value:
+                        continue
+                    if value_stripped.endswith('"') and not value_stripped.startswith('"'):
+                        continue
+                    if value_stripped.startswith('"') and not value_stripped.endswith('"'):
+                        continue
+                    if value_stripped.endswith(','):
+                        value = value_stripped = value_stripped[:-1].strip()
+                        if not value_stripped:
+                            continue
+                    if value_stripped.count('(') != value_stripped.count(')'):
+                        continue
+                    value_words = value.strip().split()
+                    if len(value_words) == 1 and value_words[0].lower() in _SINGLE_VALUE_NOISE:
+                        continue
+                    value_lower = value.lower().strip()
+                    if any(value_lower.startswith(s) for s in _SENTENCE_STARTS):
+                        continue
+                    if value.startswith('"') and value.endswith('"'):
+                        inner = value[1:-1].strip()
+                        if len(inner.split()) <= 4:
+                            continue
+
+                    confidence = 0.55
+                    if re.match(r'^[\d.,/$%]+$', value.strip()):
+                        confidence = 0.72
+                    elif re.match(r'^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$', value.strip()):
+                        confidence = 0.75
+                    elif re.match(r'^[A-Z0-9][A-Z0-9-]{2,}$', value.strip()):
+                        confidence = 0.70
+                    elif len(value.split()) > 8:
+                        confidence = 0.35
+                    span = self._span_for_line(page.text, line, value)
+                    entities.append(
+                        Entity(
+                            key=key,
+                            value=value,
+                            confidence=confidence,
+                            page=page.number,
+                            span=span,
+                            metadata={"generic_kv": True, "evidence": value},
+                        )
+                    )
+        return entities
 
     def _infer_explicit_keys(self, entities: list[Entity]) -> list[str]:
         if not entities:
@@ -651,153 +396,21 @@ class LLMExtractionAgent(Agent):
         return ordered[: min(5, len(ordered))]
 
     def _merge_entities(self, explicit: list[Entity], defaults: list[Entity]) -> list[Entity]:
-        # Keep a single best value per normalized key.
-        selected: dict[str, Entity] = {}
+        combined = {}
         for entity in defaults:
+            combined[(entity.key, entity.value)] = entity
+        for entity in explicit:
+            combined[(entity.key, entity.value)] = entity
+        return list(combined.values())
+
+    def _merge_by_key(self, entities: list[Entity]) -> list[Entity]:
+        selected: dict[str, Entity] = {}
+        for entity in entities:
             key = self._normalize_key(entity.key)
             current = selected.get(key)
             if not current or entity.confidence > current.confidence:
                 selected[key] = entity
-        for entity in explicit:
-            key = self._normalize_key(entity.key)
-            current = selected.get(key)
-            if (
-                not current
-                or entity.confidence >= current.confidence
-                or (entity.metadata or {}).get("explicit")
-            ):
-                selected[key] = entity
         return list(selected.values())
-
-    def _filter_to_explicit_keys(self, entities: list[Entity], explicit_key_set: set[str]) -> list[Entity]:
-        return filter_to_explicit_keys(entities, explicit_key_set)
-
-    def _merge_by_key(self, entities: list[Entity]) -> list[Entity]:
-        return merge_by_key(entities)
-
-    def _unpack_extraction_call(self, payload: object) -> tuple[list[Entity], dict[str, object]]:
-        if (
-            isinstance(payload, tuple)
-            and len(payload) == 2
-            and isinstance(payload[1], dict)
-        ):
-            entities, meta = payload
-            if isinstance(entities, list):
-                return entities, dict(meta)
-            return [], dict(meta)
-        if isinstance(payload, list):
-            return payload, {}
-        return [], {}
-
-    def _record_cloud_call(self, diagnostics: dict[str, object], call_meta: dict[str, object]) -> None:
-        if not call_meta:
-            return
-        calls = diagnostics.setdefault("cloud_calls", [])
-        if isinstance(calls, list):
-            calls.append(call_meta)
-        usage = diagnostics.setdefault(
-            "cloud_usage",
-            {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "estimated_cost_usd": 0.0},
-        )
-        if not isinstance(usage, dict):
-            return
-        usage["prompt_tokens"] = int(usage.get("prompt_tokens", 0)) + int(call_meta.get("prompt_tokens", 0) or 0)
-        usage["completion_tokens"] = int(usage.get("completion_tokens", 0)) + int(call_meta.get("completion_tokens", 0) or 0)
-        usage["total_tokens"] = int(usage.get("total_tokens", 0)) + int(call_meta.get("total_tokens", 0) or 0)
-        usage["estimated_cost_usd"] = float(usage.get("estimated_cost_usd", 0.0)) + float(
-            call_meta.get("estimated_cost_usd", 0.0) or 0.0
-        )
-
-    def _should_use_flagship_fallback(self, ctx: AgentContext, unresolved_keys: list[str]) -> bool:
-        if not ctx.config.llm.enable_flagship_fallback:
-            return False
-        if not unresolved_keys:
-            return False
-        return len(unresolved_keys) >= max(1, int(ctx.config.llm.flagship_min_missing_fields))
-
-    def _resolve_flagship_model(self, ctx: AgentContext) -> str:
-        preferred = str(getattr(ctx.config.llm, "flagship_model", "") or "").strip()
-        if preferred:
-            return preferred
-        escalation_choice = str(ctx.config.escalation.flagship_model or "").strip()
-        if escalation_choice and "sim" not in escalation_choice.lower():
-            return escalation_choice
-        return ctx.config.llm.cloud_model
-
-    def _fallback_keys_for_cloud(
-        self,
-        explicit_keys: list[str],
-        entities: list[Entity],
-        min_confidence: float,
-        max_fields: int = 8,
-    ) -> list[str]:
-        if not explicit_keys:
-            return []
-        by_key = {self._normalize_key(entity.key): entity for entity in self._merge_by_key(entities)}
-        threshold = max(0.5, min(min_confidence, 0.8) - 0.05)
-        missing: list[str] = []
-        weak: list[str] = []
-        for key in explicit_keys:
-            norm_key = self._normalize_key(key)
-            entity = by_key.get(norm_key)
-            if not entity:
-                missing.append(norm_key)
-            elif entity.confidence < threshold:
-                weak.append(norm_key)
-        # Keep cloud usage bounded per document while still covering failures.
-        limit = max(1, int(max_fields))
-        return (missing + weak)[:limit]
-
-    def _requested_field_status(
-        self,
-        explicit_keys: list[str],
-        entities: list[Entity],
-        min_confidence: float,
-    ) -> dict[str, dict[str, object]]:
-        status_map: dict[str, dict[str, object]] = {}
-        if not explicit_keys:
-            return status_map
-        by_key = {self._normalize_key(entity.key): entity for entity in self._merge_by_key(entities)}
-        threshold = max(0.0, min(min_confidence, 1.0))
-        low_threshold = max(0.3, threshold - 0.25)
-        for key in explicit_keys:
-            norm_key = self._normalize_key(key)
-            if not norm_key:
-                continue
-            entity = by_key.get(norm_key)
-            if not entity:
-                status_map[norm_key] = {
-                    "status": "missing",
-                    "confidence": 0.0,
-                    "value": "N/A",
-                    "source": "none",
-                }
-                continue
-            source = str((entity.metadata or {}).get("source", "unknown"))
-            if entity.confidence >= threshold:
-                status = "extracted"
-                value = entity.value
-            elif entity.confidence >= low_threshold:
-                status = "low_confidence"
-                value = "N/A"
-            else:
-                status = "low_confidence"
-                value = "N/A"
-            status_map[norm_key] = {
-                "status": status,
-                "confidence": entity.confidence,
-                "value": value,
-                "source": source,
-            }
-        return status_map
-
-    def _canonicalize_entities(
-        self,
-        entities: list[Entity],
-        explicit_keys: list[str],
-        field_descriptions: dict[str, str],
-    ) -> list[Entity]:
-        return canonicalize_entities(entities, explicit_keys, field_descriptions)
 
     def _dedupe_entities(self, entities: list[Entity]) -> list[Entity]:
         """Deduplicate entities by normalized key, keeping highest confidence."""
@@ -816,36 +429,79 @@ class LLMExtractionAgent(Agent):
             selected[candidate.key] = candidate
 
     def _normalize_key(self, raw: str) -> str:
-        return normalize_key(raw)
-
-    def _filter_implausible_entities(self, entities: list[Entity]) -> list[Entity]:
-        filtered: list[Entity] = []
-        for entity in entities:
-            if self._is_plausible_for_key(entity.key, str(entity.value or "")):
-                filtered.append(entity)
-        return filtered
-
-    def _is_plausible_for_key(self, key: str, value: str) -> bool:
-        normalized_key = self._normalize_key(key)
-        cleaned_value = clean_candidate_value(value)
-        if not cleaned_value:
-            return False
-        if _NAME_LIKE_KEY_RE.search(normalized_key):
-            if not _ALPHA_RE.search(cleaned_value):
-                return False
-        return True
+        key = _RE_NORMALIZE_KEY.sub("_", raw.strip().lower()).strip("_")
+        # Truncate excessively long keys to 40 chars at word boundary
+        if len(key) > 40:
+            truncated = key[:40]
+            last_underscore = truncated.rfind("_")
+            if last_underscore > 20:
+                key = truncated[:last_underscore]
+            else:
+                key = truncated
+        return key
 
     def _span_for_line(self, page_text: str, line: str, value: str) -> tuple[int, int] | None:
-        return span_for_line(page_text, line, value)
+        start = page_text.find(line)
+        if start == -1:
+            return None
+        value_start = line.find(value)
+        if value_start == -1:
+            return None
+        span_start = start + value_start
+        return (span_start, span_start + len(value))
 
     def _parse_kv_line(self, line: str) -> tuple[str, str] | None:
-        return parse_kv_line(line)
+        cleaned = line.strip()
+        if not cleaned:
+            return None
+        match = _RE_KV_COLON.match(cleaned)
+        if not match:
+            match = _RE_KV_SPACE.match(cleaned)
+        if not match:
+            return None
+        key_part = match.group(1).strip()
+        value_part = match.group(2).strip()
+        if not key_part or not value_part or len(value_part) > 200:
+            return None
+        return self._normalize_key(key_part), value_part
 
     def _parse_multi_kv_line(self, line: str) -> list[tuple[str, str]]:
-        return parse_multi_kv_line(line)
+        cleaned = line.strip()
+        if not cleaned:
+            return []
+        pairs: list[tuple[str, str]] = []
+        for match in _RE_MULTI_KV.finditer(cleaned):
+            label = match.group("label").strip()
+            value = match.group("value").strip().strip(".")
+            if not label or not value:
+                continue
+            if len(value) > 200:
+                continue
+            pairs.append((self._normalize_key(label), value))
+        return pairs
 
     def _parse_amount_line(self, line: str) -> tuple[str, str] | None:
-        return parse_amount_line(line)
+        cleaned = line.strip()
+        if not cleaned:
+            return None
+        lowered = cleaned.lower()
+        if not any(token in lowered for token in ["total", "amount", "balance", "due", "subtotal", "invoice total"]):
+            return None
+        match = _RE_AMOUNT.search(cleaned)
+        if not match:
+            return None
+        value = match.group(1).strip()
+        prefix = cleaned[: match.start()].strip()
+        key = self._normalize_key(prefix) if prefix else "amount"
+        return key, value
+
+    def _match_rule_in_pages(self, doc: Document, pattern: str) -> tuple[str | None, int | None, tuple[int, int] | None]:
+        for page in doc.pages:
+            match = re.search(pattern, page.text, re.IGNORECASE)
+            if match:
+                value = match.group(1).strip()
+                return value, page.number, match.span(1)
+        return None, None, None
 
     def _heuristic_schema_fill(
         self,
@@ -869,23 +525,13 @@ class LLMExtractionAgent(Agent):
             if key in existing_keys:
                 continue
             # Try smart document-structure extraction first
-            smart = smart_field_extract(key, doc, text)
+            smart = self._smart_field_extract(key, doc, text)
             if smart:
                 filled.append(smart)
                 continue
             desc = field_descriptions.get(key, "")
-            anchored = extract_by_label_anchor(
-                key,
-                desc,
-                doc,
-                self._clean_candidate_value,
-                is_valid_candidate_value,
-            )
-            if anchored:
-                filled.append(anchored)
-                continue
             tokens = self._tokenize(f"{key} {desc}")
-            match = best_generic_match(tokens, generic_by_key)
+            match = self._best_generic_match(tokens, generic_by_key)
             if match:
                 filled.append(
                     Entity(
@@ -898,97 +544,210 @@ class LLMExtractionAgent(Agent):
                     )
                 )
                 continue
-            fallback = regex_fallback(key, tokens, text)
+            fallback = self._regex_fallback(key, tokens, text)
             if fallback:
                 filled.append(fallback)
         return filled
 
     def _smart_field_extract(self, key: str, doc: Document, text: str) -> Entity | None:
-        return smart_field_extract(key, doc, text)
+        """Use document structure to extract common field types."""
+        key_lower = key.lower()
 
-    def _extract_by_label_anchor(self, key: str, description: str, doc: Document) -> Entity | None:
-        return extract_by_label_anchor(
-            key,
-            description,
-            doc,
-            self._clean_candidate_value,
-            is_valid_candidate_value,
-        )
+        # --- Project/document title ---
+        if any(tok in key_lower for tok in ["title", "project_name", "document_name"]):
+            # Strategy 1: Look for explicit "Title:" or "Project Title:" label
+            title_match = re.search(
+                r'(?:project\s+title|title|project\s+name|document\s+title)\s*[:=\-]\s*(.+)',
+                text, re.IGNORECASE,
+            )
+            if title_match:
+                val = title_match.group(1).strip()
+                if 2 < len(val) < 100:
+                    return Entity(key=key, value=val, confidence=0.80,
+                                  metadata={"explicit": True, "source": "smart_heuristic"})
+            # Strategy 2: First non-empty line of page 1 (common title position)
+            if doc.pages:
+                first_page_text = doc.pages[0].text
+                for line in first_page_text.splitlines():
+                    line = line.strip()
+                    if line and len(line) > 2 and len(line) < 80 and len(line.split()) <= 10:
+                        # Check it looks like a title (not a sentence, not a number)
+                        if not line[0].isdigit() and not line.startswith(('●', '○', '■', '•', '-', '*')):
+                            return Entity(key=key, value=line, confidence=0.70,
+                                          metadata={"explicit": True, "source": "smart_heuristic", "rule": "first_line"})
+                        break
+            # Strategy 3: Use the document filename (doc_id) as a fallback
+            if doc.doc_id and len(doc.doc_id) > 2:
+                # Clean up common filename artifacts
+                clean_name = re.sub(r'[_-]', ' ', doc.doc_id).strip()
+                if clean_name:
+                    return Entity(key=key, value=clean_name, confidence=0.60,
+                                  metadata={"explicit": True, "source": "smart_heuristic", "rule": "filename"})
 
-    def _field_label_variants(self, key: str, description: str) -> list[str]:
-        return field_label_variants(key, description)
+        # --- Team members / authors ---
+        if any(tok in key_lower for tok in ["member", "author", "team", "contributor", "participant"]):
+            # Look for "Members:", "Team:", "Authors:" label followed by names
+            members_match = re.search(
+                r'(?:team\s+members?|members?|authors?|prepared\s+by|contributors?|participants?)\s*[:=\-]\s*(.+?)(?:\n\n|\n(?=[A-Z][a-z]+\s*:)|\Z)',
+                text, re.IGNORECASE | re.DOTALL,
+            )
+            if members_match:
+                raw_val = members_match.group(1).strip()
+                # Clean up bullet points and newlines
+                cleaned = re.sub(r'[○●■□▪▸►▶•]', '', raw_val)
+                cleaned = re.sub(r'\n+', ', ', cleaned).strip(', ')
+                if 2 < len(cleaned) < 300:
+                    return Entity(key=key, value=cleaned, confidence=0.75,
+                                  metadata={"explicit": True, "source": "smart_heuristic"})
+            # Look for "Member N:" patterns
+            member_lines = re.findall(r'Member\s*\d+\s*[:=\-]\s*(.+)', text, re.IGNORECASE)
+            if member_lines:
+                val = ", ".join(m.strip() for m in member_lines)
+                if 2 < len(val) < 300:
+                    return Entity(key=key, value=val, confidence=0.70,
+                                  metadata={"explicit": True, "source": "smart_heuristic"})
 
-    def _clean_candidate_value(self, raw: str) -> str:
-        return clean_candidate_value(raw)
+        # --- Supervisor / advisor ---
+        if any(tok in key_lower for tok in ["supervisor", "advisor", "professor", "mentor", "instructor"]):
+            supervisor_match = re.search(
+                r'(?:supervisor|advisor|professor|mentor|instructor|supervised\s+by|advised\s+by)\s*[:=\-]\s*(.+)',
+                text, re.IGNORECASE,
+            )
+            if supervisor_match:
+                val = supervisor_match.group(1).strip()
+                val = re.sub(r'[○●■□▪▸►▶•]', '', val).strip()
+                if 2 < len(val) < 100:
+                    return Entity(key=key, value=val, confidence=0.80,
+                                  metadata={"explicit": True, "source": "smart_heuristic"})
 
-    def _is_valid_candidate_value(self, value: str) -> bool:
-        return is_valid_candidate_value(value)
+        # --- Date fields ---
+        if any(tok in key_lower for tok in ["date", "submitted", "created", "issued"]):
+            date_match = re.search(
+                r'(?:date|submitted|created|issued)\s*[:=\-]\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\w+\s+\d{1,2},?\s+\d{4}|\d{4}-\d{2}-\d{2})',
+                text, re.IGNORECASE,
+            )
+            if date_match:
+                return Entity(key=key, value=date_match.group(1).strip(), confidence=0.78,
+                              metadata={"explicit": True, "source": "smart_heuristic"})
+
+        # --- Course / subject ---
+        if any(tok in key_lower for tok in ["course", "subject", "module", "class_name"]):
+            course_match = re.search(
+                r'(?:course|subject|module|class)\s*(?:name|code|number)?\s*[:=\-]\s*(.+)',
+                text, re.IGNORECASE,
+            )
+            if course_match:
+                val = course_match.group(1).strip()
+                if 2 < len(val) < 100:
+                    return Entity(key=key, value=val, confidence=0.75,
+                                  metadata={"explicit": True, "source": "smart_heuristic"})
+
+        return None
+
+    def _best_generic_match(self, tokens: list[str], generic_by_key: dict[str, list[Entity]]) -> Entity | None:
+        if not tokens:
+            return None
+        best = None
+        best_score = 0.0
+        token_set = set(tokens)
+        for key, entities in generic_by_key.items():
+            key_tokens = set(self._tokenize(key))
+            if not key_tokens:
+                continue
+            overlap = token_set.intersection(key_tokens)
+            score = len(overlap) / max(len(token_set), 1)
+            if key in token_set or any(tok in key for tok in token_set):
+                score += 0.15
+            if score > best_score:
+                best_score = score
+                best = entities[0]
+        # Require stronger match to avoid garbage matches
+        if best_score >= 0.55:
+            return best
+        return None
+
+    def _regex_fallback(self, key: str, tokens: list[str], text: str) -> Entity | None:
+        lowered = " ".join(tokens)
+        if any(token in lowered for token in ["amount", "total", "balance", "due", "price", "cost"]):
+            candidates = re.findall(
+                r"(?:total|amount|balance|due|subtotal|tax|invoice\s+total)[^\d\n]{0,18}"
+                r"((?:\$|usd\s*)?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)",
+                text,
+                re.IGNORECASE,
+            )
+            if candidates:
+                best = max(
+                    candidates,
+                    key=lambda item: float(item.replace(",", "").replace("usd", "").replace("$", "") or 0),
+                )
+                return Entity(
+                    key=key,
+                    value=best.strip(),
+                    confidence=0.45,
+                    metadata={"explicit": True, "source": "schema_regex", "rule": "amount"},
+                )
+            currency = re.findall(r"(?:\$|usd\s*)\d{1,3}(?:,\d{3})*(?:\.\d{2})?", text, re.IGNORECASE)
+            if currency:
+                best = max(
+                    currency,
+                    key=lambda item: float(item.replace(",", "").replace("usd", "").replace("$", "") or 0),
+                )
+                return Entity(
+                    key=key,
+                    value=best.strip(),
+                    confidence=0.4,
+                    metadata={"explicit": True, "source": "schema_regex", "rule": "amount_any"},
+                )
+        if any(token in lowered for token in ["date", "issued", "invoice_date", "due_date"]):
+            date_match = re.search(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b", text)
+            if not date_match:
+                date_match = re.search(r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}\b", text, re.IGNORECASE)
+            if not date_match:
+                date_match = re.search(r"\b\d{4}-\d{2}-\d{2}\b", text)
+            if date_match:
+                return Entity(
+                    key=key,
+                    value=date_match.group(0),
+                    confidence=0.45,
+                    metadata={"explicit": True, "source": "schema_regex", "rule": "date"},
+                )
+        if any(token in lowered for token in ["invoice", "id", "number", "reference"]):
+            id_match = re.search(r"\b[A-Z]{0,4}[\-#]?\d{3,}[A-Z0-9-]*\b", text)
+            if not id_match:
+                id_match = re.search(r"\b[A-Z0-9-]{5,}\b", text)
+            if id_match:
+                return Entity(
+                    key=key,
+                    value=id_match.group(0),
+                    confidence=0.42,
+                    metadata={"explicit": True, "source": "schema_regex", "rule": "id"},
+                )
+        if any(token in lowered for token in ["fax", "phone", "telephone", "tel"]):
+            phone_pattern = r"\(?(\d{3})\)?[-.\s]*(\d{3})[-.\s]*(\d{4})"
+            fax_match = None
+            if "fax" in lowered:
+                fax_match = re.search(r"fax[^\d]{0,6}" + phone_pattern, text, re.IGNORECASE)
+            if fax_match:
+                number = "-".join(fax_match.groups())
+                return Entity(
+                    key=key,
+                    value=number,
+                    confidence=0.45,
+                    metadata={"explicit": True, "source": "schema_regex", "rule": "fax"},
+                )
+            phone_match = re.search(phone_pattern, text)
+            if phone_match:
+                number = "-".join(phone_match.groups())
+                return Entity(
+                    key=key,
+                    value=number,
+                    confidence=0.42,
+                    metadata={"explicit": True, "source": "schema_regex", "rule": "phone"},
+                )
+        return None
 
     def _tokenize(self, text: str) -> list[str]:
-        return tokenize(text)
-
-    # Models that support the /api/chat endpoint and instruction templates.
-    _CHAT_MODEL_PREFIXES = ("qwen", "llama3", "llama-3", "mistral", "gemma", "deepseek")
-
-    @classmethod
-    def _uses_chat_endpoint(cls, model_name: str) -> bool:
-        lower = model_name.lower()
-        return any(lower.startswith(p) for p in cls._CHAT_MODEL_PREFIXES)
-
-    def _llm_extract_per_field(
-        self,
-        doc: Document,
-        explicit_keys: list[str],
-        model_name: str,
-        ctx: AgentContext,
-        field_descriptions: dict[str, str] | None = None,
-        extraction_context: str = "",
-        use_thinking: bool = False,
-    ) -> list[Entity]:
-        """Run one LLM call per field to eliminate cross-field assignment errors."""
-        text, _ = build_extraction_input(doc, explicit_keys, field_descriptions or {}, ctx)
-        if not text.strip():
-            return []
-        llm_cfg = ctx.config.llm
-        use_chat = self._uses_chat_endpoint(model_name) or bool(getattr(llm_cfg, "local_use_chat_api", False))
-        format_json = bool(getattr(llm_cfg, "local_format_json", True))
-        # Qwen3: use temperature=0.6 in thinking mode to avoid greedy repetition loops
-        temp = float(getattr(llm_cfg, "local_temperature", 0.0))
-        if use_thinking:
-            temp = 0.6
-        options: dict[str, object] = {
-            "temperature": temp,
-            "top_p": float(getattr(llm_cfg, "local_top_p", 0.8)),
-            "top_k": int(getattr(llm_cfg, "local_top_k", 20)),
-            "num_predict": int(getattr(llm_cfg, "local_num_predict", 512)),
-            "num_ctx": int(getattr(llm_cfg, "local_num_ctx", 8192)),
-        }
-        no_think = model_name.lower().startswith("qwen") and not use_thinking
-        descs = field_descriptions or {}
-        collected: list[Entity] = []
-        for key in explicit_keys:
-            desc = descs.get(key, "Extract this field value")
-            if use_chat:
-                messages = build_single_field_messages(
-                    text, key, desc, no_think=no_think, extraction_context=extraction_context
-                )
-                response, _ = ollama_chat_detailed(
-                    llm_cfg.base_url, messages, model_name,
-                    timeout_s=llm_cfg.timeout_s, options=options,
-                    format_json=format_json, disable_think=no_think,
-                )
-            else:
-                prompt = build_single_field_prompt(text, key, desc, extraction_context=extraction_context)
-                payload: dict[str, object] = {
-                    "model": model_name, "prompt": prompt, "stream": False, "options": options,
-                }
-                if format_json:
-                    payload["format"] = "json"
-                response, _ = ollama_generate_detailed(llm_cfg.base_url, payload, llm_cfg.timeout_s)
-            if response:
-                entities = self._parse_entities_response(response, model_name, source="llm_local_per_field")
-                collected.extend(entities)
-        return self._canonicalize_entities(collected, explicit_keys, descs)
+        return [part for part in re.split(r"[^a-z0-9]+", text.lower()) if part]
 
     def _llm_extract(
         self,
@@ -997,111 +756,27 @@ class LLMExtractionAgent(Agent):
         model_name: str,
         ctx: AgentContext,
         field_descriptions: dict[str, str] | None = None,
-        extraction_context: str = "",
-        use_thinking: bool = False,
-    ) -> list[Entity] | tuple[list[Entity], dict[str, object]]:
-        started = time.time()
-        text, context_meta = build_extraction_input(doc, explicit_keys, field_descriptions or {}, ctx)
+    ) -> list[Entity]:
+        text = "\n".join(page.text for page in doc.pages)
         if not text.strip():
-            return [], {
-                "provider": "ollama",
-                "model": model_name,
-                "error": "empty_document",
-                "latency_ms": 0.0,
-            }
-
-        llm_cfg = ctx.config.llm
-        use_chat = self._uses_chat_endpoint(model_name) or bool(getattr(llm_cfg, "local_use_chat_api", False))
-        format_json = bool(getattr(llm_cfg, "local_format_json", True))
-        # Qwen3: use temperature=0.6 in thinking mode to avoid greedy repetition loops
-        temp = float(getattr(llm_cfg, "local_temperature", 0.0))
-        if use_thinking:
-            temp = 0.6
-        options: dict[str, object] = {
-            "temperature": temp,
-            "top_p": float(getattr(llm_cfg, "local_top_p", 0.8)),
-            "top_k": int(getattr(llm_cfg, "local_top_k", 20)),
-            "num_predict": int(getattr(llm_cfg, "local_num_predict", 1024)),
-            "num_ctx": int(getattr(llm_cfg, "local_num_ctx", 8192)),
-        }
-
-        if use_chat:
-            # /no_think disables Qwen3's extended thinking chain.
-            # use_thinking=True (set by policy) re-enables it for complex docs.
-            no_think = model_name.lower().startswith("qwen") and not use_thinking
-            messages = build_chat_messages(
-                text, explicit_keys, ctx, field_descriptions or {}, no_think=no_think,
-                extraction_context=extraction_context,
-            )
-            response, call_meta = ollama_chat_detailed(
-                llm_cfg.base_url,
-                messages,
-                model_name,
-                timeout_s=llm_cfg.timeout_s,
-                options=options,
-                format_json=format_json,
-                disable_think=no_think,
-            )
-            prompt_chars = sum(len(m.get("content", "")) for m in messages)
-            endpoint_used = "ollama.chat"
-        else:
-            prompt = build_prompt(text, explicit_keys, ctx, field_descriptions or {})
-            payload: dict[str, object] = {
-                "model": model_name,
-                "prompt": prompt,
-                "stream": False,
-                "options": options,
-            }
-            if format_json:
-                payload["format"] = "json"
-            response, call_meta = ollama_generate_detailed(
-                llm_cfg.base_url,
-                payload,
-                llm_cfg.timeout_s,
-            )
-            prompt_chars = len(prompt)
-            endpoint_used = "ollama.generate"
-
-        latency_ms = (time.time() - started) * 1000
-        persist_raw = bool(getattr(llm_cfg, "persist_raw_llm_io", True))
-
-        meta: dict[str, object] = {
-            "provider": "ollama",
+            return []
+        max_chars = 24000
+        if len(text) > max_chars:
+            text = self._smart_truncate(text, max_chars)
+        prompt = self._build_prompt(text, explicit_keys, ctx, field_descriptions or {})
+        payload = {
             "model": model_name,
-            "prompt_chars": prompt_chars,
-            "requested_fields": len(explicit_keys),
-            "latency_ms": round(latency_ms, 2),
-            "success": False,
-            "entity_count": 0,
-            "prompt_version": "extraction_v3",
-            "context": context_meta,
-            "request": {
-                "format": "json" if format_json else "text",
-                "options": options,
-                "endpoint": endpoint_used,
-                "base_url": llm_cfg.base_url,
-                "chat_mode": use_chat,
-            },
-            **call_meta,
+            "prompt": prompt,
+            "stream": False,
         }
-        if persist_raw:
-            meta["raw_messages"] = messages if use_chat else None
-            if not use_chat:
-                meta["raw_prompt"] = build_prompt(text, explicit_keys, ctx, field_descriptions or {})
-            meta["raw_response"] = response or ""
-
+        response = self._ollama_request(
+            ctx.config.llm.base_url,
+            payload,
+            ctx.config.llm.timeout_s,
+        )
         if not response:
-            meta.setdefault("error", "empty_or_unavailable")
-            return [], meta
-
-        entities = self._parse_entities_response(response, model_name, source="llm_local")
-        meta["success"] = bool(entities)
-        meta["entity_count"] = len(entities)
-        if not entities:
-            if not persist_raw:
-                meta["raw_response_preview"] = (response or "")[:1000]
-            meta.setdefault("parse_failed", True)
-        return entities, meta
+            return []
+        return self._parse_entities_response(response, model_name, source="llm_local")
 
     def _cloud_extract(
         self,
@@ -1110,175 +785,177 @@ class LLMExtractionAgent(Agent):
         model_name: str,
         ctx: AgentContext,
         field_descriptions: dict[str, str] | None = None,
-    ) -> list[Entity] | tuple[list[Entity], dict[str, object]]:
-        started = time.time()
-        text, context_meta = build_extraction_input(doc, explicit_keys, field_descriptions or {}, ctx)
-        cloud_max_tokens = self._cloud_max_tokens(len(explicit_keys), int(ctx.config.llm.cloud_max_tokens))
-        meta: dict[str, object] = {
-            "provider": ctx.config.llm.cloud_provider,
-            "model": model_name,
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-            "total_tokens": 0,
-            "estimated_cost_usd": 0.0,
-            "prompt_chars": 0,
-            "requested_fields": len(explicit_keys),
-            "latency_ms": 0.0,
-            "success": False,
-            "entity_count": 0,
-            "max_tokens_requested": cloud_max_tokens,
-            "prompt_version": "extraction_v2",
-            "context": context_meta,
-            "request": {
-                "temperature": ctx.config.llm.cloud_temperature,
-                "strict_json_output": bool(ctx.config.llm.strict_json_output),
-                "max_tokens": cloud_max_tokens,
-                "response_format": "json_schema" if ctx.config.llm.strict_json_output else "none",
-            },
-        }
+    ) -> list[Entity]:
+        text = "\n".join(page.text for page in doc.pages)
         if not text.strip():
-            meta["error"] = "empty_document"
-            return [], meta
-        prompt = build_prompt(text, explicit_keys, ctx, field_descriptions or {})
-        meta["prompt_chars"] = len(prompt)
-        if bool(getattr(ctx.config.llm, "persist_raw_llm_io", True)):
-            meta["raw_prompt"] = prompt
+            return []
+        max_chars = 24000
+        if len(text) > max_chars:
+            text = self._smart_truncate(text, max_chars)
+        prompt = self._build_prompt(text, explicit_keys, ctx, field_descriptions or {})
         provider = ctx.config.llm.cloud_provider
         if provider == "openai":
-            content, call_meta = openai_chat_completion(
-                model_name=model_name,
-                prompt=prompt,
-                api_key=(ctx.config.llm.openai_api_key or ""),
-                base_url=(ctx.config.llm.openai_api_url or ""),
-                timeout_s=ctx.config.llm.cloud_timeout_s,
+            if not OPENAI_AVAILABLE:
+                return []
+            api_key = os.getenv("OPENAI_API_KEY") or ctx.config.llm.openai_api_key
+            _key = (api_key or "").strip().lower()
+            if (
+                not _key
+                or _key == "sk-placeholder"
+                or _key.startswith("${")
+                or "your" in _key and "key" in _key   # e.g. sk-your-key-here
+                or _key in ("sk-", "sk-xxx", "sk-test", "changeme", "replace-me")
+            ):
+                return []
+            base_url = os.getenv("OPENAI_API_URL") or ctx.config.llm.openai_api_url
+            base_url = self._normalize_openai_base_url(base_url)
+            client = OpenAI(api_key=api_key, base_url=base_url)
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": "Return only valid JSON with extracted entities."},
+                    {"role": "user", "content": prompt},
+                ],
                 temperature=ctx.config.llm.cloud_temperature,
-                max_tokens=cloud_max_tokens,
-                response_format=self._openai_response_format(explicit_keys)
-                if ctx.config.llm.strict_json_output
-                else None,
-                retry_without_json_mode=bool(ctx.config.llm.cloud_retry_without_json_mode),
+                max_tokens=ctx.config.llm.cloud_max_tokens,
             )
-            meta.update(call_meta)
-            request_meta = meta.get("request")
-            if isinstance(request_meta, dict) and call_meta.get("endpoint"):
-                request_meta["endpoint"] = call_meta["endpoint"]
-            if meta.get("error"):
-                meta["latency_ms"] = (time.time() - started) * 1000
-                return [], meta
-            prompt_tokens = int(meta.get("prompt_tokens", 0) or 0)
-            completion_tokens = int(meta.get("completion_tokens", 0) or 0)
-            total_tokens = int(meta.get("total_tokens", prompt_tokens + completion_tokens) or 0)
-            entities = self._parse_entities_response(content or "", model_name, source="llm_cloud")
-            if bool(getattr(ctx.config.llm, "persist_raw_llm_io", True)):
-                meta["raw_response"] = content or ""
-            elif content and not entities:
-                meta["raw_response_preview"] = content[:1000]
-            meta.update(
-                {
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "total_tokens": total_tokens,
-                    "estimated_cost_usd": self._estimate_openai_cost(model_name, prompt_tokens, completion_tokens),
-                    "latency_ms": (time.time() - started) * 1000,
-                    "success": bool(entities),
-                    "entity_count": len(entities),
-                }
-            )
-            return entities, meta
+            content = response.choices[0].message.content if response.choices else ""
+            return self._parse_entities_response(content or "", model_name, source="llm_cloud")
         if provider == "anthropic":
-            content, call_meta = anthropic_messages_completion(
-                model_name=model_name,
-                prompt=prompt,
-                api_key="",
-                max_tokens=cloud_max_tokens,
+            if not ANTHROPIC_AVAILABLE:
+                return []
+            api_key = os.getenv("ANTHROPIC_API_KEY")
+            if not api_key:
+                return []
+            client = Anthropic(api_key=api_key)
+            response = client.messages.create(
+                model=model_name,
+                max_tokens=ctx.config.llm.cloud_max_tokens,
+                messages=[{"role": "user", "content": prompt}],
             )
-            meta.update(call_meta)
-            request_meta = meta.get("request")
-            if isinstance(request_meta, dict) and call_meta.get("endpoint"):
-                request_meta["endpoint"] = call_meta["endpoint"]
-            if meta.get("error"):
-                meta["latency_ms"] = (time.time() - started) * 1000
-                return [], meta
-            entities = self._parse_entities_response(content or "", model_name, source="llm_cloud")
-            if bool(getattr(ctx.config.llm, "persist_raw_llm_io", True)):
-                meta["raw_response"] = content or ""
-            elif content and not entities:
-                meta["raw_response_preview"] = content[:1000]
-            input_tokens = int(meta.get("prompt_tokens", 0) or 0)
-            output_tokens = int(meta.get("completion_tokens", 0) or 0)
-            meta.update(
-                {
-                    "latency_ms": (time.time() - started) * 1000,
-                    "success": bool(entities),
-                    "entity_count": len(entities),
-                }
+            content = response.content[0].text if response.content else ""
+            return self._parse_entities_response(content or "", model_name, source="llm_cloud")
+        return []
+
+    def _build_prompt(
+        self,
+        text: str,
+        explicit_keys: list[str],
+        ctx: AgentContext,
+        field_descriptions: dict[str, str],
+    ) -> str:
+        keys = explicit_keys or [rule.key for rule in ctx.config.structuring.extraction_rules]
+        # Build a structured field list with descriptions inline for better accuracy
+        if field_descriptions and keys:
+            fields_block = "\n".join(
+                f"  - \"{key}\": {field_descriptions.get(key, 'Extract this field value')}"
+                for key in keys
             )
-            return entities, meta
-        meta["error"] = "unknown_provider"
-        meta["latency_ms"] = (time.time() - started) * 1000
-        return [], meta
+        elif keys:
+            fields_block = "\n".join(f"  - \"{key}\"" for key in keys)
+        else:
+            fields_block = "  - Extract any relevant key-value fields you find"
 
-    def _cloud_max_tokens(self, requested_fields: int, configured_max: int) -> int:
-        configured_cap = max(128, int(configured_max))
-        adaptive = max(160, int(max(1, requested_fields) * 80))
-        return min(configured_cap, adaptive)
-
-    def _openai_response_format(self, explicit_keys: list[str]) -> dict[str, object]:
-        allowed_keys: list[str] = []
-        seen: set[str] = set()
-        for key in explicit_keys:
-            normalized = self._normalize_key(key)
-            if not normalized or normalized in seen:
-                continue
-            seen.add(normalized)
-            allowed_keys.append(normalized)
-
-        key_schema: dict[str, object] = {"type": "string", "minLength": 1}
-        if allowed_keys:
-            key_schema = {"type": "string", "enum": allowed_keys}
-
-        return {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "extraction_entities",
-                "strict": True,
-                "schema": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "properties": {
-                        "entities": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "additionalProperties": False,
-                                "properties": {
-                                    "key": key_schema,
-                                    "value": {"type": "string", "minLength": 1},
-                                    "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
-                                },
-                                "required": ["key", "value", "confidence"],
-                            },
-                        }
-                    },
-                    "required": ["entities"],
-                },
-            },
-        }
-
-    def _estimate_openai_cost(self, model_name: str, prompt_tokens: int, completion_tokens: int) -> float:
-        # Approximate price table in USD per 1K tokens for budgeting heuristics.
-        price_per_1k: dict[str, tuple[float, float]] = {
-            "gpt-4o-mini": (0.00015, 0.0006),
-            "gpt-4o": (0.0025, 0.01),
-            "gpt-4.1-mini": (0.0004, 0.0016),
-            "gpt-4.1": (0.01, 0.03),
-        }
-        model_key = model_name.lower()
-        input_rate, output_rate = price_per_1k.get(model_key, (0.001, 0.004))
-        return ((prompt_tokens / 1000.0) * input_rate) + ((completion_tokens / 1000.0) * output_rate)
+        return (
+            "You are an expert document data extraction system.\n\n"
+            "TASK: Extract structured fields from the document text below.\n\n"
+            "FIELDS TO EXTRACT:\n"
+            f"{fields_block}\n\n"
+            "RULES:\n"
+            "1. Return ONLY valid JSON with key 'entities' as a list.\n"
+            "2. Each entity must have: {\"key\": \"<field_name>\", \"value\": \"<extracted_value>\", \"confidence\": <0.0-1.0>}\n"
+            "3. Set confidence based on how certain you are: 0.9+ for exact matches, 0.5-0.8 for inferred values.\n"
+            "4. If a field is NOT found in the text, DO NOT include it (do not guess or hallucinate).\n"
+            "5. Values should be exact text from the document, not paraphrased.\n"
+            "6. For amounts, include currency symbols if present.\n"
+            "7. For dates, preserve the original format from the document.\n\n"
+            "DOCUMENT TEXT:\n"
+            "```\n"
+            f"{text}\n"
+            "```\n\n"
+            "Return JSON:\n"
+        )
 
     def _parse_entities_response(self, response: str, model_name: str, source: str) -> list[Entity]:
-        return parse_entities_response(response, model_name, source)
+        cleaned = response.strip()
+        if cleaned.startswith("```json"):
+            cleaned = cleaned[7:]
+        if cleaned.startswith("```"):
+            cleaned = cleaned[3:]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]
+        cleaned = cleaned.strip()
+        if not cleaned:
+            return []
+        try:
+            parsed = json.loads(cleaned)
+        except Exception:
+            return []
+        items = parsed.get("entities", parsed) if isinstance(parsed, dict) else parsed
+        if isinstance(items, dict):
+            items = [items]
+        entities: list[Entity] = []
+        for item in items if isinstance(items, list) else []:
+            if not isinstance(item, dict):
+                continue
+            key = str(item.get("key", "")).strip()
+            value = str(item.get("value", "")).strip()
+            if not key or not value:
+                continue
+            try:
+                confidence = float(item.get("confidence", 0.7))
+            except Exception:
+                confidence = 0.7
+            entities.append(
+                Entity(
+                    key=key,
+                    value=value,
+                    confidence=confidence,
+                    metadata={"explicit": True, "source": source, "model": model_name},
+                )
+            )
+        return entities
 
-    def _parse_json_payload(self, cleaned: str) -> object | None:
-        return parse_json_payload(cleaned)
+    def _normalize_openai_base_url(self, base_url: str) -> str:
+        if not base_url:
+            return "https://api.openai.com/v1"
+        cleaned = base_url.rstrip("/")
+        if cleaned.endswith("/chat/completions"):
+            cleaned = cleaned[: -len("/chat/completions")]
+        if cleaned.endswith("/v1"):
+            return cleaned
+        return cleaned
+
+    def _smart_truncate(self, text: str, max_chars: int) -> str:
+        """Truncate text at a paragraph or sentence boundary to avoid cutting mid-entity."""
+        if len(text) <= max_chars:
+            return text
+        # Try to break at a paragraph boundary
+        truncated = text[:max_chars]
+        last_para = truncated.rfind("\n\n")
+        if last_para > max_chars * 0.7:
+            return truncated[:last_para]
+        # Try to break at a sentence boundary
+        last_sentence = max(truncated.rfind(". "), truncated.rfind(".\n"))
+        if last_sentence > max_chars * 0.7:
+            return truncated[:last_sentence + 1]
+        # Try to break at a line boundary
+        last_line = truncated.rfind("\n")
+        if last_line > max_chars * 0.8:
+            return truncated[:last_line]
+        return truncated
+
+    def _ollama_request(self, base_url: str, payload: dict[str, object], timeout_s: int) -> str | None:
+        url = base_url.rstrip("/") + "/api/generate"
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+                body = resp.read().decode("utf-8")
+        except urllib.error.URLError:
+            return None
+        try:
+            parsed = json.loads(body)
+            return parsed.get("response")
+        except Exception:
+            return None

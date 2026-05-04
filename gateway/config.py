@@ -76,7 +76,6 @@ class Settings(BaseSettings):
 
     # ── Proxy ──
     PROXY_TIMEOUT: float = 300.0
-    IDPO_PROXY_TIMEOUT: float = 1200.0
 
     model_config = SettingsConfigDict(
         env_file=_env_path,

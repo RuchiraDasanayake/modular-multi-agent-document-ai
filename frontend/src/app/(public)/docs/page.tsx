@@ -1,51 +1,87 @@
 "use client";
 
-import { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { useState } from "react";
+import {
+    BookOpen,
+    Code2,
+    Terminal,
+    Layers,
+    ArrowRight,
+    Copy,
+    Check,
+    FileJson,
+    Cpu,
+    Shield,
+    Zap,
+    GitBranch,
+} from "lucide-react";
 
 const sections = [
-    { id: "quickstart", label: "Getting Started" },
-    { id: "api", label: "Integration" },
-    { id: "architecture", label: "How It Works" },
-    { id: "modules", label: "Capabilities" },
+    { id: "quickstart", label: "Getting Started", icon: <Zap className="w-4 h-4" /> },
+    { id: "api", label: "Integration", icon: <Code2 className="w-4 h-4" /> },
+    { id: "architecture", label: "How It Works", icon: <Layers className="w-4 h-4" /> },
+    { id: "modules", label: "Capabilities", icon: <Cpu className="w-4 h-4" /> },
 ];
 
 const apiEndpoints = [
     {
         method: "POST",
-        path: "/api/runs/start",
-        desc: "Create an IDPO processing job from uploaded files",
+        path: "/api/idpo/run",
+        desc: "Submit documents for extraction (multipart form)",
         color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
     },
     {
         method: "GET",
-        path: "/api/jobs/{job_id}",
-        desc: "Poll queued or running IDPO job status",
+        path: "/api/idpo/runs/{run_id}/docs.xlsx",
+        desc: "Download extraction results as Excel",
         color: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10",
     },
     {
+        method: "POST",
+        path: "/api/xai/ask",
+        desc: "Ask a question with explainable AI analysis",
+        color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
+    },
+    {
+        method: "POST",
+        path: "/api/guardrails/validate",
+        desc: "Validate extracted data with 5-layer quality checks",
+        color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
+    },
+    {
+        method: "POST",
+        path: "/api/hitl/feedback",
+        desc: "Submit expert review feedback",
+        color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
+    },
+    {
         method: "GET",
-        path: "/api/runs/{run_id}/summary",
-        desc: "Read run-level metrics and document summary after completion",
+        path: "/api/services/health",
+        desc: "Health check for all microservices",
         color: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10",
     },
 ];
 
 const modules = [
     {
+        icon: <Cpu className="w-6 h-6 text-brand-500" />,
         name: "Extraction Engine",
         desc: "Intelligent document processing with multi-level understanding and adaptive learning that improves over time.",
     },
     {
+        icon: <GitBranch className="w-6 h-6 text-violet-500" />,
         name: "Transparency & Review",
         desc: "AI explanations and expert review workflows for transparent, auditable document processing.",
     },
     {
+        icon: <Shield className="w-6 h-6 text-amber-500" />,
         name: "Quality Assurance",
         desc: "Multi-layered validation with format checking, consistency verification, and configurable business rules.",
     },
     {
+        icon: <Layers className="w-6 h-6 text-emerald-500" />,
         name: "Secure Gateway",
         desc: "Unified entry point with authentication, rate limiting, and intelligent request routing.",
     },
@@ -68,6 +104,7 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
                     onClick={handleCopy}
                     className="text-xs text-slate-400 hover:text-white flex items-center gap-1.5 transition-colors"
                 >
+                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     {copied ? "Copied!" : "Copy"}
                 </button>
             </div>
@@ -93,6 +130,7 @@ export default function DocsPage() {
                         transition={{ duration: 0.5 }}
                         className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-blue-700 dark:text-blue-300 text-sm font-medium mb-6"
                     >
+                        <BookOpen className="w-4 h-4" />
                         Documentation
                     </motion.div>
                     <motion.h1
@@ -133,7 +171,7 @@ export default function DocsPage() {
                                     : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5"
                                     }`}
                             >
-
+                                {s.icon}
                                 {s.label}
                             </button>
                         ))}
@@ -151,6 +189,7 @@ export default function DocsPage() {
                         viewport={{ once: true }}
                     >
                         <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-4 flex items-center gap-3">
+                            <Terminal className="w-8 h-8 text-brand-500" />
                             Getting Started
                         </h2>
                         <p className="text-slate-600 dark:text-gray-400 mb-8 text-lg leading-relaxed max-w-3xl">
@@ -178,23 +217,31 @@ Navigate to Document Extraction to start processing.`}
                                 />
                             </div>
                             <div>
-                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">3. Start a processing job</h3>
+                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">3. Submit a document</h3>
                                 <CodeBlock
                                     language="bash"
-                                    code={`curl -X POST http://localhost:3000/api/runs/start \\
+                                    code={`curl -X POST http://localhost:8000/api/idpo/run \\
+  -H "Authorization: Bearer YOUR_TOKEN" \\
   -F "files=@invoice.pdf" \\
-  -F 'settings={"configPath":"configs/config.json","customFields":[{"key":"total_amount","description":"Total due"}]}'`}
+  -F 'fields=[{"name":"total_amount","description":"Total due"}]' \\
+  -F "config_path=configs/config.json"`}
                                 />
                             </div>
                             <div>
-                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">4. Poll the job and open the run</h3>
+                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">4. Get results with explanations</h3>
                                 <CodeBlock
                                     language="json"
                                     code={`{
-  "jobId": "c1b2f3...",
-  "status": "success",
-  "runId": "7f8a9b...",
-  "runPath": "../idpo-data/runs/7f8a9b..."
+  "id": "ext_abc123",
+  "status": "completed",
+  "fields": {
+    "vendor_name": { "value": "Acme Corp", "confidence": 0.97 },
+    "total_amount": { "value": "$1,234.56", "confidence": 0.94 },
+    "invoice_date": { "value": "2024-01-15", "confidence": 0.99 }
+  },
+  "explanation": {
+    "summary": "High confidence extraction based on document layout analysis..."
+  }
 }`}
                                 />
                             </div>
@@ -210,6 +257,7 @@ Navigate to Document Extraction to start processing.`}
                         viewport={{ once: true }}
                     >
                         <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-4 flex items-center gap-3">
+                            <FileJson className="w-8 h-8 text-blue-500" />
                             Integration Guide
                         </h2>
                         <p className="text-slate-600 dark:text-gray-400 mb-8 text-lg leading-relaxed max-w-3xl">
@@ -262,6 +310,7 @@ curl http://localhost:8000/api/dashboard/stats \\
                         viewport={{ once: true }}
                     >
                         <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-4 flex items-center gap-3">
+                            <Layers className="w-8 h-8 text-violet-500" />
                             How It Works
                         </h2>
                         <p className="text-slate-600 dark:text-gray-400 mb-8 text-lg leading-relaxed max-w-3xl">
@@ -319,6 +368,7 @@ curl http://localhost:8000/api/dashboard/stats \\
                         viewport={{ once: true }}
                     >
                         <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-4 flex items-center gap-3">
+                            <Cpu className="w-8 h-8 text-emerald-500" />
                             Platform Capabilities
                         </h2>
                         <p className="text-slate-600 dark:text-gray-400 mb-8 text-lg leading-relaxed max-w-3xl">
@@ -338,7 +388,7 @@ curl http://localhost:8000/api/dashboard/stats \\
                                     <div className="flex items-center justify-between mb-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 flex items-center justify-center">
-
+                                                {mod.icon}
                                             </div>
                                             <h3 className="text-lg font-bold text-slate-900 dark:text-white">{mod.name}</h3>
                                         </div>
@@ -362,7 +412,7 @@ curl http://localhost:8000/api/dashboard/stats \\
                     </p>
                     <div className="flex items-center justify-center gap-4 flex-wrap">
                         <Link href="/signup" className="px-8 py-4 glass-button rounded-xl text-lg flex items-center gap-2">
-                            Start Building
+                            Start Building <ArrowRight className="w-5 h-5" />
                         </Link>
                         <Link href="/contact" className="px-8 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-xl text-lg font-medium transition-all shadow-sm">
                             Contact Support

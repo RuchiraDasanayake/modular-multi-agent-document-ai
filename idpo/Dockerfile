@@ -18,9 +18,8 @@ COPY configs/ ./configs/
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash appuser \
-    && mkdir -p /data/idpo \
-    && chown -R appuser:appuser /app /data/idpo
-USER appuser
+    && mkdir -p inputs/inbox runs \
+    && chown -R appuser:appuser /app
 
 EXPOSE 8004
 

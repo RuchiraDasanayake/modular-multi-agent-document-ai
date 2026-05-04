@@ -1,12 +1,19 @@
 "use client";
 
-import { useState } from "react";
 import { motion } from "framer-motion";
+import { useState } from "react";
+import {
+    Send,
+    CheckCircle2,
+    Github,
+    Twitter,
+    Linkedin,
+} from "lucide-react";
 
 const socialLinks = [
-    { href: "https://github.com", label: "GitHub" },
-    { href: "https://twitter.com", label: "Twitter" },
-    { href: "https://linkedin.com", label: "LinkedIn" },
+    { icon: <Github className="w-5 h-5" />, href: "https://github.com", label: "GitHub" },
+    { icon: <Twitter className="w-5 h-5" />, href: "https://twitter.com", label: "Twitter" },
+    { icon: <Linkedin className="w-5 h-5" />, href: "https://linkedin.com", label: "LinkedIn" },
 ];
 
 export default function ContactPage() {
@@ -70,6 +77,7 @@ export default function ContactPage() {
                                     animate={{ opacity: 1, y: 0 }}
                                     className="mb-6 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 flex items-center gap-3"
                                 >
+                                    <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                                     <p className="text-sm text-emerald-700 dark:text-emerald-300 font-medium">
                                         Message sent successfully! We&apos;ll get back to you soon.
                                     </p>
@@ -135,7 +143,7 @@ export default function ContactPage() {
                                     type="submit"
                                     className="w-full py-3.5 glass-button rounded-xl text-sm font-medium flex items-center justify-center gap-2"
                                 >
-
+                                    <Send className="w-4 h-4" />
                                     Send Message
                                 </button>
                             </form>
@@ -153,7 +161,7 @@ export default function ContactPage() {
                                     className="w-10 h-10 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-gray-800 text-slate-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-500/10 border border-slate-200 dark:border-gray-700 transition-all"
                                     aria-label={social.label}
                                 >
-
+                                    {social.icon}
                                 </a>
                             ))}
                         </div>

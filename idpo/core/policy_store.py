@@ -39,25 +39,6 @@ class PolicyStore:
         payload["selection_reason"] = reason
         return payload
 
-    def matches_policy(
-        self,
-        policy: PolicyDefinition,
-        dae_output: DAEOutput | None,
-        doc: Document | None = None,
-    ) -> bool:
-        return self._matches(policy.conditions, dae_output, doc)
-
-    def matching_policies(
-        self,
-        dae_output: DAEOutput | None,
-        doc: Document | None = None,
-    ) -> list[PolicyDefinition]:
-        return [
-            policy
-            for policy in self.policies
-            if self._matches(policy.conditions, dae_output, doc)
-        ]
-
     def _load(self) -> list[PolicyDefinition]:
         if self.path and self.path.exists():
             data = json.loads(self.path.read_text(encoding="utf-8"))
@@ -126,20 +107,13 @@ class PolicyStore:
                 {
                     "doc_type": dae_output.doc_type,
                     "vendor_cluster": dae_output.vendor_cluster,
-                    "semantic_doc_type": getattr(dae_output, "semantic_doc_type", None),
-                    "layout_cluster_id": dae_output.layout_cluster_id,
                     "quality_bin": dae_output.quality_bin,
                     "complexity_bin": dae_output.complexity_bin,
                     "content_profile": dae_output.content_profile,
-                    "route_bin": dae_output.route_bin,
                     "quality_score": dae_output.quality_score,
                     "complexity_score": dae_output.complexity_score,
                 }
             )
-            for key, value in dae_output.quality_features.items():
-                value_map[f"quality_features.{key}"] = value
-            for key, value in dae_output.structural_features.items():
-                value_map[f"structural_features.{key}"] = value
             for key, value in dae_output.signals.items():
                 value_map[f"signals.{key}"] = value
         if doc:
@@ -153,8 +127,6 @@ class PolicyStore:
         for key, expectation in conditions.items():
             current = value_map.get(key)
             if isinstance(expectation, dict):
-                if current is None:
-                    return False
                 if "min" in expectation and current is not None and current < expectation["min"]:
                     return False
                 if "max" in expectation and current is not None and current > expectation["max"]:

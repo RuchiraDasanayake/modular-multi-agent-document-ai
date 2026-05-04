@@ -51,7 +51,7 @@ The **IDPO pipeline is domain-agnostic** — it classifies documents by structur
 | Format              | Extensions                                       | Text Extraction                                   |
 | ------------------- | ------------------------------------------------ | ------------------------------------------------- |
 | **PDF**             | `.pdf`                                           | PyPDF text extraction; falls back to scanned mode |
-| **Images**          | `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, `.bmp` | OCR via PaddleOCR first, with Tesseract fallback  |
+| **Images**          | `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, `.bmp` | OCR via Tesseract (mock OCR in demo mode)         |
 | **Plain Text**      | `.txt`                                           | Direct text ingestion                             |
 | **Structured JSON** | `.json`                                          | Multi-page document objects with metadata         |
 
@@ -396,28 +396,28 @@ IDPO can also be used standalone via CLI for batch document processing:
 python -m pip install -e .
 
 # Ingest documents
-idpo ingest --input data/synthetic/docs --out ../idpo-data/runs/ingested.json
+idpo ingest --input data/synthetic/docs --out runs/ingested.json
 
 # Process + index (full pipeline)
-idpo process --input data/synthetic/docs --run-dir ../idpo-data/runs/demo
+idpo process --input data/synthetic/docs --run-dir runs/demo
 
-# Preferred operational flow with managed runtime storage
-idpo process-inbox --root . --config configs/config.json --input-dir data/demo_inputs
+# Simple output layout (entities.xlsx + text_extracted/)
+idpo process-simple --input data/demo_inputs --config configs/config.json
 
 # Query processed documents
-idpo query --run-dir ../idpo-data/runs/demo --question "What is the total charge?" --doc-id doc_001
+idpo query --run-dir runs/demo --question "What is the total charge?" --doc-id doc_001
 
 # Evaluate extraction quality
-idpo evaluate --input data/synthetic/docs/synthetic_documents.json --run-dir ../idpo-data/runs/eval
+idpo evaluate --input data/synthetic/docs/synthetic_documents.json --run-dir runs/eval
 
 # Export provenance audit trail
-idpo export-provenance --run-dir ../idpo-data/runs/demo --out ../idpo-data/runs/demo/provenance_export.json
+idpo export-provenance --run-dir runs/demo --out runs/demo/provenance_export.json
 ```
 
 ### Optional Extras
 
 ```bash
-# Scanned document OCR (PaddleOCR first; Tesseract fallback still supported)
+# Scanned document OCR (requires Tesseract binary on PATH)
 python -m pip install -e ".[ocr]"
 
 # Excel export (multi-sheet entities.xlsx; falls back to CSV otherwise)

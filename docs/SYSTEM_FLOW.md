@@ -185,25 +185,14 @@ ahmn_feedback = log_ahmn_feedback(advice, doc_records, guardrail_results, time_m
 
 ---
 
-## Runtime Proxy Reward And Exact Scoring
+## F1 Score Computation
 
-The runtime now has two distinct score classes:
-
-- `runtime proxy reward`: the immediate quality proxy written during execution and logged through `POST /advice/log`
-- `reviewed exact score`: a later field-level reviewed score written to `docs/<doc_id>/review/results.json`
-
-The reviewed exact score is computed over requested fields only using field-level `TP/FP/FN`.
-When reviewed feedback exists, the job/document UI should surface that reviewed exact precision/recall/F1 ahead of the runtime proxy reward.
-
-For paper-facing evidence, the canonical comparison is `static` vs `adaptive_safe`.
-Exact metrics and runtime proxy reward must remain separate in reporting and claims.
-
-The runtime proxy reward is a **quality proxy** computed by IDPO and sent to AHMN as the bandit reward signal. It blends extraction quality indicators since ground-truth labels aren't available at inference time.
+The F1 score is a **proxy metric** computed by IDPO and sent to AHMN as the bandit reward signal. It blends extraction quality indicators since ground-truth labels aren't available at inference time.
 
 ### Formula
 
 ```
-runtime_proxy_reward = weighted combination of:
+F1_proxy = weighted combination of:
 
 1. Entity F1 (harmonic mean):
    precision_proxy = count(entities with confidence ≥ 0.5) / total_entities
@@ -217,10 +206,10 @@ runtime_proxy_reward = weighted combination of:
    avg_confidence = mean(all entity confidence scores)
 
 Final blend (when Guardrails ran):
-   runtime_proxy_reward = 0.5 × f1_entity + 0.3 × success_rate + 0.2 × avg_confidence
+   F1_proxy = 0.5 × f1_entity + 0.3 × success_rate + 0.2 × avg_confidence
 
 Without Guardrails:
-   runtime_proxy_reward = 0.7 × f1_entity + 0.3 × avg_confidence
+   F1_proxy = 0.7 × f1_entity + 0.3 × avg_confidence
 ```
 
 ### Where Confidence Comes From
@@ -231,10 +220,10 @@ Entity confidence scores originate from:
 - **Field confidence dict**: Per-field confidence from pattern matching / regex fallback
 - **Validation agent**: May adjust confidence based on cross-field consistency
 
-### How Runtime Proxy Reward Flows to AHMN
+### How F1 Flows to AHMN
 
 ```
-IDPO computes runtime_proxy_reward
+IDPO computes F1_proxy
     → POST /advice/log { metrics: { f1_score: 0.82, success: true, ... } }
         → AHMN receives f1_score as the bandit reward
             → AHMN updates Beta(α, β) for the policy+context pair:
@@ -255,10 +244,6 @@ For each policy p in available_policies:
     Sample θ_p ~ Beta(α_p, β_p)
 Select policy with highest θ_p
 ```
-
-In the live `/advice` path, Thompson Sampling is the default selection mode.
-Deterministic mean-based selection is retained only as an explicit debug override
-via `?mode=deterministic` or `AHMN_ADVICE_SELECTION_MODE=deterministic`.
 
 ### How the Bandit Updates
 
@@ -286,10 +271,6 @@ When encountering a **new document type** with no history:
    β_init = 1 + Σ w_i × (β_i - 1)
 5. Use these warm-started priors for Thompson Sampling
 ```
-
-In the live AHMN update path, transferred RABI pseudocounts are persisted with
-the exact context arm and decayed as real observations accumulate, so borrowed
-prior strength fades instead of competing forever with earned evidence.
 
 This reduces cold-start regret from O(K) to O(L·d_avg) where d_avg is the average distance to neighbors.
 
@@ -404,12 +385,12 @@ This preserves the Beta(1,1) prior floor while exponentially decaying accumulate
 
 AHMN uses two complementary reward signals to learn which policies work best:
 
-### Signal 1: Automated Runtime Proxy Reward (Fast, Every Document)
+### Signal 1: Automated F1 Proxy (Fast, Every Document)
 
-Every document processed generates an automated runtime proxy reward:
+Every document processed generates an automated F1 score:
 
 ```
-runtime_proxy_reward = 0.5 × F1_entity + 0.3 × success_rate + 0.2 × avg_confidence
+F1_proxy = 0.5 × F1_entity + 0.3 × success_rate + 0.2 × avg_confidence
 
 Where:
   precision = entities_with_confidence_≥_0.5 / total_entities
@@ -496,25 +477,16 @@ Five aligned policy IDs across the entire system:
 
 | policy_id | Document Types | Processing Config |
 |-----------|---------------|-------------------|
-| `table_heavy` | Invoices, receipts, financial statements | Canonical local-first table extraction for the free runtime |
-| `forms` | Application forms, clinical summaries | Canonical local-first form extraction for the free runtime |
+| `table_heavy` | Invoices, receipts, financial statements | High OCR, table-aware chunking, structured retrieval |
+| `forms` | Application forms, clinical summaries | Form-field extraction, key-value pair focus |
 | `scanned_text` | Scanned documents, low-quality images | Enhanced OCR preprocessing, noise reduction |
-| `mixed_content` | Contracts, mixed documents | Canonical local-first balanced extraction for the free runtime |
+| `mixed_content` | Contracts, mixed documents | Balanced extraction, multi-modal handling |
 | `default` | Unknown, fallback | Conservative defaults, broad extraction |
 
 These are defined in:
 - **IDPO**: `configs/policy_store.json` — full processing configuration per policy
 - **AHMN LTM**: `ltm_validated_policies` table — learned Beta(α,β) per context→policy pair
 - **AHMN Seeds**: `scripts/reset_and_seed_db.py` — initial LTM entries
-
-Current runtime rule:
-- extraction starts with the local model by default
-- automatic cloud fallback is disabled by default
-- the canonical policy bank is local-only
-- some core families include more than one local sibling policy so adaptive routing can move between free strategies after reviewed outcomes
-- optional paid cloud policies live in `configs/policy_store_cloud_extensions.json`
-- those extension policies may be shown in the job policy workspace as inactive options, but they are not written into the active effective policy store by default
-- cloud should enter only through an explicit extension choice, not as a silent rescue path during the first run
 
 ### Where Confidence Appears
 
@@ -783,8 +755,7 @@ XAI runs on CPU (no GPU required) with DistilBERT, which is lightweight but stil
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `POST /advice` | POST | Thompson Sampling policy recommendation |
-| `POST /advice/log` | POST | Log runtime outcome metrics (the immediate learning endpoint) |
-| `POST /advice/review` | POST | Log reviewed exact extraction metrics after AI or human validation |
+| `POST /advice/log` | POST | Log outcome metrics (the LEARNING endpoint) |
 | `POST /advice/feedback` | POST | Forward human correction |
 | `GET /dashboard/stats` | GET | Aggregate counts (outcomes, LTM, experiments, users) |
 | `GET /dashboard/memory/stm` | GET | Active Redis entries with TTL |

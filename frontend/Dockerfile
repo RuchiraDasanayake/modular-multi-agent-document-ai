@@ -14,7 +14,6 @@ COPY . .
 # Build-time env for Next.js (baked into client bundle)
 ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-ENV INTERNAL_API_URL=http://gateway:8000
 
 # Internal API URL for server-side rewrites (baked at build time)
 ARG INTERNAL_API_URL=http://gateway:8000
@@ -28,14 +27,12 @@ LABEL maintainer="Modular Document AI Frontend"
 LABEL description="Next.js frontend for Modular Document AI platform"
 WORKDIR /app
 ENV NODE_ENV=production
-RUN mkdir -p /idpo-data/frontend/uploads /idpo-data/frontend/jobs /idpo-data/runs /app/demo_sample_runs && chown -R node:node /idpo-data /app/demo_sample_runs
 USER node
 
 # Copy built application
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/runner.config.docker.json ./runner.config.json
 
 EXPOSE 3000
 

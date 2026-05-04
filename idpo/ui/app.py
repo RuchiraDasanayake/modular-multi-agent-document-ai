@@ -1,21 +1,16 @@
-"""FastAPI web UI for document upload and pipeline execution.
-
-Research note:
-This module is legacy compatibility surface. It is not the canonical
-paper-facing runtime, which is the frontend job runner path ending in
-``idpo.cli process-inbox``.
-"""
+"""FastAPI web UI for document upload and pipeline execution."""
 
 from __future__ import annotations
 
 import json
 import logging
+import shutil
 import uuid
 from pathlib import Path
 from typing import Any, cast
 
 from fastapi import FastAPI, File, Form, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from idpo.pipeline.inbox import process_inbox
@@ -24,15 +19,14 @@ from idpo.integration import (
     forward_hitl_correction,
     IntegrationResult,
 )
-from idpo.core.storage import inbox_dir as storage_inbox_dir
-from idpo.core.storage import runs_root as storage_runs_root
 
 logger = logging.getLogger("idpo.app")
 
 APP_DIR = Path(__file__).resolve().parent
+TEMPLATE_PATH = APP_DIR / "templates" / "index.html"
 STATIC_DIR = APP_DIR / "static"
 REPO_ROOT = APP_DIR.parents[1]  # /app/ in Docker container
-RUNS_ROOT = storage_runs_root()
+RUNS_ROOT = REPO_ROOT / "runs"
 
 FULL_TEXT_EXPORT_NAME = "full_text.txt"
 
@@ -142,12 +136,9 @@ async def run_demo(
     skip_guardrails: str = Form("false"),
     skip_xai: str = Form("false"),
 ) -> JSONResponse:
-    """Legacy direct-run endpoint kept only for compatibility."""
     import asyncio
 
-    logger.warning("Legacy direct-run endpoint /idpo/run invoked; prefer the hosted job path via /api/runs/start")
-
-    inbox_dir = storage_inbox_dir()
+    inbox_dir = REPO_ROOT / "inputs" / "inbox"
     inbox_dir.mkdir(parents=True, exist_ok=True)
 
     # Validate file sizes (max 50MB per file)
@@ -174,9 +165,7 @@ async def run_demo(
     # NOTE: AHMN advice is now requested AFTER processing, based on actual doc_type
     # from DAE classification (per-document policies)
     logger.info("Step 1/4: Running extraction pipeline")
-    doc_count = max(1, len(saved))
-    # Adaptive timeout: keep single-doc runs snappy, allow larger multi-doc batches to complete.
-    PIPELINE_TIMEOUT_S = min(1800, max(540, doc_count * 120))
+    PIPELINE_TIMEOUT_S = 540  # 9 minutes — must be below gateway's 600s proxy timeout
     try:
         result = await asyncio.wait_for(
             asyncio.to_thread(
@@ -231,8 +220,8 @@ async def run_demo(
     ] if s]
     logger.info("Steps 2-4/4: Running integration cycle with per-doc AHMN%s",
                 f" (skipping {', '.join(skipped)})" if skipped else "")
-    # Adaptive timeout for post-processing integration across doc batches.
-    INTEGRATION_TIMEOUT_S = min(600, max(180, len(doc_records) * 45))
+    # Increased timeout to allow per-doc AHMN calls
+    INTEGRATION_TIMEOUT_S = 180  # 3 minutes for per-doc AHMN + guardrails + XAI
     try:
         integration = await asyncio.wait_for(
             asyncio.to_thread(

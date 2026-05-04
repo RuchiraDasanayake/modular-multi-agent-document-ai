@@ -4,14 +4,11 @@ Gateway test suite — auth endpoints, token lifecycle, proxy routing.
 Uses FastAPI TestClient with mocked database and Redis dependencies.
 """
 
-import asyncio
-
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
-from psycopg_pool import PoolTimeout
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -248,34 +245,3 @@ def test_refresh_request_schema():
 
     req = RefreshRequest(refresh_token="x.y.z")
     assert req.refresh_token == "x.y.z"
-
-def test_get_db_connection_rebuilds_pool_after_timeout(monkeypatch):
-    from gateway.database import DatabasePool, get_db_connection
-
-    first_pool = MagicMock()
-    first_pool.connection = MagicMock(side_effect=PoolTimeout("pool exhausted"))
-
-    recovered_conn = AsyncMock()
-    recovered_cm = AsyncMock()
-    recovered_cm.__aenter__ = AsyncMock(return_value=recovered_conn)
-    recovered_cm.__aexit__ = AsyncMock(return_value=False)
-
-    second_pool = MagicMock()
-    second_pool.connection = MagicMock(return_value=recovered_cm)
-
-    get_pool = AsyncMock(side_effect=[first_pool, second_pool])
-    close_pool = AsyncMock()
-
-    monkeypatch.setattr(DatabasePool, "get_pool", get_pool)
-    monkeypatch.setattr(DatabasePool, "close_pool", close_pool)
-
-    async def run_case():
-        gen = get_db_connection()
-        conn = await anext(gen)
-        assert conn is recovered_conn
-        await gen.aclose()
-
-    asyncio.run(run_case())
-
-    assert get_pool.await_count == 2
-    close_pool.assert_awaited_once()

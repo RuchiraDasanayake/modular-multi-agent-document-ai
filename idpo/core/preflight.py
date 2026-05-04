@@ -15,8 +15,6 @@ def run_preflight(config: PipelineConfig, strict: bool = False) -> list[str]:
     issues: list[str] = []
 
     issues.extend(_check_python_deps())
-    if str(config.preprocessing.ocr_engine).lower() in {"paddle", "paddleocr"}:
-        issues.extend(_check_paddleocr())
     issues.extend(_check_tesseract())
     issues.extend(_check_poppler())
 
@@ -48,13 +46,6 @@ def _check_python_deps() -> list[str]:
     except Exception:
         missing.append("Python package pdf2image is missing (install with pip install -e .[ocr])")
     return missing
-
-def _check_paddleocr() -> list[str]:
-    try:
-        import paddleocr  # noqa: F401
-    except Exception:
-        return ["Python package paddleocr is missing (install with pip install paddleocr)"]
-    return []
 
 def _check_tesseract() -> list[str]:
     if shutil.which("tesseract"):

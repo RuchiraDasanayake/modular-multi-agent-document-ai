@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Github, Twitter, Linkedin, Mail, Heart } from "lucide-react";
 
 const footerLinks = {
     product: {
@@ -28,10 +29,10 @@ const footerLinks = {
 };
 
 const socialLinks = [
-    { href: "https://github.com", label: "GitHub" },
-    { href: "https://twitter.com", label: "Twitter" },
-    { href: "https://linkedin.com", label: "LinkedIn" },
-    { href: "mailto:hello@modulardocai.com", label: "Email" },
+    { icon: Github, href: "https://github.com", label: "GitHub" },
+    { icon: Twitter, href: "https://twitter.com", label: "Twitter" },
+    { icon: Linkedin, href: "https://linkedin.com", label: "LinkedIn" },
+    { icon: Mail, href: "mailto:hello@modulardocai.com", label: "Email" },
 ];
 
 export function Footer() {
@@ -43,15 +44,18 @@ export function Footer() {
                     {/* Brand */}
                     <div className="col-span-2 lg:col-span-2 space-y-4">
                         <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white text-sm font-bold shadow-md shadow-brand-500/25">
-                                AI
+                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-md shadow-brand-500/25">
+                                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                </svg>
                             </div>
                             <span className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
                                 Modular Doc AI
                             </span>
                         </div>
                         <p className="text-sm text-slate-600 dark:text-gray-400 leading-relaxed max-w-sm">
-                            Adaptive document extraction built on AHMN policy learning and IDPO runtime orchestration.
+                            Next-generation document intelligence powered by adaptive AI.
+                            Extract, validate, and understand complex documents with precision.
                         </p>
                         <div className="flex items-center gap-3 pt-2">
                             {socialLinks.map((social) => (
@@ -60,10 +64,10 @@ export function Footer() {
                                     href={social.href}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="px-3 h-9 rounded-lg flex items-center justify-center bg-slate-100 dark:bg-gray-800 text-xs font-semibold text-slate-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-500/10 transition-all"
+                                    className="w-9 h-9 rounded-lg flex items-center justify-center bg-slate-100 dark:bg-gray-800 text-slate-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-500/10 transition-all"
                                     aria-label={social.label}
                                 >
-                                    {social.label}
+                                    <social.icon className="w-4 h-4" />
                                 </a>
                             ))}
                         </div>

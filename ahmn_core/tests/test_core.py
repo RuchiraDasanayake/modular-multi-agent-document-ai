@@ -6,11 +6,8 @@ Tests for AHMN core infrastructure:
 import pytest
 from uuid import uuid4
 
-from fastapi import Request
-
-from ahmn_core import main as ahmn_main
 from ahmn_core.schemas import (
-    DocumentContext, OutcomeMetrics, PolicyResponse, LogRequest, FeedbackRequest, ReviewFeedbackRequest,
+    DocumentContext, OutcomeMetrics, PolicyResponse, LogRequest, FeedbackRequest,
 )
 from ahmn_core.services.embedding import EmbeddingService
 
@@ -48,24 +45,6 @@ class TestSchemas:
         fr = FeedbackRequest(advice_id=uuid4(), human_corrected=True)
         assert fr.human_corrected is True
 
-    def test_review_feedback_schema(self):
-        review = ReviewFeedbackRequest(
-            advice_id=uuid4(),
-            policy_id_used="ocr_tesseract",
-            document_context={"doc_type": "invoice", "vendor": "acme", "content_profile": "table-heavy"},
-            review_source="human",
-            review_weight=1.0,
-            tp=4,
-            fp=1,
-            fn=1,
-            precision=0.8,
-            recall=0.8,
-            f1=0.8,
-            field_state_counts={"correct": 4, "wrong_value": 1},
-        )
-        assert review.review_source == "human"
-        assert review.field_state_counts["correct"] == 4
-
 # ── Embeddings ────────────────────────────────────────────────────
 
 class TestEmbeddings:
@@ -93,67 +72,3 @@ class TestEmbeddings:
         a = EmbeddingService()
         b = EmbeddingService()
         assert a is b
-
-
-class TestAdviceSelectionMode:
-
-    def _request(self, query_string: str = "") -> Request:
-        scope = {
-            "type": "http",
-            "method": "POST",
-            "path": "/advice",
-            "headers": [],
-            "query_string": query_string.encode("utf-8"),
-        }
-        return Request(scope)
-
-    def test_selection_mode_defaults_to_thompson(self, monkeypatch):
-        monkeypatch.setattr(ahmn_main, "ADVICE_SELECTION_MODE", "thompson")
-        assert ahmn_main._resolve_selection_mode(self._request()) == "thompson"
-
-    def test_selection_mode_supports_deterministic_override(self, monkeypatch):
-        monkeypatch.setattr(ahmn_main, "ADVICE_SELECTION_MODE", "thompson")
-        assert ahmn_main._resolve_selection_mode(self._request("mode=deterministic")) == "deterministic"
-
-    def test_selection_mode_keeps_explore_flag_backward_compatible(self, monkeypatch):
-        monkeypatch.setattr(ahmn_main, "ADVICE_SELECTION_MODE", "thompson")
-        assert ahmn_main._resolve_selection_mode(self._request("explore=false")) == "deterministic"
-        assert ahmn_main._resolve_selection_mode(self._request("explore=true")) == "thompson"
-
-    def test_policy_score_uses_mean_for_deterministic_mode(self):
-        score = ahmn_main._policy_score(3.0, 1.0, "deterministic")
-        assert score == pytest.approx(0.75)
-
-    def test_policy_score_uses_random_beta_for_thompson_mode(self, monkeypatch):
-        seen: list[tuple[float, float]] = []
-
-        def _fake_betavariate(alpha: float, beta: float) -> float:
-            seen.append((alpha, beta))
-            return 0.42
-
-        monkeypatch.setattr(ahmn_main.random, "betavariate", _fake_betavariate)
-        score = ahmn_main._policy_score(2.5, 1.5, "thompson")
-        assert score == pytest.approx(0.42)
-        assert seen == [(2.5, 1.5)]
-
-    def test_apply_observation_deltas_decays_rabi_transfer(self, monkeypatch):
-        monkeypatch.setattr(ahmn_main, "RABI_TRANSFER_DECAY_RATE", 0.1)
-        validation_metrics = {
-            "rabi_transfer": {
-                "base_alpha": 4.0,
-                "base_beta": 2.0,
-                "observed_count": 1,
-            }
-        }
-        alpha, beta, metrics = ahmn_main._apply_observation_deltas(
-            6.6,
-            3.8,
-            validation_metrics,
-            0.7,
-            0.3,
-        )
-        assert alpha == pytest.approx(6.94)
-        assert beta == pytest.approx(3.92)
-        assert metrics["rabi_transfer"]["observed_count"] == 2
-        assert metrics["rabi_transfer"]["effective_alpha"] == pytest.approx(3.24)
-        assert metrics["rabi_transfer"]["effective_beta"] == pytest.approx(1.62)

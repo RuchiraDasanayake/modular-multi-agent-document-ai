@@ -48,7 +48,7 @@ venv.bak/
 .env
 .env.local
 .env.*.local
-.local/
+.env.production
 
 # Node.js / Frontend
 node_modules/
@@ -75,34 +75,13 @@ next-env.d.ts
 # Generated / runtime outputs
 runs/
 data/processed/
-inputs/inbox/
 inputs/processed/
-inputs/failed/
-idpo-data/
-frontend/data/uploads/*
-!frontend/data/uploads/.gitkeep
-frontend/data/jobs/*.json
-!frontend/data/jobs/.gitkeep
 
-# Binary assets / large data files
+# Binary assets (images, etc.)
 *.png
 *.jpg
 *.jpeg
 *.npy
-*.rar
-*.zip
-*.parquet
-
-# Large dataset directories (not needed to run the code)
-datasets/external/
-datasets/derived/
-datasets/upload_buckets/
-datasets/FUNSD/testing_data/images/
-datasets/FUNSD/training_data/
-
-# Temp / tool dirs
-.codex_tmp_policy_inspect/
-.claude/scheduled_tasks.lock
 
 # Logs
 *.log
@@ -134,8 +113,6 @@ postgres_data/
 *.bak
 tmp/
 temp/
-tmp_*/
-.tmp_*/
 
 # Jupyter Notebook
 .ipynb_checkpoints
