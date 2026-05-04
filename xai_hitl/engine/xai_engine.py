@@ -1791,6 +1791,28 @@ class XAIEngine:
             decomposed_explanation=decomposed,
         )
 
+    def _retrieve_focused_context(self, paragraph: str, question: str, top_k: int = 8) -> str:
+        """Compress long documents to top-k most relevant sentences.
+
+        BART has a 1024 token input limit; large documents get truncated and
+        important passages may never reach the model. We use TF-IDF to pick
+        the sentences most relevant to the question and feed only those.
+        Short documents pass through unchanged.
+        """
+        # Skip retrieval for short documents — BART can handle them whole
+        if len(paragraph) < 1500:
+            return paragraph
+
+        relevant = self._get_sentence_relevance_scores(paragraph, question)
+        if not relevant:
+            return paragraph
+
+        # Keep top-k sentences AND preserve original document order for coherence
+        top_sentences = {s for s, _ in relevant[:top_k]}
+        sentences_in_order = self._split_sentences(paragraph)
+        focused = " ".join(s for s, _, _ in sentences_in_order if s in top_sentences)
+        return focused if focused else paragraph
+
     def _generate_regular_explanation(
         self, paragraph: str, question: str, include_xai: bool = False
     ) -> XAIExplanation:
@@ -1799,7 +1821,10 @@ class XAIEngine:
         Args:
             include_xai: If True, runs cross-attention + LIME. If False, skips for speed.
         """
-        prediction = self.qa_model.predict(paragraph, question)
+        # Compress long documents via TF-IDF retrieval before BART (avoids truncation
+        # of relevant passages and reduces inference time).
+        focused_context = self._retrieve_focused_context(paragraph, question)
+        prediction = self.qa_model.predict(focused_context, question)
         logger.debug("Answer: '%s' (raw %.1f%%)", prediction.answer, prediction.confidence * 100)
 
         # Cache answer for LIME sequence probability calculation
@@ -2080,6 +2105,155 @@ class XAIEngine:
 
         return False, None
 
+    def _handle_numerical_question(
+        self, paragraph: str, question: str, include_xai: bool = False
+    ) -> XAIExplanation | None:
+        """Extract numerical answers for 'how many/long X' questions.
+
+        Routes 'how many years/months/days/...' questions to deterministic
+        regex extraction over the most relevant sentences instead of BART.
+        Avoids hallucination on factual lookups.
+        """
+        import re
+
+        q_lower = question.lower().strip()
+
+        # Detect numerical-extraction questions
+        unit_patterns = [
+            r"\b(years?|yrs?)\b",
+            r"\b(months?|mos?)\b",
+            r"\b(days?)\b",
+            r"\b(weeks?)\b",
+            r"\b(hours?|hrs?)\b",
+            r"\b(minutes?|mins?)\b",
+            r"\b(rupees?|rs\.?|usd|dollars?|\$|£|€|euros?)\b",
+            r"\b(percent|percentage|%)\b",
+            r"\b(times)\b",
+        ]
+        triggers = [
+            r"\bhow many\b",
+            r"\bhow long\b",
+            r"\bhow much\b",
+            r"\bwhat (?:is|was|are) the (?:number|amount|sum|total|maximum|minimum|limit)\b",
+            r"\bfor (?:exactly )?how many\b",
+            r"\bwithin (?:how many|what)\b",
+            r"\bnot exceeding\b",
+            r"\bmaximum (?:period|time|duration)\b",
+        ]
+
+        is_numerical = any(re.search(t, q_lower) for t in triggers)
+        unit_match = None
+        for up in unit_patterns:
+            m = re.search(up, q_lower)
+            if m:
+                unit_match = m.group(1).lower()
+                break
+
+        if not (is_numerical and unit_match):
+            return None
+
+        logger.info("Detected numerical question (unit=%s): %s", unit_match, question[:60])
+
+        # Normalise unit to a regex group covering plural/singular and abbrevs
+        unit_groups = {
+            "year": r"years?|yrs?", "yr": r"years?|yrs?", "years": r"years?|yrs?", "yrs": r"years?|yrs?",
+            "month": r"months?|mos?", "mo": r"months?|mos?", "months": r"months?|mos?", "mos": r"months?|mos?",
+            "day": r"days?", "days": r"days?",
+            "week": r"weeks?", "weeks": r"weeks?",
+            "hour": r"hours?|hrs?", "hr": r"hours?|hrs?", "hours": r"hours?|hrs?", "hrs": r"hours?|hrs?",
+            "minute": r"minutes?|mins?", "min": r"minutes?|mins?", "minutes": r"minutes?|mins?", "mins": r"minutes?|mins?",
+            "rupee": r"rupees?|rs\.?", "rupees": r"rupees?|rs\.?", "rs": r"rupees?|rs\.?",
+            "dollar": r"dollars?|\$|usd", "dollars": r"dollars?|\$|usd", "usd": r"dollars?|\$|usd", "$": r"dollars?|\$|usd",
+            "percent": r"percent|percentage|%", "percentage": r"percent|percentage|%", "%": r"percent|percentage|%",
+            "times": r"times",
+        }
+        unit_re = unit_groups.get(unit_match, re.escape(unit_match))
+
+        # Spelled-out number map (English)
+        spelled = {
+            "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+            "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13,
+            "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18,
+            "nineteen": 19, "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
+            "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90, "hundred": 100,
+            "thousand": 1000, "million": 1000000,
+        }
+
+        # Pull the relevant sentences using TF-IDF (already implemented)
+        relevant = self._get_sentence_relevance_scores(paragraph, question)
+        candidate_sentences = [s for s, _ in relevant[:8]]
+
+        # Pattern: number (digits or spelled) followed within ~20 chars by the unit
+        digit_pattern = re.compile(
+            rf"(\b\d{{1,3}}(?:[,]?\d{{3}})*(?:\.\d+)?\b)\s*(?:\w+\s+){{0,3}}({unit_re})\b",
+            re.IGNORECASE,
+        )
+        word_num_re = "|".join(re.escape(w) for w in spelled.keys())
+        spelled_pattern = re.compile(
+            rf"\b({word_num_re})(?:\s+({word_num_re}))?\s*(?:\w+\s+){{0,3}}({unit_re})\b",
+            re.IGNORECASE,
+        )
+
+        best_match = None
+        best_sentence = None
+        for sent in candidate_sentences:
+            m = digit_pattern.search(sent)
+            if m:
+                best_match = m.group(1).strip()
+                best_sentence = sent
+                break
+            m = spelled_pattern.search(sent)
+            if m:
+                w1 = m.group(1).lower()
+                w2 = (m.group(2) or "").lower()
+                num = spelled.get(w1, 0)
+                if w2 and w2 in spelled:
+                    num = num + spelled[w2] if num < 100 else num * spelled[w2]
+                best_match = str(num) if num else m.group(1)
+                best_sentence = sent
+                break
+
+        if not best_match:
+            return None  # Fall through to BART
+
+        # Build natural answer
+        answer = f"{best_match} {unit_match}"
+        # Capitalise nicely
+        if answer and answer[0].isdigit():
+            answer = f"{best_match} {unit_match}."
+        confidence = 0.92
+
+        logger.info("Numerical answer: %s (from sentence: %s)", answer, (best_sentence or "")[:80])
+
+        if include_xai:
+            shap_exp, lime_exp = self.generate_xai_for_answer(paragraph, question, answer)
+        else:
+            shap_exp = SHAPExplanation(base_value=0.5, shap_values=[], feature_names=[])
+            lime_exp = LIMEExplanation(word_weights=[], prediction_proba=confidence)
+
+        return XAIExplanation(
+            paragraph=paragraph,
+            question=question,
+            answer=answer,
+            highlighted_spans=[],
+            shap_explanation=shap_exp,
+            lime_explanation=lime_exp,
+            derivation_tree=DerivationTree(
+                question=question,
+                steps=[
+                    DerivationStep(1, "🔢 Question Analysis", f"Detected numerical question (unit: {unit_match})", "Rule-Extracted", 0.95),
+                    DerivationStep(2, "🔍 TF-IDF Retrieval", "Found top relevant sentences", f"{len(candidate_sentences)} candidates", 0.9),
+                    DerivationStep(3, "📐 Pattern Extraction", f"Matched number + '{unit_match}'", best_sentence[:80] if best_sentence else "", confidence),
+                    DerivationStep(4, "💬 Answer Synthesis", "Returned exact value from source", answer, confidence),
+                ],
+                final_answer=answer,
+                overall_confidence=confidence,
+            ),
+            confidence_score=confidence,
+            evidence_sentences=[best_sentence] if best_sentence else [],
+            model_prediction=None,
+        )
+
     def _handle_yes_no_question(
         self, paragraph: str, question: str, include_xai: bool = False
     ) -> XAIExplanation | None:
@@ -2342,6 +2516,13 @@ class XAIEngine:
         # ═══════════════════════════════════════════════════════════════
         # STAGE 2: RULE-EXTRACTED (specialized handlers)
         # ═══════════════════════════════════════════════════════════════
+
+        # Try Numerical handler (how many years/days/etc.)
+        numerical_response = self._handle_numerical_question(processed_paragraph, question, include_xai)
+        if numerical_response:
+            logger.info("Answer source: Rule-Extracted (Numerical)")
+            numerical_response.paragraph = paragraph
+            return numerical_response
 
         # Try Yes/No handler
         yes_no_response = self._handle_yes_no_question(processed_paragraph, question, include_xai)
