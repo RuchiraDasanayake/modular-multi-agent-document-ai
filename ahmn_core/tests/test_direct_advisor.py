@@ -44,6 +44,24 @@ def test_direct_advisor_isolates_state_between_jobs(tmp_path: Path, monkeypatch)
     assert first_snapshot["policies"][first_advice["policy_id"]]["alpha"] > second_snapshot["policies"][first_advice["policy_id"]]["alpha"]
 
 
+def test_direct_advisor_persists_advice_scope_across_reload_for_feedback(tmp_path: Path, monkeypatch) -> None:
+    advisor = _reload_direct_advisor(monkeypatch, tmp_path)
+
+    advice = advisor.get_advice({"extra_context": {"metadata": {"job_id": "job-feedback"}}})
+    scope_key = advice["scope_key"]
+    initial_snapshot = advisor.get_state_snapshot(scope_key)
+    assert initial_snapshot["policies"][advice["policy_id"]]["beta"] == 1.0
+
+    advisor = importlib.reload(advisor)
+    advisor.log_outcome(advice["advice_id"], advice["policy_id"], 0.0)
+
+    scoped_snapshot = advisor.get_state_snapshot(scope_key)
+    global_snapshot = advisor.get_state_snapshot("global")
+
+    assert scoped_snapshot["policies"][advice["policy_id"]]["beta"] == 2.0
+    assert global_snapshot["policies"].get(advice["policy_id"], {}).get("beta", 1.0) == 1.0
+
+
 def test_direct_advisor_falls_back_to_run_scope_when_job_id_is_absent(tmp_path: Path, monkeypatch) -> None:
     advisor = _reload_direct_advisor(monkeypatch, tmp_path)
 

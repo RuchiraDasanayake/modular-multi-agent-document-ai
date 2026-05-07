@@ -13,6 +13,7 @@ from typing import Any
 from idpo.core.config import PipelineConfig
 from idpo.core.policy_store import PolicyStore
 from idpo.core.types import DAEOutput, ExecutionPlan, PlanStep, PolicyDefinition, SystemConstraints
+from idpo.pipeline.job_context import build_dynamic_extraction_context, read_job_context
 from idpo.pipeline.policy_advisor import PolicyAdvice, PolicyAdvisor
 
 
@@ -77,6 +78,7 @@ class PlanRouter:
                     dae_output=dae_output,
                     policy=overlay_policy,
                     system_constraints=system_constraints,
+                    doc_metadata=metadata,
                     action_overrides={},
                     source="job_overlay",
                     rationale="job_local_reviewed_overlay",
@@ -159,6 +161,7 @@ class PlanRouter:
             dae_output=dae_output,
             policy=selected_policy,
             system_constraints=system_constraints,
+            doc_metadata=metadata,
             action_overrides=action_overrides,
             source=plan_source,
             rationale=rationale,
@@ -220,7 +223,7 @@ class PlanRouter:
             if recommendation.policy_id in blocked_policy_ids:
                 fallback_reason = "blocked_recommendation"
                 continue
-            return policy, recommendation.action_overrides, recommendation.reason, None
+            return policy, _recommendation_action_overrides(recommendation), recommendation.reason, None
         if advice.recommendations:
             if fallback_reason is None:
                 fallback_reason = "no_allowed_recommendation"
@@ -236,6 +239,7 @@ def build_plan(
     dae_output: DAEOutput,
     policy: PolicyDefinition,
     system_constraints: SystemConstraints,
+    doc_metadata: dict[str, Any] | None = None,
     action_overrides: dict[str, Any] | None = None,
     source: str = "config",
     rationale: str = "",
@@ -245,7 +249,7 @@ def build_plan(
     if operators:
         operator_specs = _normalize_operator_specs(operators)
     else:
-        operator_specs = _default_operator_specs(dae_output, actions)
+        operator_specs = _default_operator_specs(dae_output, actions, config)
 
     budgets = actions.get("budgets", {})
     max_cost_units = float(budgets.get("max_cost_units", config.plan.max_total_budget_units))
@@ -259,7 +263,7 @@ def build_plan(
     steps: list[PlanStep] = []
     for idx, spec in enumerate(operator_specs):
         operator = spec["operator"]
-        params = _params_for_operator(operator, actions, config, spec.get("params"))
+        params = _params_for_operator(operator, actions, config, dae_output, doc_metadata, spec.get("params"))
         timeout_ms = int(
             spec.get("timeout_ms")
             or step_timeouts.get(operator)
@@ -315,7 +319,12 @@ def build_plan(
     )
 
 
-def _default_operator_specs(dae_output: DAEOutput, actions: dict[str, Any]) -> list[dict[str, Any]]:
+def _default_operator_specs(
+    dae_output: DAEOutput,
+    actions: dict[str, Any],
+    config: PipelineConfig | None = None,
+) -> list[dict[str, Any]]:
+    effective_config = config or PipelineConfig()
     specs: list[dict[str, Any]] = []
     preprocess = actions.get("preprocess", {})
     execution_mode = str(actions.get("execution_mode", "")).strip().lower()
@@ -361,10 +370,11 @@ def _default_operator_specs(dae_output: DAEOutput, actions: dict[str, Any]) -> l
     specs.extend(
         [
             {"operator": "validation"},
-            {"operator": "recovery"},
             {"operator": "escalation"},
         ]
     )
+    if effective_config.recovery.enabled:
+        specs.insert(len(specs) - 1, {"operator": "recovery"})
     if not extraction_only:
         specs.append({"operator": "chunking"})
     return specs
@@ -384,6 +394,8 @@ def _params_for_operator(
     operator: str,
     actions: dict[str, Any],
     config: PipelineConfig,
+    dae_output: DAEOutput,
+    doc_metadata: dict[str, Any] | None,
     inline_params: dict[str, Any] | None,
 ) -> dict[str, Any]:
     if inline_params:
@@ -420,14 +432,20 @@ def _params_for_operator(
                 merged_descriptions.update(field_descriptions)
             merged_descriptions.update(config.structuring.field_descriptions)
             field_descriptions = merged_descriptions
+        static_context = str(params.get("extraction_context", "") or "")
         return {
             "model_tier": params.get("model_tier", config.llm.default_mode),
             "explicit_entities": explicit_entities,
             "field_descriptions": field_descriptions,
             "ruleset": params.get("ruleset", "config"),
-            "per_field_extraction": bool(params.get("per_field_extraction", False)),
+            "per_field_extraction": bool(params.get("per_field_extraction", False) or config.structuring.requested_fields),
             "use_thinking": bool(params.get("use_thinking", False)),
-            "extraction_context": str(params.get("extraction_context", "") or ""),
+            "extraction_context": _compose_extraction_context(
+                dae_output=dae_output,
+                doc_metadata=doc_metadata,
+                explicit_entities=explicit_entities,
+                static_context=static_context,
+            ),
         }
     if operator == "structuring.section":
         return {}
@@ -437,7 +455,7 @@ def _params_for_operator(
         return {"min_confidence": config.validation.min_confidence}
     if operator == "recovery":
         params = actions.get("recovery", {})
-        return {"strategy": params.get("strategy", "regex")}
+        return {"strategy": params.get("strategy", config.recovery.strategy)}
     if operator == "escalation":
         params = actions.get("escalation", {})
         return {"tier": params.get("tier", "tier2")}
@@ -461,6 +479,26 @@ def _merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, An
         else:
             merged[key] = value
     return merged
+
+
+def _recommendation_action_overrides(recommendation) -> dict[str, Any]:
+    overrides = recommendation.action_overrides if isinstance(recommendation.action_overrides, dict) else {}
+    templates = recommendation.field_templates if isinstance(recommendation.field_templates, dict) else {}
+    normalized_templates = {
+        str(key): str(value)
+        for key, value in templates.items()
+        if str(key).strip() and str(value).strip()
+    }
+    if not normalized_templates:
+        return overrides
+    return _merge_dicts(
+        overrides,
+        {
+            "extraction": {
+                "field_descriptions": normalized_templates,
+            }
+        },
+    )
 
 
 def _recommendation_payload(item) -> dict[str, Any]:
@@ -515,6 +553,70 @@ def _route_specialization(dae_output: DAEOutput) -> str:
     if dae_output.layout_cluster_id == "image_sparse" or image_ratio >= 0.5:
         return "image"
     return "text"
+
+
+def _compose_extraction_context(
+    *,
+    dae_output: DAEOutput,
+    doc_metadata: dict[str, Any] | None,
+    explicit_entities: list[str],
+    static_context: str,
+) -> str:
+    analysis_context = _analysis_extraction_context(dae_output, explicit_entities)
+    sections = [section.strip() for section in [analysis_context, static_context] if str(section).strip()]
+    base_context = "\n\n".join(sections)
+    metadata = doc_metadata or {}
+    job_id = str(metadata.get("job_id", "") or os.getenv("IDPO_JOB_ID", "")).strip()
+    if not job_id:
+        return base_context
+    job_context = read_job_context(job_id)
+    return build_dynamic_extraction_context(job_context, base_context, explicit_entities)
+
+
+def _analysis_extraction_context(dae_output: DAEOutput, explicit_entities: list[str] | None = None) -> str:
+    structural = dae_output.structural_features or {}
+    quality = dae_output.quality_features or {}
+    route_specialization = _route_specialization(dae_output)
+    requested = {str(item or "").strip().lower() for item in (explicit_entities or []) if str(item or "").strip()}
+    lines: list[str] = []
+    semantic_doc_type = str(dae_output.semantic_doc_type or "").strip()
+    if semantic_doc_type and semantic_doc_type != "unknown":
+        lines.append(
+            f"INTERNAL ROUTING CONTEXT: routing family appears to be {semantic_doc_type}. "
+            "This is a planning hint, not a schema output field."
+        )
+    if route_specialization:
+        lines.append(
+            f"INTERNAL ROUTING CONTEXT: route specialization is {route_specialization}. "
+            "Use it as a layout and extraction behavior hint only."
+        )
+    if "document_type" in requested:
+        lines.append(
+            "SCHEMA OUTPUT RULE: if extracting document_type, output only one schema label from "
+            "invoice, receipt, form, or other. Do not copy internal routing families such as "
+            "correspondence or legal_form into the document_type value."
+        )
+    if route_specialization == "form":
+        lines.append(
+            "LAYOUT CONTEXT: OCR text shows structured label/value cues. Prioritize short field anchors and nearby values over free-text guesses."
+        )
+    elif route_specialization == "table":
+        lines.append(
+            "LAYOUT CONTEXT: OCR text shows table-like structure. Prefer header labels and document-level totals or identifiers over line-item fragments."
+        )
+    elif route_specialization == "receipt":
+        lines.append(
+            "LAYOUT CONTEXT: OCR text looks transaction-oriented. Prefer document-level totals, dates, and labeled identifiers over isolated numeric fragments."
+        )
+    if float(quality.get("ocr_noise_ratio", 0.0)) >= 0.12 or float(quality.get("image_ratio", 0.0)) >= 0.5:
+        lines.append(
+            "OCR CONTEXT: text may be noisy or partially degraded. Prefer explicit labels and exact spans. If a requested field is ambiguous, return unavailable."
+        )
+    if float(structural.get("kv_density", 0.0)) >= 0.15:
+        lines.append(
+            "FIELD EXTRACTION RULE: when multiple candidates exist, prefer values attached to labeled key/value anchors."
+        )
+    return "\n".join(lines)
 
 
 def _advice_status(

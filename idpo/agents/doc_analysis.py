@@ -10,6 +10,13 @@ from idpo.agents.base import Agent, AgentContext
 from idpo.core.contracts import AgentMessage
 from idpo.core.types import AgentResult, DAEOutput, Document, StageSignal
 
+_KEYED_LINE_RE = re.compile(
+    r"^(?:to|from|date|dated|re|subject|attn|attention|fax|fax transmission|message to|message from|"
+    r"invoice(?:\s*(?:number|no))?|receipt(?:\s*(?:number|no))?|bill to|ship to|customer|vendor|seller|"
+    r"buyer|recipient|sender|account(?:\s*(?:number|no))?|order(?:\s*(?:number|no))?)\b",
+    re.IGNORECASE,
+)
+
 class DocumentAnalysisAgent(Agent):
     name = "document_analysis"
     version = "v1"
@@ -23,7 +30,7 @@ class DocumentAnalysisAgent(Agent):
     def run(self, payload: AgentMessage, ctx: AgentContext) -> AgentResult:
         started = time.time()
         doc: Document = payload["document"]
-        page_lengths = [len(page.text or "") for page in doc.pages]
+        page_lengths = [len(self._page_analysis_text(page)) for page in doc.pages]
         avg_len = statistics.mean(page_lengths) if page_lengths else 0
         page_count = len(doc.pages)
         non_alpha_ratio = self._non_alpha_ratio(doc)
@@ -31,7 +38,7 @@ class DocumentAnalysisAgent(Agent):
         form_ratio = self._form_ratio(doc)
         # Only treat as image-heavy if pages lack meaningful text content
         # PDFs set image_path for rendering but may still have extractable text
-        has_text = any((page.text or "").strip() for page in doc.pages)
+        has_text = any(self._page_analysis_text(page) for page in doc.pages)
         if doc.source == "scanned" and not has_text:
             image_ratio = 1.0
         elif not has_text and any(page.image_path for page in doc.pages):
@@ -47,7 +54,7 @@ class DocumentAnalysisAgent(Agent):
         content_profile = self._profile(table_ratio, form_ratio, image_ratio, avg_len)
         doc_type = self._doc_type(doc, content_profile)
         vendor_cluster = self._vendor_cluster(doc)
-        ocr_text = "\n".join(page.text for page in doc.pages if page.text)
+        ocr_text = self._analysis_text(doc)
         semantic_doc_type = self._classify_semantic_doc_type(ocr_text)
         quality_bin = self._quality_bin(quality_score)
         complexity_bin = self._complexity_bin(complexity_score)
@@ -78,6 +85,7 @@ class DocumentAnalysisAgent(Agent):
                 "content_profile": content_profile,
                 "route_bin": route_bin,
                 "layout_cluster_id": layout_cluster_id,
+                "routing_family": semantic_doc_type,
                 "semantic_doc_type": semantic_doc_type,
             }
         )
@@ -147,14 +155,14 @@ class DocumentAnalysisAgent(Agent):
         )
 
     def _non_alpha_ratio(self, doc: Document) -> float:
-        text = "\n".join(page.text for page in doc.pages if page.text)
+        text = self._analysis_text(doc)
         if not text:
             return 1.0
         non_alpha = sum(1 for ch in text if not ch.isalnum() and not ch.isspace())
         return non_alpha / max(len(text), 1)
 
     def _table_ratio(self, doc: Document) -> float:
-        text = "\n".join(page.text for page in doc.pages if page.text)
+        text = self._analysis_text(doc)
         if not text:
             return 0.0
         lines = text.splitlines()
@@ -177,13 +185,13 @@ class DocumentAnalysisAgent(Agent):
         return min(table_lines / max(non_empty, 1), 1.0)
 
     def _form_ratio(self, doc: Document) -> float:
-        text = "\n".join(page.text for page in doc.pages if page.text)
+        text = self._analysis_text(doc)
         if not text:
             return 0.0
         lines = [line for line in text.splitlines() if line.strip()]
         if not lines:
             return 0.0
-        kv_lines = sum(1 for line in lines if ":" in line and len(line.split(":")[0].split()) <= 5)
+        kv_lines = sum(1 for line in lines if self._is_keyed_line(line))
         return min(kv_lines / len(lines), 1.0)
 
     def _profile(self, table_ratio: float, form_ratio: float, image_ratio: float, avg_len: float) -> str:
@@ -229,9 +237,15 @@ class DocumentAnalysisAgent(Agent):
         ])
         correspondence_signals = sum([
             bool(re.search(r"\bdear\b|\bsincerely\b|\bregards\b|\bfaithfully\b", lower)),
-            bool(re.search(r"^from\s*:|^to\s*:|^re\s*:|^subject\s*:", lower, re.MULTILINE)),
+            bool(
+                re.search(
+                    r"^(?:from|to|re|subject|date|attn|attention|message to|message from)\b\s*:?\s+\S",
+                    lower,
+                    re.MULTILINE,
+                )
+            ),
             bool(re.search(r"yours\s+(?:truly|sincerely|faithfully)|best\s+regards", lower)),
-            bool(re.search(r"\battention\b|\bcc\s*:|\benc\b|\benclosed\b", lower)),
+            bool(re.search(r"\battention\b|\bcc\s*:|\benc\b|\benclosed\b|\bfax\s+transmission\b", lower)),
             bool(re.search(r"\bdated?\b|\bdate\s*:", lower)),
             # Salutation line: "Dear Mr/Ms/Dr ..."
             bool(re.search(r"\bdear\s+(?:mr|ms|mrs|dr|prof|sir|madam)\b", lower)),
@@ -271,7 +285,7 @@ class DocumentAnalysisAgent(Agent):
         form_ratio: float,
         image_ratio: float,
     ) -> dict[str, float]:
-        text = "\n".join(page.text for page in doc.pages if page.text)
+        text = self._analysis_text(doc)
         total_chars = len(text)
         alpha_chars = sum(1 for ch in text if ch.isalnum())
         text_density = alpha_chars / max(total_chars, 1)
@@ -306,7 +320,7 @@ class DocumentAnalysisAgent(Agent):
         avg_len: float,
         page_count: int,
     ) -> dict[str, float]:
-        text = "\n".join(page.text for page in doc.pages if page.text)
+        text = self._analysis_text(doc)
         lines = [line.strip() for line in text.splitlines() if line.strip()]
         heading_density = 0.0
         kv_density = 0.0
@@ -321,7 +335,7 @@ class DocumentAnalysisAgent(Agent):
                 words = len(line.split())
                 if words <= 6 and line == line.upper():
                     heading_lines += 1
-                if ":" in line and len(line.split(":", 1)[0].split()) <= 6:
+                if self._is_keyed_line(line):
                     kv_lines += 1
                 numeric_chars += sum(1 for ch in line if ch.isdigit())
             heading_density = heading_lines / len(lines)
@@ -393,7 +407,7 @@ class DocumentAnalysisAgent(Agent):
         return round(max(0.05, min(confidence, 0.99)), 4)
 
     def _ocr_noise_ratio(self, doc: Document) -> float:
-        text = "\n".join(page.text for page in doc.pages if page.text)
+        text = self._analysis_text(doc)
         if not text:
             return 1.0
         suspicious = 0
@@ -412,3 +426,26 @@ class DocumentAnalysisAgent(Agent):
                 suspicious += 1
         total_tokens = max(len(text.split()), 1)
         return min(suspicious / total_tokens, 1.0)
+
+    def _analysis_text(self, doc: Document) -> str:
+        return "\n".join(
+            text
+            for page in doc.pages
+            if (text := self._page_analysis_text(page))
+        )
+
+    @staticmethod
+    def _page_analysis_text(page) -> str:
+        return str(page.text or page.raw_text or "").strip()
+
+    def _is_keyed_line(self, line: str) -> bool:
+        stripped = line.strip()
+        if not stripped:
+            return False
+        if ":" in stripped and len(stripped.split(":", 1)[0].split()) <= 6:
+            return True
+        if not _KEYED_LINE_RE.search(stripped):
+            return False
+        if len(stripped.split()) <= 12:
+            return True
+        return bool(re.search(r"\b(?:to|from|date|re|subject|attn)\b\s*:?\s+\S", stripped, re.IGNORECASE))

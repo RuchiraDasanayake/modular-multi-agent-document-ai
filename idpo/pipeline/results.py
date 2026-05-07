@@ -57,6 +57,7 @@ class PipelineResult:
     model_used: str
     model_mode: str
     model_reason: str
+    routing_family: str = "unknown"
     semantic_doc_type: str = "unknown"
     layout_cluster_id: str = "unknown"
     route_bin: str = "standard"
@@ -238,6 +239,7 @@ def build_pipeline_result(
         model_used=model_used,
         model_mode=model_mode,
         model_reason=model_reason,
+        routing_family=getattr(dae_output, "semantic_doc_type", "unknown"),
         semantic_doc_type=getattr(dae_output, "semantic_doc_type", "unknown"),
         dae_signals=dae_output.signals,
         queue_partition=queue_partition,

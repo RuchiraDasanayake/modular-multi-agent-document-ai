@@ -110,8 +110,8 @@ def best_generic_match(tokens: list[str], generic_by_key: dict[str, list[Entity]
 
 
 def regex_fallback(key: str, tokens: list[str], text: str) -> Entity | None:
-    lowered = " ".join(tokens)
-    if any(token in lowered for token in ["amount", "total", "balance", "due", "price", "cost"]):
+    token_set = {str(token).strip().lower() for token in tokens if str(token).strip()}
+    if token_set & {"amount", "total", "balance", "due", "price", "cost", "subtotal", "tax"}:
         # Allow newlines between label and value; match Korean dot-thousands (e.g. 100.000)
         # and Western comma-thousands (e.g. 100,000) plus optional 2-digit cents.
         _num = r"(?:\$|usd\s*)?(?:\d{1,3}(?:[.,]\d{3})+(?:\.\d{2})?|\d{1,3}(?:,\d{3})*(?:\.\d{2})?)"
@@ -148,7 +148,7 @@ def regex_fallback(key: str, tokens: list[str], text: str) -> Entity | None:
                 confidence=0.4,
                 metadata={"explicit": True, "source": "schema_regex", "rule": "amount_any"},
             )
-    if any(token in lowered for token in ["date", "issued", "invoice_date", "due_date"]):
+    if token_set & {"date", "issued", "issue", "due", "invoice"}:
         date_match = re.search(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b", text)
         if not date_match:
             date_match = re.search(
@@ -165,11 +165,11 @@ def regex_fallback(key: str, tokens: list[str], text: str) -> Entity | None:
                 confidence=0.45,
                 metadata={"explicit": True, "source": "schema_regex", "rule": "date"},
             )
-    if any(token in lowered for token in ["invoice", "id", "number", "reference"]):
-        # Require at least one letter — pure digit strings are amounts, not IDs
+    if token_set & {"invoice", "id", "number", "reference"}:
+        # Require an alphanumeric identifier with at least one digit — pure words are not IDs.
         id_match = re.search(r"\b[A-Z]{1,4}[\-#]?\d{3,}[A-Z0-9-]*\b", text)
         if not id_match:
-            id_match = re.search(r"\b(?=[A-Z0-9-]{5,}\b)(?=[A-Z0-9-]*[A-Z])[A-Z0-9-]{5,}\b", text)
+            id_match = re.search(r"\b(?=[A-Z0-9-]{5,}\b)(?=[A-Z0-9-]*[A-Z])(?=[A-Z0-9-]*\d)[A-Z0-9-]{5,}\b", text)
         if id_match:
             return Entity(
                 key=key,
@@ -177,10 +177,10 @@ def regex_fallback(key: str, tokens: list[str], text: str) -> Entity | None:
                 confidence=0.42,
                 metadata={"explicit": True, "source": "schema_regex", "rule": "id"},
             )
-    if any(token in lowered for token in ["fax", "phone", "telephone", "tel"]):
+    if token_set & {"fax", "phone", "telephone", "tel"}:
         phone_pattern = r"\(?(\d{3})\)?[-.\s]*(\d{3})[-.\s]*(\d{4})"
         fax_match = None
-        if "fax" in lowered:
+        if "fax" in token_set:
             fax_match = re.search(r"fax[^\d]{0,6}" + phone_pattern, text, re.IGNORECASE)
         if fax_match:
             number = "-".join(fax_match.groups())

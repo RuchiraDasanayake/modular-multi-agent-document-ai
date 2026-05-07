@@ -30,6 +30,50 @@ SYSTEM_PROMPT = (
     "You only return valid JSON. No markdown, no explanations, no extra text."
 )
 
+_FIELD_SPECIFIC_RULES = {
+    "document_type": (
+        'For "document_type", return invoice, receipt, or form only when the document shows clear document-level evidence '
+        "for that class, such as an invoice header or invoice number, receipt totals or payment lines, or a form-like field layout. "
+        'If that evidence is not clear, return "other".'
+    ),
+    "address": (
+        'For "address", return a value only when the document explicitly labels an address field or '
+        "address block, such as Address, Billing Address, Shipping Address, Bill To, Ship To, or Remit To. "
+        "Do not treat an unlabeled party block, sender/recipient block, company name, or street line near a name as the address field."
+    ),
+    "amount": (
+        'For "amount", return only the final document-level payable total when it is explicitly labeled, '
+        "such as Total, Grand Total, Amount Due, Balance Due, Invoice Total, or Receipt Total. "
+        "Do not return line-item prices, unit prices, tax, VAT, subtotal, or unlabeled numbers."
+    ),
+    "total_amount": (
+        'For "total_amount", return only the final document-level payable total when it is explicitly labeled, '
+        "such as Total, Grand Total, Amount Due, Balance Due, Invoice Total, or Receipt Total. "
+        "Do not return line-item prices, unit prices, tax, VAT, subtotal, discount, cash paid, change, or unlabeled numbers. "
+        "If the document is not clearly a bill, invoice, or receipt, return N/A unless an explicit payable-total label is present."
+    ),
+    "reference_id": (
+        'For "reference_id", prefer an explicitly labeled document identifier such as Invoice Number, Receipt Number, '
+        "Reference Number, Account Number, Document Number, or Form Number. "
+        "If no labeled identifier exists and the document appears to be a general business document, prefer the main title or header anchor "
+        "rather than short codes, dates, page markers, or arbitrary alphanumeric strings."
+    ),
+}
+
+
+def _field_specific_rules(keys: list[str]) -> list[str]:
+    seen: set[str] = set()
+    rules: list[str] = []
+    for raw_key in keys:
+        key = str(raw_key or "").strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        rule = _FIELD_SPECIFIC_RULES.get(key)
+        if rule:
+            rules.append(rule)
+    return rules
+
 
 def build_prompt(
     text: str,
@@ -52,16 +96,22 @@ def build_prompt(
         fields_block = "  - Extract any relevant key-value fields you find"
 
     context_block = f"{extraction_context.strip()}\n\n" if extraction_context.strip() else ""
+    field_specific_rules = _field_specific_rules(keys)
+    field_specific_block = ""
+    if field_specific_rules:
+        rendered_rules = "\n".join(f"- {rule}" for rule in field_specific_rules)
+        field_specific_block = f"FIELD-SPECIFIC RULES:\n{rendered_rules}\n\n"
 
     return (
         f"{context_block}"
         "Extract the following fields from the document text.\n\n"
         "FIELDS:\n"
         f"{fields_block}\n\n"
+        f"{field_specific_block}"
         "RULES:\n"
         "1. Return ONLY a JSON object with key 'entities' as a list.\n"
         '2. Each entity: {"key": "<field_name>", "value": "<exact_value>", "confidence": <0.0-1.0>}\n'
-        "3. Use ONLY the requested field names above — never invent keys.\n"
+        "3. Use ONLY the requested field names above - never invent keys.\n"
         "4. Extract numeric amounts exactly as they appear (e.g. '70,000' not '70000', '36.000' not '36').\n"
         "5. Only extract values that appear explicitly in the document text — do NOT guess, infer, or construct values.\n"
         '6. If a field is absent, include it with value "N/A" and confidence 0.0. Do NOT guess or infer a value.\n'
@@ -107,14 +157,19 @@ def build_single_field_prompt(
 ) -> str:
     """Prompt for extracting exactly one field. Used by per-field extraction mode."""
     context_block = f"{extraction_context.strip()}\n\n" if extraction_context.strip() else ""
+    field_specific_rules = _field_specific_rules([key])
+    field_specific_block = ""
+    if field_specific_rules:
+        field_specific_block = f"{field_specific_rules[0]}\n\n"
     return (
         f"{context_block}"
         f'Extract the field "{key}" from the document text.\n\n'
         f"FIELD DESCRIPTION: {description or 'Extract this field value'}\n\n"
+        f"{field_specific_block}"
         "RULES:\n"
         "1. Return ONLY a JSON object: "
         '{"entities": [{"key": "<field_name>", "value": "<exact_value>", "confidence": <0.0-1.0>}]}\n'
-        "2. Extract the value exactly as it appears in the document — do NOT guess or infer.\n"
+        "2. Extract the value exactly as it appears in the document - do NOT guess or infer.\n"
         '3. If the field is absent, return value "N/A" with confidence 0.0.\n'
         "4. Extract numeric amounts exactly as they appear (e.g. '70,000' not '70000').\n\n"
         "DOCUMENT TEXT:\n"

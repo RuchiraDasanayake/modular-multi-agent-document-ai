@@ -204,6 +204,7 @@ class PlanExecutor:
         field_descriptions = params.get("field_descriptions")
         per_field_extraction = bool(params.get("per_field_extraction", False))
         use_thinking = bool(params.get("use_thinking", False))
+        extraction_context = str(params.get("extraction_context", "") or "")
 
         result = self.extractor.run(
             {
@@ -214,6 +215,7 @@ class PlanExecutor:
                 "field_descriptions": field_descriptions,
                 "per_field_extraction": per_field_extraction,
                 "use_thinking": use_thinking,
+                "extraction_context": extraction_context,
             },
             ctx,
         )
@@ -254,6 +256,11 @@ class PlanExecutor:
             state.stage_signals.append(self._annotate_signal(step.operator, signal, state))
 
     def _run_recovery(self, step, state: ExecutionState, ctx: AgentContext) -> None:
+        if not ctx.config.recovery.enabled:
+            state.recovered_fields = {}
+            state.recovery_trace = []
+            state.failed_recovery_fields = []
+            return
         result = self.recovery.run(
             {
                 "document": state.document,

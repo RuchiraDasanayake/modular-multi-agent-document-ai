@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import urllib.error
 import urllib.request
 
@@ -26,6 +27,8 @@ def log_ahmn_feedback(
 ) -> tuple[bool, str | None]:
     if not config.ahmn.enabled:
         return False, None
+    if str(os.getenv("IDPO_DISABLE_AHMN_FEEDBACK", "")).strip().lower() in {"1", "true", "yes", "on"}:
+        return False, "disabled_by_env"
     if not advice_id:
         return False, "missing_advice_id"
     endpoint = (config.ahmn.endpoint or "").strip()

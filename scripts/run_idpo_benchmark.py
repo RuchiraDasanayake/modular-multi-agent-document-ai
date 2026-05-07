@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import os
 import random
@@ -11,6 +12,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
+import urllib.request
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,6 +35,7 @@ ADAPTIVE_LABEL = "adaptive_safe"
 PRIMARY_GROUP_TAGS = ("table", "form", "scanned", "text", "mixed", "noisy_ocr")
 BOOTSTRAP_ITERATIONS = 1000
 BOOTSTRAP_SEED = 17
+_LEARNING_JOB_SETTINGS_KEY = "learningJobIds"
 _NUMERIC_FIELD_HINTS = ("amount", "price", "total", "subtotal", "tax", "cash", "change")
 
 
@@ -127,38 +131,272 @@ def _normalize_exact_value(key: str, value: object) -> str:
 
 
 _FUZZY_MATCH_THRESHOLD = 0.75
+_UNAVAILABLE_SENTINEL = "unavailable"
+_UNAVAILABLE_SOURCE_SENTINEL = "unavailable_from_unmapped_label"
+_QUARANTINED_SOURCE_SENTINELS = {
+    "quarantined_invoice_total_unlabeled",
+}
+_UNAVAILABLE_PLACEHOLDERS = {
+    "",
+    "n/a",
+    "na",
+    "none",
+    "null",
+    "unknown",
+    "not found",
+    "not available",
+    _UNAVAILABLE_SENTINEL,
+}
+
+
+def _normalize_party_value(value: object) -> str:
+    """Normalize party-like values to reduce address-tail mismatch noise.
+
+    Example:
+    - "Acme Corp 123 Main St" -> "acme corp"
+    - "Acme, Corp 123 Main St" -> "acme corp"
+    """
+    import re as _re
+    text = _norm_text(value)
+    if not text:
+        return ""
+    tokens = text.split()
+    kept: list[str] = []
+    for token in tokens:
+        if _re.search(r"\d", token):
+            break
+        kept.append(token)
+    collapsed = " ".join(kept) if kept else text
+    collapsed = _re.sub(r"[^a-z0-9 ]+", " ", collapsed)
+    return " ".join(collapsed.split())
+
+
+def _extract_invoice_number(value: object) -> str:
+    import re as _re
+    text = _norm_text(value)
+    if not text:
+        return ""
+    # Prefer invoice-marked patterns first.
+    tagged = _re.search(r"invoice(?:\s*(?:no|number|#))?\s*:?\s*([a-z0-9-]+)", text)
+    if tagged:
+        return tagged.group(1).strip()
+    fallback = _re.search(r"\b([a-z]*\d[a-z0-9-]*)\b", text)
+    return fallback.group(1).strip() if fallback else ""
+
+
+def _schema_field_match(
+    *,
+    key: str,
+    expected_value: object,
+    extracted_value: object,
+    expected_source: str,
+    document_type: str,
+) -> bool:
+    lowered_key = str(key or "").strip().lower()
+    source_norm = _norm(expected_source)
+    doc_type_norm = _norm(document_type)
+
+    if lowered_key in {"sender", "recipient", "company", "issuer_name", "recipient_name", "primary_organization"}:
+        expected_party = _normalize_party_value(expected_value)
+        extracted_party = _normalize_party_value(extracted_value)
+        if expected_party and extracted_party and expected_party == extracted_party:
+            return True
+
+    if lowered_key in {"subject", "reference_id"} and (
+        source_norm in {"derived_from_invoice_number", "invoice_number_label"}
+        or doc_type_norm == "invoice"
+    ):
+        expected_invoice_no = _extract_invoice_number(expected_value)
+        extracted_invoice_no = _extract_invoice_number(extracted_value)
+        if expected_invoice_no and extracted_invoice_no and expected_invoice_no == extracted_invoice_no:
+            return True
+
+    return _field_exact_match(key, expected_value, extracted_value)
+
+
+def _field_exact_match(key: str, expected_value: object, extracted_value: object) -> bool:
+    lowered_key = str(key or "").strip().lower()
+    is_numeric = any(hint in lowered_key for hint in _NUMERIC_FIELD_HINTS)
+    got_norm = _normalize_exact_value(key, extracted_value)
+    exp_norm = _normalize_exact_value(key, expected_value)
+    if got_norm and got_norm == exp_norm:
+        return True
+    if not is_numeric and got_norm:
+        sim = _text_similarity(_norm_text(extracted_value), _norm_text(expected_value))
+        return sim >= _FUZZY_MATCH_THRESHOLD
+    return False
+
+
+def _is_unavailable_placeholder(value: object) -> bool:
+    return _norm(value) in _UNAVAILABLE_PLACEHOLDERS
 
 
 def _case_metrics(expected: dict[str, str], extracted: dict[str, object]) -> tuple[int, int, int]:
+    """Compute exact TP/FP/FN strictly on case-expected fields.
+
+    This benchmark contract intentionally scopes exact metrics to the fields
+    explicitly labeled for the case. Extracted keys outside ``expected`` are
+    out of scope for exact scoring in this phase.
+    """
     tp = 0
     fp = 0
     fn = 0
-    lowered_key: str
     for key, expected_value in expected.items():
-        lowered_key = str(key or "").strip().lower()
-        is_numeric = any(hint in lowered_key for hint in _NUMERIC_FIELD_HINTS)
-        got_norm = _normalize_exact_value(key, extracted.get(key, ""))
-        exp_norm = _normalize_exact_value(key, expected_value)
-        if got_norm and got_norm == exp_norm:
+        got_value = extracted.get(key, "")
+        got_norm = _normalize_exact_value(key, got_value)
+        if _field_exact_match(key, expected_value, got_value):
             tp += 1
-        elif not is_numeric and got_norm:
-            # For text fields, accept fuzzy match to handle OCR noise on names/dates
-            sim = _text_similarity(_norm_text(extracted.get(key, "")), _norm_text(expected_value))
-            if sim >= _FUZZY_MATCH_THRESHOLD:
-                tp += 1
-            else:
-                fp += 1
-                fn += 1
         elif got_norm:
             fp += 1
             fn += 1
         else:
             fn += 1
-    # Count hallucinated fields (extracted but not in expected) as false positives.
-    for key, value in extracted.items():
-        if key not in expected and _normalize_exact_value(key, value):
-            fp += 1
     return tp, fp, fn
+
+
+def _schema_conditioned_case_metrics(
+    expected: dict[str, str],
+    expected_sources: dict[str, str],
+    extracted: dict[str, object],
+) -> dict[str, float | int]:
+    document_type_total = 1 if "document_type" in expected else 0
+    document_type_correct = 0
+    if document_type_total:
+        if _norm(extracted.get("document_type", "")) == _norm(expected.get("document_type", "")):
+            document_type_correct = 1
+
+    positive_tp = 0
+    positive_fp = 0
+    positive_fn = 0
+    unavailable_field_count = 0
+    unavailable_correct_count = 0
+    unavailable_hallucination_count = 0
+    unavailable_true_absence_field_count = 0
+    unavailable_true_absence_correct_count = 0
+    unavailable_true_absence_hallucination_count = 0
+    unavailable_unmapped_field_count = 0
+    unavailable_unmapped_correct_count = 0
+    unavailable_unmapped_hallucination_count = 0
+    unavailable_true_absence_field_count = 0
+    unavailable_true_absence_correct_count = 0
+    unavailable_true_absence_hallucination_count = 0
+    unavailable_unmapped_field_count = 0
+    unavailable_unmapped_correct_count = 0
+    unavailable_unmapped_hallucination_count = 0
+    document_type = str(expected.get("document_type", ""))
+
+    for key, expected_value in expected.items():
+        lowered_key = str(key or "").strip().lower()
+        if lowered_key == "document_type":
+            continue
+
+        expected_norm = _norm(expected_value)
+        source_norm = _norm(expected_sources.get(key, ""))
+        if source_norm in _QUARANTINED_SOURCE_SENTINELS:
+            continue
+        if expected_norm == _UNAVAILABLE_SENTINEL:
+            is_unmapped = source_norm == _UNAVAILABLE_SOURCE_SENTINEL
+            unavailable_field_count += 1
+            if _is_unavailable_placeholder(extracted.get(key, "")):
+                unavailable_correct_count += 1
+                if is_unmapped:
+                    unavailable_unmapped_correct_count += 1
+                else:
+                    unavailable_true_absence_correct_count += 1
+            else:
+                unavailable_hallucination_count += 1
+                if is_unmapped:
+                    unavailable_unmapped_hallucination_count += 1
+                else:
+                    unavailable_true_absence_hallucination_count += 1
+            if is_unmapped:
+                unavailable_unmapped_field_count += 1
+            else:
+                unavailable_true_absence_field_count += 1
+            continue
+
+        if lowered_key == "brief_explanation":
+            continue
+        if source_norm == _UNAVAILABLE_SOURCE_SENTINEL:
+            continue
+
+        got_value = extracted.get(key, "")
+        got_norm = _normalize_exact_value(key, got_value)
+        if _schema_field_match(
+            key=key,
+            expected_value=expected_value,
+            extracted_value=got_value,
+            expected_source=expected_sources.get(key, ""),
+            document_type=document_type,
+        ):
+            positive_tp += 1
+        elif got_norm:
+            positive_fp += 1
+            positive_fn += 1
+        else:
+            positive_fn += 1
+
+    positive_prf = _precision_recall_f1(positive_tp, positive_fp, positive_fn)
+    unavailable_accuracy = (
+        unavailable_correct_count / unavailable_field_count
+        if unavailable_field_count
+        else 0.0
+    )
+    unavailable_hallucination_rate = (
+        unavailable_hallucination_count / unavailable_field_count
+        if unavailable_field_count
+        else 0.0
+    )
+    unavailable_true_absence_accuracy = (
+        unavailable_true_absence_correct_count / unavailable_true_absence_field_count
+        if unavailable_true_absence_field_count
+        else 0.0
+    )
+    unavailable_true_absence_hallucination_rate = (
+        unavailable_true_absence_hallucination_count / unavailable_true_absence_field_count
+        if unavailable_true_absence_field_count
+        else 0.0
+    )
+    unavailable_unmapped_accuracy = (
+        unavailable_unmapped_correct_count / unavailable_unmapped_field_count
+        if unavailable_unmapped_field_count
+        else 0.0
+    )
+    unavailable_unmapped_hallucination_rate = (
+        unavailable_unmapped_hallucination_count / unavailable_unmapped_field_count
+        if unavailable_unmapped_field_count
+        else 0.0
+    )
+
+    return {
+        "document_type_total": document_type_total,
+        "document_type_correct_count": document_type_correct,
+        "document_type_accuracy": round(
+            document_type_correct / document_type_total if document_type_total else 0.0,
+            4,
+        ),
+        "positive_field_tp": positive_tp,
+        "positive_field_fp": positive_fp,
+        "positive_field_fn": positive_fn,
+        "positive_field_precision": positive_prf["precision"],
+        "positive_field_recall": positive_prf["recall"],
+        "positive_field_f1": positive_prf["f1"],
+        "unavailable_field_count": unavailable_field_count,
+        "unavailable_correct_count": unavailable_correct_count,
+        "unavailable_hallucination_count": unavailable_hallucination_count,
+        "unavailable_accuracy": round(unavailable_accuracy, 4),
+        "unavailable_hallucination_rate": round(unavailable_hallucination_rate, 4),
+        "unavailable_true_absence_field_count": unavailable_true_absence_field_count,
+        "unavailable_true_absence_correct_count": unavailable_true_absence_correct_count,
+        "unavailable_true_absence_hallucination_count": unavailable_true_absence_hallucination_count,
+        "unavailable_true_absence_accuracy": round(unavailable_true_absence_accuracy, 4),
+        "unavailable_true_absence_hallucination_rate": round(unavailable_true_absence_hallucination_rate, 4),
+        "unavailable_unmapped_field_count": unavailable_unmapped_field_count,
+        "unavailable_unmapped_correct_count": unavailable_unmapped_correct_count,
+        "unavailable_unmapped_hallucination_count": unavailable_unmapped_hallucination_count,
+        "unavailable_unmapped_accuracy": round(unavailable_unmapped_accuracy, 4),
+        "unavailable_unmapped_hallucination_rate": round(unavailable_unmapped_hallucination_rate, 4),
+    }
 
 
 def _precision_recall_f1(tp: int, fp: int, fn: int) -> dict[str, float]:
@@ -282,6 +520,349 @@ def _frontend_job_storage_paths() -> tuple[Path, Path]:
     return uploads_dir, jobs_dir
 
 
+def _stored_learning_job_ids(existing_job_id: str | None) -> dict[str, str]:
+    if not existing_job_id:
+        return {}
+    _, jobs_root = _frontend_job_storage_paths()
+    job_file = jobs_root / f"{existing_job_id}.json"
+    if not job_file.exists():
+        return {}
+    try:
+        payload = json.loads(job_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    settings = payload.get("settings", {}) if isinstance(payload.get("settings"), dict) else {}
+    learning_job_ids = settings.get(_LEARNING_JOB_SETTINGS_KEY, {})
+    if not isinstance(learning_job_ids, dict):
+        return {}
+    return {
+        str(condition).strip(): str(job_id).strip()
+        for condition, job_id in learning_job_ids.items()
+        if str(condition).strip() and str(job_id).strip()
+    }
+
+
+def _resolve_condition_learning_job_ids(
+    *,
+    benchmark_run_id: str,
+    existing_job_id: str | None,
+) -> dict[str, str]:
+    stored = _stored_learning_job_ids(existing_job_id)
+    job_ids: dict[str, str] = {}
+    for condition in ("static", ADAPTIVE_LABEL):
+        if stored.get(condition):
+            job_ids[condition] = stored[condition]
+        elif existing_job_id:
+            job_ids[condition] = f"bench_{existing_job_id}_{condition}"
+        else:
+            job_ids[condition] = f"bench_{benchmark_run_id}_{condition}"
+    return job_ids
+
+
+def _benchmark_feedback_reward(schema_metrics: dict[str, Any]) -> float:
+    document_type_total = int(schema_metrics.get("document_type_total", 0) or 0)
+    positive_expected_count = int(schema_metrics.get("positive_field_tp", 0) or 0) + int(
+        schema_metrics.get("positive_field_fn", 0) or 0
+    )
+    unavailable_field_count = int(schema_metrics.get("unavailable_field_count", 0) or 0)
+
+    document_type_score = (
+        float(schema_metrics.get("document_type_accuracy", 0.0) or 0.0)
+        if document_type_total
+        else 1.0
+    )
+    positive_score = (
+        float(schema_metrics.get("positive_field_f1", 0.0) or 0.0)
+        if positive_expected_count
+        else 1.0
+    )
+    unavailable_score = (
+        float(schema_metrics.get("unavailable_accuracy", 0.0) or 0.0)
+        if unavailable_field_count
+        else 1.0
+    )
+    return round(min(document_type_score, positive_score, unavailable_score), 4)
+
+
+def _benchmark_review_field_states(
+    *,
+    expected: dict[str, str],
+    expected_sources: dict[str, str],
+    extracted: dict[str, object],
+) -> tuple[dict[str, str], dict[str, int]]:
+    field_states: dict[str, str] = {}
+    counts: Counter[str] = Counter()
+    document_type = str(expected.get("document_type", ""))
+
+    for key, expected_value in expected.items():
+        lowered_key = str(key or "").strip().lower()
+        source_norm = _norm(expected_sources.get(key, ""))
+        if source_norm in _QUARANTINED_SOURCE_SENTINELS:
+            field_states[key] = "quarantined"
+            counts["quarantined"] += 1
+            continue
+
+        got_value = extracted.get(key, "")
+        got_norm = _normalize_exact_value(key, got_value)
+        expected_norm = _norm(expected_value)
+
+        if lowered_key == "document_type":
+            if _field_exact_match(key, expected_value, got_value):
+                state = "correct"
+            elif got_norm:
+                state = "wrong_value"
+            else:
+                state = "missing"
+            field_states[key] = state
+            counts[state] += 1
+            continue
+
+        if expected_norm == _UNAVAILABLE_SENTINEL:
+            state = "correct_unavailable" if _is_unavailable_placeholder(got_value) else "hallucinated_unavailable"
+            field_states[key] = state
+            counts[state] += 1
+            continue
+
+        if lowered_key == "brief_explanation":
+            field_states[key] = "out_of_scope"
+            counts["out_of_scope"] += 1
+            continue
+
+        if source_norm == _UNAVAILABLE_SOURCE_SENTINEL:
+            field_states[key] = "unmapped_expected"
+            counts["unmapped_expected"] += 1
+            continue
+
+        if _schema_field_match(
+            key=key,
+            expected_value=expected_value,
+            extracted_value=got_value,
+            expected_source=expected_sources.get(key, ""),
+            document_type=document_type,
+        ):
+            state = "correct"
+        elif got_norm:
+            state = "wrong_value"
+        else:
+            state = "missing"
+        field_states[key] = state
+        counts[state] += 1
+
+    return field_states, dict(counts)
+
+
+def _review_results_path(*, run_dir: str, doc: dict[str, Any]) -> Path | None:
+    doc_id = str(doc.get("doc_id", "")).strip()
+    if not run_dir or not doc_id:
+        return None
+    return Path(run_dir) / "docs" / _sanitize_filename(doc_id) / "review" / "results.json"
+
+
+def _write_benchmark_review_result(
+    *,
+    run_id: str,
+    run_dir: str,
+    doc: dict[str, Any],
+    expected: dict[str, str],
+    expected_sources: dict[str, str],
+    extracted: dict[str, object],
+    exact_metrics: dict[str, Any],
+    schema_metrics: dict[str, Any],
+) -> str | None:
+    review_path = _review_results_path(run_dir=run_dir, doc=doc)
+    if review_path is None:
+        return None
+    field_states, field_state_counts = _benchmark_review_field_states(
+        expected=expected,
+        expected_sources=expected_sources,
+        extracted=extracted,
+    )
+    payload = {
+        "run_id": run_id,
+        "doc_id": str(doc.get("doc_id", "")).strip() or None,
+        "policy_id": str(doc.get("policy_id", "")).strip() or None,
+        "reviewStatus": "human_reviewed",
+        "reviewSource": "human",
+        "reviewWeight": 1.0,
+        "expectedFieldValues": expected,
+        "expectedFieldSources": expected_sources,
+        "extractedFieldValues": {str(key): "" if value is None else str(value) for key, value in extracted.items()},
+        "exactMetrics": exact_metrics,
+        "schemaConditionedMetrics": schema_metrics,
+        "fieldStates": field_states,
+        "fieldStateCounts": field_state_counts,
+        "generatedAt": _now_iso(),
+    }
+    review_path.parent.mkdir(parents=True, exist_ok=True)
+    review_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return str(review_path)
+
+
+def _benchmark_review_payload(
+    *,
+    doc: dict[str, Any],
+    exact_metrics: dict[str, Any],
+    expected: dict[str, str],
+    expected_sources: dict[str, str],
+    extracted: dict[str, object],
+) -> dict[str, Any]:
+    field_states, field_state_counts = _benchmark_review_field_states(
+        expected=expected,
+        expected_sources=expected_sources,
+        extracted=extracted,
+    )
+    document_context = {
+        "doc_type": str(doc.get("doc_type", "")).strip() or "unknown",
+        "vendor": str(doc.get("vendor_cluster", "")).strip() or None,
+        "vendor_cluster": str(doc.get("vendor_cluster", "")).strip() or None,
+        "content_profile": str(doc.get("content_profile", "")).strip() or None,
+        "route_bin": str(doc.get("route_bin", "")).strip() or None,
+        "layout_cluster_id": str(doc.get("layout_cluster_id", "")).strip() or None,
+        "quality_bin": str(doc.get("quality_bin", "")).strip() or None,
+        "complexity_bin": str(doc.get("complexity_bin", "")).strip() or None,
+    }
+    return {
+        "review_source": "human",
+        "review_weight": 1.0,
+        "tp": int(exact_metrics.get("tp", 0) or 0),
+        "fp": int(exact_metrics.get("fp", 0) or 0),
+        "fn": int(exact_metrics.get("fn", 0) or 0),
+        "precision": float(exact_metrics.get("precision", 0.0) or 0.0),
+        "recall": float(exact_metrics.get("recall", 0.0) or 0.0),
+        "f1": float(exact_metrics.get("f1", 0.0) or 0.0),
+        "field_state_counts": field_state_counts,
+        "document_context": document_context,
+        "job_id": str(doc.get("job_id", "")).strip() or None,
+        "overlay_key": str(doc.get("overlay_key", "")).strip() or None,
+    }
+
+
+def _log_exact_benchmark_feedback(
+    *,
+    config_path: str,
+    doc: dict[str, Any],
+    schema_metrics: dict[str, Any],
+    exact_metrics: dict[str, Any] | None = None,
+    expected: dict[str, str] | None = None,
+    expected_sources: dict[str, str] | None = None,
+    extracted: dict[str, object] | None = None,
+) -> tuple[bool, str | None]:
+    advice_id = str(doc.get("advice_id", "")).strip()
+    if not advice_id:
+        return False, "missing_advice_id"
+    advisor_recommendation = doc.get("advisor_recommendation", {})
+    if isinstance(advisor_recommendation, dict):
+        selected_policy_id = str(advisor_recommendation.get("policy_id", "")).strip()
+    else:
+        selected_policy_id = ""
+    if not selected_policy_id:
+        selected_policy_id = str(doc.get("policy_id", "")).strip()
+    if not selected_policy_id:
+        return False, "missing_policy_id"
+
+    config_payload = _load_config_payload(Path(config_path))
+    ahmn = config_payload.get("ahmn", {}) if isinstance(config_payload.get("ahmn"), dict) else {}
+    if not bool(ahmn.get("enabled")):
+        return False, "ahmn_disabled"
+    mode = str(ahmn.get("mode", "auto")).strip().lower() or "auto"
+    endpoint = str(ahmn.get("endpoint", "")).strip()
+    advice_endpoint = str(ahmn.get("advice_endpoint", "/advice")).strip() or "/advice"
+    log_endpoint = str(ahmn.get("log_endpoint", "/advice/log")).strip() or "/advice/log"
+    review_endpoint = str(ahmn.get("review_endpoint", "/advice/review")).strip() or "/advice/review"
+    timeout = max(int(ahmn.get("timeout_ms", 500) or 500), 10) / 1000.0
+    direct_import = str(ahmn.get("direct_import", "")).strip()
+    http_allowed = mode in {"http", "auto"} and bool(endpoint)
+    import_allowed = mode in {"import", "auto"} and bool(direct_import)
+
+    reward = _benchmark_feedback_reward(schema_metrics)
+    metrics = {
+        "f1_score": reward,
+        "cost": 0.0,
+        "processing_time_ms": round(float(doc.get("latency_ms", 0.0) or 0.0), 2),
+        "success": int(doc.get("validation_issue_count", 0) or 0) == 0,
+        "precision": float(schema_metrics.get("precision", reward) or reward),
+        "recall": float(schema_metrics.get("recall", reward) or reward),
+        "schema_valid": bool(doc.get("schema_valid", False)),
+        "missing_required_count": int(doc.get("schema_missing_required_count", 0) or 0),
+        "hallucinated_field_count": int(doc.get("schema_hallucinated_field_count", 0) or 0),
+        "grounding_coverage": round(float(doc.get("schema_grounding_coverage", 0.0) or 0.0), 4),
+        "defer_status": str(doc.get("defer_status", "not_needed") or "not_needed"),
+        "direct_scored": True,
+    }
+    document_context = {
+        "doc_type": str(doc.get("doc_type", "")).strip() or "unknown",
+        "vendor": str(doc.get("vendor_cluster", "")).strip() or None,
+        "vendor_cluster": str(doc.get("vendor_cluster", "")).strip() or None,
+        "content_profile": str(doc.get("content_profile", "")).strip() or None,
+        "route_bin": str(doc.get("route_bin", "")).strip() or None,
+        "layout_cluster_id": str(doc.get("layout_cluster_id", "")).strip() or None,
+        "quality_bin": str(doc.get("quality_bin", "")).strip() or None,
+        "complexity_bin": str(doc.get("complexity_bin", "")).strip() or None,
+    }
+    payload = {
+        "advice_id": advice_id,
+        "policy_id_used": selected_policy_id,
+        "metrics": metrics,
+        "document_context": document_context,
+    }
+    exact_payload = exact_metrics if isinstance(exact_metrics, dict) else {}
+    review_expected = expected if isinstance(expected, dict) else {}
+    review_expected_sources = expected_sources if isinstance(expected_sources, dict) else {}
+    review_extracted = extracted if isinstance(extracted, dict) else {}
+    review_payload = None
+    if exact_payload and review_expected and review_extracted:
+        review_payload = {
+            "advice_id": advice_id,
+            "policy_id_used": selected_policy_id,
+            **_benchmark_review_payload(
+                doc=doc,
+                exact_metrics=exact_payload,
+                expected=review_expected,
+                expected_sources=review_expected_sources,
+                extracted=review_extracted,
+            ),
+        }
+
+    if http_allowed:
+        request_path = review_endpoint if review_payload else log_endpoint
+        request_body = review_payload if review_payload else payload
+        request = urllib.request.Request(
+            endpoint.rstrip("/") + request_path,
+            data=json.dumps(request_body).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=timeout):
+                return True, None
+        except urllib.error.HTTPError as exc:
+            http_error = f"http_{exc.code}"
+        except urllib.error.URLError:
+            http_error = "unreachable"
+        except TimeoutError:
+            http_error = "timeout"
+        except Exception:
+            http_error = "unknown_error"
+    if not import_allowed:
+        return False, http_error
+
+    if import_allowed:
+        try:
+            module_path, _ = direct_import.rsplit(":", 1)
+            module = importlib.import_module(module_path)
+            log_fn = getattr(module, "log_outcome", None)
+            if not callable(log_fn):
+                return False, "log_outcome_missing"
+            review_reward = float(exact_payload.get("f1", reward) or reward)
+            log_fn(advice_id, selected_policy_id, review_reward)
+            return True, None
+        except Exception as exc:
+            return False, f"direct_import_error:{exc}"
+
+    if mode == "http" and not endpoint:
+        return False, "ahmn_endpoint_missing"
+    return False, "no_feedback_channel"
+
+
 def _case_source_path(case: dict[str, Any]) -> Path:
     return (REPO_ROOT / str(case.get("path", ""))).resolve()
 
@@ -352,6 +933,7 @@ def register_frontend_jobs_from_evidence(
     created_at = _now_iso(generated_at)
     default_prefix = job_name_prefix.strip() if isinstance(job_name_prefix, str) and job_name_prefix.strip() else ""
     pack_name = str(pack_payload.get("name", "benchmark_pack"))
+    experiment_learning_job_ids = experiment.get("learning_job_ids", {})
 
     # Load existing job or scaffold a new one
     if existing_job_id:
@@ -411,6 +993,24 @@ def register_frontend_jobs_from_evidence(
 
     uploads_path = uploads_root / job_id
     uploads_path.mkdir(parents=True, exist_ok=True)
+    settings = job_payload.setdefault("settings", {})
+    if not isinstance(settings, dict):
+        settings = {}
+        job_payload["settings"] = settings
+    if isinstance(experiment_learning_job_ids, dict) and experiment_learning_job_ids:
+        merged_learning_job_ids = {
+            str(condition).strip(): str(job_scope).strip()
+            for condition, job_scope in (settings.get(_LEARNING_JOB_SETTINGS_KEY, {}) or {}).items()
+            if str(condition).strip() and str(job_scope).strip()
+        }
+        merged_learning_job_ids.update(
+            {
+                str(condition).strip(): str(job_scope).strip()
+                for condition, job_scope in experiment_learning_job_ids.items()
+                if str(condition).strip() and str(job_scope).strip()
+            }
+        )
+        settings[_LEARNING_JOB_SETTINGS_KEY] = merged_learning_job_ids
 
     existing_field_names = {
         fc["name"]
@@ -625,6 +1225,7 @@ def _launch_process_inbox(
         env = os.environ.copy()
         if job_id:
             env["IDPO_JOB_ID"] = str(job_id)
+        env["IDPO_DISABLE_AHMN_FEEDBACK"] = "1"
         completed = subprocess.run(
             command,
             cwd=str(root),
@@ -778,6 +1379,7 @@ def _run_condition_batch(
         case_id = str(case.get("case_id", "")).strip()
         tags = [str(tag).strip() for tag in (case.get("tags", []) or []) if str(tag).strip()]
         expected = {str(k): str(v) for k, v in (case.get("expected", {}) or {}).items()}
+        expected_sources = {str(k): str(v) for k, v in (case.get("expected_sources", {}) or {}).items()}
         match_index = None
         target_keys = {case_id.strip().lower(), source_path.stem.strip().lower(), source_path.name.strip().lower()}
         for idx, doc in enumerate(unmatched_docs):
@@ -790,6 +1392,45 @@ def _run_condition_batch(
         doc = unmatched_docs.pop(match_index)
         structured = _exact_scoring_field_values(doc)
         tp, fp, fn = _case_metrics(expected, structured)
+        exact_metrics = {
+            "tp": tp,
+            "fp": fp,
+            "fn": fn,
+            **_precision_recall_f1(tp, fp, fn),
+        }
+        schema_conditioned_metrics = _schema_conditioned_case_metrics(expected, expected_sources, structured)
+        review_results_path = _write_benchmark_review_result(
+            run_id=str(run.get("run_id", "")),
+            run_dir=str(run.get("run_dir", "")),
+            doc=doc,
+            expected=expected,
+            expected_sources=expected_sources,
+            extracted=structured,
+            exact_metrics=exact_metrics,
+            schema_metrics=schema_conditioned_metrics,
+        )
+        if review_results_path:
+            doc["review_results_path"] = review_results_path
+        doc["review_status"] = "human_reviewed"
+        doc["review_source"] = "human"
+        if condition == ADAPTIVE_LABEL:
+            existing_feedback_logged = bool(doc.get("feedback_logged", False))
+            existing_feedback_error = doc.get("feedback_error")
+            feedback_logged, feedback_error = _log_exact_benchmark_feedback(
+                config_path=config_path,
+                doc=doc,
+                schema_metrics=schema_conditioned_metrics,
+                exact_metrics=exact_metrics,
+                expected=expected,
+                expected_sources=expected_sources,
+                extracted=structured,
+            )
+            if feedback_logged or not existing_feedback_logged:
+                doc["feedback_logged"] = feedback_logged
+                doc["feedback_error"] = feedback_error
+            else:
+                doc["feedback_logged"] = existing_feedback_logged
+                doc["feedback_error"] = existing_feedback_error
         results.append(
             {
                 "case_id": case_id,
@@ -799,13 +1440,10 @@ def _run_condition_batch(
                 "run_id": run.get("run_id", ""),
                 "run_dir": run.get("run_dir", ""),
                 "expected": expected,
+                "expected_sources": expected_sources,
                 "ahmn_state_path": ahmn_state_path,
-                "exact_metrics": {
-                    "tp": tp,
-                    "fp": fp,
-                    "fn": fn,
-                    **_precision_recall_f1(tp, fp, fn),
-                },
+                "exact_metrics": exact_metrics,
+                "schema_conditioned_metrics": schema_conditioned_metrics,
             }
         )
     return results
@@ -845,6 +1483,20 @@ def _condition_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     advice_accepted_count = 0
     policy_changed_count = 0
     exact_scored_doc_count = 0
+    document_type_total = 0
+    document_type_correct_count = 0
+    positive_field_tp = 0
+    positive_field_fp = 0
+    positive_field_fn = 0
+    unavailable_field_count = 0
+    unavailable_correct_count = 0
+    unavailable_hallucination_count = 0
+    unavailable_true_absence_field_count = 0
+    unavailable_true_absence_correct_count = 0
+    unavailable_true_absence_hallucination_count = 0
+    unavailable_unmapped_field_count = 0
+    unavailable_unmapped_correct_count = 0
+    unavailable_unmapped_hallucination_count = 0
     for item in results:
         doc = item["doc"]
         operator_counts.update(str(op).strip() for op in doc.get("operator_stack", []) or [])
@@ -897,12 +1549,64 @@ def _condition_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         exact_tp += int(exact.get("tp", 0) or 0)
         exact_fp += int(exact.get("fp", 0) or 0)
         exact_fn += int(exact.get("fn", 0) or 0)
+        schema_metrics = item.get("schema_conditioned_metrics", {})
+        if isinstance(schema_metrics, dict):
+            document_type_total += int(schema_metrics.get("document_type_total", 0) or 0)
+            document_type_correct_count += int(schema_metrics.get("document_type_correct_count", 0) or 0)
+            positive_field_tp += int(schema_metrics.get("positive_field_tp", 0) or 0)
+            positive_field_fp += int(schema_metrics.get("positive_field_fp", 0) or 0)
+            positive_field_fn += int(schema_metrics.get("positive_field_fn", 0) or 0)
+            unavailable_field_count += int(schema_metrics.get("unavailable_field_count", 0) or 0)
+            unavailable_correct_count += int(schema_metrics.get("unavailable_correct_count", 0) or 0)
+            unavailable_hallucination_count += int(schema_metrics.get("unavailable_hallucination_count", 0) or 0)
+            unavailable_true_absence_field_count += int(schema_metrics.get("unavailable_true_absence_field_count", 0) or 0)
+            unavailable_true_absence_correct_count += int(schema_metrics.get("unavailable_true_absence_correct_count", 0) or 0)
+            unavailable_true_absence_hallucination_count += int(schema_metrics.get("unavailable_true_absence_hallucination_count", 0) or 0)
+            unavailable_unmapped_field_count += int(schema_metrics.get("unavailable_unmapped_field_count", 0) or 0)
+            unavailable_unmapped_correct_count += int(schema_metrics.get("unavailable_unmapped_correct_count", 0) or 0)
+            unavailable_unmapped_hallucination_count += int(schema_metrics.get("unavailable_unmapped_hallucination_count", 0) or 0)
     exact_metrics = {
         "tp": exact_tp,
         "fp": exact_fp,
         "fn": exact_fn,
         **_precision_recall_f1(exact_tp, exact_fp, exact_fn),
     }
+    positive_prf = _precision_recall_f1(positive_field_tp, positive_field_fp, positive_field_fn)
+    document_type_accuracy = (
+        document_type_correct_count / document_type_total
+        if document_type_total
+        else 0.0
+    )
+    unavailable_accuracy = (
+        unavailable_correct_count / unavailable_field_count
+        if unavailable_field_count
+        else 0.0
+    )
+    unavailable_hallucination_rate = (
+        unavailable_hallucination_count / unavailable_field_count
+        if unavailable_field_count
+        else 0.0
+    )
+    unavailable_true_absence_accuracy = (
+        unavailable_true_absence_correct_count / unavailable_true_absence_field_count
+        if unavailable_true_absence_field_count
+        else 0.0
+    )
+    unavailable_true_absence_hallucination_rate = (
+        unavailable_true_absence_hallucination_count / unavailable_true_absence_field_count
+        if unavailable_true_absence_field_count
+        else 0.0
+    )
+    unavailable_unmapped_accuracy = (
+        unavailable_unmapped_correct_count / unavailable_unmapped_field_count
+        if unavailable_unmapped_field_count
+        else 0.0
+    )
+    unavailable_unmapped_hallucination_rate = (
+        unavailable_unmapped_hallucination_count / unavailable_unmapped_field_count
+        if unavailable_unmapped_field_count
+        else 0.0
+    )
     summary = {
         "doc_count": doc_count,
         "run_ids": _unique_nonempty([item.get("run_id", "") for item in results]),
@@ -937,6 +1641,28 @@ def _condition_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "policy_changed_count": policy_changed_count,
         "exact_scored_doc_count": exact_scored_doc_count,
         "exact_field_metrics": exact_metrics,
+        "document_type_accuracy": round(document_type_accuracy, 4),
+        "positive_field_precision": positive_prf["precision"],
+        "positive_field_recall": positive_prf["recall"],
+        "positive_field_f1": positive_prf["f1"],
+        "positive_field_tp": positive_field_tp,
+        "positive_field_fp": positive_field_fp,
+        "positive_field_fn": positive_field_fn,
+        "unavailable_accuracy": round(unavailable_accuracy, 4),
+        "unavailable_field_count": unavailable_field_count,
+        "unavailable_correct_count": unavailable_correct_count,
+        "unavailable_hallucination_count": unavailable_hallucination_count,
+        "unavailable_hallucination_rate": round(unavailable_hallucination_rate, 4),
+        "unavailable_true_absence_field_count": unavailable_true_absence_field_count,
+        "unavailable_true_absence_correct_count": unavailable_true_absence_correct_count,
+        "unavailable_true_absence_hallucination_count": unavailable_true_absence_hallucination_count,
+        "unavailable_true_absence_accuracy": round(unavailable_true_absence_accuracy, 4),
+        "unavailable_true_absence_hallucination_rate": round(unavailable_true_absence_hallucination_rate, 4),
+        "unavailable_unmapped_field_count": unavailable_unmapped_field_count,
+        "unavailable_unmapped_correct_count": unavailable_unmapped_correct_count,
+        "unavailable_unmapped_hallucination_count": unavailable_unmapped_hallucination_count,
+        "unavailable_unmapped_accuracy": round(unavailable_unmapped_accuracy, 4),
+        "unavailable_unmapped_hallucination_rate": round(unavailable_unmapped_hallucination_rate, 4),
     }
     return summary
 
@@ -963,6 +1689,94 @@ def _comparison_table(static_summary: dict[str, Any], adaptive_summary: dict[str
         "exact_f1": {
             "static": static_summary["exact_field_metrics"]["f1"],
             ADAPTIVE_LABEL: adaptive_summary["exact_field_metrics"]["f1"],
+        },
+        "document_type_accuracy": {
+            "static": static_summary.get("document_type_accuracy", 0.0),
+            ADAPTIVE_LABEL: adaptive_summary.get("document_type_accuracy", 0.0),
+        },
+        "positive_field_precision": {
+            "static": static_summary.get("positive_field_precision", 0.0),
+            ADAPTIVE_LABEL: adaptive_summary.get("positive_field_precision", 0.0),
+        },
+        "positive_field_recall": {
+            "static": static_summary.get("positive_field_recall", 0.0),
+            ADAPTIVE_LABEL: adaptive_summary.get("positive_field_recall", 0.0),
+        },
+        "positive_field_f1": {
+            "static": static_summary.get("positive_field_f1", 0.0),
+            ADAPTIVE_LABEL: adaptive_summary.get("positive_field_f1", 0.0),
+        },
+        "positive_field_tp": {
+            "static": static_summary.get("positive_field_tp", 0),
+            ADAPTIVE_LABEL: adaptive_summary.get("positive_field_tp", 0),
+        },
+        "positive_field_fp": {
+            "static": static_summary.get("positive_field_fp", 0),
+            ADAPTIVE_LABEL: adaptive_summary.get("positive_field_fp", 0),
+        },
+        "positive_field_fn": {
+            "static": static_summary.get("positive_field_fn", 0),
+            ADAPTIVE_LABEL: adaptive_summary.get("positive_field_fn", 0),
+        },
+        "unavailable_accuracy": {
+            "static": static_summary.get("unavailable_accuracy", 0.0),
+            ADAPTIVE_LABEL: adaptive_summary.get("unavailable_accuracy", 0.0),
+        },
+        "unavailable_field_count": {
+            "static": static_summary.get("unavailable_field_count", 0),
+            ADAPTIVE_LABEL: adaptive_summary.get("unavailable_field_count", 0),
+        },
+        "unavailable_correct_count": {
+            "static": static_summary.get("unavailable_correct_count", 0),
+            ADAPTIVE_LABEL: adaptive_summary.get("unavailable_correct_count", 0),
+        },
+        "unavailable_hallucination_count": {
+            "static": static_summary.get("unavailable_hallucination_count", 0),
+            ADAPTIVE_LABEL: adaptive_summary.get("unavailable_hallucination_count", 0),
+        },
+        "unavailable_hallucination_rate": {
+            "static": static_summary.get("unavailable_hallucination_rate", 0.0),
+            ADAPTIVE_LABEL: adaptive_summary.get("unavailable_hallucination_rate", 0.0),
+        },
+        "unavailable_true_absence_field_count": {
+            "static": static_summary.get("unavailable_true_absence_field_count", 0),
+            ADAPTIVE_LABEL: adaptive_summary.get("unavailable_true_absence_field_count", 0),
+        },
+        "unavailable_true_absence_correct_count": {
+            "static": static_summary.get("unavailable_true_absence_correct_count", 0),
+            ADAPTIVE_LABEL: adaptive_summary.get("unavailable_true_absence_correct_count", 0),
+        },
+        "unavailable_true_absence_hallucination_count": {
+            "static": static_summary.get("unavailable_true_absence_hallucination_count", 0),
+            ADAPTIVE_LABEL: adaptive_summary.get("unavailable_true_absence_hallucination_count", 0),
+        },
+        "unavailable_true_absence_accuracy": {
+            "static": static_summary.get("unavailable_true_absence_accuracy", 0.0),
+            ADAPTIVE_LABEL: adaptive_summary.get("unavailable_true_absence_accuracy", 0.0),
+        },
+        "unavailable_true_absence_hallucination_rate": {
+            "static": static_summary.get("unavailable_true_absence_hallucination_rate", 0.0),
+            ADAPTIVE_LABEL: adaptive_summary.get("unavailable_true_absence_hallucination_rate", 0.0),
+        },
+        "unavailable_unmapped_field_count": {
+            "static": static_summary.get("unavailable_unmapped_field_count", 0),
+            ADAPTIVE_LABEL: adaptive_summary.get("unavailable_unmapped_field_count", 0),
+        },
+        "unavailable_unmapped_correct_count": {
+            "static": static_summary.get("unavailable_unmapped_correct_count", 0),
+            ADAPTIVE_LABEL: adaptive_summary.get("unavailable_unmapped_correct_count", 0),
+        },
+        "unavailable_unmapped_hallucination_count": {
+            "static": static_summary.get("unavailable_unmapped_hallucination_count", 0),
+            ADAPTIVE_LABEL: adaptive_summary.get("unavailable_unmapped_hallucination_count", 0),
+        },
+        "unavailable_unmapped_accuracy": {
+            "static": static_summary.get("unavailable_unmapped_accuracy", 0.0),
+            ADAPTIVE_LABEL: adaptive_summary.get("unavailable_unmapped_accuracy", 0.0),
+        },
+        "unavailable_unmapped_hallucination_rate": {
+            "static": static_summary.get("unavailable_unmapped_hallucination_rate", 0.0),
+            ADAPTIVE_LABEL: adaptive_summary.get("unavailable_unmapped_hallucination_rate", 0.0),
         },
         "validation_pass_rate": {
             "static": static_summary["validation_pass_rate"],
@@ -1301,10 +2115,10 @@ def run_benchmark(
         # Per-condition AHMN learning scope: all docs in a condition share one job_id
         # so Thompson Sampling accumulates evidence across documents (not just within each doc).
         # These are separate from existing_job_id (the frontend job) which is for UI tracking.
-        condition_learning_job_ids: dict[str, str] = {
-            condition: f"bench_{benchmark_run_id}_{condition}"
-            for condition in ("static", ADAPTIVE_LABEL)
-        }
+        condition_learning_job_ids = _resolve_condition_learning_job_ids(
+            benchmark_run_id=benchmark_run_id,
+            existing_job_id=existing_job_id,
+        )
 
         active_conditions = (ADAPTIVE_LABEL,) if adaptive_only else ("static", ADAPTIVE_LABEL)
 
@@ -1332,6 +2146,7 @@ def run_benchmark(
                     for key, desc in (case.get("fields", {}) or {}).items()
                 ]
                 expected = {str(k): str(v) for k, v in (case.get("expected", {}) or {}).items()}
+                expected_sources = {str(k): str(v) for k, v in (case.get("expected_sources", {}) or {}).items()}
                 if not source_path.exists():
                     for condition in active_conditions:
                         conditions[condition].append(
@@ -1359,6 +2174,21 @@ def run_benchmark(
                     doc = docs[0]
                     structured = _exact_scoring_field_values(doc)
                     tp, fp, fn = _case_metrics(expected, structured)
+                    schema_conditioned_metrics = _schema_conditioned_case_metrics(expected, expected_sources, structured)
+                    if condition == ADAPTIVE_LABEL:
+                        existing_feedback_logged = bool(doc.get("feedback_logged", False))
+                        existing_feedback_error = doc.get("feedback_error")
+                        feedback_logged, feedback_error = _log_exact_benchmark_feedback(
+                            config_path=str(condition_configs[condition]),
+                            doc=doc,
+                            schema_metrics=schema_conditioned_metrics,
+                        )
+                        if feedback_logged or not existing_feedback_logged:
+                            doc["feedback_logged"] = feedback_logged
+                            doc["feedback_error"] = feedback_error
+                        else:
+                            doc["feedback_logged"] = existing_feedback_logged
+                            doc["feedback_error"] = existing_feedback_error
                     conditions[condition].append(
                         {
                             "case_id": case_id,
@@ -1369,12 +2199,14 @@ def run_benchmark(
                             "run_dir": run.get("run_dir", ""),
                             "ahmn_state_path": str((run.get("run_payload") or {}).get("ahmn_state_path", "")).strip() or None,
                             "expected": expected,
+                            "expected_sources": expected_sources,
                             "exact_metrics": {
                                 "tp": tp,
                                 "fp": fp,
                                 "fn": fn,
                                 **_precision_recall_f1(tp, fp, fn),
                             },
+                            "schema_conditioned_metrics": schema_conditioned_metrics,
                         }
                     )
 
@@ -1407,12 +2239,14 @@ def run_benchmark(
                 "case_id": case_id,
                 "tags": tags,
                 "expected": {str(k): str(v) for k, v in (case.get("expected") or {}).items()},
+                "expected_sources": {str(k): str(v) for k, v in (case.get("expected_sources") or {}).items()},
                 "static": {
                     "run_id": static_item.get("run_id", ""),
                     "run_dir": static_item.get("run_dir", ""),
                     "ahmn_state_path": static_item.get("ahmn_state_path"),
                     "doc": static_doc,
                     "exact_metrics": static_item.get("exact_metrics", {}),
+                    "schema_conditioned_metrics": static_item.get("schema_conditioned_metrics", {}),
                 },
                 ADAPTIVE_LABEL: {
                     "run_id": adaptive_item.get("run_id", ""),
@@ -1420,6 +2254,7 @@ def run_benchmark(
                     "ahmn_state_path": adaptive_item.get("ahmn_state_path"),
                     "doc": adaptive_doc,
                     "exact_metrics": adaptive_item.get("exact_metrics", {}),
+                    "schema_conditioned_metrics": adaptive_item.get("schema_conditioned_metrics", {}),
                 },
                 "deltas": {
                     "latency_ms": round(float(adaptive_doc.get("latency_ms", 0.0) or 0.0) - float(static_doc.get("latency_ms", 0.0) or 0.0), 2),
@@ -1470,6 +2305,7 @@ def run_benchmark(
             "elapsed_ms": round((time.time() - started) * 1000, 2),
             "doc_count": len(cases),
             "generation_version": 1,
+            "learning_job_ids": condition_learning_job_ids,
         },
         "conditions": condition_summaries,
         "comparison": {

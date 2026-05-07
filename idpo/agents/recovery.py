@@ -35,7 +35,9 @@ class RecoveryAgent(Agent):
 
         if failing_fields:
             new_entities = self._llm_recover(doc, failing_fields, ctx, recovery_trace)
-            recovery_confidence = ctx.config.preprocessing.recovery_confidence
+            recovery_confidence = float(
+                getattr(getattr(ctx.config, "recovery", object()), "confidence", ctx.config.preprocessing.recovery_confidence)
+            )
             for entity in new_entities:
                 if entity.key in failing_fields and str(entity.value or "").strip():
                     updated_entities[entity.key] = Entity(

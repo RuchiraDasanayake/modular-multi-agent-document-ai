@@ -27,6 +27,7 @@ from pathlib import Path
 
 from idpo.agents.base import AgentContext
 from idpo.agents.doc_analysis import DocumentAnalysisAgent
+from idpo.agents.preprocess import OcrAgent
 from idpo.core.artifacts import ArtifactStore
 from idpo.core.config import PipelineConfig
 from idpo.core.policy_store import PolicyStore
@@ -56,6 +57,7 @@ class Pipeline:
         self,
         config: PipelineConfig | None = None,
         run_dir: str | None = None,
+        run_id: str | None = None,
         read_only: bool = False,
     ) -> None:
         self.base_run_dir = Path(run_dir) if run_dir else resolve_default_run_dir(uuid.uuid4().hex)
@@ -71,13 +73,15 @@ class Pipeline:
 
             if config is None:
                 config = config_from_dict(payload.get("config", {}))
-            self.run_id = payload.get("run_id", uuid.uuid4().hex)
+            self.run_id = payload.get("run_id", run_id or uuid.uuid4().hex)
         elif metadata_path.exists() and config is None:
             payload = json.loads(metadata_path.read_text(encoding="utf-8"))
             from idpo.core.config import config_from_dict
 
             config = config_from_dict(payload.get("config", {}))
-            self.run_id = payload.get("run_id", uuid.uuid4().hex)
+            self.run_id = payload.get("run_id", run_id or uuid.uuid4().hex)
+        elif run_id:
+            self.run_id = run_id
         else:
             self.run_id = uuid.uuid4().hex
         self.config = config or PipelineConfig()
@@ -94,6 +98,7 @@ class Pipeline:
         )
 
         self.analysis = DocumentAnalysisAgent()
+        self.analysis_ocr = OcrAgent()
         self.policy_store = PolicyStore(
             self.config.knowledge.policy_store_path,
             default_policy_id=self.config.knowledge.default_policy_id,
@@ -126,7 +131,7 @@ class Pipeline:
         if not self.config.queue.enabled:
             return [self.process_document(doc) for doc in docs]
         if len(docs) == 1:
-            doc = docs[0]
+            doc = self._prepare_document_for_analysis(docs[0])
             analysis_result = self.analysis.run({"document": doc}, self.ctx)
             dae_output = analysis_result.artifacts.get("dae_output")
             analysis_signal = analysis_result.artifacts.get("signal")
@@ -134,6 +139,7 @@ class Pipeline:
 
         dae_payloads = []
         for doc in docs:
+            doc = self._prepare_document_for_analysis(doc)
             analysis_result = self.analysis.run({"document": doc}, self.ctx)
             dae_output = analysis_result.artifacts.get("dae_output")
             analysis_signal = analysis_result.artifacts.get("signal")
@@ -212,13 +218,21 @@ class Pipeline:
         )
 
         if dae_output is None:
+            doc = self._prepare_document_for_analysis(doc)
             analysis_result = self.analysis.run({"document": doc}, self.ctx)
             dae_output = analysis_result.artifacts.get("dae_output")
             analysis_signal = analysis_result.artifacts.get("signal")
 
         category, bin_name = self._categorize(dae_output, doc)
         doc_type = dae_output.doc_type
-        doc.metadata.update({"category": category, "bin": bin_name, "doc_type": doc_type})
+        doc.metadata.update(
+            {
+                "category": category,
+                "bin": bin_name,
+                "doc_type": doc_type,
+                "routing_family": str(getattr(dae_output, "semantic_doc_type", "unknown") or "unknown"),
+            }
+        )
 
         constraints = SystemConstraints(
             max_cost_units=self.config.plan.max_total_budget_units,
@@ -247,6 +261,7 @@ class Pipeline:
         fallback_candidates = route_decision.fallback_candidates
         ranked_policies = route_decision.ranked_policies
         route_specialization = route_decision.route_specialization
+        doc.metadata["route_specialization"] = route_specialization
         fallback_reason = route_decision.fallback_reason
         static_policy = route_decision.baseline_policy
         static_policy_reason = route_decision.baseline_policy_reason
@@ -268,6 +283,7 @@ class Pipeline:
                 dae_output=dae_output,
                 policy=fallback,
                 system_constraints=constraints,
+                doc_metadata=doc.metadata,
                 source="rollback",
                 rationale="blocked_policy",
             )
@@ -508,6 +524,36 @@ class Pipeline:
             analysis_signal=analysis_signal,
         )
 
+    def _prepare_document_for_analysis(self, doc: Document) -> Document:
+        if self._has_meaningful_text(doc):
+            return doc
+        if not any(str(page.image_path or "").strip() for page in doc.pages):
+            return doc
+        try:
+            result = self.analysis_ocr.run(
+                {
+                    "document": doc,
+                    "engine": self.config.preprocessing.ocr_engine,
+                    "passes": self.config.preprocessing.ocr_passes,
+                    "lang": self.config.preprocessing.ocr_lang,
+                    "psm": self.config.preprocessing.ocr_psm,
+                    "oem": self.config.preprocessing.ocr_oem,
+                    "dpi": self.config.preprocessing.ocr_dpi,
+                    "alt_psm": self.config.preprocessing.ocr_alt_psm,
+                },
+                self.ctx,
+            )
+        except Exception as exc:
+            logger.warning("Analysis OCR bootstrap failed for %s: %s", doc.doc_id, exc)
+            return doc
+        prepared = result.artifacts.get("document", doc)
+        prepared.metadata["analysis_bootstrap_ocr"] = True
+        return prepared
+
+    @staticmethod
+    def _has_meaningful_text(doc: Document) -> bool:
+        return any(str(page.text or page.raw_text or "").strip() for page in doc.pages)
+
     def _categorize(self, dae_output: DAEOutput, doc: Document) -> tuple[str, str]:
         content = dae_output.content_profile
         if dae_output.doc_type == "scanned_document" or content == "image-heavy":
@@ -603,4 +649,3 @@ class Pipeline:
                 artifacts=[embedding_artifact.artifact_id],
             )
         return bundle
-

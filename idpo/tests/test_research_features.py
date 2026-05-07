@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -16,10 +17,11 @@ from idpo.core.calibration import ConfidenceCalibrator, load_calibration_samples
 from idpo.core.config import BudgetConfig, PipelineConfig, RollbackConfig
 from idpo.core.policy_store import PolicyStore
 from idpo.core.provenance import ProvenanceRecorder
-from idpo.core.types import DAEOutput, Document, Entity, Page, SystemConstraints, ValidationIssue
+from idpo.core.types import DAEOutput, Document, Entity, Page, PolicyDefinition, SystemConstraints, ValidationIssue
 from idpo.pipeline.orchestrator import Pipeline
 from idpo.pipeline.policy_advisor import PolicyAdvice, PolicyAdvisor, PolicyRecommendation
 from idpo.pipeline.inbox import process_inbox
+from idpo.pipeline.job_context import write_field_context
 import idpo.pipeline.inbox as inbox_module
 import idpo.pipeline.feedback as feedback_module
 import scripts.run_idpo_benchmark as benchmark_module
@@ -133,7 +135,30 @@ def test_dae_ocr_noise_ratio_captures_noisy_ocr_tokens(tmp_path: Path) -> None:
     assert output.quality_features["ocr_noise_ratio"] >= 0.12
 
 
-def test_dae_receipt_like_scan_selects_receipt_fast_policy(tmp_path: Path) -> None:
+def test_dae_treats_label_anchored_ocr_lines_as_form_features(tmp_path: Path) -> None:
+    agent = DocumentAnalysisAgent()
+    ctx = _ctx(tmp_path)
+    doc = Document(
+        doc_id="doc-form-ocr",
+        source="scanned",
+        path="doc-form-ocr.png",
+        pages=[
+            Page(
+                number=1,
+                image_path="scan.png",
+                text="FAX TRANSMISSION\nTO Jane Smith\nFROM John Doe\nDATE January 11 1999\nRE Legal Notice\n",
+            )
+        ],
+    )
+
+    output = agent.run({"document": doc}, ctx).artifacts["dae_output"]
+
+    assert output.structural_features["form_ratio"] >= 0.4
+    assert output.structural_features["kv_density"] >= 0.4
+    assert output.semantic_doc_type == "correspondence"
+
+
+def test_dae_receipt_like_scan_selects_receipt_specialist_policy(tmp_path: Path) -> None:
     agent = DocumentAnalysisAgent()
     ctx = _ctx(tmp_path)
     config = PipelineConfig()
@@ -171,13 +196,15 @@ def test_dae_receipt_like_scan_selects_receipt_fast_policy(tmp_path: Path) -> No
     assert dae.content_profile == "text-light"
     assert dae.route_bin == "light"
     assert dae.quality_features["ocr_noise_ratio"] <= 0.18
-    assert selected.policy_id == "receipt_fast_local"
+    assert selected.policy_id == "receipt_specialist"
     assert reason == "match"
     assert decision.route_specialization == "receipt"
-    assert decision.policy.policy_id == "receipt_fast_local"
+    assert decision.policy.policy_id == "receipt_specialist"
+    extract_step = next(step for step in decision.plan.steps if step.operator == "structuring.extract")
+    assert extract_step.params["per_field_extraction"] is True
 
 
-def test_dae_noisy_receipt_like_scan_selects_receipt_rescue_policy(tmp_path: Path) -> None:
+def test_dae_noisy_receipt_like_scan_selects_receipt_specialist_policy(tmp_path: Path) -> None:
     agent = DocumentAnalysisAgent()
     ctx = _ctx(tmp_path)
     config = PipelineConfig()
@@ -214,10 +241,45 @@ def test_dae_noisy_receipt_like_scan_selects_receipt_rescue_policy(tmp_path: Pat
     assert dae.doc_type == "scanned_document"
     assert dae.content_profile == "text-light"
     assert dae.quality_features["ocr_noise_ratio"] >= 0.12
-    assert selected.policy_id == "receipt_rescue_local"
+    assert selected.policy_id == "receipt_specialist"
     assert reason == "match"
     assert decision.route_specialization == "receipt"
-    assert decision.policy.policy_id == "receipt_rescue_local"
+    assert decision.policy.policy_id == "receipt_specialist"
+    extract_step = next(step for step in decision.plan.steps if step.operator == "structuring.extract")
+    assert extract_step.params["per_field_extraction"] is True
+
+
+def test_static_baseline_store_remains_default_only_for_cord_receipt(tmp_path: Path) -> None:
+    agent = DocumentAnalysisAgent()
+    ctx = _ctx(tmp_path)
+    config = PipelineConfig()
+    config.knowledge.policy_store_path = str(repo_root() / "configs" / "policy_store_baseline.json")
+    config.ahmn.policy_mode = "static"
+    store = PolicyStore(config.knowledge.policy_store_path, default_policy_id="default")
+    router = PlanRouter(config, store)
+    doc = Document(
+        doc_id="cord_validation_0001",
+        source="scanned",
+        path="cord_validation_0001.png",
+        pages=[
+            Page(
+                number=1,
+                image_path="scan.png",
+                text="ITEM A 2.50\nSUBTOTAL 2.50\nTAX 0.25\nTOTAL 2.75\nCASH 5.00\nCHANGE 2.25\n",
+            )
+        ],
+    )
+
+    dae = agent.run({"document": doc}, ctx).artifacts["dae_output"]
+    selected, reason = store.select_policy(dae, doc)
+    decision = router.route(dae, SystemConstraints(max_cost_units=5, max_latency_ms=2000), doc_metadata=doc.metadata, doc=doc)
+
+    assert dae.vendor_cluster == "cord"
+    assert dae.semantic_doc_type == "receipt"
+    assert selected.policy_id == "default"
+    assert reason == "default"
+    assert decision.policy.policy_id == "default"
+    assert decision.advice_status == "static"
 
 
 def test_policy_advisor_ranked_fallback(tmp_path: Path) -> None:
@@ -535,6 +597,140 @@ def test_build_plan_preserves_specialist_extraction_settings(tmp_path: Path) -> 
     assert "Point-of-sale receipt" in extract_step.params["extraction_context"]
 
 
+def test_build_plan_injects_job_and_analysis_context(tmp_path: Path, monkeypatch) -> None:
+    runtime_root = tmp_path / "runtime"
+    monkeypatch.setenv("IDPO_DATA_DIR", str(runtime_root))
+    monkeypatch.setenv("IDPO_JOB_ID", "job-ctx-2")
+    write_field_context(
+        job_id="job-ctx-2",
+        doc_id="doc-1",
+        policy_id="default",
+        field_confidence={"recipient_name": 0.1},
+        validation_issues=[],
+        vendor_cluster="acme",
+        semantic_doc_type="correspondence",
+    )
+    write_field_context(
+        job_id="job-ctx-2",
+        doc_id="doc-2",
+        policy_id="default",
+        field_confidence={"recipient_name": 0.1},
+        validation_issues=[],
+        vendor_cluster="acme",
+        semantic_doc_type="correspondence",
+    )
+
+    config = PipelineConfig()
+    config.structuring.requested_fields = ["recipient_name"]
+    policy = PolicyDefinition(
+        policy_id="default",
+        name="Default",
+        actions={
+            "extraction": {
+                "extraction_context": "STATIC POLICY CONTEXT: extract only explicit values.",
+            }
+        },
+    )
+    dae = DAEOutput(
+        doc_id="doc-ctx",
+        doc_type="scanned_document",
+        vendor_cluster="acme",
+        quality_bin="B",
+        complexity_bin="2",
+        content_profile="form-centric",
+        quality_score=0.7,
+        complexity_score=0.5,
+        layout_cluster_id="form_dense",
+        route_bin="heavy",
+        semantic_doc_type="correspondence",
+        quality_features={"ocr_noise_ratio": 0.18, "image_ratio": 0.6},
+        structural_features={"kv_density": 0.5, "form_ratio": 0.6},
+    )
+
+    plan = build_plan(
+        config=config,
+        dae_output=dae,
+        policy=policy,
+        system_constraints=SystemConstraints(max_cost_units=5, max_latency_ms=2000),
+        doc_metadata={"job_id": "job-ctx-2"},
+        source="unit-test",
+        rationale="unit-test",
+    )
+
+    extract_step = next(step for step in plan.steps if step.operator == "structuring.extract")
+    context = extract_step.params["extraction_context"]
+    assert "JOB CONTEXT" in context
+    assert "STATIC POLICY CONTEXT" in context
+    assert "routing family appears to be correspondence" in context
+    assert "route specialization is form" in context
+
+
+def test_build_plan_separates_internal_routing_family_from_schema_document_type() -> None:
+    config = PipelineConfig()
+    config.structuring.requested_fields = ["document_type", "document_date"]
+    dae = DAEOutput(
+        doc_id="doc-1",
+        doc_type="scanned_document",
+        vendor_cluster="unknown",
+        quality_bin="B",
+        complexity_bin="2",
+        content_profile="form-centric",
+        quality_score=0.7,
+        complexity_score=0.5,
+        layout_cluster_id="form_dense",
+        route_bin="heavy",
+        semantic_doc_type="correspondence",
+        quality_features={"ocr_noise_ratio": 0.05, "image_ratio": 0.3},
+        structural_features={"kv_density": 0.4, "form_ratio": 0.6},
+    )
+    policy = PolicyDefinition(policy_id="default", name="Default", conditions={}, actions={})
+    plan = build_plan(
+        config=config,
+        dae_output=dae,
+        policy=policy,
+        system_constraints=SystemConstraints(max_cost_units=5, max_latency_ms=2000),
+        doc_metadata={},
+        source="unit-test",
+        rationale="unit-test",
+    )
+
+    extract_step = next(step for step in plan.steps if step.operator == "structuring.extract")
+    context = extract_step.params["extraction_context"]
+    assert "output only one schema label from invoice, receipt, form, or other" in context
+    assert "Do not copy internal routing families such as correspondence or legal_form" in context
+
+
+def test_pipeline_bootstraps_ocr_before_analysis_for_textless_image_docs(tmp_path: Path) -> None:
+    pipeline = Pipeline(config=PipelineConfig(), run_dir=str(tmp_path / "run"))
+    doc = Document(
+        doc_id="ocr-bootstrap",
+        source="scanned",
+        path="ocr-bootstrap.png",
+        pages=[Page(number=1, text="", raw_text="", image_path="scan.png")],
+    )
+
+    def fake_ocr_run(payload, ctx):  # noqa: ANN001, ARG001
+        prepared = payload["document"]
+        prepared.pages = [
+            Page(
+                number=1,
+                text="FAX TRANSMISSION\nTO Jane Smith\nFROM John Doe\nDATE January 11 1999\nRE Legal Notice\n",
+                raw_text="",
+                image_path="scan.png",
+            )
+        ]
+        return SimpleNamespace(artifacts={"document": prepared})
+
+    pipeline.analysis_ocr.run = fake_ocr_run  # type: ignore[method-assign]
+
+    prepared = pipeline._prepare_document_for_analysis(doc)  # noqa: SLF001
+    dae = pipeline.analysis.run({"document": prepared}, pipeline.ctx).artifacts["dae_output"]
+
+    assert prepared.metadata["analysis_bootstrap_ocr"] is True
+    assert dae.structural_features["form_ratio"] >= 0.4
+    assert dae.semantic_doc_type == "correspondence"
+
+
 def test_plan_router_rejects_condition_mismatched_adaptive_recommendation(tmp_path: Path) -> None:
     policy_path = tmp_path / "policies.json"
     policy_path.write_text(
@@ -740,7 +936,7 @@ def test_pipeline_emits_reward_and_trace_fields(tmp_path: Path) -> None:
         pages=[Page(number=1, text="Invoice Number: INV-55\nTotal Amount: 10.00\nDate: 01/01/2026\n")],
     )
     result = pipeline.process_documents([doc])[0]
-    assert result.reward_type == "canonical_union"
+    assert result.reward_type == "canonical_fallback"
     assert isinstance(result.reward_details, dict)
     assert result.recovery_log is not None
     assert result.escalation_status in {"not_needed", "attempted", "budget_blocked", "quota_blocked", "model_unavailable"}
@@ -907,10 +1103,13 @@ def test_process_inbox_writes_decision_chain_and_reward_artifacts(tmp_path: Path
         ],
     )
     doc = result["doc_records"][0]
-    assert doc["reward_type"] == "canonical_union"
+    assert doc["reward_type"] == "policy_declared"
     assert Path(doc["decision_chain_path"]).exists()
     assert Path(doc["reward_path"]).exists()
     assert Path(doc["recovery_trace_path"]).exists()
+    plan = json.loads(Path(doc["plan_path"]).read_text(encoding="utf-8"))
+    extract_step = next(step for step in plan["steps"] if step["operator"] == "structuring.extract")
+    assert extract_step["params"]["per_field_extraction"] is True
     decision_chain = json.loads(Path(doc["decision_chain_path"]).read_text(encoding="utf-8"))
     assert "policy" in decision_chain
     assert "reward" in decision_chain
@@ -964,7 +1163,7 @@ def test_process_inbox_preserves_shadow_and_queue_config(tmp_path: Path, monkeyp
     captured: dict[str, object] = {}
 
     class DummyPipeline:
-        def __init__(self, config, run_dir: str) -> None:
+        def __init__(self, config, run_dir: str, run_id=None) -> None:  # noqa: ANN001
             captured["shadow_enabled"] = config.shadow.enabled
             captured["queue_enabled"] = config.queue.enabled
             self.run_dir = Path(run_dir)
@@ -1073,6 +1272,25 @@ def test_benchmark_generates_paper_evidence(tmp_path: Path, monkeypatch) -> None
     assert payload["experiment"]["condition_configs"][benchmark_module.ADAPTIVE_LABEL]["policy_mode"] == benchmark_module.ADAPTIVE_LABEL
     assert payload["experiment"]["condition_configs"][benchmark_module.ADAPTIVE_LABEL]["runtime_policy_mode"] == "adaptive"
     assert "exact_f1" in payload["comparison"]["table"]
+    schema_metric_names = [
+        "document_type_accuracy",
+        "positive_field_precision",
+        "positive_field_recall",
+        "positive_field_f1",
+        "positive_field_tp",
+        "positive_field_fp",
+        "positive_field_fn",
+        "unavailable_accuracy",
+        "unavailable_field_count",
+        "unavailable_correct_count",
+        "unavailable_hallucination_count",
+        "unavailable_hallucination_rate",
+    ]
+    for metric_name in schema_metric_names:
+        assert metric_name in payload["comparison"]["table"]
+        metric_values = payload["comparison"]["table"][metric_name]
+        assert "static" in metric_values
+        assert benchmark_module.ADAPTIVE_LABEL in metric_values
     assert "exact_scored_doc_count" in payload["comparison"]["table"]
     assert "direct_scored_doc_count" not in payload["comparison"]["table"]
     assert "advice_source_counts" in payload["comparison"]["table"]
@@ -1322,6 +1540,229 @@ def test_case_metrics_handles_currency_prefixes_and_three_digit_grouping() -> No
     assert (tp, fp, fn) == (4, 0, 0)
 
 
+def test_case_metrics_ignores_unrequested_optional_fields() -> None:
+    tp, fp, fn = benchmark_module._case_metrics(  # noqa: SLF001
+        {"total_amount": "31.000", "cash_amount": "40.000"},
+        {
+            "total_amount": "31.000",
+            "cash_amount": "40.000",
+            "change_amount": "9.000",
+            "subtotal_amount": "28.182",
+            "tax_amount": "2.818",
+        },
+    )
+    assert (tp, fp, fn) == (2, 0, 0)
+
+
+def test_schema_conditioned_positive_fields_compute_tp_fp_fn() -> None:
+    metrics = benchmark_module._schema_conditioned_case_metrics(  # noqa: SLF001
+        expected={
+            "document_type": "invoice",
+            "issuer_name": "Alice LLC",
+            "recipient_name": "Bob Inc",
+        },
+        expected_sources={
+            "document_type": "dataset_type",
+            "issuer_name": "invoice_vendor_label",
+            "recipient_name": "invoice_customer_label",
+        },
+        extracted={
+            "document_type": "invoice",
+            "issuer_name": "Alice LLC",
+            "recipient_name": "Wrong Recipient Co",
+        },
+    )
+    assert metrics["positive_field_tp"] == 1
+    assert metrics["positive_field_fp"] == 1
+    assert metrics["positive_field_fn"] == 1
+    assert metrics["positive_field_precision"] == 0.5
+    assert metrics["positive_field_recall"] == 0.5
+    assert metrics["positive_field_f1"] == 0.5
+
+
+def test_schema_conditioned_unavailable_fields_compute_accuracy() -> None:
+    metrics = benchmark_module._schema_conditioned_case_metrics(  # noqa: SLF001
+        expected={
+            "document_type": "invoice",
+            "reference_id": "unavailable",
+            "total_amount": "unavailable",
+        },
+        expected_sources={
+            "document_type": "dataset_type",
+            "reference_id": "unavailable_from_unmapped_label",
+            "total_amount": "unavailable_from_unmapped_label",
+        },
+        extracted={
+            "document_type": "invoice",
+            "reference_id": "",
+            "total_amount": "N/A",
+        },
+    )
+    assert metrics["unavailable_field_count"] == 2
+    assert metrics["unavailable_correct_count"] == 2
+    assert metrics["unavailable_hallucination_count"] == 0
+    assert metrics["unavailable_accuracy"] == 1.0
+    assert metrics["unavailable_hallucination_rate"] == 0.0
+
+
+def test_schema_conditioned_unavailable_concrete_output_is_hallucination() -> None:
+    metrics = benchmark_module._schema_conditioned_case_metrics(  # noqa: SLF001
+        expected={
+            "document_type": "invoice",
+            "total_amount": "unavailable",
+        },
+        expected_sources={
+            "document_type": "dataset_type",
+            "total_amount": "unavailable_from_unmapped_label",
+        },
+        extracted={
+            "document_type": "invoice",
+            "total_amount": "1200.00",
+        },
+    )
+    assert metrics["unavailable_field_count"] == 1
+    assert metrics["unavailable_correct_count"] == 0
+    assert metrics["unavailable_hallucination_count"] == 1
+    assert metrics["unavailable_hallucination_rate"] == 1.0
+
+
+def test_schema_conditioned_document_type_accuracy_is_separate() -> None:
+    metrics = benchmark_module._schema_conditioned_case_metrics(  # noqa: SLF001
+        expected={
+            "document_type": "form",
+            "issuer_name": "unavailable",
+        },
+        expected_sources={
+            "document_type": "dataset_type",
+            "issuer_name": "unavailable_from_unmapped_label",
+        },
+        extracted={
+            "document_type": "receipt",
+            "issuer_name": "",
+        },
+    )
+    assert metrics["document_type_accuracy"] == 0.0
+    assert metrics["positive_field_tp"] == 0
+    assert metrics["positive_field_fp"] == 0
+    assert metrics["positive_field_fn"] == 0
+
+
+def test_schema_conditioned_brief_explanation_excluded_from_positive_f1() -> None:
+    metrics = benchmark_module._schema_conditioned_case_metrics(  # noqa: SLF001
+        expected={
+            "document_type": "invoice",
+            "sender": "Acme Corp",
+            "brief_explanation": "Invoice from seller to customer",
+        },
+        expected_sources={
+            "document_type": "dataset_type",
+            "sender": "invoice_vendor_label",
+            "brief_explanation": "derived_from_document_type",
+        },
+        extracted={
+            "document_type": "invoice",
+            "sender": "Acme Corp",
+            "brief_explanation": "Wrong explanation text",
+        },
+    )
+    assert metrics["positive_field_tp"] == 1
+    assert metrics["positive_field_fp"] == 0
+    assert metrics["positive_field_fn"] == 0
+    assert metrics["positive_field_f1"] == 1.0
+
+
+def test_schema_conditioned_reference_id_invoice_number_normalization_matches() -> None:
+    metrics = benchmark_module._schema_conditioned_case_metrics(  # noqa: SLF001
+        expected={
+            "document_type": "invoice",
+            "reference_id": "40378170",
+        },
+        expected_sources={
+            "document_type": "dataset_type",
+            "reference_id": "invoice_number_label",
+        },
+        extracted={
+            "document_type": "invoice",
+            "reference_id": "Invoice no: 40378170",
+        },
+    )
+    assert metrics["positive_field_tp"] == 1
+    assert metrics["positive_field_fp"] == 0
+    assert metrics["positive_field_fn"] == 0
+
+
+def test_schema_conditioned_party_name_normalization_ignores_address_tail() -> None:
+    metrics = benchmark_module._schema_conditioned_case_metrics(  # noqa: SLF001
+        expected={
+            "document_type": "invoice",
+            "issuer_name": "Patel, Thompson and Montgomery 356 Kyle Vista New James, MA",
+        },
+        expected_sources={
+            "document_type": "dataset_type",
+            "issuer_name": "invoice_vendor_label",
+        },
+        extracted={
+            "document_type": "invoice",
+            "issuer_name": "Patel, Thompson and Montgomery",
+        },
+    )
+    assert metrics["positive_field_tp"] == 1
+    assert metrics["positive_field_fp"] == 0
+    assert metrics["positive_field_fn"] == 0
+
+
+def test_schema_conditioned_unavailable_is_split_by_unmapped_source() -> None:
+    metrics = benchmark_module._schema_conditioned_case_metrics(  # noqa: SLF001
+        expected={
+            "document_type": "invoice",
+            "reference_id": "unavailable",
+            "recipient_name": "unavailable",
+        },
+        expected_sources={
+            "document_type": "dataset_type",
+            "reference_id": "unavailable_from_unmapped_label",
+            "recipient_name": "manual_unavailable_label",
+        },
+        extracted={
+            "document_type": "invoice",
+            "reference_id": "123 Main St",
+            "recipient_name": "N/A",
+        },
+    )
+    assert metrics["unavailable_field_count"] == 2
+    assert metrics["unavailable_unmapped_field_count"] == 1
+    assert metrics["unavailable_unmapped_hallucination_count"] == 1
+    assert metrics["unavailable_unmapped_accuracy"] == 0.0
+    assert metrics["unavailable_true_absence_field_count"] == 1
+    assert metrics["unavailable_true_absence_correct_count"] == 1
+    assert metrics["unavailable_true_absence_accuracy"] == 1.0
+
+
+def test_schema_conditioned_quarantined_field_is_excluded_from_metrics() -> None:
+    metrics = benchmark_module._schema_conditioned_case_metrics(  # noqa: SLF001
+        expected={
+            "document_type": "invoice",
+            "total_amount": "unavailable",
+            "reference_id": "40378170",
+        },
+        expected_sources={
+            "document_type": "dataset_type",
+            "total_amount": "quarantined_invoice_total_unlabeled",
+            "reference_id": "invoice_number_label",
+        },
+        extracted={
+            "document_type": "invoice",
+            "total_amount": "$ 8,25",
+            "reference_id": "Invoice no: 40378170",
+        },
+    )
+    assert metrics["positive_field_tp"] == 1
+    assert metrics["positive_field_fp"] == 0
+    assert metrics["positive_field_fn"] == 0
+    assert metrics["unavailable_field_count"] == 0
+    assert metrics["unavailable_hallucination_count"] == 0
+
+
 def test_exact_scoring_field_values_prefers_validation_normalized(tmp_path: Path) -> None:
     normalized_path = tmp_path / "normalized.json"
     normalized_path.write_text(
@@ -1536,6 +1977,456 @@ def test_register_frontend_jobs_uses_single_persistent_job(tmp_path: Path, monke
     assert payload["ahmnSummary"]["reviewedHumanCount"] == 2
 
 
+def test_run_benchmark_reuses_stored_learning_job_ids(tmp_path: Path, monkeypatch) -> None:
+    runtime_root = tmp_path / "idpo-data"
+    monkeypatch.setenv("IDPO_DATA_DIR", str(runtime_root))
+
+    jobs_root = runtime_root / "frontend" / "jobs"
+    jobs_root.mkdir(parents=True, exist_ok=True)
+    (jobs_root / "job-123.json").write_text(
+        json.dumps(
+            {
+                "jobId": "job-123",
+                "settings": {
+                    "learningJobIds": {
+                        "static": "persist-static",
+                        benchmark_module.ADAPTIVE_LABEL: "persist-adaptive",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    inputs_dir = tmp_path / "inputs"
+    inputs_dir.mkdir(parents=True, exist_ok=True)
+    (inputs_dir / "receipt_a.txt").write_text("a", encoding="utf-8")
+    (inputs_dir / "receipt_b.txt").write_text("b", encoding="utf-8")
+
+    pack_path = tmp_path / "pack.json"
+    pack_path.write_text(
+        json.dumps(
+            {
+                "name": "tiny_batch_pack",
+                "batch_mode": "single_run_per_condition",
+                "shared_fields": {"total_amount": "Receipt total"},
+                "cases": [
+                    {
+                        "case_id": "receipt_a",
+                        "tags": ["receipt"],
+                        "path": str((inputs_dir / "receipt_a.txt").resolve()),
+                        "fields": {"total_amount": "Receipt total"},
+                        "expected": {"total_amount": "1,000"},
+                    },
+                    {
+                        "case_id": "receipt_b",
+                        "tags": ["receipt"],
+                        "path": str((inputs_dir / "receipt_b.txt").resolve()),
+                        "fields": {"total_amount": "Receipt total"},
+                        "expected": {"total_amount": "2,000"},
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    calls: list[dict[str, object]] = []
+
+    def fake_launch_process_inbox(*, root, config_path, extraction_fields, run_id, input_dir, job_id=None):  # noqa: ANN001
+        config_payload = json.loads(Path(config_path).read_text(encoding="utf-8"))
+        adaptive = config_payload.get("ahmn", {}).get("policy_mode") == "adaptive"
+        calls.append({"adaptive": adaptive, "job_id": job_id})
+        docs = [
+            {
+                "doc_id": "receipt_a",
+                "filename": "receipt_a.txt",
+                "policy_id": "default",
+                "latency_ms": 10.0,
+                "reward": 0.8,
+                "reward_type": "policy_declared",
+                "validation_issue_count": 0,
+                "recovered_fields_count": 0,
+                "escalation_status": "not_needed",
+                "operator_stack": ["structuring.extract"],
+                "advice_source": "ahmn_import" if adaptive else "static",
+                "retrieval_source": "direct_ts" if adaptive else None,
+                "advisor_recommendation": {"policy_id": "default"} if adaptive else None,
+                "fallback_candidates": [],
+                "feedback_logged": False,
+                "feedback_error": None,
+                "rabi_used": False,
+                "advice_confidence": 0.8 if adaptive else 0.0,
+                "fallback_reason": None,
+                "blocked_policy": False,
+                "rollback_triggered": False,
+                "defer_status": "not_needed",
+                "schema_coverage": 1.0,
+                "schema_grounding_coverage": 1.0,
+                "schema_valid": True,
+                "schema_missing_required_count": 0,
+                "schema_hallucinated_field_count": 0,
+                "structured_fields": {"total_amount": "1000"},
+                "advice_id": "adv-1" if adaptive else None,
+            },
+            {
+                "doc_id": "receipt_b",
+                "filename": "receipt_b.txt",
+                "policy_id": "default",
+                "latency_ms": 10.0,
+                "reward": 0.8,
+                "reward_type": "policy_declared",
+                "validation_issue_count": 0,
+                "recovered_fields_count": 0,
+                "escalation_status": "not_needed",
+                "operator_stack": ["structuring.extract"],
+                "advice_source": "ahmn_import" if adaptive else "static",
+                "retrieval_source": "direct_ts" if adaptive else None,
+                "advisor_recommendation": {"policy_id": "default"} if adaptive else None,
+                "fallback_candidates": [],
+                "feedback_logged": False,
+                "feedback_error": None,
+                "rabi_used": False,
+                "advice_confidence": 0.8 if adaptive else 0.0,
+                "fallback_reason": None,
+                "blocked_policy": False,
+                "rollback_triggered": False,
+                "defer_status": "not_needed",
+                "schema_coverage": 1.0,
+                "schema_grounding_coverage": 1.0,
+                "schema_valid": True,
+                "schema_missing_required_count": 0,
+                "schema_hallucinated_field_count": 0,
+                "structured_fields": {"total_amount": "2000"},
+                "advice_id": "adv-2" if adaptive else None,
+            },
+        ]
+        return {"run_id": run_id, "run_dir": str(tmp_path / run_id), "doc_records": docs}
+
+    class DummyModule:
+        @staticmethod
+        def log_outcome(advice_id: str, policy_id: str, reward: float) -> None:
+            return None
+
+    monkeypatch.setattr(benchmark_module, "_launch_process_inbox", fake_launch_process_inbox)
+    monkeypatch.setattr(benchmark_module.importlib, "import_module", lambda name: DummyModule)
+
+    run_benchmark(
+        config_path="configs/idpo_research_config.json",
+        pack_path=str(pack_path),
+        existing_job_id="job-123",
+    )
+
+    assert len(calls) == 2
+    static_call = next(call for call in calls if not call["adaptive"])
+    adaptive_call = next(call for call in calls if call["adaptive"])
+    assert static_call["job_id"] == "persist-static"
+    assert adaptive_call["job_id"] == "persist-adaptive"
+
+
+def test_run_benchmark_logs_exact_feedback_for_adaptive_docs(tmp_path: Path, monkeypatch) -> None:
+    runtime_root = tmp_path / "idpo-data"
+    monkeypatch.setenv("IDPO_DATA_DIR", str(runtime_root))
+
+    inputs_dir = tmp_path / "inputs"
+    inputs_dir.mkdir(parents=True, exist_ok=True)
+    (inputs_dir / "invoice_a.txt").write_text("invoice a", encoding="utf-8")
+
+    pack_path = tmp_path / "pack.json"
+    pack_path.write_text(
+        json.dumps(
+            {
+                "name": "schema_feedback_pack",
+                "batch_mode": "single_run_per_condition",
+                "shared_fields": {
+                    "document_type": "Type",
+                    "amount": "Amount",
+                },
+                "cases": [
+                    {
+                        "case_id": "invoice_a",
+                        "tags": ["invoice"],
+                        "path": str((inputs_dir / "invoice_a.txt").resolve()),
+                        "fields": {
+                            "document_type": "Type",
+                            "amount": "Amount",
+                        },
+                        "expected": {
+                            "document_type": "invoice",
+                            "amount": "unavailable",
+                        },
+                        "expected_sources": {
+                            "document_type": "dataset_type",
+                            "amount": "unavailable_from_unmapped_label",
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    recorded: list[tuple[str, str, float]] = []
+
+    def fake_launch_process_inbox(*, root, config_path, extraction_fields, run_id, input_dir, job_id=None):  # noqa: ANN001
+        config_payload = json.loads(Path(config_path).read_text(encoding="utf-8"))
+        adaptive = config_payload.get("ahmn", {}).get("policy_mode") == "adaptive"
+        doc = {
+            "doc_id": "invoice_a",
+            "filename": "invoice_a.txt",
+            "policy_id": "default",
+            "latency_ms": 10.0,
+            "reward": 0.9,
+            "reward_type": "policy_declared",
+            "validation_issue_count": 0,
+            "recovered_fields_count": 0,
+            "escalation_status": "not_needed",
+            "operator_stack": ["structuring.extract"],
+            "advice_source": "ahmn_import" if adaptive else "static",
+            "retrieval_source": "direct_ts" if adaptive else None,
+            "advisor_recommendation": {"policy_id": "default"} if adaptive else None,
+            "fallback_candidates": [],
+            "feedback_logged": False,
+            "feedback_error": None,
+            "rabi_used": False,
+            "advice_confidence": 0.8 if adaptive else 0.0,
+            "fallback_reason": None,
+            "blocked_policy": False,
+            "rollback_triggered": False,
+            "defer_status": "not_needed",
+            "schema_coverage": 1.0,
+            "schema_grounding_coverage": 1.0,
+            "schema_valid": True,
+            "schema_missing_required_count": 0,
+            "schema_hallucinated_field_count": 0,
+            "structured_fields": {
+                "document_type": "invoice",
+                "amount": "1200.00",
+            },
+            "advice_id": "adv-1" if adaptive else None,
+        }
+        return {"run_id": run_id, "run_dir": str(tmp_path / run_id), "doc_records": [doc]}
+
+    class DummyModule:
+        @staticmethod
+        def log_outcome(advice_id: str, policy_id: str, reward: float) -> None:
+            recorded.append((advice_id, policy_id, reward))
+
+    monkeypatch.setattr(benchmark_module, "_launch_process_inbox", fake_launch_process_inbox)
+    monkeypatch.setattr(benchmark_module.importlib, "import_module", lambda name: DummyModule)
+
+    evidence = run_benchmark(
+        config_path="configs/idpo_research_config.json",
+        pack_path=str(pack_path),
+    )
+
+    assert recorded == [("adv-1", "default", 0.5)]
+    assert evidence["comparison"]["table"]["feedback_logged_count"][benchmark_module.ADAPTIVE_LABEL] == 1
+    assert evidence["documents"][0][benchmark_module.ADAPTIVE_LABEL]["doc"]["feedback_logged"] is True
+    review_path = tmp_path / evidence["documents"][0][benchmark_module.ADAPTIVE_LABEL]["run_id"] / "docs" / "invoice_a" / "review" / "results.json"
+    review_payload = json.loads(review_path.read_text(encoding="utf-8"))
+    assert review_payload["reviewStatus"] == "human_reviewed"
+    assert review_payload["reviewSource"] == "human"
+    assert review_payload["exactMetrics"]["f1"] == 0.5
+    assert review_payload["fieldStates"]["document_type"] == "correct"
+    assert review_payload["fieldStates"]["amount"] == "hallucinated_unavailable"
+
+
+def test_benchmark_exact_feedback_updates_scoped_direct_advisor_state_across_reload(tmp_path: Path, monkeypatch) -> None:
+    runtime_root = tmp_path / "idpo-data"
+    monkeypatch.setenv("IDPO_DATA_DIR", str(runtime_root))
+
+    import ahmn_core.direct_advisor as advisor_module
+
+    advisor = importlib.reload(advisor_module)
+    advice = advisor.get_advice({"extra_context": {"metadata": {"job_id": "bench-job-1"}}})
+    scope_key = advice["scope_key"]
+
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "ahmn": {
+                    "enabled": True,
+                    "mode": "import",
+                    "direct_import": "ahmn_core.direct_advisor:get_advice",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    advisor = importlib.reload(advisor)
+    logged, error = benchmark_module._log_exact_benchmark_feedback(  # noqa: SLF001
+        config_path=str(config_path),
+        doc={
+            "advice_id": advice["advice_id"],
+            "advisor_recommendation": {"policy_id": advice["policy_id"]},
+        },
+        schema_metrics={
+            "document_type_total": 1,
+            "document_type_accuracy": 0.0,
+            "positive_field_tp": 0,
+            "positive_field_fp": 0,
+            "positive_field_fn": 1,
+            "unavailable_field_count": 0,
+        },
+        exact_metrics={"tp": 0, "fp": 1, "fn": 1, "precision": 0.0, "recall": 0.0, "f1": 0.0},
+    )
+
+    advisor = importlib.reload(advisor)
+    scoped_snapshot = advisor.get_state_snapshot(scope_key)
+    global_snapshot = advisor.get_state_snapshot("global")
+
+    assert logged is True
+    assert error is None
+    assert scoped_snapshot["policies"][advice["policy_id"]]["beta"] == 2.0
+    assert global_snapshot["policies"].get(advice["policy_id"], {}).get("beta", 1.0) == 1.0
+
+
+def test_benchmark_exact_feedback_posts_http_when_mode_is_http(tmp_path: Path, monkeypatch) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "ahmn": {
+                    "enabled": True,
+                    "mode": "http",
+                    "endpoint": "http://ahmn",
+                    "log_endpoint": "/advice/log",
+                    "review_endpoint": "/advice/review",
+                    "timeout_ms": 500,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    captured: dict[str, object] = {}
+
+    class DummyResponse:
+        def read(self) -> bytes:
+            return b"{}"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> bool:
+            return False
+
+    def fake_urlopen(request, timeout=0):  # noqa: ANN001
+        captured["url"] = request.full_url
+        captured["timeout"] = timeout
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return DummyResponse()
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    logged, error = benchmark_module._log_exact_benchmark_feedback(  # noqa: SLF001
+        config_path=str(config_path),
+        doc={
+            "advice_id": str(uuid4()),
+            "advisor_recommendation": {"policy_id": "table_heavy"},
+            "doc_type": "table_document",
+            "vendor_cluster": "acme",
+            "content_profile": "table-heavy",
+            "route_bin": "heavy",
+            "layout_cluster_id": "table_dense",
+            "quality_bin": "B",
+            "complexity_bin": "2",
+            "latency_ms": 42.0,
+            "validation_issue_count": 0,
+            "schema_valid": True,
+            "schema_missing_required_count": 0,
+            "schema_hallucinated_field_count": 0,
+            "schema_grounding_coverage": 1.0,
+            "defer_status": "not_needed",
+        },
+        schema_metrics={
+            "document_type_total": 1,
+            "document_type_accuracy": 1.0,
+            "positive_field_tp": 2,
+            "positive_field_fp": 0,
+            "positive_field_fn": 0,
+            "unavailable_field_count": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+        },
+        exact_metrics={"tp": 3, "fp": 0, "fn": 0, "precision": 1.0, "recall": 1.0, "f1": 1.0},
+        expected={"document_type": "invoice", "reference_id": "INV-1", "total_amount": "1000"},
+        expected_sources={"document_type": "dataset_type", "reference_id": "invoice_number_label", "total_amount": "total_label"},
+        extracted={"document_type": "invoice", "reference_id": "INV-1", "total_amount": "1000"},
+    )
+
+    payload = captured["payload"]
+    assert logged is True
+    assert error is None
+    assert captured["url"] == "http://ahmn/advice/review"
+    assert payload["policy_id_used"] == "table_heavy"
+    assert payload["document_context"]["vendor"] == "acme"
+    assert payload["review_source"] == "human"
+    assert payload["field_state_counts"]["correct"] == 3
+    assert payload["f1"] == 1.0
+
+
+def test_benchmark_exact_feedback_auto_falls_back_to_direct_import_when_http_unreachable(tmp_path: Path, monkeypatch) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "ahmn": {
+                    "enabled": True,
+                    "mode": "auto",
+                    "endpoint": "http://ahmn",
+                    "log_endpoint": "/advice/log",
+                    "review_endpoint": "/advice/review",
+                    "timeout_ms": 500,
+                    "direct_import": "ahmn_core.direct_advisor:get_advice",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    recorded: list[tuple[str, str, float]] = []
+
+    class DummyModule:
+        @staticmethod
+        def log_outcome(advice_id: str, policy_id: str, reward: float) -> None:
+            recorded.append((advice_id, policy_id, reward))
+
+    def fake_urlopen(*args, **kwargs):  # noqa: ANN001, ARG001
+        raise urllib.error.URLError("down")
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr(benchmark_module.importlib, "import_module", lambda name: DummyModule)
+
+    advice_id = str(uuid4())
+    logged, error = benchmark_module._log_exact_benchmark_feedback(  # noqa: SLF001
+        config_path=str(config_path),
+        doc={
+            "advice_id": advice_id,
+            "advisor_recommendation": {"policy_id": "default"},
+        },
+        schema_metrics={
+            "document_type_total": 1,
+            "document_type_accuracy": 0.0,
+            "positive_field_tp": 0,
+            "positive_field_fp": 0,
+            "positive_field_fn": 1,
+            "unavailable_field_count": 0,
+        },
+        exact_metrics={"tp": 0, "fp": 1, "fn": 1, "precision": 0.0, "recall": 0.0, "f1": 0.0},
+        expected={"document_type": "invoice"},
+        expected_sources={"document_type": "dataset_type"},
+        extracted={"document_type": "receipt"},
+    )
+
+    assert logged is True
+    assert error is None
+    assert recorded == [(advice_id, "default", 0.0)]
+
+
 def test_research_config_and_policy_store_align_with_ahmn_ids() -> None:
     config_payload = json.loads((repo_root() / "configs" / "idpo_research_config.json").read_text(encoding="utf-8"))
     policy_payload = json.loads((repo_root() / "configs" / "policy_store_research.json").read_text(encoding="utf-8"))
@@ -1723,10 +2614,10 @@ def test_provenance_contains_required_event_types(tmp_path: Path) -> None:
         "PolicyAdvice",
         "RouteSelection",
         "ValidationResult",
-        "RecoveryAction",
         "EscalationAction",
     }
     assert required.issubset(set(events))
+    assert "RecoveryAction" not in set(events)
 
 
 def test_partition_scheduler_fairness(tmp_path: Path) -> None:

@@ -48,6 +48,11 @@
     "table_mode": "heuristic",
     "max_retries": 3
   },
+  "recovery": {
+    "enabled": false,
+    "strategy": "llm_reextraction",
+    "confidence": 0.6
+  },
   "validation": {
     "min_confidence": 0.7,
     "max_field_errors": 5,
@@ -64,13 +69,13 @@
         "severity": "medium",
         "normalize": "numeric"
       },
-      {
-        "field_pattern": ".*_date$",
-        "value_pattern": "^\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}$",
-        "severity": "medium",
-        "normalize": "strip"
-      }
-    ]
+        {
+          "field_pattern": ".*_date$",
+          "value_pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "severity": "medium",
+          "normalize": "date"
+        }
+      ]
   },
   "routing": {
     "quality_threshold": 0.6,

@@ -78,6 +78,7 @@ def result_to_dict(result: PipelineResult) -> dict[str, Any]:
         "source": result.source,
         "doc_type": result.doc_type,
         "vendor_cluster": result.vendor_cluster,
+        "routing_family": _attr("routing_family", _attr("semantic_doc_type", "unknown")),
         "semantic_doc_type": _attr("semantic_doc_type", "unknown"),
         "layout_cluster_id": _attr("layout_cluster_id", "unknown"),
         "quality_bin": result.quality_bin,

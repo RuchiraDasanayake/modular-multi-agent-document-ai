@@ -22,8 +22,10 @@ The canonical processing path inside IDPO is:
 
 1. Intake normalizes files into `Document` objects.
 2. Document analysis produces the current heuristic DAE profile and routing evidence:
+   - when an image-backed document arrives without usable text, analysis first bootstraps OCR so routing is based on OCR text instead of an empty page state
    - `doc_type`
    - `vendor_cluster`
+   - `routing_family` (`semantic_doc_type`) for internal routing only
    - `quality_bin`
    - `complexity_bin`
    - `content_profile`
@@ -36,15 +38,18 @@ The canonical processing path inside IDPO is:
    - `ahmn.policy_mode = "static"` uses deterministic local routing
    - `ahmn.policy_mode = "adaptive"` uses `PolicyAdvisor`, records AHMN top-1 advice telemetry, and logs post-execution feedback to AHMN
    - shadow candidates remain shadow-only and are excluded from canonical routing
+   - internal routing signals such as `routing_family` and `route_specialization` are planning and extraction-context hints, not schema output fields
+   - the extracted schema field `document_type` remains constrained to the public schema label set and should not mirror richer internal routing families verbatim
 4. Execution runs the active operator stack:
    - OCR / deskew / denoise / table extraction when needed
    - field extraction
    - sectioning
    - summarization
    - validation
-   - recovery
    - escalation
    - chunking
+
+   Recovery artifacts remain part of the output surface, but recovery execution is disabled by default until field targeting, semantic writeback, and validation contracts are repaired end-to-end.
 5. Exports write run-level results, spreadsheets, provenance, and per-document artifacts.
 
 ## Evidence artifacts

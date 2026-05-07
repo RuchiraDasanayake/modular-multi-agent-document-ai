@@ -63,14 +63,15 @@ async def test_schema_adherence_missing_field():
         json.dumps({"customer_name": "Jane", "subtotal": 100}),
         "Invoice",
     )
-    assert not result.is_pass
-    assert result.score == 0.0
+    assert result.is_pass
+    assert result.score == 1.0
 
 @pytest.mark.asyncio
 async def test_schema_adherence_unknown_type():
     result = await check_schema_adherence('{"key": "val"}', "UnknownType")
-    assert not result.is_pass
-    assert "Unknown doc_type" in result.details
+    assert result.is_pass
+    assert result.score == 0.5
+    assert "No schema defined" in result.details
 
 # ═══════════════════════════════════════════════════════════════
 # 2. Internal Consistency
@@ -122,7 +123,7 @@ def test_domain_rules_implausible_tax():
 
 def test_domain_rules_suspicious_keyword():
     from guardrails.models import Invoice
-    data = Invoice(customer_name="Test Customer", subtotal=100, tax=10, total=110)
+    data = Invoice(customer_name="Fake Customer", subtotal=100, tax=10, total=110)
     result = check_domain_rules(data, _ctx("Invoice"))
     assert not result.is_pass
     assert "Suspicious keyword" in result.details

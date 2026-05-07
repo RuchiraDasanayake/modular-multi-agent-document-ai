@@ -34,15 +34,17 @@ That means:
 
 ## Current In-Scope Work
 
-- stage and evaluate `CORD v2` as the primary external labeled dataset
-- define a strict receipt-field mapping for the first exact-metric loop
-- run repeated `static` vs `adaptive_safe` evaluations through the canonical runtime
+- stage and evaluate the heterogeneous schema-conditioned 100-document pack as the primary labeled workload
+- use one fixed requested schema across receipts, invoices, forms, and other business documents
+- run repeated `static` vs `adaptive_safe` evaluations through the canonical runtime where needed
 - inspect failures manually on small deterministic subsets before scaling
 - prioritize only high-ROI fixes in `IDPO`, `frontend`, or `AHMN` that improve evidence quality or runtime reliability
+- keep harmful adaptive-control surfaces disabled by default until they are empirically re-validated
 - preserve and clarify run artifacts needed for exact scoring and adaptive containment review
 - keep the operator UI and run artifacts aligned with the adaptive-safe claim
 - quarantine or defer evaluation paths that do not serve the current claim
 - keep docs in sync with the active testing and evidence plan
+- keep service-backed AHMN benchmarking blocked until `docs/AHMN_SERVICE_PARITY_CHECKLIST.md` is complete
 
 ## Current Non-Goals
 
@@ -56,21 +58,23 @@ For the current phase, do not prioritize:
 - Vercel-first deployment redesign
 - broad UI expansion
 - adding new knobs, panels, or metrics before the evaluation loop is stable
-- multi-dataset expansion before `CORD v2` mapping and scoring are stable
-- line-item research expansion before flat receipt totals and containment behavior are reliable
+- adding new datasets before the schema-conditioned 100-document pack is measured
+- line-item research expansion before fixed-schema extraction, unavailable handling, and containment behavior are reliable
+- headline service-backed benchmark runs before AHMN service parity risks are explicitly cleared
 
 ## Current Success Criteria
 
 This phase is successful when:
 
 - the team can run a deterministic labeled subset through the canonical runtime and score it exactly
-- `CORD v2` staging, mapping, and scoring are reproducible and documented
+- schema-conditioned pack staging, mapping, and scoring are reproducible and documented
 - repeated failure categories are known and triaged by ROI instead of guessed ad hoc
 - high-ROI fixes improve exact extraction quality, structured-output quality, or containment visibility
 - the canonical runtime path remains stable and documented
 - exact labeled metrics remain clearly separated from runtime proxy reward
 - the main operator-facing UI and run artifacts clearly expose adaptive-safe behavior
 - evidence can be frozen without changing runtime labels or adding paper-only branches
+- any service-backed headline benchmark is gated by a completed `docs/AHMN_SERVICE_PARITY_CHECKLIST.md`
 
 ## Document Roles
 
@@ -80,10 +84,14 @@ Use the docs this way:
   The current goal, scope, and non-goals
 - `docs/DATASET_PLAN.md`
   The active dataset ladder and labeling strategy
+- `docs/SCHEMA_CONDITIONED_ONLINE_LEARNING_PLAN.md`
+  The active heterogeneous fixed-schema online learning loop for sequential 5-document batches, one persistent adaptive job, and prospective paper evidence
 - `docs/CORD_EVALUATION_PLAN.md`
-  The active external labeled testing plan and failure triage loop
+  Older CORD-specific receipt evaluation notes; use only as supporting context, not the active primary plan
 - `docs/SYSTEM_CONTRACT.md`
   What the system currently is and must emit
+- `docs/AHMN_SERVICE_PARITY_CHECKLIST.md`
+  The gate for any headline service-backed benchmark run
 - `docs/IDPO_CLEANUP_PASS1.md`
   The cleanup plan when a runtime reduction directly helps the evidence loop
 - `docs/SYSTEMATIC_REDUCTION_PLAN.md`
@@ -125,15 +133,14 @@ Which code areas are most affected:
 
 ## Current Next Step
 
-Run the evaluation program in strict order:
+Run the schema-conditioned online-learning evidence program in strict order:
 
-1. set up the external labeled path first
-   Use `CORD v2` as the first serious dataset and keep the first mapped field set small and exact
-2. build a deterministic pilot subset and manual review loop
-   Start with a small receipt subset, inspect failures, and classify them before making fixes
-3. apply only high-ROI fixes
-   Prioritize repeated normalization, extraction, logging, and containment issues over broad refactors
-4. freeze the mapping and scoring path before scaling
-   Do not keep changing what counts as correct while collecting evidence
-5. run larger validation passes only after the small loop is stable
-6. keep cleanup work scoped to what directly improves reliability, auditability, or exact evaluation
+1. implement metric separation listed in `docs/SCHEMA_CONDITIONED_ONLINE_LEARNING_PLAN.md`
+2. continue TS-stub stabilization runs for pipeline-quality fixes where needed
+3. complete `docs/AHMN_SERVICE_PARITY_CHECKLIST.md` before any headline service-backed benchmark run
+4. inspect policy allocation, job context, document type accuracy, positive-field F1, unavailable accuracy, hallucination rate, validation, grounding, and latency after every batch
+5. apply only repeated high-ROI fixes before the next unseen batch
+   keep recovery disabled until field targeting, semantic writeback, and validation contracts are fixed
+6. after 50 online-learning documents, freeze code, config, mapping, and scoring
+7. run the next 20 unseen mixed documents as the prospective paper evaluation against the static baseline
+8. keep cleanup work scoped to what directly improves reliability, auditability, or exact evaluation

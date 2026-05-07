@@ -11,6 +11,15 @@ from idpo.agents.base import Agent, AgentContext
 from idpo.core.contracts import AgentMessage
 from idpo.core.types import AgentResult, Document, Entity, StageSignal, ValidationIssue
 
+_SCHEMA_DOCUMENT_TYPES = {"invoice", "receipt", "form", "other"}
+_SEMANTIC_TO_SCHEMA_DOCUMENT_TYPES = {
+    "invoice": {"invoice"},
+    "receipt": {"receipt"},
+    "legal_form": {"form"},
+    "correspondence": {"form", "other"},
+}
+
+
 class ValidationAgent(Agent):
     name = "validation"
     version = "v1"
@@ -75,15 +84,21 @@ class ValidationAgent(Agent):
                     0.1,
                 )
 
-            grounding_issue = self._grounding_issue(entity.key, str(entity.value or ""), doc_text)
+            if not isinstance(entity.metadata, dict):
+                entity.metadata = {}
+            grounding_status = self._text_grounding_status(str(entity.value or ""), doc_text)
+            if grounding_status is True:
+                entity.metadata["text_grounded"] = True
+                entity.metadata.pop("ungrounded", None)
+
+            grounding_issue = self._grounding_issue(entity, doc, doc_text)
             if grounding_issue:
                 issues.append(grounding_issue)
                 confidences[entity.key] = max(
                     confidences[entity.key] - self._severity_penalty(grounding_issue.severity),
                     0.1,
                 )
-                if not isinstance(entity.metadata, dict):
-                    entity.metadata = {}
+                entity.metadata["text_grounded"] = False
                 entity.metadata["ungrounded"] = True
 
         arithmetic_issues = self._check_receipt_arithmetic(normalized)
@@ -160,6 +175,8 @@ class ValidationAgent(Agent):
 
     def _default_normalize_mode(self, field: str) -> str:
         lowered = field.lower()
+        if lowered == "document_type":
+            return "category"
         if "amount" in lowered or "total" in lowered or lowered.endswith("_price"):
             return "numeric"
         if "date" in lowered:
@@ -231,9 +248,13 @@ class ValidationAgent(Agent):
         digits = re.sub(r"\D", "", value)
         return len(digits) >= 10
 
-    def _grounding_issue(self, field: str, value: str, doc_text_lower: str) -> ValidationIssue | None:
+    def _grounding_issue(self, entity: Entity, doc: Document, doc_text_lower: str) -> ValidationIssue | None:
         """Flag values that do not appear in the source document — likely hallucinated."""
+        field = str(entity.key or "")
+        value = str(entity.value or "")
         if not value or not doc_text_lower:
+            return None
+        if self._supports_document_type(field, value, doc):
             return None
         # Short tokens (≤3 chars) are too common to reliably ground
         tokens = [t for t in re.split(r"[\s,.\-/]+", value.lower()) if len(t) > 3]
@@ -248,6 +269,16 @@ class ValidationAgent(Agent):
             severity="high",
             details={"value": value[:120]},
         )
+
+    def _text_grounding_status(self, value: str, doc_text_lower: str) -> bool | None:
+        """Return True/False for checkable values, None when value is too weak to ground."""
+        if not value or not doc_text_lower:
+            return None
+        # Short tokens are too common to reliably ground.
+        tokens = [t for t in re.split(r"[\s,.\-/]+", value.lower()) if len(t) > 3]
+        if not tokens:
+            return None
+        return any(token in doc_text_lower for token in tokens)
 
     def _check_receipt_arithmetic(self, normalized: dict[str, str]) -> list[ValidationIssue]:
         """Check that total = subtotal + tax (5% tolerance). Catches per-field swap errors."""
@@ -281,6 +312,8 @@ class ValidationAgent(Agent):
         text = value.strip()
         if mode == "strip":
             return text
+        if mode == "category":
+            return text.lower()
         if mode == "numeric":
             compact = text.replace(",", "")
             compact = re.sub(r"[^\d.\-]", "", compact)
@@ -291,11 +324,52 @@ class ValidationAgent(Agent):
         if mode == "upper":
             return re.sub(r"\s+", "", text).upper()
         if mode == "date":
-            cleaned = text.strip()
-            for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%m-%d-%Y", "%d-%m-%Y", "%b %d, %Y", "%B %d, %Y"):
+            cleaned = re.sub(r"\s+", " ", text.strip())
+            for fmt in (
+                "%Y-%m-%d",
+                "%m/%d/%Y",
+                "%d/%m/%Y",
+                "%m-%d-%Y",
+                "%d-%m-%Y",
+                "%m/%d/%y",
+                "%d/%m/%y",
+                "%m-%d-%y",
+                "%d-%m-%y",
+                "%b %d, %Y",
+                "%B %d, %Y",
+                "%b %d %Y",
+                "%B %d %Y",
+                "%d %b %Y",
+                "%d %B %Y",
+            ):
                 try:
                     return datetime.strptime(cleaned, fmt).strftime("%Y-%m-%d")
                 except Exception:
                     continue
             return cleaned
         return text
+
+    def _supports_document_type(self, field: str, value: str, doc: Document) -> bool:
+        if str(field).strip().lower() != "document_type":
+            return False
+        candidate = str(value or "").strip().lower()
+        if candidate not in _SCHEMA_DOCUMENT_TYPES:
+            return False
+        supported: set[str] = set()
+        semantic_type = str(
+            doc.metadata.get("routing_family", "") or doc.metadata.get("semantic_doc_type", "") or ""
+        ).strip().lower()
+        supported.update(_SEMANTIC_TO_SCHEMA_DOCUMENT_TYPES.get(semantic_type, set()))
+        route_specialization = str(doc.metadata.get("route_specialization", "") or "").strip().lower()
+        if route_specialization == "form":
+            supported.add("form")
+        elif route_specialization == "receipt":
+            supported.add("receipt")
+        doc_type = str(getattr(doc, "doc_type", "") or doc.metadata.get("doc_type", "") or "").strip().lower()
+        if doc_type == "form_document":
+            supported.add("form")
+        elif doc_type == "table_document":
+            supported.update({"invoice", "receipt"})
+        if candidate in supported:
+            return True
+        return False

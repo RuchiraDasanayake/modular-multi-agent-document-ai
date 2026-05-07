@@ -123,7 +123,7 @@ def test_cli_process_inbox_accepts_run_id_fields_file_and_full_output(tmp_path: 
     assert payload["doc_records"][0]["structured_fields"]["invoice_number"] != ""
 
 
-def test_process_inbox_persists_semantic_doc_type_in_doc_record_and_dae_output(tmp_path: Path, monkeypatch) -> None:
+def test_process_inbox_persists_routing_family_and_semantic_doc_type_in_doc_record_and_dae_output(tmp_path: Path, monkeypatch) -> None:
     runtime_root = tmp_path / "idpo-data"
     workspace = tmp_path / "workspace"
     workspace.mkdir(parents=True, exist_ok=True)
@@ -141,9 +141,11 @@ def test_process_inbox_persists_semantic_doc_type_in_doc_record_and_dae_output(t
     result = process_inbox(root=workspace, file_paths=[str(doc_path)])
 
     doc_record = result["doc_records"][0]
+    assert doc_record["routing_family"] == "receipt"
     assert doc_record["semantic_doc_type"] == "receipt"
 
     dae_output = json.loads(Path(doc_record["dae_output_path"]).read_text(encoding="utf-8"))
+    assert dae_output["routing_family"] == "receipt"
     assert dae_output["semantic_doc_type"] == "receipt"
 
 

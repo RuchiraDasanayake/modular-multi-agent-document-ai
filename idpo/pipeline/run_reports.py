@@ -118,12 +118,13 @@ def aggregate_reward_metrics(records: list[dict[str, object]]) -> dict[str, obje
             "policy_changed_count": 0,
         }
     rewards = [float(record.get("reward", 0.0) or 0.0) for record in records]
+    direct_reward_types = {"direct_set_based", "policy_declared", "canonical_fallback"}
     direct_scores = [
         float(((record.get("reward_details") or {}).get("f1", 0.0)) or 0.0)
         for record in records
-        if str(record.get("reward_type", "")).strip() == "direct_set_based"
+        if str(record.get("reward_type", "")).strip() in direct_reward_types
     ]
-    direct_count = sum(1 for record in records if str(record.get("reward_type", "")).strip() == "direct_set_based")
+    direct_count = sum(1 for record in records if str(record.get("reward_type", "")).strip() in direct_reward_types)
     proxy_count = sum(1 for record in records if str(record.get("reward_type", "")).strip() == "proxy")
     schema_coverages = [float(record.get("schema_coverage", 0.0) or 0.0) for record in records]
     grounding_coverages = [float(record.get("schema_grounding_coverage", 0.0) or 0.0) for record in records]

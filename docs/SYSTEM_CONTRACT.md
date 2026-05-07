@@ -44,8 +44,17 @@ The runtime should:
 1. ingest supported document files
 2. analyze document structure and route characteristics
 3. choose a policy through the supported planning path
-4. run preprocessing, extraction, validation, recovery, escalation, and chunking
+4. run preprocessing, extraction, validation, escalation, and chunking
 5. write stable run artifacts under `IDPO_DATA_DIR`
+
+Internal routing signals and external schema outputs are separate concerns:
+
+- analysis may emit richer internal routing hints such as `semantic_doc_type` / `routing_family` and `route_specialization`
+- those signals are allowed to drive policy choice and extraction context
+- they are not themselves operator-facing schema fields
+- when the schema requests `document_type`, the extracted value must stay inside the schema label set rather than copying internal routing-family names directly
+
+Recovery remains part of the artifact contract, but it is disabled by default in the current runtime until the recovery contract is fixed end-to-end.
 
 The canonical runtime is local-first:
 
@@ -92,6 +101,8 @@ Important per-document outputs under `docs/<doc_id>/`:
 - `provenance/transparency.json`
 
 Cleanup work should preserve this contract unless the task explicitly changes it.
+
+Recovery artifacts remain in place for compatibility and auditability even when recovery is disabled. They may therefore be present but empty.
 
 ## Stable Vs Changeable
 

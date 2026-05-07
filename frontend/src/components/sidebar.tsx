@@ -40,6 +40,7 @@ interface NavItem {
 }
 
 const USER_NAV: NavItem[] = [
+    { href: "/dashboard/docai", label: "DocAI Workspace", Icon: Upload, badge: "New", color: "brand" },
     { href: "/dashboard/idpo", label: "Doc Extraction", Icon: FileText, badge: "Core", color: "brand" },
     { href: "/dashboard/idpo/benchmark", label: "Benchmark Results", Icon: BarChart3, color: "cyan" },
     { href: "/dashboard/idpo/presentation", label: "Run Walkthrough", Icon: Blocks, color: "cyan" },
@@ -216,10 +217,10 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             {/* Quick Action — Primary CTA */}
             <div className="relative px-3 pt-4 pb-2">
                 <Link
-                    href="/dashboard/idpo"
+                    href="/dashboard/docai"
                     className={clsx(
                         "group relative flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-300 w-full overflow-hidden",
-                        pathname.startsWith("/dashboard/idpo")
+                        pathname.startsWith("/dashboard/docai")
                             ? "bg-gradient-to-r from-brand-500 to-cyan-500 text-white shadow-lg shadow-brand-500/30"
                             : "bg-gradient-to-r from-brand-500 to-cyan-500 text-white shadow-lg shadow-brand-500/25 hover:shadow-xl hover:shadow-brand-500/40 hover:scale-[1.02] active:scale-[0.98]"
                     )}
@@ -227,7 +228,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                     {/* Shimmer effect on hover */}
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out" />
                     <Upload className="w-5 h-5 relative z-10" strokeWidth={2} />
-                    <span className="relative z-10">Extract Documents</span>
+                    <span className="relative z-10">Open DocAI Workspace</span>
                     <ChevronRight className="w-4 h-4 ml-auto opacity-60 relative z-10 group-hover:translate-x-0.5 transition-transform" />
                 </Link>
             </div>

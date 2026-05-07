@@ -66,6 +66,22 @@ from idpo.core.types import AgentResult, Document, Entity, ExtractionPolicy, Mod
 _RE_BULLET_PREFIX = re.compile(r"^(?:[-*]|\u2022|\u25E6|\u25CF|\u25CB|\u25AA|\u25A0|\u25A1)+")
 _NAME_LIKE_KEY_RE = re.compile(r"(?:^|_)(?:name|author|person|party|customer|vendor|title)(?:$|_)")
 _ALPHA_RE = re.compile(r"[A-Za-z]{2,}")
+_DATE_LABEL_HINT_RE = re.compile(
+    r"\b(?:date|dated|issued|invoice\s+date|due\s+date|statement\s+date|receipt\s+date|document\s+date)\b",
+    re.IGNORECASE,
+)
+_REFERENCE_LABEL_HINT_RE = re.compile(
+    r"\b(?:invoice\s*(?:number|no)|receipt\s*(?:number|no)|reference(?:\s*(?:number|no))?|"
+    r"ref(?:\s*(?:number|no))?|account\s*(?:number|no)|document\s*(?:number|no)|form\s*(?:number|no)|"
+    r"case\s*(?:number|no)|application\s*(?:number|no)|id)\b",
+    re.IGNORECASE,
+)
+_TOTAL_LABEL_HINT_RE = re.compile(
+    r"\b(?:total|grand\s+total|amount\s+due|balance\s+due|invoice\s+total|receipt\s+total|subtotal|tax|vat|cash|change)\b",
+    re.IGNORECASE,
+)
+_CONSERVATIVE_REGEX_FALLBACK_KEYS = {"document_date", "reference_id", "total_amount"}
+_STRUCTURED_DOC_TYPE_HINTS = {"invoice", "receipt", "form"}
 
 class LLMExtractionAgent(Agent):
     name = "llm_extraction"
@@ -124,6 +140,8 @@ class LLMExtractionAgent(Agent):
             per_field_extraction = bool(extraction_actions.get("per_field_extraction", False))
             use_thinking = bool(extraction_actions.get("use_thinking", False))
         # Allow executor to pass these directly when policy object is not in payload
+        if "extraction_context" in payload:
+            extraction_context = str(payload.get("extraction_context", "") or "")
         if payload.get("per_field_extraction"):
             per_field_extraction = True
         if payload.get("use_thinking"):
@@ -898,10 +916,43 @@ class LLMExtractionAgent(Agent):
                     )
                 )
                 continue
+            if not self._allow_regex_fallback(key, text, existing):
+                continue
             fallback = regex_fallback(key, tokens, text)
             if fallback:
                 filled.append(fallback)
         return filled
+
+    def _allow_regex_fallback(self, key: str, text: str, existing: list[Entity]) -> bool:
+        normalized_key = self._normalize_key(key)
+        if normalized_key not in _CONSERVATIVE_REGEX_FALLBACK_KEYS:
+            return True
+        document_type_hint = self._document_type_hint(existing)
+        if normalized_key == "document_date":
+            return (
+                document_type_hint in _STRUCTURED_DOC_TYPE_HINTS
+                or bool(_DATE_LABEL_HINT_RE.search(text))
+            )
+        if normalized_key == "reference_id":
+            return (
+                document_type_hint in _STRUCTURED_DOC_TYPE_HINTS
+                or bool(_REFERENCE_LABEL_HINT_RE.search(text))
+            )
+        if normalized_key == "total_amount":
+            return (
+                document_type_hint in {"invoice", "receipt"}
+                or bool(_TOTAL_LABEL_HINT_RE.search(text))
+            )
+        return True
+
+    def _document_type_hint(self, entities: list[Entity]) -> str | None:
+        for entity in self._merge_by_key(entities):
+            if self._normalize_key(entity.key) != "document_type":
+                continue
+            value = str(entity.value or "").strip().lower()
+            if value:
+                return value
+        return None
 
     def _smart_field_extract(self, key: str, doc: Document, text: str) -> Entity | None:
         return smart_field_extract(key, doc, text)

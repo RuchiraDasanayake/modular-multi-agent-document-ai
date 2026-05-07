@@ -20,6 +20,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _POLICY_STORE_PATH = _REPO_ROOT / "configs" / "policy_store_research.json"
 _DEFAULT_DATA_ROOT = _REPO_ROOT.parent / "idpo-data"
 _STATE_SUBDIR = ("ahmn", "direct_advisor")
+_ADVICE_SCOPE_SUBDIR = "advice_scopes"
 
 _state_lock = threading.Lock()
 _posteriors: dict[str, list[float]] = {}
@@ -64,6 +65,12 @@ def _state_dir() -> Path:
     return path
 
 
+def _advice_scope_dir() -> Path:
+    path = _state_dir() / _ADVICE_SCOPE_SUBDIR
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def _sanitize_scope_token(value: str) -> str:
     cleaned = "".join(ch if ch.isalnum() or ch in {"_", "-", "."} else "_" for ch in value.strip())
     return cleaned[:120] or "global"
@@ -90,6 +97,33 @@ def _scope_from_payload(payload: dict[str, Any]) -> str:
 
 def _state_file(scope_key: str) -> Path:
     return _state_dir() / f"{_sanitize_scope_token(scope_key)}.json"
+
+
+def _advice_scope_file(advice_id: str) -> Path:
+    return _advice_scope_dir() / f"{_sanitize_scope_token(advice_id)}.json"
+
+
+def _persist_advice_scope(advice_id: str, scope_key: str) -> None:
+    payload = {
+        "advice_id": str(advice_id).strip(),
+        "scope_key": str(scope_key).strip() or "global",
+    }
+    path = _advice_scope_file(advice_id)
+    temp_path = path.with_suffix(f".{uuid.uuid4().hex}.tmp")
+    temp_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    temp_path.replace(path)
+
+
+def _load_advice_scope(advice_id: str) -> str | None:
+    path = _advice_scope_file(advice_id)
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    scope_key = str(payload.get("scope_key", "")).strip()
+    return scope_key or None
 
 
 def _load_policies() -> list[dict[str, Any]]:
@@ -274,6 +308,7 @@ def get_advice(payload: dict[str, Any]) -> dict[str, Any]:
         _call_count += 1
         alpha, beta = _posteriors[selected]
         _advice_scopes[advice_id] = scope_key
+        _persist_advice_scope(advice_id, scope_key)
         _persist_active_state()
 
     confidence = round(alpha / (alpha + beta), 4)
@@ -293,7 +328,8 @@ def get_advice(payload: dict[str, Any]) -> dict[str, Any]:
 def log_outcome(advice_id: str, policy_id: str, reward: float) -> None:
     """Update the Beta posterior for a policy after observing a reward."""
     with _state_lock:
-        scope_key = _advice_scopes.get(advice_id) or _active_scope_key
+        scope_key = _advice_scopes.get(advice_id) or _load_advice_scope(advice_id) or _active_scope_key
+        _advice_scopes[advice_id] = scope_key
         if scope_key != _active_scope_key:
             _restore_state(scope_key)
         if policy_id not in _posteriors:

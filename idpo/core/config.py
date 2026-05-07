@@ -35,6 +35,14 @@ class PreprocessingConfig:
     recovery_confidence: float = 0.6
 
 @dataclass
+class RecoveryConfig:
+    # Disabled by default. Do not re-enable until recovery field targeting,
+    # semantic writeback, and validation contracts are fixed end-to-end.
+    enabled: bool = False
+    strategy: str = "llm_reextraction"
+    confidence: float = 0.6
+
+@dataclass
 class ChunkingConfig:
     chunk_size: int = 350
     chunk_overlap: int = 60
@@ -282,6 +290,7 @@ class LLMConfig:
 @dataclass
 class PipelineConfig:
     preprocessing: PreprocessingConfig = field(default_factory=PreprocessingConfig)
+    recovery: RecoveryConfig = field(default_factory=RecoveryConfig)
     chunking: ChunkingConfig = field(default_factory=ChunkingConfig)
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
     context: ContextConfig = field(default_factory=ContextConfig)
@@ -354,6 +363,7 @@ def config_from_dict(data: dict[str, Any]) -> PipelineConfig:
 
     return PipelineConfig(
         preprocessing=_read(PreprocessingConfig, "preprocessing"),
+        recovery=_read(RecoveryConfig, "recovery"),
         chunking=_read(ChunkingConfig, "chunking"),
         retrieval=_read(RetrievalConfig, "retrieval"),
         context=_read(ContextConfig, "context"),

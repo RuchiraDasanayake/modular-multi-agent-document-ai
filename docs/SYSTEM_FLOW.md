@@ -124,7 +124,7 @@ User uploads documents via Frontend
         │  14+ agents run in dependency order:
         │  intake → preprocess → doc_analysis → categorization →
         │  chunking → llm_extraction → structuring → validation →
-        │  recovery → retrieval → answering → policy → escalation
+        │  retrieval → answering → policy → escalation
         │
         ▼
 [6] IDPO → Guardrails (POST /guardrails/validate)  [per document]
@@ -148,6 +148,8 @@ User uploads documents via Frontend
         │  Includes: extracted entities, summaries, validation issues,
         │  XAI explanations, confidence scores, provenance chain
 ```
+
+Recovery artifacts remain in the runtime output for compatibility, but recovery itself is disabled by default until field targeting, semantic writeback, and validation contracts are fixed.
 
 ---
 

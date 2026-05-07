@@ -4,7 +4,7 @@ import types
 from pathlib import Path
 
 from idpo.agents.base import AgentContext
-from idpo.agents.extraction_prompts import build_extraction_input, build_prompt
+from idpo.agents.extraction_prompts import build_extraction_input, build_prompt, build_single_field_prompt
 from idpo.agents.extraction_providers import sanitize_provider_error
 from idpo.agents.llm_extraction import LLMExtractionAgent
 from idpo.core.artifacts import ArtifactStore
@@ -318,6 +318,71 @@ def test_build_prompt_forbids_placeholders_and_allows_light_ocr_normalization(tm
     assert "Extract numeric amounts exactly as they appear" in prompt
 
 
+def test_build_prompt_adds_conservative_rules_for_address_and_amount(tmp_path: Path) -> None:
+    ctx = _ctx(tmp_path)
+
+    prompt = build_prompt(
+        "Bill To: ACME Corp\nTotal: $25.00\nLine item: $10.00",
+        ["address", "amount"],
+        ctx,
+        {
+            "address": "Postal address if present",
+            "amount": "Document amount if present",
+        },
+    )
+
+    assert "FIELD-SPECIFIC RULES:" in prompt
+    assert 'For "address", return a value only when the document explicitly labels an address field or address block' in prompt
+    assert "Do not treat an unlabeled party block" in prompt
+    assert 'For "amount", return only the final document-level payable total when it is explicitly labeled' in prompt
+    assert "Do not return line-item prices" in prompt
+
+
+def test_build_single_field_prompt_adds_conservative_amount_rule() -> None:
+    prompt = build_single_field_prompt(
+        "Total: $25.00\nItem A 10.00",
+        "amount",
+        "Main amount",
+    )
+
+    assert 'For "amount", return only the final document-level payable total when it is explicitly labeled' in prompt
+    assert "Do not return line-item prices" in prompt
+
+
+def test_build_single_field_prompt_adds_conservative_total_amount_rule() -> None:
+    prompt = build_single_field_prompt(
+        "Total: $25.00\nCash: $30.00\nItem A 10.00",
+        "total_amount",
+        "Final total amount",
+    )
+
+    assert 'For "total_amount", return only the final document-level payable total when it is explicitly labeled' in prompt
+    assert "Do not return line-item prices" in prompt
+    assert "cash paid" in prompt
+
+
+def test_build_single_field_prompt_adds_conservative_document_type_rule() -> None:
+    prompt = build_single_field_prompt(
+        "University letterhead\nProject notes\nApril 1990",
+        "document_type",
+        "Classify the document type",
+    )
+
+    assert 'For "document_type", return invoice, receipt, or form only when the document shows clear document-level evidence' in prompt
+    assert 'If that evidence is not clear, return "other"' in prompt
+
+
+def test_build_single_field_prompt_adds_reference_id_title_rule() -> None:
+    prompt = build_single_field_prompt(
+        "DUROJ012-001293\nMenopausal Health Publication Management",
+        "reference_id",
+        "Main document reference identifier or title anchor",
+    )
+
+    assert 'For "reference_id", prefer an explicitly labeled document identifier' in prompt
+    assert "prefer the main title or header anchor rather than short codes" in prompt
+
+
 def test_build_extraction_input_prefers_targeted_context_for_small_docs(tmp_path: Path) -> None:
     config = PipelineConfig()
     config.llm.context_window_lines = 0
@@ -473,3 +538,85 @@ def test_explicit_field_jobs_suppress_generic_spillover(tmp_path: Path) -> None:
     assert "invoice_number" in keys
     assert "vendor_name" not in keys
     assert "department" not in keys
+
+
+def test_heuristic_schema_fill_blocks_risky_regex_fallback_for_other_documents() -> None:
+    agent = LLMExtractionAgent()
+    doc = _doc(
+        "APRIL\n"
+        "DUROJ012-001293\n"
+        "$6.00\n"
+        "Vanderbilt University\n"
+    )
+    existing = [Entity(key="document_type", value="other", confidence=0.95)]
+
+    filled = agent._heuristic_schema_fill(  # noqa: SLF001
+        doc,
+        ["document_type", "document_date", "reference_id", "total_amount"],
+        {
+            "document_date": "Main document date",
+            "reference_id": "Main document reference identifier or title anchor",
+            "total_amount": "Final total amount",
+        },
+        [],
+        existing,
+    )
+
+    filled_keys = {entity.key for entity in filled}
+    assert "document_date" not in filled_keys
+    assert "reference_id" not in filled_keys
+    assert "total_amount" not in filled_keys
+
+
+def test_heuristic_schema_fill_keeps_transaction_regex_fallback_for_invoices() -> None:
+    agent = LLMExtractionAgent()
+    doc = _doc(
+        "Invoice No: INV-100\n"
+        "Date: 03/10/2026\n"
+        "Total: $25.00\n"
+    )
+    existing = [Entity(key="document_type", value="invoice", confidence=0.95)]
+
+    filled = agent._heuristic_schema_fill(  # noqa: SLF001
+        doc,
+        ["document_type", "document_date", "reference_id", "total_amount"],
+        {
+            "document_date": "Main document date",
+            "reference_id": "Main document reference identifier or title anchor",
+            "total_amount": "Final total amount",
+        },
+        [],
+        existing,
+    )
+
+    by_key = {entity.key: entity.value for entity in filled}
+    assert by_key["document_date"] == "03/10/2026"
+    assert by_key["reference_id"] == "INV-100"
+    assert by_key["total_amount"] == "25.00"
+
+
+def test_heuristic_schema_fill_does_not_promote_plain_alpha_noise_on_receipts() -> None:
+    agent = LLMExtractionAgent()
+    doc = _doc(
+        "NASI MERAH\n"
+        "AYAM 14.000\n"
+        "TOTAL 35.000\n"
+    )
+    existing = [Entity(key="document_type", value="receipt", confidence=0.95)]
+
+    filled = agent._heuristic_schema_fill(  # noqa: SLF001
+        doc,
+        ["document_type", "document_date", "reference_id", "total_amount"],
+        {
+            "document_date": "Main document date",
+            "reference_id": "Main document reference identifier or title anchor",
+            "total_amount": "Final total amount",
+        },
+        [],
+        existing,
+    )
+
+    by_key = {entity.key: entity.value for entity in filled}
+    assert "document_date" not in by_key
+    assert "reference_id" not in by_key
+    assert by_key["total_amount"] == "35.000"

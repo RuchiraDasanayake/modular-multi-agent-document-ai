@@ -33,6 +33,7 @@ from idpo.core.storage import processed_dir as storage_processed_dir
 from idpo.core.storage import runs_root as storage_runs_root
 from idpo.pipeline.doc_artifacts import build_run_provenance_index, prepare_doc_input, write_doc_outputs
 from idpo.pipeline.doc_records import create_doc_record, normalize_key
+from idpo.pipeline.job_context import write_field_context
 from idpo.pipeline.orchestrator import Pipeline
 from idpo.pipeline.run_reports import (
     aggregate_reward_metrics,
@@ -134,7 +135,7 @@ def process_inbox(
     if not ingested_items:
         raise ValueError("No valid documents were ingested for processing.")
 
-    pipeline = Pipeline(config=config, run_dir=str(run_dir))
+    pipeline = Pipeline(config=config, run_dir=str(run_dir), run_id=resolved_run_id)
     docs_batch = [item["doc"] for item in ingested_items]
     results: list[Any] = []
     failed_doc_ids: set[str] = set()
@@ -176,6 +177,16 @@ def process_inbox(
             failed_doc_ids.add(str(doc.doc_id))
             continue
         write_doc_outputs(run_dir, doc, result, doc_dir, events_path, run_provenance_index=run_prov_index)
+        if job_id:
+            write_field_context(
+                job_id=job_id,
+                doc_id=doc.doc_id,
+                policy_id=str(getattr(result, "policy_id", "") or ""),
+                field_confidence=getattr(result, "field_confidence", {}) or {},
+                validation_issues=getattr(result, "validation_issues", []) or [],
+                vendor_cluster=str(getattr(result, "vendor_cluster", "") or ""),
+                semantic_doc_type=str(getattr(result, "semantic_doc_type", "unknown") or "unknown"),
+            )
         doc_records.append(create_doc_record(result, doc_dir, expected_fields, doc))
 
     for file_path in ingested_files:
@@ -298,4 +309,3 @@ def _write_ahmn_state_snapshot(
         "ahmn_state_path": str(snapshot_path),
         "ahmn_scope_key": str(snapshot.get("scope_key", scope_key or "")),
     }
-

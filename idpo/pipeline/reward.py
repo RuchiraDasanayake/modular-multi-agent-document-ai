@@ -193,7 +193,10 @@ def _schema_quality_from_state(
 def _entity_is_grounded(entity: Entity) -> bool:
     if entity.page is not None or entity.span is not None:
         return True
-    bbox = (entity.metadata or {}).get("bbox")
+    metadata = entity.metadata or {}
+    if metadata.get("text_grounded") is True:
+        return True
+    bbox = metadata.get("bbox")
     return isinstance(bbox, list) and len(bbox) >= 4
 
 

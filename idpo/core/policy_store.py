@@ -150,22 +150,33 @@ class PolicyStore:
                 }
             )
             value_map.update({key: doc.metadata.get(key) for key in doc.metadata})
-        for key, expectation in conditions.items():
-            current = value_map.get(key)
-            if isinstance(expectation, dict):
-                if current is None:
-                    return False
-                if "min" in expectation and current is not None and current < expectation["min"]:
-                    return False
-                if "max" in expectation and current is not None and current > expectation["max"]:
-                    return False
-                if "equals" in expectation and current != expectation["equals"]:
-                    return False
-                continue
-            if isinstance(expectation, list):
-                if current is None or current not in expectation:
-                    return False
-                continue
-            if current != expectation:
+        identity_keys = {"vendor_cluster", "semantic_doc_type"}
+        identity_conditions = {key: value for key, value in conditions.items() if key in identity_keys}
+        attribute_conditions = {key: value for key, value in conditions.items() if key not in identity_keys}
+
+        if identity_conditions and not any(
+            self._matches_expectation(value_map.get(key), expectation)
+            for key, expectation in identity_conditions.items()
+        ):
+            return False
+
+        for key, expectation in attribute_conditions.items():
+            if not self._matches_expectation(value_map.get(key), expectation):
                 return False
         return True
+
+    @staticmethod
+    def _matches_expectation(current: object, expectation: object) -> bool:
+        if isinstance(expectation, dict):
+            if current is None:
+                return False
+            if "min" in expectation and current < expectation["min"]:  # type: ignore[operator]
+                return False
+            if "max" in expectation and current > expectation["max"]:  # type: ignore[operator]
+                return False
+            if "equals" in expectation:
+                return current == expectation["equals"]
+            return True
+        if isinstance(expectation, list):
+            return current is not None and current in expectation
+        return current == expectation
