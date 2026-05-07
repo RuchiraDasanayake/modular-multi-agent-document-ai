@@ -1,0 +1,16 @@
+[Unit]
+Description=DocAI v2 Backend API
+After=network.target
+
+[Service]
+Type=simple
+User=docai
+Group=docai
+WorkingDirectory=/opt/docai
+EnvironmentFile=/etc/docai/docai-backend.env
+ExecStart=/opt/docai/.venv/bin/python -m uvicorn docai_core.api.app:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,7 @@
+# Backend API/runtime minimal dependencies
+fastapi>=0.103.0
+uvicorn[standard]>=0.22.0
+pydantic>=2.5.0
+python-multipart>=0.0.6
+pypdf>=4.0.0
+pymupdf>=1.23.0

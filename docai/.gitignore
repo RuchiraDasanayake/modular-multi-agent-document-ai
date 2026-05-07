@@ -1,0 +1,22 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Test/coverage caches
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Runtime/artifact output
+runs/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.docai/docai.sqlite

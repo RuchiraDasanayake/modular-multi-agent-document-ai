@@ -1,0 +1,50 @@
+{
+  "schema_id": "receipt_basic",
+  "project_id": "default",
+  "name": "Receipt (basic)",
+  "description": "Standard receipt extraction schema covering core receipt fields.",
+  "version": "v1",
+  "fields": [
+    {
+      "field_id": "r1",
+      "name": "receipt_number",
+      "description": "Unique identifier for the receipt",
+      "type": "str",
+      "required": false,
+      "examples": ["RCP-001", "12345"],
+      "validation_rules": [],
+      "aliases": ["receipt_id", "transaction_id", "ref_number"]
+    },
+    {
+      "field_id": "r2",
+      "name": "receipt_date",
+      "description": "Date the receipt was issued",
+      "type": "str",
+      "required": true,
+      "examples": ["2024-01-15", "Jan 15, 2024"],
+      "validation_rules": [],
+      "aliases": ["date", "transaction_date", "purchase_date"]
+    },
+    {
+      "field_id": "r3",
+      "name": "merchant_name",
+      "description": "Name of the merchant or store",
+      "type": "str",
+      "required": true,
+      "examples": ["Acme Store", "Best Buy"],
+      "validation_rules": [],
+      "aliases": ["store", "merchant", "vendor", "retailer"]
+    },
+    {
+      "field_id": "r4",
+      "name": "total_amount",
+      "description": "Total amount paid",
+      "type": "str",
+      "required": true,
+      "examples": ["$25.99", "25.99"],
+      "validation_rules": [],
+      "aliases": ["total", "amount", "subtotal", "total_price"]
+    }
+  ],
+  "tables": []
+}

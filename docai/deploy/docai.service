@@ -1,0 +1,17 @@
+[Unit]
+Description=DocAI Alpha Backend
+After=network.target
+
+[Service]
+Type=simple
+User=docai
+WorkingDirectory=/opt/docai
+Environment="DOCAI_DB_PATH=/var/lib/docai/docai.sqlite"
+Environment="DOCAI_RUNS_DIR=/var/lib/docai/runs"
+Environment="DOCAI_MAX_UPLOAD_BYTES=52428800"
+ExecStart=/opt/docai/venv/bin/uvicorn docai_core.api.app:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

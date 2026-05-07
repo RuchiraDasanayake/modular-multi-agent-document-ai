@@ -1,0 +1,218 @@
+{
+  "schema_id": "funsd_common_fields_gold25",
+  "name": "FUNSD Common Fields Gold25",
+  "document_type": "scanned_form",
+  "description": "Common fields extracted from 25 real FUNSD scanned form documents using human-labeled annotations as ground truth.",
+  "fields": [
+    {
+      "field_name": "date",
+      "display_name": "Date",
+      "type": "string",
+      "required": false,
+      "aliases": [
+        "date"
+      ],
+      "description": "Extract the form value for date when present.",
+      "gold25_coverage": 19
+    },
+    {
+      "field_name": "recipient",
+      "display_name": "Recipient",
+      "type": "string",
+      "required": false,
+      "aliases": [
+        "to",
+        "recipient"
+      ],
+      "description": "Extract the form value for recipient when present.",
+      "gold25_coverage": 7
+    },
+    {
+      "field_name": "sender",
+      "display_name": "Sender",
+      "type": "string",
+      "required": false,
+      "aliases": [
+        "from"
+      ],
+      "description": "Extract the form value for sender when present.",
+      "gold25_coverage": 6
+    },
+    {
+      "field_name": "cc",
+      "display_name": "Cc",
+      "type": "string",
+      "required": false,
+      "aliases": [
+        "cc"
+      ],
+      "description": "Extract the form value for cc when present.",
+      "gold25_coverage": 14
+    },
+    {
+      "field_name": "subject",
+      "display_name": "Subject",
+      "type": "string",
+      "required": false,
+      "aliases": [
+        "subject"
+      ],
+      "description": "Extract the form value for subject when present.",
+      "gold25_coverage": 3
+    },
+    {
+      "field_name": "name",
+      "display_name": "Name",
+      "type": "string",
+      "required": false,
+      "aliases": [
+        "name"
+      ],
+      "description": "Extract the form value for name when present.",
+      "gold25_coverage": 3
+    },
+    {
+      "field_name": "description",
+      "display_name": "Description",
+      "type": "string",
+      "required": false,
+      "aliases": [
+        "description"
+      ],
+      "description": "Extract the form value for description when present.",
+      "gold25_coverage": 10
+    },
+    {
+      "field_name": "comments",
+      "display_name": "Comments",
+      "type": "string",
+      "required": false,
+      "aliases": [
+        "comments"
+      ],
+      "description": "Extract the form value for comments when present.",
+      "gold25_coverage": 6
+    },
+    {
+      "field_name": "approved_by",
+      "display_name": "Approved By",
+      "type": "string",
+      "required": false,
+      "aliases": [
+        "approved by",
+        "approved_by"
+      ],
+      "description": "Extract the form value for approved by when present.",
+      "gold25_coverage": 5
+    },
+    {
+      "field_name": "supplier",
+      "display_name": "Supplier",
+      "type": "string",
+      "required": false,
+      "aliases": [
+        "supplier"
+      ],
+      "description": "Extract the form value for supplier when present.",
+      "gold25_coverage": 9
+    },
+    {
+      "field_name": "quantity",
+      "display_name": "Quantity",
+      "type": "string",
+      "required": false,
+      "aliases": [
+        "quantity"
+      ],
+      "description": "Extract the form value for quantity when present.",
+      "gold25_coverage": 1
+    },
+    {
+      "field_name": "total_cost",
+      "display_name": "Total Cost",
+      "type": "string",
+      "required": false,
+      "aliases": [
+        "total cost",
+        "cost"
+      ],
+      "description": "Extract the form value for total cost when present.",
+      "gold25_coverage": 5
+    },
+    {
+      "field_name": "project_no",
+      "display_name": "Project No",
+      "type": "string",
+      "required": false,
+      "aliases": [
+        "project no.",
+        "project no",
+        "project number",
+        "project_number"
+      ],
+      "description": "Extract the form value for project no when present.",
+      "gold25_coverage": 7
+    },
+    {
+      "field_name": "department",
+      "display_name": "Department",
+      "type": "string",
+      "required": false,
+      "aliases": [
+        "department"
+      ],
+      "description": "Extract the form value for department when present.",
+      "gold25_coverage": 1
+    },
+    {
+      "field_name": "location",
+      "display_name": "Location",
+      "type": "string",
+      "required": false,
+      "aliases": [
+        "location"
+      ],
+      "description": "Extract the form value for location when present.",
+      "gold25_coverage": 3
+    },
+    {
+      "field_name": "brand",
+      "display_name": "Brand",
+      "type": "string",
+      "required": false,
+      "aliases": [
+        "brand"
+      ],
+      "description": "Extract the form value for brand when present.",
+      "gold25_coverage": 5
+    },
+    {
+      "field_name": "account_name",
+      "display_name": "Account Name",
+      "type": "string",
+      "required": false,
+      "aliases": [
+        "name of account"
+      ],
+      "description": "Extract the form value for account name when present.",
+      "gold25_coverage": 3
+    },
+    {
+      "field_name": "stores_count",
+      "display_name": "Stores Count",
+      "type": "string",
+      "required": false,
+      "aliases": [
+        "no. of stores",
+        "number of stores"
+      ],
+      "description": "Extract the form value for stores count when present.",
+      "gold25_coverage": 2
+    }
+  ],
+  "notes": [
+    "Expected values are human-labeled dataset ground truth and must be used only after extraction for evaluation.",
+    "Document images are real FUNSD scanned forms.",
+    "This schema is not invoice-specific."
+  ]
+}

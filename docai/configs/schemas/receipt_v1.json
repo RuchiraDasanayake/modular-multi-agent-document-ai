@@ -1,0 +1,61 @@
+{
+  "schema_id": "receipt_v1",
+  "project_id": "default",
+  "name": "Receipt Extraction v1",
+  "description": "Extract core receipt fields and item rows.",
+  "version": "v1",
+  "fields": [
+    {
+      "field_id": "merchant_name",
+      "name": "merchant_name",
+      "description": "Merchant name.",
+      "type": "string",
+      "required": true
+    },
+    {
+      "field_id": "receipt_date",
+      "name": "receipt_date",
+      "description": "Receipt date.",
+      "type": "date",
+      "required": true
+    },
+    {
+      "field_id": "total_amount",
+      "name": "total_amount",
+      "description": "Total receipt amount.",
+      "type": "number",
+      "required": true
+    }
+  ],
+  "tables": [
+    {
+      "table_id": "items",
+      "name": "items",
+      "description": "Receipt item rows.",
+      "columns": [
+        {
+          "column_id": "description",
+          "name": "description",
+          "description": "Item description.",
+          "type": "string",
+          "required": true
+        },
+        {
+          "column_id": "quantity",
+          "name": "quantity",
+          "description": "Item quantity.",
+          "type": "number",
+          "required": true
+        },
+        {
+          "column_id": "price",
+          "name": "price",
+          "description": "Item price.",
+          "type": "number",
+          "required": true
+        }
+      ],
+      "required": false
+    }
+  ]
+}

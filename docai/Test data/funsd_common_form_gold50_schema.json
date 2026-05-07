@@ -1,0 +1,362 @@
+{
+  "schema_id": "funsd_common_form_gold50_v1",
+  "name": "FUNSD Common Form Gold 50",
+  "document_type": "scanned_form",
+  "version": "v1",
+  "notes": [
+    "Derived from FUNSD human-labeled annotations.",
+    "Use for golden-dataset evaluation, not product learning unless explicitly imported with source provenance.",
+    "All fields are optional because FUNSD documents are heterogeneous; evaluate only fields present in the labels for each document.",
+    "Expected values may include multiple entries per field/document; evaluation should compare raw output against the expected_values array or per-occurrence rows."
+  ],
+  "fields": [
+    {
+      "id": "date",
+      "name": "date",
+      "type": "date",
+      "required": false,
+      "description": "Canonical FUNSD form field 'date'. Extract the value associated with labels/aliases such as: COUPON EXPIRATION DATE, COUPON ISSUE DATE, Coupon Issue Date, DATE, DATE INITIATED, DATE:, Date, Date Rec'd, Date:, RECEIVED, coupon expiration date, coupon issue date.",
+      "aliases": [
+        "COUPON EXPIRATION DATE",
+        "COUPON ISSUE DATE",
+        "Coupon Issue Date",
+        "DATE",
+        "DATE INITIATED",
+        "DATE:",
+        "Date",
+        "Date Rec'd",
+        "Date:",
+        "RECEIVED",
+        "coupon expiration date",
+        "coupon issue date",
+        "date",
+        "date initiated",
+        "date rec'd",
+        "date received",
+        "received",
+        "reported"
+      ],
+      "document_coverage_in_gold50": 44,
+      "label_count_in_gold50": 79
+    },
+    {
+      "id": "from",
+      "name": "from",
+      "type": "text",
+      "required": false,
+      "description": "Canonical FUNSD form field 'from'. Extract the value associated with labels/aliases such as: FROM:, From:, Requested By:, Requested by:, Submitted By:, Submitted by:, WORK REQUESTED BY, WORK REQUESTED BY:, Written by, Written by:, from, prepared by.",
+      "aliases": [
+        "FROM:",
+        "From:",
+        "Requested By:",
+        "Requested by:",
+        "Submitted By:",
+        "Submitted by:",
+        "WORK REQUESTED BY",
+        "WORK REQUESTED BY:",
+        "Written by",
+        "Written by:",
+        "from",
+        "prepared by",
+        "reported by",
+        "requested by",
+        "submitted by",
+        "work requested by",
+        "written by"
+      ],
+      "document_coverage_in_gold50": 33,
+      "label_count_in_gold50": 37
+    },
+    {
+      "id": "cc",
+      "name": "cc",
+      "type": "text",
+      "required": false,
+      "description": "Canonical FUNSD form field 'cc'. Extract the value associated with labels/aliases such as: CC:, Copies to, Copies to:, DISTRIBUTION, DISTRIBUTION:, Distribution:, cc, cc:, copies to, copies to the following, distribution.",
+      "aliases": [
+        "CC:",
+        "Copies to",
+        "Copies to:",
+        "DISTRIBUTION",
+        "DISTRIBUTION:",
+        "Distribution:",
+        "cc",
+        "cc:",
+        "copies to",
+        "copies to the following",
+        "distribution"
+      ],
+      "document_coverage_in_gold50": 28,
+      "label_count_in_gold50": 46
+    },
+    {
+      "id": "to",
+      "name": "to",
+      "type": "text",
+      "required": false,
+      "description": "Canonical FUNSD form field 'to'. Extract the value associated with labels/aliases such as: Attention, Attention:, TO, TO:, To, To:, attention, to.",
+      "aliases": [
+        "Attention",
+        "Attention:",
+        "TO",
+        "TO:",
+        "To",
+        "To:",
+        "attention",
+        "to"
+      ],
+      "document_coverage_in_gold50": 21,
+      "label_count_in_gold50": 22
+    },
+    {
+      "id": "description",
+      "name": "description",
+      "type": "text",
+      "required": false,
+      "description": "Canonical FUNSD form field 'description'. Extract the value associated with labels/aliases such as: COMMENTS, COMMENTS:, DESCRIPTION, Description:, REASONS:, Reasons:, comments, conclusion, description, reasons.",
+      "aliases": [
+        "COMMENTS",
+        "COMMENTS:",
+        "DESCRIPTION",
+        "Description:",
+        "REASONS:",
+        "Reasons:",
+        "comments",
+        "conclusion",
+        "description",
+        "reasons"
+      ],
+      "document_coverage_in_gold50": 16,
+      "label_count_in_gold50": 25
+    },
+    {
+      "id": "project_number",
+      "name": "project_number",
+      "type": "text",
+      "required": false,
+      "description": "Canonical FUNSD form field 'project_number'. Extract the value associated with labels/aliases such as: JOB NUMBER:, Job Number, PROJECT CODE, PROJECT CODE:, PROJECT No., Project Code, Project No., Project No.:, code#, job number, project code, project no.",
+      "aliases": [
+        "JOB NUMBER:",
+        "Job Number",
+        "PROJECT CODE",
+        "PROJECT CODE:",
+        "PROJECT No.",
+        "Project Code",
+        "Project No.",
+        "Project No.:",
+        "code#",
+        "job number",
+        "project code",
+        "project no",
+        "project no.",
+        "project number",
+        "project#"
+      ],
+      "document_coverage_in_gold50": 16,
+      "label_count_in_gold50": 16
+    },
+    {
+      "id": "name",
+      "name": "name",
+      "type": "text",
+      "required": false,
+      "description": "Canonical FUNSD form field 'name'. Extract the value associated with labels/aliases such as: ACCOUNT NAME, AGENCY, Account Name, Agency:, CLIENT:, Client:, Company:, NAME OF ACCOUNT, NAME:, Name of Account, account name, agency.",
+      "aliases": [
+        "ACCOUNT NAME",
+        "AGENCY",
+        "Account Name",
+        "Agency:",
+        "CLIENT:",
+        "Client:",
+        "Company:",
+        "NAME OF ACCOUNT",
+        "NAME:",
+        "Name of Account",
+        "account name",
+        "agency",
+        "client",
+        "company",
+        "name",
+        "name of account"
+      ],
+      "document_coverage_in_gold50": 16,
+      "label_count_in_gold50": 21
+    },
+    {
+      "id": "subject",
+      "name": "subject",
+      "type": "text",
+      "required": false,
+      "description": "Canonical FUNSD form field 'subject'. Extract the value associated with labels/aliases such as: RE, RE:, Re.:, SUBJECT:, Subject, Subject:, Title, Title:, re, subject, title.",
+      "aliases": [
+        "RE",
+        "RE:",
+        "Re.:",
+        "SUBJECT:",
+        "Subject",
+        "Subject:",
+        "Title",
+        "Title:",
+        "re",
+        "subject",
+        "title"
+      ],
+      "document_coverage_in_gold50": 13,
+      "label_count_in_gold50": 13
+    },
+    {
+      "id": "product",
+      "name": "product",
+      "type": "text",
+      "required": false,
+      "description": "Canonical FUNSD form field 'product'. Extract the value associated with labels/aliases such as: BRAND, BRAND NAME:, Brand, Brand Name:, Brand:, PRODUCT:, Product:, brand, brand name, product.",
+      "aliases": [
+        "BRAND",
+        "BRAND NAME:",
+        "Brand",
+        "Brand Name:",
+        "Brand:",
+        "PRODUCT:",
+        "Product:",
+        "brand",
+        "brand name",
+        "product"
+      ],
+      "document_coverage_in_gold50": 12,
+      "label_count_in_gold50": 12
+    },
+    {
+      "id": "supplier",
+      "name": "supplier",
+      "type": "text",
+      "required": false,
+      "description": "Canonical FUNSD form field 'supplier'. Extract the value associated with labels/aliases such as: MANUFACTURER:, Recommended Supplier, Recommended Supplier:, SUPPLIER, SUPPLIER:, Supplier, Supplier:, manufacturer, recommended supplier, supplier.",
+      "aliases": [
+        "MANUFACTURER:",
+        "Recommended Supplier",
+        "Recommended Supplier:",
+        "SUPPLIER",
+        "SUPPLIER:",
+        "Supplier",
+        "Supplier:",
+        "manufacturer",
+        "recommended supplier",
+        "supplier"
+      ],
+      "document_coverage_in_gold50": 11,
+      "label_count_in_gold50": 16
+    },
+    {
+      "id": "total_cost",
+      "name": "total_cost",
+      "type": "currency",
+      "required": false,
+      "description": "Canonical FUNSD form field 'total_cost'. Extract the value associated with labels/aliases such as: ADJUSTED TOTAL COST OF PROJECT:, Adjusted Total Cost of Project:, THIS AMOUNT, TOTAL, This Amount, Total Cost, adjusted total cost of project, this amount, total, total cost.",
+      "aliases": [
+        "ADJUSTED TOTAL COST OF PROJECT:",
+        "Adjusted Total Cost of Project:",
+        "THIS AMOUNT",
+        "TOTAL",
+        "This Amount",
+        "Total Cost",
+        "adjusted total cost of project",
+        "this amount",
+        "total",
+        "total cost"
+      ],
+      "document_coverage_in_gold50": 10,
+      "label_count_in_gold50": 20
+    },
+    {
+      "id": "quantity",
+      "name": "quantity",
+      "type": "text",
+      "required": false,
+      "description": "Canonical FUNSD form field 'quantity'. Extract the value associated with labels/aliases such as: CARTONS, Cartons, Quantity, Quantity:, Sample Size, Sample Size:, Weight, cartons, quantity, sample size, weight.",
+      "aliases": [
+        "CARTONS",
+        "Cartons",
+        "Quantity",
+        "Quantity:",
+        "Sample Size",
+        "Sample Size:",
+        "Weight",
+        "cartons",
+        "quantity",
+        "sample size",
+        "weight"
+      ],
+      "document_coverage_in_gold50": 9,
+      "label_count_in_gold50": 14
+    },
+    {
+      "id": "approved_by",
+      "name": "approved_by",
+      "type": "text",
+      "required": false,
+      "description": "Canonical FUNSD form field 'approved_by'. Extract the value associated with labels/aliases such as: APPROVED BY:, Approved By:, Approved by, Approved by:, Signature, approved by, signature.",
+      "aliases": [
+        "APPROVED BY:",
+        "Approved By:",
+        "Approved by",
+        "Approved by:",
+        "Signature",
+        "approved by",
+        "signature"
+      ],
+      "document_coverage_in_gold50": 7,
+      "label_count_in_gold50": 10
+    },
+    {
+      "id": "location",
+      "name": "location",
+      "type": "text",
+      "required": false,
+      "description": "Canonical FUNSD form field 'location'. Extract the value associated with labels/aliases such as: ADDRESS:, Address:, LOCATION, Location, address, location.",
+      "aliases": [
+        "ADDRESS:",
+        "Address:",
+        "LOCATION",
+        "Location",
+        "address",
+        "location"
+      ],
+      "document_coverage_in_gold50": 7,
+      "label_count_in_gold50": 9
+    },
+    {
+      "id": "project_name",
+      "name": "project_name",
+      "type": "text",
+      "required": false,
+      "description": "Canonical FUNSD form field 'project_name'. Extract the value associated with labels/aliases such as: PROJECT, PROJECT NAME, PROJECT NAME:, Project Name, project, project name.",
+      "aliases": [
+        "PROJECT",
+        "PROJECT NAME",
+        "PROJECT NAME:",
+        "Project Name",
+        "project",
+        "project name"
+      ],
+      "document_coverage_in_gold50": 5,
+      "label_count_in_gold50": 6
+    },
+    {
+      "id": "department",
+      "name": "department",
+      "type": "text",
+      "required": false,
+      "description": "Canonical FUNSD form field 'department'. Extract the value associated with labels/aliases such as: Department, Division, department, division, section a.",
+      "aliases": [
+        "Department",
+        "Division",
+        "department",
+        "division",
+        "section a"
+      ],
+      "document_coverage_in_gold50": 4,
+      "label_count_in_gold50": 4
+    }
+  ],
+  "tables": []
+}

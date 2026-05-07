@@ -1,0 +1,110 @@
+document_id,document_filename,field_name,expected_value,source_question,source_answer,source
+0001463282,0001463282.png,date,5/ 2/ 90,Date,5/ 2/ 90,human_labeled_dataset
+0001463282,0001463282.png,cc,S. Willinger (3),cc:,S. Willinger (3),human_labeled_dataset
+0001463282,0001463282.png,description,Y- 1 Ultra 100' s vs. Winston Ultra 100' s,Description:,Y- 1 Ultra 100' s vs. Winston Ultra 100' s,human_labeled_dataset
+0001463282,0001463282.png,supplier,Kapuler,Supplier,Kapuler,human_labeled_dataset
+0001463282,0001463282.png,total_cost,"$ 33,675 + 10% Est.",Cost,"$ 33,675 + 10% Est.",human_labeled_dataset
+0001463282,0001463282.png,project_no,1990- 488,Project No.,1990- 488,human_labeled_dataset
+0012529295,0012529295.png,date,10/ /9 87,Date:,10/ /9 87,human_labeled_dataset
+0012529295,0012529295.png,cc,S. Willinger (3),cc:,S. Willinger (3),human_labeled_dataset
+0012529295,0012529295.png,approved_by,L. E. Gravely,Approved By:,L. E. Gravely,human_labeled_dataset
+0012529295,0012529295.png,supplier,Kapuler Market Research,Supplier,Kapuler Market Research,human_labeled_dataset
+0012529295,0012529295.png,total_cost,"$70 ,825 + - 10%",Total Cost,"$70 ,825 + - 10%",human_labeled_dataset
+0012529295,0012529295.png,project_no,1987- 113CA,Project No.,1987- 113CA,human_labeled_dataset
+0011838621,0011838621.png,date,6/ 21/ 90,Date:,6/ 21/ 90,human_labeled_dataset
+0011838621,0011838621.png,cc,MRA File N. W. Kremer,cc:,MRA File N. W. Kremer,human_labeled_dataset
+0011838621,0011838621.png,description,Hong Kong: Cigarette Market Monitor,Description:,Hong Kong: Cigarette Market Monitor,human_labeled_dataset
+0011838621,0011838621.png,supplier,MDR. HK,Supplier:,MDR. HK,human_labeled_dataset
+0011838621,0011838621.png,total_cost,$ 43.335.00,Total Cost,$ 43.335.00,human_labeled_dataset
+0011838621,0011838621.png,project_no,1989- 29,Project No.,1989- 29,human_labeled_dataset
+71202511,71202511.png,date,2/ 26/ 98,Date:,2/ 26/ 98,human_labeled_dataset
+71202511,71202511.png,cc,MaDonna Sliker,CC:,MaDonna Sliker,human_labeled_dataset
+71202511,71202511.png,description,KOOL Natural Lights Packaging - Round I,Description:,KOOL Natural Lights Packaging - Round I,human_labeled_dataset
+71202511,71202511.png,approved_by,"Autos Mgr. Trade & Consumer Research (to $ 100,000)",Approved By:,"Autos Mgr. Trade & Consumer Research (to $ 100,000)",human_labeled_dataset
+71202511,71202511.png,total_cost,"58,500",Total Cost,"58,500",human_labeled_dataset
+71202511,71202511.png,project_no,1998 -18D,Project No.:,1998 -18D,human_labeled_dataset
+81619511_9513,81619511_9513.png,recipient,S.P. Zolot,TO:,S.P. Zolot,human_labeled_dataset
+81619511_9513,81619511_9513.png,sender,C.J. Leiker,FROM:,C.J. Leiker,human_labeled_dataset
+81619511_9513,81619511_9513.png,subject,MAVERICK SPECIALS MENTHOL- PROGRESS REPORT,SUBJECT:,MAVERICK SPECIALS MENTHOL- PROGRESS REPORT,human_labeled_dataset
+81619511_9513,81619511_9513.png,account_name,Chatham Oil (311- 01),NAME OF ACCOUNT,Chatham Oil (311- 01),human_labeled_dataset
+81619511_9513,81619511_9513.png,stores_count,23,NO. OF STORES,23,human_labeled_dataset
+11508234,11508234.png,date,"March3, 1995",Date:,"March3, 1995",human_labeled_dataset
+11508234,11508234.png,cc,H. Williams,cc:,H. Williams,human_labeled_dataset
+11508234,11508234.png,description,LUCKY STRIKE QUALITATIVE ADVERTISING RESEARCH - GATEWAY CITIES,Description:,LUCKY STRIKE QUALITATIVE ADVERTISING RESEARCH - GATEWAY CITIES,human_labeled_dataset
+11508234,11508234.png,supplier,"Analytic Insight, Inc.",Supplier,"Analytic Insight, Inc.",human_labeled_dataset
+11508234,11508234.png,total_cost,"29,500",Total Cost,"29,500",human_labeled_dataset
+0012529284,0012529284.png,date,12- -4 -87,Date:,12- -4 -87,human_labeled_dataset
+0012529284,0012529284.png,cc,S. Willinger (3),cc:,S. Willinger (3),human_labeled_dataset
+0012529284,0012529284.png,description,"CAPRI A&U EXPANSION - CALIFORNIA: WAVE 2 (87 -113) ,",Description:,"CAPRI A&U EXPANSION - CALIFORNIA: WAVE 2 (87 -113) ,",human_labeled_dataset
+0012529284,0012529284.png,supplier,Kapuler Marketing Research,Supplier:,Kapuler Marketing Research,human_labeled_dataset
+0012529284,0012529284.png,project_no,1987 -113 /114 /115 -CA,Project No.,1987 -113 /114 /115 -CA,human_labeled_dataset
+0012602424,0012602424.png,date,11/ 28/ 84,DATE:,11/ 28/ 84,human_labeled_dataset
+0012602424,0012602424.png,cc,S. WILLINGER (3) ☑ RESEARCH GROUP MANAGER,CC:,S. WILLINGER (3) ☑ RESEARCH GROUP MANAGER,human_labeled_dataset
+0012602424,0012602424.png,approved_by,B a,APPROVED BY:,B a,human_labeled_dataset
+0012602424,0012602424.png,supplier,BURKE MARKETING RESEARCH,SUPPLIER:,BURKE MARKETING RESEARCH,human_labeled_dataset
+0012602424,0012602424.png,project_no,1984- 175NP,PROJECT No.,1984- 175NP,human_labeled_dataset
+0011974919,0011974919.png,date,"September 10, 1996",Date:,"September 10, 1996",human_labeled_dataset
+0011974919,0011974919.png,recipient,Joe Leinster,To,Joe Leinster,human_labeled_dataset
+0011974919,0011974919.png,sender,Joyce Bagby,From:,Joyce Bagby,human_labeled_dataset
+0011974919,0011974919.png,description,Record of confirmation calls for sneak preview appointments,Description:,Record of confirmation calls for sneak preview appointments,human_labeled_dataset
+0011974919,0011974919.png,brand,Eclipse,Brand:,Eclipse,human_labeled_dataset
+81619486_9488,81619486_9488.png,recipient,S. P. ZOLOT,TO:,S. P. ZOLOT,human_labeled_dataset
+81619486_9488,81619486_9488.png,sender,R. W. Richardson,FROM:,R. W. Richardson,human_labeled_dataset
+81619486_9488,81619486_9488.png,subject,MAVERICK SPECIALS EXPANSION MARKETS PROGRESS REPORT,SUBJECT:,MAVERICK SPECIALS EXPANSION MARKETS PROGRESS REPORT,human_labeled_dataset
+81619486_9488,81619486_9488.png,account_name,Meijer Gas,Name of Account,Meijer Gas,human_labeled_dataset
+81619486_9488,81619486_9488.png,stores_count,70,Number of Stores,70,human_labeled_dataset
+12603270,12603270.png,date,"June 21, 1985",Date:,"June 21, 1985",human_labeled_dataset
+12603270,12603270.png,cc,Research Group Manager Bonnie Fuller V. Hansberry (If International),cc:,Research Group Manager Bonnie Fuller V. Hansberry (If International),human_labeled_dataset
+12603270,12603270.png,description,Amelia 100's Candidates: (NM-FT and NM- Lights),Description:,Amelia 100's Candidates: (NM-FT and NM- Lights),human_labeled_dataset
+12603270,12603270.png,supplier,Market Facts. Inc.,Supplier:,Market Facts. Inc.,human_labeled_dataset
+12603270,12603270.png,project_no,1985-39NP,Project No.,1985-39NP,human_labeled_dataset
+81749056_9057,81749056_9057.png,recipient,S. P. ZOLOT,TO:,S. P. ZOLOT,human_labeled_dataset
+81749056_9057,81749056_9057.png,sender,S. P. McBride,FROM:,S. P. McBride,human_labeled_dataset
+81749056_9057,81749056_9057.png,subject,MAVERICK SPECIALS NON- MENTHOL- EXPANSION PROGRESS REPORT,SUBJECT:,MAVERICK SPECIALS NON- MENTHOL- EXPANSION PROGRESS REPORT,human_labeled_dataset
+81749056_9057,81749056_9057.png,account_name,None,NAME OF ACCOUNT,None,human_labeled_dataset
+0060077689,0060077689.png,date,"January 3, 1995",DATE,"January 3, 1995",human_labeled_dataset
+0060077689,0060077689.png,description,"CARLTON ""Free"" Carton"" Direct Mail Piece",DESCRIPTION,"CARLTON ""Free"" Carton"" Direct Mail Piece",human_labeled_dataset
+0060077689,0060077689.png,supplier,WEBCRAFT TECHNOLOGIES INC,SUPPLIER,WEBCRAFT TECHNOLOGIES INC,human_labeled_dataset
+0060077689,0060077689.png,location,"STAMFORD, CT",LOCATION,"STAMFORD, CT",human_labeled_dataset
+00920294,00920294.png,date,3/ 7/ 97,Date:,3/ 7/ 97,human_labeled_dataset
+00920294,00920294.png,recipient,RJR IR - Suz /Art,To:,RJR IR - Suz /Art,human_labeled_dataset
+00920294,00920294.png,sender,Drew Huyett,From:,Drew Huyett,human_labeled_dataset
+00920294,00920294.png,quantity,273,Quantity:,273,human_labeled_dataset
+92657391,92657391.png,date,12/ 28/ 94,DATE:,12/ 28/ 94,human_labeled_dataset
+92657391,92657391.png,cc,R. B. Spell,cc:,R. B. Spell,human_labeled_dataset
+92657391,92657391.png,name,R. H. Orcutt,NAME:,R. H. Orcutt,human_labeled_dataset
+92657391,92657391.png,comments,Harley Davidson 100's Progress Report.,COMMENTS:,Harley Davidson 100's Progress Report.,human_labeled_dataset
+0071032790,0071032790.png,date,"September 16, 1980",DATE:,"September 16, 1980",human_labeled_dataset
+0071032790,0071032790.png,recipient,Files,To:,Files,human_labeled_dataset
+0071032790,0071032790.png,cc,BMC/RMI/EPB JEM/DEC PRC/DRB,cc:,BMC/RMI/EPB JEM/DEC PRC/DRB,human_labeled_dataset
+0071032790,0071032790.png,approved_by,"R. S. Sprinkle, III",Approved by:,"R. S. Sprinkle, III",human_labeled_dataset
+71190280,71190280.png,date,10/22/98 10/22/98,Date,10/22/98 10/22/98,human_labeled_dataset
+71190280,71190280.png,description,Passport Winter Program Ad- EMRO,DESCRIPTION,Passport Winter Program Ad- EMRO,human_labeled_dataset
+71190280,71190280.png,department,production AE,Department,production AE,human_labeled_dataset
+71190280,71190280.png,brand,KOOL Natural,BRAND,KOOL Natural,human_labeled_dataset
+91372360,91372360.png,date,11/4/93,DATE,11/4/93,human_labeled_dataset
+91372360,91372360.png,cc,Mr. R. B. Spell,cc:,Mr. R. B. Spell,human_labeled_dataset
+91372360,91372360.png,name,Mr. A. J. Giacoio,NAME:,Mr. A. J. Giacoio,human_labeled_dataset
+91372360,91372360.png,comments,The attached Competitive information was secured in Oklahoma today. If you should have any questions.,COMMENTS:,The attached Competitive information was secured in Oklahoma today. If you should have any questions.,human_labeled_dataset
+91914407,91914407.png,date,6- 29- 94,DATE:,6- 29- 94,human_labeled_dataset
+91914407,91914407.png,cc,R. E. KLEIN,CC:,R. E. KLEIN,human_labeled_dataset
+91914407,91914407.png,name,Mr. Al Giacoio,NAME:,Mr. Al Giacoio,human_labeled_dataset
+91914407,91914407.png,comments,The attached was obtained from Mackoul Dist.,COMMENTS:,The attached was obtained from Mackoul Dist.,human_labeled_dataset
+0001209043,0001209043.png,comments,Tested among a half sample of smokers. Sub- group scores subject to wide variation because of small sample size and should be averaged across several ads for meaningful infor- mation.,COMMENTS,Tested among a half sample of smokers. Sub- group scores subject to wide variation because of small sample size and should be averaged across several ads for meaningful infor- mation.,human_labeled_dataset
+0001209043,0001209043.png,location,"CHICAGO, DALLAS/ FORT WORTH, INDIANAPOLIS, LOS ANGELES",Location,"CHICAGO, DALLAS/ FORT WORTH, INDIANAPOLIS, LOS ANGELES",human_labeled_dataset
+0001209043,0001209043.png,brand,SALEM (RJR),Brand,SALEM (RJR),human_labeled_dataset
+0000989556,0000989556.png,date,"May 1, 1985",Date:,"May 1, 1985",human_labeled_dataset
+0000989556,0000989556.png,approved_by,"Director of Technical Operations, Brown & Williamson International Tobacco",Approved by:,"Director of Technical Operations, Brown & Williamson International Tobacco",human_labeled_dataset
+0000989556,0000989556.png,brand,PHOENIX,Brand:,PHOENIX,human_labeled_dataset
+93380187,93380187.png,recipient,V. M. LOSITO,TO:,V. M. LOSITO,human_labeled_dataset
+93380187,93380187.png,sender,MICHELLE LEPRE,FROM:,MICHELLE LEPRE,human_labeled_dataset
+93380187,93380187.png,cc,S. A. RAPISARLDI,CC:,S. A. RAPISARLDI,human_labeled_dataset
+92091873,92091873.png,date,6/,Date,6/,human_labeled_dataset
+92091873,92091873.png,cc,R. P. Bonomo,cc:,R. P. Bonomo,human_labeled_dataset
+92091873,92091873.png,location,"Leguna Seca, Monterey, Ca",Location,"Leguna Seca, Monterey, Ca",human_labeled_dataset
+0001476912,0001476912.png,comments,This commercial was tested in color.,COMMENTS,This commercial was tested in color.,human_labeled_dataset
+0001476912,0001476912.png,supplier,AUDIENCE STUDIES,Supplier:,AUDIENCE STUDIES,human_labeled_dataset
+0001476912,0001476912.png,brand,RALEIGH (BELAIR portion not tested),Brand:,RALEIGH (BELAIR portion not tested),human_labeled_dataset
+716552,716552.png,date,9/ 17/ 8181,DATE:,9/ 17/ 8181,human_labeled_dataset
+716552,716552.png,description,VICEROY Rich Lights 100' s 20' s Label,DESCRIPTION,VICEROY Rich Lights 100' s 20' s Label,human_labeled_dataset
+716552,716552.png,comments,"Material # 50 -034 A has been assigned to the VICEROY Rich Lights 100' s 20' s Label with new bottom panel. Bottom now incorporates shield. On both side and bottom panels, ""VICEROY"" and ""Rich Lights"" have been inverted. Cartons and labels must change design simultaneously. The current design cannot be used in production after 10/ 30/ 81.",COMMENTS:,"Material # 50 -034 A has been assigned to the VICEROY Rich Lights 100' s 20' s Label with new bottom panel. Bottom now incorporates shield. On both side and bottom panels, ""VICEROY"" and ""Rich Lights"" have been inverted. Cartons and labels must change design simultaneously. The current design cannot be used in production after 10/ 30/ 81.",human_labeled_dataset

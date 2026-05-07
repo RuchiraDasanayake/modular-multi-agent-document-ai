@@ -1,0 +1,50 @@
+{
+  "schema_id": "invoice_basic",
+  "project_id": "default",
+  "name": "Invoice (built-in)",
+  "description": "Standard invoice extraction schema covering core billing fields.",
+  "version": "v1",
+  "fields": [
+    {
+      "field_id": "f1",
+      "name": "invoice_number",
+      "description": "Unique identifier for the invoice",
+      "type": "str",
+      "required": true,
+      "examples": ["INV-001", "2024-0042"],
+      "validation_rules": [],
+      "aliases": ["invoice_no", "inv_number", "bill_number"]
+    },
+    {
+      "field_id": "f2",
+      "name": "invoice_date",
+      "description": "Date the invoice was issued",
+      "type": "str",
+      "required": true,
+      "examples": ["2024-01-15", "January 15, 2024"],
+      "validation_rules": [],
+      "aliases": ["date", "issue_date", "billing_date"]
+    },
+    {
+      "field_id": "f3",
+      "name": "total_amount",
+      "description": "Total monetary amount due on the invoice",
+      "type": "str",
+      "required": true,
+      "examples": ["$1,250.00", "1250.00"],
+      "validation_rules": [],
+      "aliases": ["total", "amount_due", "grand_total", "balance_due"]
+    },
+    {
+      "field_id": "f4",
+      "name": "status",
+      "description": "Payment or processing status of the invoice",
+      "type": "str",
+      "required": false,
+      "examples": ["paid", "unpaid", "overdue", "pending"],
+      "validation_rules": [],
+      "aliases": ["payment_status", "invoice_status"]
+    }
+  ],
+  "tables": []
+}

@@ -1,0 +1,67 @@
+{
+  "family_id": "receipt_extraction",
+  "family_name": "Receipt Extraction Family",
+  "description": "Strategies for extracting receipt totals, merchant details, dates, and item rows.",
+  "user_facing_name": "Receipt Extraction",
+  "variants": [
+    {
+      "policy_id": "receipt_basic_local_v1",
+      "strategy_name": "receipt_basic_local_v1",
+      "user_facing_name": "Basic Receipt Extraction",
+      "version": "v1",
+      "status": "stable",
+      "description": "A receipt strategy for extracting merchant name, receipt date, total amount, and simple purchased items.",
+      "best_for": [
+        "clean receipts",
+        "short receipts",
+        "simple item lists"
+      ],
+      "not_recommended_for": [
+        "long multi-page invoices",
+        "complex medical claims",
+        "unreadable scans"
+      ],
+      "tradeoffs": [
+        "good for simple receipts",
+        "not designed for complex forms or claims"
+      ],
+      "changes_summary": [
+        "uses receipt-specific field hints",
+        "focuses on merchant, date, total, and item rows",
+        "validates totals and money fields",
+        "uses simple recovery for missing totals"
+      ],
+      "applies_to": [
+        "receipt"
+      ],
+      "requires": [
+        "text_output"
+      ],
+      "preprocessing": {
+        "mode": "standard"
+      },
+      "ocr": {
+        "mode": "basic_text"
+      },
+      "model": {
+        "mode": "local_default"
+      },
+      "extraction": {
+        "table_aware": false
+      },
+      "validation": {
+        "strictness": "normal"
+      },
+      "recovery": {
+        "mode": "simple_total_recovery"
+      },
+      "runtime": {
+        "pipeline_mode": "local_text",
+        "extraction_runner": "kv_only",
+        "grounding_required": true
+      },
+      "user_explanation": "Best for typical receipts where merchant, date, and total are the main targets.",
+      "technical_notes": "Optimized for short receipt-style content."
+    }
+  ]
+}

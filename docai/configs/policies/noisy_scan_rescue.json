@@ -1,0 +1,70 @@
+{
+  "family_id": "noisy_scan_rescue",
+  "family_name": "Noisy Scan Rescue Family",
+  "description": "Strategies for low-quality scans, rotated pages, weak OCR, and noisy images.",
+  "user_facing_name": "Noisy Scan Rescue",
+  "variants": [
+    {
+      "policy_id": "noisy_scan_rescue_v1",
+      "strategy_name": "noisy_scan_rescue_v1",
+      "user_facing_name": "Noisy Scan Rescue",
+      "version": "v1",
+      "status": "stable",
+      "description": "A recovery-oriented strategy for documents with low OCR quality, noise, rotation, blur, or poor contrast.",
+      "best_for": [
+        "scanned documents",
+        "low-quality images",
+        "noisy OCR output",
+        "rotated or low-contrast documents"
+      ],
+      "not_recommended_for": [
+        "clean digital PDFs where normal extraction is enough",
+        "speed-critical production runs unless quality is poor"
+      ],
+      "tradeoffs": [
+        "more reliable on bad scans",
+        "slower",
+        "may use more compute"
+      ],
+      "changes_summary": [
+        "uses stronger preprocessing",
+        "may increase DPI",
+        "enables denoise/deskew/contrast correction",
+        "allows OCR retry",
+        "uses stricter grounding checks",
+        "sends unresolved fields to review"
+      ],
+      "applies_to": [
+        "document"
+      ],
+      "requires": [
+        "text_output"
+      ],
+      "preprocessing": {
+        "mode": "strong_rescue"
+      },
+      "ocr": {
+        "mode": "retry_enabled"
+      },
+      "model": {
+        "mode": "local_rescue"
+      },
+      "extraction": {
+        "table_aware": false
+      },
+      "validation": {
+        "strictness": "grounding_strict"
+      },
+      "recovery": {
+        "mode": "aggressive"
+      },
+      "runtime": {
+        "pipeline_mode": "local_text_model",
+        "extraction_runner": "model_centered",
+        "grounding_required": true
+      },
+      "user_explanation": "Best for difficult scans where default strategies fail.",
+      "technical_notes": "Prioritizes robustness over speed for low-quality inputs."
+    }
+  ]
+}

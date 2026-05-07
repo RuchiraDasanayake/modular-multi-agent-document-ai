@@ -1,0 +1,135 @@
+{
+  "family_id": "invoice_extraction",
+  "family_name": "Invoice Extraction Family",
+  "description": "Strategies for extracting invoice header fields and invoice line-item tables.",
+  "user_facing_name": "Invoice Extraction",
+  "variants": [
+    {
+      "policy_id": "invoice_basic_local_v1",
+      "strategy_name": "invoice_basic_local_v1",
+      "user_facing_name": "Basic Invoice Extraction",
+      "version": "v1",
+      "status": "stable",
+      "description": "A simple invoice strategy for clean invoices with mostly header-level fields.",
+      "best_for": [
+        "clean invoices",
+        "simple layouts",
+        "header fields such as invoice_id, vendor_name, invoice_date, total_amount"
+      ],
+      "not_recommended_for": [
+        "noisy scans",
+        "complex line-item tables",
+        "heavily rotated or low-quality documents"
+      ],
+      "tradeoffs": [
+        "faster",
+        "lower resource use",
+        "weaker on complex tables"
+      ],
+      "changes_summary": [
+        "uses standard preprocessing",
+        "uses basic OCR text extraction",
+        "extracts fields directly from OCR text",
+        "uses normal validation",
+        "uses simple fallback recovery"
+      ],
+      "applies_to": [
+        "invoice"
+      ],
+      "requires": [
+        "text_output"
+      ],
+      "preprocessing": {
+        "mode": "standard"
+      },
+      "ocr": {
+        "mode": "basic_text"
+      },
+      "model": {
+        "mode": "local_default"
+      },
+      "extraction": {
+        "table_aware": false
+      },
+      "validation": {
+        "strictness": "normal"
+      },
+      "recovery": {
+        "mode": "simple_fallback"
+      },
+      "runtime": {
+        "pipeline_mode": "local_text",
+        "extraction_runner": "kv_only",
+        "grounding_required": true
+      },
+      "user_explanation": "Best for clean invoices where speed and simplicity are enough.",
+      "technical_notes": "Header-focused extraction with light validation."
+    },
+    {
+      "policy_id": "invoice_table_heavy_local_v1",
+      "strategy_name": "invoice_table_heavy_local_v1",
+      "user_facing_name": "Table-Heavy Invoice Extraction",
+      "version": "v1",
+      "status": "stable",
+      "description": "A stronger invoice strategy for invoices with line-item tables or repeated rows.",
+      "best_for": [
+        "invoices with line_items",
+        "table-heavy layouts",
+        "documents where row/column relationships matter"
+      ],
+      "not_recommended_for": [
+        "very noisy scans without table structure",
+        "simple receipts"
+      ],
+      "tradeoffs": [
+        "more accurate for tables",
+        "slower than basic extraction",
+        "requires stronger parser/OCR capabilities"
+      ],
+      "changes_summary": [
+        "enables table-aware extraction",
+        "prefers OCR/parser tools with bounding boxes or table detection",
+        "extracts table rows and columns",
+        "applies stricter table validation",
+        "supports row-level recovery"
+      ],
+      "applies_to": [
+        "invoice"
+      ],
+      "requires": {
+        "all_of": [
+          "text_output"
+        ],
+        "any_of": [
+          "table_detection",
+          "bbox_output"
+        ]
+      },
+      "preprocessing": {
+        "mode": "standard"
+      },
+      "ocr": {
+        "mode": "table_aware"
+      },
+      "model": {
+        "mode": "local_table_focus"
+      },
+      "extraction": {
+        "table_aware": true
+      },
+      "validation": {
+        "strictness": "table_strict"
+      },
+      "recovery": {
+        "mode": "row_level"
+      },
+      "runtime": {
+        "pipeline_mode": "local_text",
+        "extraction_runner": "kv_only",
+        "grounding_required": true
+      },
+      "user_explanation": "Best when invoice line-item rows must be preserved accurately.",
+      "technical_notes": "Requires table-aware capabilities for best results."
+    }
+  ]
+}

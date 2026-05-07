@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -i http://127.0.0.1:8000/health)",
+      "Bash(npm run *)",
+      "Bash(python -m pytest tests/integration/test_api_documents.py -v --tb=short)",
+      "Bash(xargs grep *)"
+    ]
+  }
+}

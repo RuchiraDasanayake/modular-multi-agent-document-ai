@@ -1,0 +1,181 @@
+{
+  "dataset": "FUNSD",
+  "selected_count": 25,
+  "manifest": [
+    {
+      "document_id": "0001463282",
+      "document_filename": "0001463282.png",
+      "annotation_filename": "0001463282.json",
+      "expected_field_count": 6,
+      "total_qa_pairs_in_annotation": 41
+    },
+    {
+      "document_id": "0012529295",
+      "document_filename": "0012529295.png",
+      "annotation_filename": "0012529295.json",
+      "expected_field_count": 6,
+      "total_qa_pairs_in_annotation": 38
+    },
+    {
+      "document_id": "0011838621",
+      "document_filename": "0011838621.png",
+      "annotation_filename": "0011838621.json",
+      "expected_field_count": 6,
+      "total_qa_pairs_in_annotation": 28
+    },
+    {
+      "document_id": "71202511",
+      "document_filename": "71202511.png",
+      "annotation_filename": "71202511.json",
+      "expected_field_count": 6,
+      "total_qa_pairs_in_annotation": 28
+    },
+    {
+      "document_id": "81619511_9513",
+      "document_filename": "81619511_9513.png",
+      "annotation_filename": "81619511_9513.json",
+      "expected_field_count": 5,
+      "total_qa_pairs_in_annotation": 40
+    },
+    {
+      "document_id": "11508234",
+      "document_filename": "11508234.png",
+      "annotation_filename": "11508234.json",
+      "expected_field_count": 5,
+      "total_qa_pairs_in_annotation": 36
+    },
+    {
+      "document_id": "0012529284",
+      "document_filename": "0012529284.png",
+      "annotation_filename": "0012529284.json",
+      "expected_field_count": 5,
+      "total_qa_pairs_in_annotation": 24
+    },
+    {
+      "document_id": "0012602424",
+      "document_filename": "0012602424.png",
+      "annotation_filename": "0012602424.json",
+      "expected_field_count": 5,
+      "total_qa_pairs_in_annotation": 24
+    },
+    {
+      "document_id": "0011974919",
+      "document_filename": "0011974919.png",
+      "annotation_filename": "0011974919.json",
+      "expected_field_count": 5,
+      "total_qa_pairs_in_annotation": 22
+    },
+    {
+      "document_id": "81619486_9488",
+      "document_filename": "81619486_9488.png",
+      "annotation_filename": "81619486_9488.json",
+      "expected_field_count": 5,
+      "total_qa_pairs_in_annotation": 19
+    },
+    {
+      "document_id": "12603270",
+      "document_filename": "12603270.png",
+      "annotation_filename": "12603270.json",
+      "expected_field_count": 5,
+      "total_qa_pairs_in_annotation": 18
+    },
+    {
+      "document_id": "81749056_9057",
+      "document_filename": "81749056_9057.png",
+      "annotation_filename": "81749056_9057.json",
+      "expected_field_count": 4,
+      "total_qa_pairs_in_annotation": 42
+    },
+    {
+      "document_id": "0060077689",
+      "document_filename": "0060077689.png",
+      "annotation_filename": "0060077689.json",
+      "expected_field_count": 4,
+      "total_qa_pairs_in_annotation": 27
+    },
+    {
+      "document_id": "00920294",
+      "document_filename": "00920294.png",
+      "annotation_filename": "00920294.json",
+      "expected_field_count": 4,
+      "total_qa_pairs_in_annotation": 15
+    },
+    {
+      "document_id": "92657391",
+      "document_filename": "92657391.png",
+      "annotation_filename": "92657391.json",
+      "expected_field_count": 4,
+      "total_qa_pairs_in_annotation": 15
+    },
+    {
+      "document_id": "0071032790",
+      "document_filename": "0071032790.png",
+      "annotation_filename": "0071032790.json",
+      "expected_field_count": 4,
+      "total_qa_pairs_in_annotation": 12
+    },
+    {
+      "document_id": "71190280",
+      "document_filename": "71190280.png",
+      "annotation_filename": "71190280.json",
+      "expected_field_count": 4,
+      "total_qa_pairs_in_annotation": 11
+    },
+    {
+      "document_id": "91372360",
+      "document_filename": "91372360.png",
+      "annotation_filename": "91372360.json",
+      "expected_field_count": 4,
+      "total_qa_pairs_in_annotation": 11
+    },
+    {
+      "document_id": "91914407",
+      "document_filename": "91914407.png",
+      "annotation_filename": "91914407.json",
+      "expected_field_count": 4,
+      "total_qa_pairs_in_annotation": 7
+    },
+    {
+      "document_id": "0001209043",
+      "document_filename": "0001209043.png",
+      "annotation_filename": "0001209043.json",
+      "expected_field_count": 3,
+      "total_qa_pairs_in_annotation": 60
+    },
+    {
+      "document_id": "0000989556",
+      "document_filename": "0000989556.png",
+      "annotation_filename": "0000989556.json",
+      "expected_field_count": 3,
+      "total_qa_pairs_in_annotation": 42
+    },
+    {
+      "document_id": "93380187",
+      "document_filename": "93380187.png",
+      "annotation_filename": "93380187.json",
+      "expected_field_count": 3,
+      "total_qa_pairs_in_annotation": 41
+    },
+    {
+      "document_id": "92091873",
+      "document_filename": "92091873.png",
+      "annotation_filename": "92091873.json",
+      "expected_field_count": 3,
+      "total_qa_pairs_in_annotation": 36
+    },
+    {
+      "document_id": "0001476912",
+      "document_filename": "0001476912.png",
+      "annotation_filename": "0001476912.json",
+      "expected_field_count": 3,
+      "total_qa_pairs_in_annotation": 35
+    },
+    {
+      "document_id": "716552",
+      "document_filename": "716552.png",
+      "annotation_filename": "716552.json",
+      "expected_field_count": 3,
+      "total_qa_pairs_in_annotation": 24
+    }
+  ]
+}

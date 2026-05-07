@@ -1,0 +1,75 @@
+{
+  "schema_id": "invoice_v1",
+  "project_id": "default",
+  "name": "Invoice Extraction v1",
+  "description": "Extract core invoice fields and line items.",
+  "version": "v1",
+  "fields": [
+    {
+      "field_id": "invoice_id",
+      "name": "invoice_id",
+      "description": "Invoice identifier.",
+      "type": "string",
+      "required": true
+    },
+    {
+      "field_id": "vendor_name",
+      "name": "vendor_name",
+      "description": "Vendor or supplier name.",
+      "type": "string",
+      "required": true
+    },
+    {
+      "field_id": "invoice_date",
+      "name": "invoice_date",
+      "description": "Invoice issue date.",
+      "type": "date",
+      "required": true
+    },
+    {
+      "field_id": "total_amount",
+      "name": "total_amount",
+      "description": "Total invoice amount.",
+      "type": "number",
+      "required": true
+    }
+  ],
+  "tables": [
+    {
+      "table_id": "line_items",
+      "name": "line_items",
+      "description": "Invoice line items.",
+      "columns": [
+        {
+          "column_id": "description",
+          "name": "description",
+          "description": "Item or service description.",
+          "type": "string",
+          "required": true
+        },
+        {
+          "column_id": "quantity",
+          "name": "quantity",
+          "description": "Number of units.",
+          "type": "number",
+          "required": true
+        },
+        {
+          "column_id": "unit_price",
+          "name": "unit_price",
+          "description": "Price per unit.",
+          "type": "number",
+          "required": true
+        },
+        {
+          "column_id": "line_total",
+          "name": "line_total",
+          "description": "Total amount for this line.",
+          "type": "number",
+          "required": true
+        }
+      ],
+      "required": false
+    }
+  ]
+}

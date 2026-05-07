@@ -1,0 +1,7259 @@
+{
+  "schema_id": "funsd_common_form_gold50_v1",
+  "labels": {
+    "71202511": {
+      "approved_by": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Autos Mgr. Trade & Consumer Research (to $ 100,000)",
+          "question_text_raw": "Approved By:",
+          "question_id": 62,
+          "answer_id": 69,
+          "question_box": [
+            81,
+            683,
+            163,
+            701
+          ],
+          "answer_box": [
+            192,
+            663,
+            427,
+            713
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "Director Research Development (to $ 250,000)",
+          "question_text_raw": "Approved By:",
+          "question_id": 63,
+          "answer_id": 68,
+          "question_box": [
+            82,
+            714,
+            165,
+            730
+          ],
+          "answer_box": [
+            199,
+            722,
+            411,
+            740
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "Director Market Research (to $ 250,000)",
+          "question_text_raw": "Approved By:",
+          "question_id": 64,
+          "answer_id": 67,
+          "question_box": [
+            79,
+            743,
+            165,
+            762
+          ],
+          "answer_box": [
+            198,
+            753,
+            391,
+            772
+          ]
+        },
+        {
+          "occurrence_index": 4,
+          "expected_value": "Senior VP Marketing (to $ 1,000,000)",
+          "question_text_raw": "Approved By:",
+          "question_id": 65,
+          "answer_id": 66,
+          "question_box": [
+            84,
+            774,
+            168,
+            790
+          ],
+          "answer_box": [
+            201,
+            780,
+            396,
+            802
+          ]
+        }
+      ],
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "MaDonna Sliker",
+          "question_text_raw": "CC:",
+          "question_id": 24,
+          "answer_id": 77,
+          "question_box": [
+            82,
+            885,
+            107,
+            900
+          ],
+          "answer_box": [
+            138,
+            883,
+            223,
+            898
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "2/ 26/ 98",
+          "question_text_raw": "Date:",
+          "question_id": 0,
+          "answer_id": 28,
+          "question_box": [
+            64,
+            103,
+            94,
+            115
+          ],
+          "answer_box": [
+            168,
+            99,
+            210,
+            114
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "B 90",
+          "question_text_raw": "Date:",
+          "question_id": 18,
+          "answer_id": 71,
+          "question_box": [
+            466,
+            641,
+            503,
+            660
+          ],
+          "answer_box": [
+            527,
+            627,
+            597,
+            658
+          ]
+        }
+      ],
+      "description": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "KOOL Natural Lights Packaging - Round I",
+          "question_text_raw": "Description:",
+          "question_id": 1,
+          "answer_id": 29,
+          "question_box": [
+            64,
+            120,
+            134,
+            130
+          ],
+          "answer_box": [
+            169,
+            109,
+            395,
+            127
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Nick Wilkerson",
+          "question_text_raw": "Requested by:",
+          "question_id": 31,
+          "answer_id": 32,
+          "question_box": [
+            66,
+            148,
+            145,
+            163
+          ],
+          "answer_box": [
+            171,
+            145,
+            255,
+            158
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "naid",
+          "question_text_raw": "Submitted By:",
+          "question_id": 61,
+          "answer_id": 70,
+          "question_box": [
+            79,
+            653,
+            166,
+            668
+          ],
+          "answer_box": [
+            187,
+            635,
+            347,
+            666
+          ]
+        }
+      ],
+      "project_number": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "1998 -18D",
+          "question_text_raw": "Project No.:",
+          "question_id": 74,
+          "answer_id": 73,
+          "question_box": [
+            469,
+            799,
+            542,
+            814
+          ],
+          "answer_box": [
+            564,
+            796,
+            622,
+            811
+          ]
+        }
+      ],
+      "quantity": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "12 groups",
+          "question_text_raw": "Sample Size:",
+          "question_id": 55,
+          "answer_id": 56,
+          "question_box": [
+            78,
+            573,
+            151,
+            588
+          ],
+          "answer_box": [
+            205,
+            569,
+            268,
+            584
+          ]
+        }
+      ],
+      "supplier": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Rabid was selected due to the critical timing of the project and the lack of availability of other suppliers",
+          "question_text_raw": "Recommended Supplier:",
+          "question_id": 57,
+          "answer_id": 60,
+          "question_box": [
+            76,
+            588,
+            217,
+            603
+          ],
+          "answer_box": [
+            308,
+            591,
+            635,
+            630
+          ]
+        }
+      ],
+      "total_cost": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "58,500",
+          "question_text_raw": "Total Cost",
+          "question_id": 38,
+          "answer_id": 7,
+          "question_box": [
+            487,
+            217,
+            547,
+            230
+          ],
+          "answer_box": [
+            500,
+            234,
+            540,
+            247
+          ]
+        }
+      ]
+    },
+    "0012602424": {
+      "approved_by": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "B a",
+          "question_text_raw": "APPROVED BY:",
+          "question_id": 76,
+          "answer_id": 83,
+          "question_box": [
+            70,
+            750,
+            176,
+            771
+          ],
+          "answer_box": [
+            230,
+            732,
+            394,
+            784
+          ]
+        }
+      ],
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "S. WILLINGER (3) ☑ RESEARCH GROUP MANAGER",
+          "question_text_raw": "CC:",
+          "question_id": 31,
+          "answer_id": 80,
+          "question_box": [
+            68,
+            887,
+            96,
+            907
+          ],
+          "answer_box": [
+            163,
+            880,
+            359,
+            934
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "11/ 28/ 84",
+          "question_text_raw": "DATE:",
+          "question_id": 0,
+          "answer_id": 41,
+          "question_box": [
+            85,
+            57,
+            128,
+            79
+          ],
+          "answer_box": [
+            187,
+            57,
+            245,
+            77
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "11/ /29 /84",
+          "question_text_raw": "DATE",
+          "question_id": 16,
+          "answer_id": 69,
+          "question_box": [
+            588,
+            697,
+            629,
+            718
+          ],
+          "answer_box": [
+            573,
+            666,
+            652,
+            700
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "12- 10- 84",
+          "question_text_raw": "DATE",
+          "question_id": 18,
+          "answer_id": 71,
+          "question_box": [
+            587,
+            772,
+            629,
+            790
+          ],
+          "answer_box": [
+            559,
+            743,
+            645,
+            775
+          ]
+        },
+        {
+          "occurrence_index": 4,
+          "expected_value": "12/ 11/ 84",
+          "question_text_raw": "DATE",
+          "question_id": 19,
+          "answer_id": 72,
+          "question_box": [
+            588,
+            809,
+            627,
+            827
+          ],
+          "answer_box": [
+            567,
+            786,
+            659,
+            816
+          ]
+        },
+        {
+          "occurrence_index": 5,
+          "expected_value": "12 -11",
+          "question_text_raw": "DATE",
+          "question_id": 20,
+          "answer_id": 73,
+          "question_box": [
+            587,
+            845,
+            628,
+            863
+          ],
+          "answer_box": [
+            568,
+            821,
+            634,
+            843
+          ]
+        }
+      ],
+      "description": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "REVISED COST DUE TO A QUESTION ADDED TO THE SECOND WAVE AND CHANGES MADE IN WORDING OF OTHER QUESTIONS. THIS COVERS THE COST OF ADDITIONAL TELEPHONE INTERVIEW LENGTH, CODING OF THE OPEN- END, PROGRAMING CHANGES, TABULATION AND ANALYSIS.",
+          "question_text_raw": "REASONS:",
+          "question_id": 10,
+          "answer_id": 50,
+          "question_box": [
+            78,
+            296,
+            151,
+            321
+          ],
+          "answer_box": [
+            135,
+            330,
+            694,
+            389
+          ]
+        }
+      ],
+      "name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "New Products",
+          "question_text_raw": "ACCOUNT NAME",
+          "question_id": 85,
+          "answer_id": 87,
+          "question_box": [
+            412,
+            923,
+            526,
+            943
+          ],
+          "answer_box": [
+            531,
+            923,
+            622,
+            938
+          ]
+        }
+      ],
+      "project_name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "GEMINI AWARENESS ATTITUDE & USAGE MONITOR. - PORTLAND",
+          "question_text_raw": "PROJECT NAME:",
+          "question_id": 42,
+          "answer_id": 43,
+          "question_box": [
+            82,
+            98,
+            199,
+            122
+          ],
+          "answer_box": [
+            215,
+            103,
+            601,
+            126
+          ]
+        }
+      ],
+      "project_number": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "1984- 175NP",
+          "question_text_raw": "PROJECT No.",
+          "question_id": 84,
+          "answer_id": 86,
+          "question_box": [
+            408,
+            890,
+            514,
+            914
+          ],
+          "answer_box": [
+            531,
+            894,
+            609,
+            910
+          ]
+        }
+      ],
+      "supplier": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "BURKE MARKETING RESEARCH",
+          "question_text_raw": "SUPPLIER:",
+          "question_id": 1,
+          "answer_id": 44,
+          "question_box": [
+            81,
+            127,
+            161,
+            151
+          ],
+          "answer_box": [
+            203,
+            133,
+            380,
+            150
+          ]
+        }
+      ],
+      "total_cost": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "221, 000",
+          "question_text_raw": "ADJUSTED TOTAL COST OF PROJECT:",
+          "question_id": 49,
+          "answer_id": 47,
+          "question_box": [
+            80,
+            253,
+            352,
+            277
+          ],
+          "answer_box": [
+            497,
+            251,
+            561,
+            271
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "200. 00",
+          "question_text_raw": "THIS AMOUNT",
+          "question_id": 60,
+          "answer_id": 64,
+          "question_box": [
+            360,
+            525,
+            466,
+            542
+          ],
+          "answer_box": [
+            494,
+            528,
+            549,
+            542
+          ]
+        }
+      ]
+    },
+    "12603270": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Research Group Manager Bonnie Fuller V. Hansberry (If International)",
+          "question_text_raw": "cc:",
+          "question_id": 17,
+          "answer_id": 69,
+          "question_box": [
+            98,
+            802,
+            120,
+            812
+          ],
+          "answer_box": [
+            181,
+            811,
+            397,
+            853
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "June 21, 1985",
+          "question_text_raw": "Date:",
+          "question_id": 0,
+          "answer_id": 42,
+          "question_box": [
+            81,
+            63,
+            119,
+            75
+          ],
+          "answer_box": [
+            131,
+            58,
+            224,
+            71
+          ]
+        }
+      ],
+      "description": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Amelia 100's Candidates: (NM-FT and NM- Lights)",
+          "question_text_raw": "Description:",
+          "question_id": 1,
+          "answer_id": 45,
+          "question_box": [
+            86,
+            131,
+            171,
+            141
+          ],
+          "answer_box": [
+            186,
+            121,
+            510,
+            140
+          ]
+        }
+      ],
+      "name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "PRODUCT TESTING",
+          "question_text_raw": "Account Name",
+          "question_id": 71,
+          "answer_id": 72,
+          "question_box": [
+            400,
+            821,
+            483,
+            833
+          ],
+          "answer_box": [
+            495,
+            816,
+            600,
+            832
+          ]
+        }
+      ],
+      "product": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "RICHLAND 100's",
+          "question_text_raw": "Brand Name:",
+          "question_id": 44,
+          "answer_id": 43,
+          "question_box": [
+            83,
+            88,
+            161,
+            101
+          ],
+          "answer_box": [
+            174,
+            86,
+            273,
+            98
+          ]
+        }
+      ],
+      "project_number": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "1985-39NP",
+          "question_text_raw": "Project No.",
+          "question_id": 70,
+          "answer_id": 38,
+          "question_box": [
+            399,
+            792,
+            472,
+            806
+          ],
+          "answer_box": [
+            492,
+            791,
+            558,
+            804
+          ]
+        }
+      ],
+      "supplier": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Market Facts. Inc.",
+          "question_text_raw": "Supplier:",
+          "question_id": 2,
+          "answer_id": 46,
+          "question_box": [
+            85,
+            159,
+            151,
+            169
+          ],
+          "answer_box": [
+            168,
+            154,
+            291,
+            168
+          ]
+        }
+      ],
+      "total_cost": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "0",
+          "question_text_raw": "This Amount",
+          "question_id": 59,
+          "answer_id": 15,
+          "question_box": [
+            309,
+            452,
+            386,
+            464
+          ],
+          "answer_box": [
+            434,
+            447,
+            447,
+            460
+          ]
+        }
+      ]
+    },
+    "0012529295": {
+      "approved_by": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "L. E. Gravely",
+          "question_text_raw": "Approved By:",
+          "question_id": 71,
+          "answer_id": 76,
+          "question_box": [
+            51,
+            730,
+            143,
+            747
+          ],
+          "answer_box": [
+            147,
+            719,
+            383,
+            767
+          ]
+        }
+      ],
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "S. Willinger (3)",
+          "question_text_raw": "cc:",
+          "question_id": 12,
+          "answer_id": 79,
+          "question_box": [
+            42,
+            867,
+            75,
+            876
+          ],
+          "answer_box": [
+            125,
+            864,
+            248,
+            879
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "G. D. Raphael",
+          "question_text_raw": "cc:",
+          "question_id": 12,
+          "answer_id": 80,
+          "question_box": [
+            42,
+            867,
+            75,
+            876
+          ],
+          "answer_box": [
+            130,
+            880,
+            235,
+            894
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "V. Hansberry (If Int.)",
+          "question_text_raw": "cc:",
+          "question_id": 12,
+          "answer_id": 81,
+          "question_box": [
+            42,
+            867,
+            75,
+            876
+          ],
+          "answer_box": [
+            130,
+            892,
+            291,
+            912
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "10/ /9 87",
+          "question_text_raw": "Date:",
+          "question_id": 0,
+          "answer_id": 25,
+          "question_box": [
+            54,
+            132,
+            92,
+            150
+          ],
+          "answer_box": [
+            103,
+            131,
+            169,
+            150
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "10/ 9/ 87",
+          "question_text_raw": "Date",
+          "question_id": 6,
+          "answer_id": 85,
+          "question_box": [
+            413,
+            706,
+            447,
+            720
+          ],
+          "answer_box": [
+            461,
+            699,
+            544,
+            728
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "10/ 13/ 87",
+          "question_text_raw": "Date",
+          "question_id": 7,
+          "answer_id": 86,
+          "question_box": [
+            414,
+            732,
+            446,
+            749
+          ],
+          "answer_box": [
+            456,
+            725,
+            542,
+            750
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "S. H. Trebilcock",
+          "question_text_raw": "Requested By:",
+          "question_id": 28,
+          "answer_id": 29,
+          "question_box": [
+            54,
+            205,
+            150,
+            222
+          ],
+          "answer_box": [
+            162,
+            203,
+            285,
+            221
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "L J L. J. Spurtier",
+          "question_text_raw": "Submitted By:",
+          "question_id": 69,
+          "answer_id": 75,
+          "question_box": [
+            52,
+            702,
+            145,
+            720
+          ],
+          "answer_box": [
+            150,
+            697,
+            316,
+            737
+          ]
+        }
+      ],
+      "name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "CAPRI",
+          "question_text_raw": "Account Name",
+          "question_id": 83,
+          "answer_id": 17,
+          "question_box": [
+            355,
+            894,
+            449,
+            909
+          ],
+          "answer_box": [
+            461,
+            893,
+            503,
+            910
+          ]
+        }
+      ],
+      "project_number": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "1987- 113CA",
+          "question_text_raw": "Project No.",
+          "question_id": 82,
+          "answer_id": 84,
+          "question_box": [
+            367,
+            864,
+            451,
+            883
+          ],
+          "answer_box": [
+            462,
+            861,
+            536,
+            880
+          ]
+        }
+      ],
+      "quantity": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "1. 500",
+          "question_text_raw": "Sample Size",
+          "question_id": 63,
+          "answer_id": 64,
+          "question_box": [
+            50,
+            613,
+            139,
+            631
+          ],
+          "answer_box": [
+            152,
+            614,
+            194,
+            632
+          ]
+        }
+      ],
+      "supplier": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Kapuler Market Research",
+          "question_text_raw": "Supplier",
+          "question_id": 1,
+          "answer_id": 42,
+          "question_box": [
+            104,
+            265,
+            168,
+            279
+          ],
+          "answer_box": [
+            59,
+            292,
+            228,
+            313
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "Market Facts, Inc.",
+          "question_text_raw": "Supplier",
+          "question_id": 1,
+          "answer_id": 43,
+          "question_box": [
+            104,
+            265,
+            168,
+            279
+          ],
+          "answer_box": [
+            60,
+            322,
+            194,
+            341
+          ]
+        }
+      ],
+      "total_cost": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "$70 ,825 + - 10%",
+          "question_text_raw": "Total Cost",
+          "question_id": 34,
+          "answer_id": 39,
+          "question_box": [
+            488,
+            265,
+            565,
+            279
+          ],
+          "answer_box": [
+            465,
+            291,
+            570,
+            310
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "$112 000 +/ - 10%",
+          "question_text_raw": "Total Cost",
+          "question_id": 34,
+          "answer_id": 38,
+          "question_box": [
+            488,
+            265,
+            565,
+            279
+          ],
+          "answer_box": [
+            459,
+            322,
+            579,
+            341
+          ]
+        }
+      ]
+    },
+    "0001463282": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "S. Willinger (3)",
+          "question_text_raw": "cc:",
+          "question_id": 22,
+          "answer_id": 99,
+          "question_box": [
+            78,
+            821,
+            106,
+            834
+          ],
+          "answer_box": [
+            155,
+            820,
+            272,
+            837
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "K. A. Hutchison S. A. Howard",
+          "question_text_raw": "cc:",
+          "question_id": 22,
+          "answer_id": 100,
+          "question_box": [
+            78,
+            821,
+            106,
+            834
+          ],
+          "answer_box": [
+            154,
+            834,
+            354,
+            852
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "5/ 2/ 90",
+          "question_text_raw": "Date",
+          "question_id": 17,
+          "answer_id": 92,
+          "question_box": [
+            427,
+            669,
+            461,
+            682
+          ],
+          "answer_box": [
+            478,
+            656,
+            555,
+            689
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "5/3 90",
+          "question_text_raw": "Date",
+          "question_id": 18,
+          "answer_id": 93,
+          "question_box": [
+            429,
+            696,
+            461,
+            713
+          ],
+          "answer_box": [
+            472,
+            684,
+            548,
+            717
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "5/ 3/ 90",
+          "question_text_raw": "Date",
+          "question_id": 21,
+          "answer_id": 94,
+          "question_box": [
+            427,
+            777,
+            459,
+            794
+          ],
+          "answer_box": [
+            478,
+            758,
+            541,
+            800
+          ]
+        }
+      ],
+      "description": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Y- 1 Ultra 100' s vs. Winston Ultra 100' s",
+          "question_text_raw": "Description:",
+          "question_id": 1,
+          "answer_id": 44,
+          "question_box": [
+            78,
+            96,
+            166,
+            110
+          ],
+          "answer_box": [
+            170,
+            95,
+            447,
+            113
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "W. T. Carpenter",
+          "question_text_raw": "Requested By:",
+          "question_id": 46,
+          "answer_id": 45,
+          "question_box": [
+            80,
+            124,
+            173,
+            139
+          ],
+          "answer_box": [
+            176,
+            124,
+            284,
+            138
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "L. E. Gravely",
+          "question_text_raw": "Submitted by:",
+          "question_id": 83,
+          "answer_id": 91,
+          "question_box": [
+            78,
+            662,
+            170,
+            683
+          ],
+          "answer_box": [
+            242,
+            689,
+            344,
+            731
+          ]
+        }
+      ],
+      "name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "BARCLAY",
+          "question_text_raw": "Account Name",
+          "question_id": 97,
+          "answer_id": 38,
+          "question_box": [
+            387,
+            835,
+            472,
+            851
+          ],
+          "answer_box": [
+            486,
+            832,
+            536,
+            849
+          ]
+        }
+      ],
+      "project_number": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "1990- 488",
+          "question_text_raw": "Project No.",
+          "question_id": 96,
+          "answer_id": 95,
+          "question_box": [
+            387,
+            820,
+            464,
+            835
+          ],
+          "answer_box": [
+            487,
+            820,
+            546,
+            835
+          ]
+        }
+      ],
+      "quantity": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "400",
+          "question_text_raw": "Sample Size",
+          "question_id": 79,
+          "answer_id": 32,
+          "question_box": [
+            78,
+            568,
+            163,
+            583
+          ],
+          "answer_box": [
+            233,
+            570,
+            260,
+            585
+          ]
+        }
+      ],
+      "supplier": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Kapuler",
+          "question_text_raw": "Supplier",
+          "question_id": 10,
+          "answer_id": 15,
+          "question_box": [
+            99,
+            193,
+            160,
+            211
+          ],
+          "answer_box": [
+            78,
+            219,
+            132,
+            237
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "Market Facts",
+          "question_text_raw": "Supplier",
+          "question_id": 10,
+          "answer_id": 50,
+          "question_box": [
+            99,
+            193,
+            160,
+            211
+          ],
+          "answer_box": [
+            80,
+            247,
+            166,
+            267
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "Kapuler",
+          "question_text_raw": "Recommended Supplier",
+          "question_id": 80,
+          "answer_id": 33,
+          "question_box": [
+            80,
+            596,
+            229,
+            613
+          ],
+          "answer_box": [
+            242,
+            598,
+            292,
+            613
+          ]
+        }
+      ],
+      "total_cost": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "$ 35,675",
+          "question_text_raw": "Total Cost",
+          "question_id": 53,
+          "answer_id": 55,
+          "question_box": [
+            448,
+            191,
+            524,
+            208
+          ],
+          "answer_box": [
+            437,
+            219,
+            491,
+            237
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "$ 37000",
+          "question_text_raw": "Total Cost",
+          "question_id": 53,
+          "answer_id": 56,
+          "question_box": [
+            448,
+            191,
+            524,
+            208
+          ],
+          "answer_box": [
+            437,
+            246,
+            489,
+            264
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "-O-",
+          "question_text_raw": "This Amount",
+          "question_id": 73,
+          "answer_id": 27,
+          "question_box": [
+            318,
+            388,
+            397,
+            404
+          ],
+          "answer_box": [
+            434,
+            388,
+            465,
+            401
+          ]
+        }
+      ]
+    },
+    "0071032790": {
+      "approved_by": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "R. S. Sprinkle, III",
+          "question_text_raw": "Approved by:",
+          "question_id": 23,
+          "answer_id": 24,
+          "question_box": [
+            402,
+            757,
+            510,
+            776
+          ],
+          "answer_box": [
+            405,
+            771,
+            638,
+            844
+          ]
+        }
+      ],
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "BMC/RMI/EPB JEM/DEC PRC/DRB",
+          "question_text_raw": "cc:",
+          "question_id": 9,
+          "answer_id": 25,
+          "question_box": [
+            55,
+            855,
+            82,
+            870
+          ],
+          "answer_box": [
+            98,
+            855,
+            196,
+            902
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "September 16, 1980",
+          "question_text_raw": "DATE:",
+          "question_id": 2,
+          "answer_id": 12,
+          "question_box": [
+            475,
+            281,
+            522,
+            296
+          ],
+          "answer_box": [
+            527,
+            269,
+            685,
+            292
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "R. S. Sprinkle, III",
+          "question_text_raw": "WORK REQUESTED BY:",
+          "question_id": 16,
+          "answer_id": 18,
+          "question_box": [
+            55,
+            410,
+            212,
+            425
+          ],
+          "answer_box": [
+            248,
+            402,
+            410,
+            420
+          ]
+        }
+      ],
+      "project_name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "To develop cigarette Cigarette to utilize a filter tip with longitudinal grooves from the mouth end to the tobacco end in con- junction with perforated tipping paper.",
+          "question_text_raw": "PROJECT",
+          "question_id": 0,
+          "answer_id": 19,
+          "question_box": [
+            56,
+            455,
+            121,
+            468
+          ],
+          "answer_box": [
+            249,
+            444,
+            643,
+            577
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "-",
+          "question_text_raw": "PROJECT NAME:",
+          "question_id": 14,
+          "answer_id": 4,
+          "question_box": [
+            53,
+            324,
+            166,
+            341
+          ],
+          "answer_box": [
+            249,
+            321,
+            264,
+            329
+          ]
+        }
+      ],
+      "project_number": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "BTF",
+          "question_text_raw": "PROJECT CODE:",
+          "question_id": 13,
+          "answer_id": 3,
+          "question_box": [
+            53,
+            281,
+            166,
+            298
+          ],
+          "answer_box": [
+            248,
+            271,
+            280,
+            289
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Files",
+          "question_text_raw": "To:",
+          "question_id": 5,
+          "answer_id": 6,
+          "question_box": [
+            53,
+            86,
+            81,
+            104
+          ],
+          "answer_box": [
+            100,
+            86,
+            145,
+            104
+          ]
+        }
+      ]
+    },
+    "0011838621": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "MRA File N. W. Kremer",
+          "question_text_raw": "cc:",
+          "question_id": 15,
+          "answer_id": 59,
+          "question_box": [
+            61,
+            763,
+            83,
+            776
+          ],
+          "answer_box": [
+            154,
+            758,
+            237,
+            787
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "MRA File N. W. Kremer",
+          "question_text_raw": "cc:",
+          "question_id": 15,
+          "answer_id": 59,
+          "question_box": [
+            61,
+            763,
+            83,
+            776
+          ],
+          "answer_box": [
+            154,
+            758,
+            237,
+            787
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "6/ 21/ 90",
+          "question_text_raw": "Date:",
+          "question_id": 0,
+          "answer_id": 23,
+          "question_box": [
+            53,
+            131,
+            87,
+            148
+          ],
+          "answer_box": [
+            98,
+            128,
+            148,
+            145
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "6/ 21/ 90",
+          "question_text_raw": "Date",
+          "question_id": 16,
+          "answer_id": 50,
+          "question_box": [
+            380,
+            665,
+            407,
+            680
+          ],
+          "answer_box": [
+            430,
+            651,
+            515,
+            683
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "4/ 22/ 90",
+          "question_text_raw": "Date",
+          "question_id": 17,
+          "answer_id": 51,
+          "question_box": [
+            381,
+            703,
+            409,
+            721
+          ],
+          "answer_box": [
+            443,
+            687,
+            518,
+            714
+          ]
+        }
+      ],
+      "description": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Hong Kong: Cigarette Market Monitor",
+          "question_text_raw": "Description:",
+          "question_id": 1,
+          "answer_id": 24,
+          "question_box": [
+            56,
+            156,
+            133,
+            170
+          ],
+          "answer_box": [
+            152,
+            149,
+            388,
+            169
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "Original MRA did not include cost for the first month of the study (see L. Lee memo of September 11, 1989)",
+          "question_text_raw": "Reasons:",
+          "question_id": 6,
+          "answer_id": 37,
+          "question_box": [
+            57,
+            297,
+            109,
+            310
+          ],
+          "answer_box": [
+            57,
+            310,
+            537,
+            348
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "MD Davis",
+          "question_text_raw": "Submitted By:",
+          "question_id": 55,
+          "answer_id": 20,
+          "question_box": [
+            63,
+            672,
+            147,
+            686
+          ],
+          "answer_box": [
+            156,
+            656,
+            297,
+            683
+          ]
+        }
+      ],
+      "name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "International.",
+          "question_text_raw": "Account Name",
+          "question_id": 53,
+          "answer_id": 18,
+          "question_box": [
+            381,
+            778,
+            461,
+            795
+          ],
+          "answer_box": [
+            465,
+            777,
+            552,
+            792
+          ]
+        }
+      ],
+      "project_number": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "1989- 29",
+          "question_text_raw": "Project No.",
+          "question_id": 52,
+          "answer_id": 54,
+          "question_box": [
+            380,
+            753,
+            451,
+            768
+          ],
+          "answer_box": [
+            465,
+            751,
+            512,
+            768
+          ]
+        }
+      ],
+      "supplier": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "MDR. HK",
+          "question_text_raw": "Supplier:",
+          "question_id": 2,
+          "answer_id": 25,
+          "question_box": [
+            56,
+            183,
+            115,
+            198
+          ],
+          "answer_box": [
+            130,
+            179,
+            180,
+            193
+          ]
+        }
+      ],
+      "total_cost": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "$ 43.335.00",
+          "question_text_raw": "Total Cost",
+          "question_id": 26,
+          "answer_id": 31,
+          "question_box": [
+            341,
+            200,
+            408,
+            214
+          ],
+          "answer_box": [
+            330,
+            212,
+            407,
+            229
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "$ 4.376.47",
+          "question_text_raw": "Total Cost",
+          "question_id": 26,
+          "answer_id": 32,
+          "question_box": [
+            341,
+            200,
+            408,
+            214
+          ],
+          "answer_box": [
+            330,
+            237,
+            407,
+            251
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "$ 47.711.47",
+          "question_text_raw": "Total Cost",
+          "question_id": 26,
+          "answer_id": 33,
+          "question_box": [
+            341,
+            200,
+            408,
+            214
+          ],
+          "answer_box": [
+            331,
+            264,
+            409,
+            278
+          ]
+        },
+        {
+          "occurrence_index": 4,
+          "expected_value": "$ 47.711.47",
+          "question_text_raw": "Adjusted Total Cost of Project:",
+          "question_id": 35,
+          "answer_id": 33,
+          "question_box": [
+            53,
+            265,
+            257,
+            284
+          ],
+          "answer_box": [
+            331,
+            264,
+            409,
+            278
+          ]
+        },
+        {
+          "occurrence_index": 5,
+          "expected_value": ".08",
+          "question_text_raw": "Adjusted Total Cost of Project:",
+          "question_id": 35,
+          "answer_id": 8,
+          "question_box": [
+            53,
+            265,
+            257,
+            284
+          ],
+          "answer_box": [
+            465,
+            261,
+            486,
+            274
+          ]
+        }
+      ]
+    },
+    "0011974919": {
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "September 10, 1996",
+          "question_text_raw": "Date:",
+          "question_id": 2,
+          "answer_id": 17,
+          "question_box": [
+            173,
+            265,
+            201,
+            280
+          ],
+          "answer_box": [
+            221,
+            258,
+            329,
+            278
+          ]
+        }
+      ],
+      "description": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Record of confirmation calls for sneak preview appointments",
+          "question_text_raw": "Description:",
+          "question_id": 6,
+          "answer_id": 21,
+          "question_box": [
+            70,
+            359,
+            134,
+            379
+          ],
+          "answer_box": [
+            134,
+            363,
+            449,
+            382
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Joyce Bagby",
+          "question_text_raw": "From:",
+          "question_id": 1,
+          "answer_id": 16,
+          "question_box": [
+            172,
+            236,
+            204,
+            251
+          ],
+          "answer_box": [
+            219,
+            230,
+            289,
+            248
+          ]
+        }
+      ],
+      "product": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Eclipse",
+          "question_text_raw": "Brand:",
+          "question_id": 3,
+          "answer_id": 5,
+          "question_box": [
+            70,
+            309,
+            105,
+            326
+          ],
+          "answer_box": [
+            110,
+            304,
+            149,
+            319
+          ]
+        }
+      ],
+      "subject": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Sneak Preview Confirmation Call- Charlotte Tests",
+          "question_text_raw": "Title:",
+          "question_id": 4,
+          "answer_id": 20,
+          "question_box": [
+            68,
+            339,
+            96,
+            353
+          ],
+          "answer_box": [
+            109,
+            334,
+            366,
+            354
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Joe Leinster",
+          "question_text_raw": "To",
+          "question_id": 0,
+          "answer_id": 15,
+          "question_box": [
+            172,
+            205,
+            190,
+            220
+          ],
+          "answer_box": [
+            219,
+            201,
+            289,
+            216
+          ]
+        }
+      ]
+    },
+    "0012529284": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "S. Willinger (3)",
+          "question_text_raw": "cc:",
+          "question_id": 11,
+          "answer_id": 57,
+          "question_box": [
+            88,
+            871,
+            115,
+            884
+          ],
+          "answer_box": [
+            168,
+            870,
+            287,
+            887
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "G. D. Raphael",
+          "question_text_raw": "cc:",
+          "question_id": 11,
+          "answer_id": 58,
+          "question_box": [
+            88,
+            871,
+            115,
+            884
+          ],
+          "answer_box": [
+            166,
+            888,
+            265,
+            902
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "V. Hansberry (If Int.)",
+          "question_text_raw": "cc:",
+          "question_id": 11,
+          "answer_id": 59,
+          "question_box": [
+            88,
+            871,
+            115,
+            884
+          ],
+          "answer_box": [
+            160,
+            900,
+            335,
+            917
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "12- -4 -87",
+          "question_text_raw": "Date:",
+          "question_id": 0,
+          "answer_id": 21,
+          "question_box": [
+            88,
+            85,
+            125,
+            103
+          ],
+          "answer_box": [
+            150,
+            87,
+            216,
+            102
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "12 /2 /87",
+          "question_text_raw": "Date",
+          "question_id": 12,
+          "answer_id": 51,
+          "question_box": [
+            442,
+            810,
+            476,
+            829
+          ],
+          "answer_box": [
+            525,
+            799,
+            650,
+            830
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "12 -4 -87",
+          "question_text_raw": "Date",
+          "question_id": 16,
+          "answer_id": 50,
+          "question_box": [
+            442,
+            693,
+            479,
+            709
+          ],
+          "answer_box": [
+            549,
+            692,
+            612,
+            708
+          ]
+        }
+      ],
+      "description": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "CAPRI A&U EXPANSION - CALIFORNIA: WAVE 2 (87 -113) ,",
+          "question_text_raw": "Description:",
+          "question_id": 1,
+          "answer_id": 23,
+          "question_box": [
+            88,
+            112,
+            179,
+            131
+          ],
+          "answer_box": [
+            204,
+            112,
+            653,
+            133
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "WAVE 3 (87 –114) AND WAVE 4 (87 -115) .",
+          "question_text_raw": "Description:",
+          "question_id": 1,
+          "answer_id": 24,
+          "question_box": [
+            88,
+            112,
+            179,
+            131
+          ],
+          "answer_box": [
+            105,
+            142,
+            426,
+            163
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "Adjustment due to timing of projects falling into 1988.",
+          "question_text_raw": "Reasons:",
+          "question_id": 4,
+          "answer_id": 32,
+          "question_box": [
+            90,
+            290,
+            159,
+            309
+          ],
+          "answer_box": [
+            201,
+            319,
+            594,
+            349
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "S. L. Willinger",
+          "question_text_raw": "Submitted By:",
+          "question_id": 64,
+          "answer_id": 65,
+          "question_box": [
+            87,
+            692,
+            184,
+            707
+          ],
+          "answer_box": [
+            210,
+            692,
+            336,
+            707
+          ]
+        }
+      ],
+      "project_number": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "1987 -113 /114 /115 -CA",
+          "question_text_raw": "Project No.",
+          "question_id": 53,
+          "answer_id": 52,
+          "question_box": [
+            412,
+            871,
+            498,
+            886
+          ],
+          "answer_box": [
+            504,
+            867,
+            672,
+            888
+          ]
+        }
+      ],
+      "supplier": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Kapuler Marketing Research",
+          "question_text_raw": "Supplier:",
+          "question_id": 3,
+          "answer_id": 25,
+          "question_box": [
+            91,
+            177,
+            157,
+            189
+          ],
+          "answer_box": [
+            204,
+            177,
+            430,
+            193
+          ]
+        }
+      ],
+      "total_cost": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "$ 212, 475 + 10%",
+          "question_text_raw": "Adjusted Total Cost of Project:",
+          "question_id": 31,
+          "answer_id": 30,
+          "question_box": [
+            90,
+            262,
+            320,
+            278
+          ],
+          "answer_box": [
+            395,
+            262,
+            530,
+            281
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "-14, 165. 00",
+          "question_text_raw": "This Amount",
+          "question_id": 44,
+          "answer_id": 46,
+          "question_box": [
+            323,
+            527,
+            405,
+            544
+          ],
+          "answer_box": [
+            421,
+            528,
+            515,
+            543
+          ]
+        }
+      ]
+    },
+    "71341634": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Fax to Field Payments at (502) 588- 7826",
+          "question_text_raw": "Distribution:",
+          "question_id": 41,
+          "answer_id": 46,
+          "question_box": [
+            85,
+            844,
+            138,
+            855
+          ],
+          "answer_box": [
+            142,
+            837,
+            317,
+            855
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "03/ 24/ 99",
+          "question_text_raw": "Date",
+          "question_id": 22,
+          "answer_id": 60,
+          "question_box": [
+            366,
+            552,
+            384,
+            565
+          ],
+          "answer_box": [
+            383,
+            567,
+            423,
+            579
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "Check#",
+          "question_text_raw": "Date",
+          "question_id": 28,
+          "answer_id": 30,
+          "question_box": [
+            302,
+            603,
+            326,
+            617
+          ],
+          "answer_box": [
+            303,
+            620,
+            341,
+            630
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Robert",
+          "question_text_raw": "Requested By:",
+          "question_id": 58,
+          "answer_id": 57,
+          "question_box": [
+            78,
+            560,
+            142,
+            574
+          ],
+          "answer_box": [
+            115,
+            575,
+            202,
+            592
+          ]
+        }
+      ],
+      "location": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "395 DYSTER POINT BLVD SUITE 415 S. SAN FRANCISCO",
+          "question_text_raw": "Address:",
+          "question_id": 6,
+          "answer_id": 88,
+          "question_box": [
+            66,
+            212,
+            108,
+            222
+          ],
+          "answer_box": [
+            117,
+            204,
+            290,
+            235
+          ]
+        }
+      ],
+      "quantity": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "50, 759",
+          "question_text_raw": "Quantity",
+          "question_id": 13,
+          "answer_id": 80,
+          "question_box": [
+            372,
+            377,
+            410,
+            388
+          ],
+          "answer_box": [
+            373,
+            390,
+            405,
+            402
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "6. 382",
+          "question_text_raw": "Quantity",
+          "question_id": 13,
+          "answer_id": 66,
+          "question_box": [
+            372,
+            377,
+            410,
+            388
+          ],
+          "answer_box": [
+            377,
+            462,
+            404,
+            476
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "DAVID DRESSER",
+          "question_text_raw": "Attention:",
+          "question_id": 5,
+          "answer_id": 87,
+          "question_box": [
+            67,
+            198,
+            109,
+            206
+          ],
+          "answer_box": [
+            120,
+            193,
+            201,
+            207
+          ]
+        }
+      ]
+    },
+    "660978": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "R. Schoenfein S. Dammers P. Hendricks",
+          "question_text_raw": "cc:",
+          "question_id": 9,
+          "answer_id": 28,
+          "question_box": [
+            94,
+            532,
+            114,
+            543
+          ],
+          "answer_box": [
+            127,
+            531,
+            219,
+            574
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "1/ 19/ 82",
+          "question_text_raw": "DATE:",
+          "question_id": 0,
+          "answer_id": 17,
+          "question_box": [
+            383,
+            112,
+            422,
+            126
+          ],
+          "answer_box": [
+            437,
+            113,
+            487,
+            130
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "P. Hendricks",
+          "question_text_raw": "Written by:",
+          "question_id": 25,
+          "answer_id": 26,
+          "question_box": [
+            447,
+            306,
+            525,
+            322
+          ],
+          "answer_box": [
+            538,
+            306,
+            624,
+            323
+          ]
+        }
+      ],
+      "name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Brown & Williamson",
+          "question_text_raw": "CLIENT:",
+          "question_id": 3,
+          "answer_id": 16,
+          "question_box": [
+            106,
+            105,
+            155,
+            119
+          ],
+          "answer_box": [
+            170,
+            106,
+            299,
+            123
+          ]
+        }
+      ],
+      "product": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Viceroy",
+          "question_text_raw": "PRODUCT:",
+          "question_id": 4,
+          "answer_id": 13,
+          "question_box": [
+            103,
+            131,
+            167,
+            146
+          ],
+          "answer_box": [
+            186,
+            135,
+            236,
+            150
+          ]
+        }
+      ]
+    },
+    "01122115": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Dr. C. O. Jensen Mr. R. A. Wagner Mr. J. Berner Dr. A. W. Spears",
+          "question_text_raw": "Copies to:",
+          "question_id": 93,
+          "answer_id": 92,
+          "question_box": [
+            42,
+            898,
+            134,
+            919
+          ],
+          "answer_box": [
+            137,
+            899,
+            300,
+            968
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "11 /2 /61",
+          "question_text_raw": "DATE",
+          "question_id": 1,
+          "answer_id": 55,
+          "question_box": [
+            568,
+            89,
+            607,
+            110
+          ],
+          "answer_box": [
+            617,
+            91,
+            684,
+            112
+          ]
+        }
+      ],
+      "quantity": [
+        {
+          "occurrence_index": 1,
+          "expected_value": ".922 1 .059 .54 .20 20 .2 7 .6 62 .4 1 .07 .41 61 .7",
+          "question_text_raw": "Weight",
+          "question_id": 5,
+          "answer_id": 87,
+          "question_box": [
+            223,
+            792,
+            283,
+            810
+          ],
+          "answer_box": [
+            194,
+            824,
+            726,
+            849
+          ]
+        }
+      ],
+      "subject": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "-339",
+          "question_text_raw": "RE",
+          "question_id": 0,
+          "answer_id": 9,
+          "question_box": [
+            603,
+            38,
+            624,
+            59
+          ],
+          "answer_box": [
+            628,
+            39,
+            664,
+            57
+          ]
+        }
+      ],
+      "supplier": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "T. E.",
+          "question_text_raw": "Supplier",
+          "question_id": 4,
+          "answer_id": 36,
+          "question_box": [
+            49,
+            119,
+            119,
+            136
+          ],
+          "answer_box": [
+            256,
+            116,
+            295,
+            134
+          ]
+        }
+      ]
+    },
+    "0060068489": {
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "3/17/82",
+          "question_text_raw": "DATE",
+          "question_id": 0,
+          "answer_id": 3,
+          "question_box": [
+            554,
+            181,
+            590,
+            193
+          ],
+          "answer_box": [
+            606,
+            178,
+            667,
+            191
+          ]
+        }
+      ],
+      "description": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "30 sheet Posters (White Background)",
+          "question_text_raw": "DESCRIPTION",
+          "question_id": 1,
+          "answer_id": 30,
+          "question_box": [
+            534,
+            201,
+            613,
+            210
+          ],
+          "answer_box": [
+            512,
+            220,
+            663,
+            249
+          ]
+        }
+      ],
+      "name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "corporate Media Department",
+          "question_text_raw": "AGENCY",
+          "question_id": 5,
+          "answer_id": 29,
+          "question_box": [
+            25,
+            177,
+            74,
+            190
+          ],
+          "answer_box": [
+            123,
+            175,
+            345,
+            190
+          ]
+        }
+      ],
+      "product": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "LUCKY STRIKE LOW Tar Filters Box- 100%",
+          "question_text_raw": "BRAND",
+          "question_id": 6,
+          "answer_id": 31,
+          "question_box": [
+            69,
+            198,
+            112,
+            208
+          ],
+          "answer_box": [
+            13,
+            216,
+            187,
+            246
+          ]
+        }
+      ],
+      "total_cost": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "$ 28,880.00",
+          "question_text_raw": "TOTAL",
+          "question_id": 15,
+          "answer_id": 36,
+          "question_box": [
+            292,
+            591,
+            332,
+            606
+          ],
+          "answer_box": [
+            352,
+            584,
+            462,
+            600
+          ]
+        }
+      ]
+    },
+    "0011856542": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "RSS RDC PHL PRC DRB Records Project Leader Other Personnel Assigned",
+          "question_text_raw": "cc:",
+          "question_id": 4,
+          "answer_id": 17,
+          "question_box": [
+            65,
+            755,
+            91,
+            768
+          ],
+          "answer_box": [
+            106,
+            756,
+            313,
+            873
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "1/4/90",
+          "question_text_raw": "DATE",
+          "question_id": 0,
+          "answer_id": 2,
+          "question_box": [
+            425,
+            258,
+            462,
+            272
+          ],
+          "answer_box": [
+            500,
+            259,
+            551,
+            273
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Marketing",
+          "question_text_raw": "WORK REQUESTED BY",
+          "question_id": 12,
+          "answer_id": 3,
+          "question_box": [
+            71,
+            375,
+            218,
+            393
+          ],
+          "answer_box": [
+            257,
+            382,
+            330,
+            397
+          ]
+        }
+      ],
+      "project_name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "BULL DURHAM Full Flavor King Size Cigarettes",
+          "question_text_raw": "PROJECT NAME",
+          "question_id": 8,
+          "answer_id": 9,
+          "question_box": [
+            72,
+            294,
+            178,
+            310
+          ],
+          "answer_box": [
+            259,
+            296,
+            574,
+            316
+          ]
+        }
+      ],
+      "project_number": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "BD-FF",
+          "question_text_raw": "PROJECT CODE",
+          "question_id": 7,
+          "answer_id": 1,
+          "question_box": [
+            71,
+            250,
+            182,
+            268
+          ],
+          "answer_box": [
+            259,
+            255,
+            301,
+            270
+          ]
+        }
+      ]
+    },
+    "11508234": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "H. Williams",
+          "question_text_raw": "cc:",
+          "question_id": 54,
+          "answer_id": 105,
+          "question_box": [
+            78,
+            844,
+            95,
+            854
+          ],
+          "answer_box": [
+            131,
+            841,
+            190,
+            855
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "March3, 1995",
+          "question_text_raw": "Date:",
+          "question_id": 0,
+          "answer_id": 58,
+          "question_box": [
+            77,
+            80,
+            108,
+            90
+          ],
+          "answer_box": [
+            177,
+            78,
+            254,
+            93
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "3433/ 3/ 95",
+          "question_text_raw": "Date:",
+          "question_id": 47,
+          "answer_id": 100,
+          "question_box": [
+            461,
+            631,
+            490,
+            646
+          ],
+          "answer_box": [
+            497,
+            620,
+            579,
+            651
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "3/ 3/ 95",
+          "question_text_raw": "Date:",
+          "question_id": 48,
+          "answer_id": 101,
+          "question_box": [
+            459,
+            661,
+            488,
+            676
+          ],
+          "answer_box": [
+            510,
+            640,
+            584,
+            682
+          ]
+        },
+        {
+          "occurrence_index": 4,
+          "expected_value": "3/ 3/ 95",
+          "question_text_raw": "Date:",
+          "question_id": 50,
+          "answer_id": 102,
+          "question_box": [
+            461,
+            721,
+            490,
+            738
+          ],
+          "answer_box": [
+            511,
+            714,
+            579,
+            743
+          ]
+        }
+      ],
+      "description": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "LUCKY STRIKE QUALITATIVE ADVERTISING RESEARCH - GATEWAY CITIES",
+          "question_text_raw": "Description:",
+          "question_id": 1,
+          "answer_id": 60,
+          "question_box": [
+            78,
+            94,
+            144,
+            109
+          ],
+          "answer_box": [
+            179,
+            92,
+            588,
+            123
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "A. A. Strobel",
+          "question_text_raw": "Requested by:",
+          "question_id": 61,
+          "answer_id": 62,
+          "question_box": [
+            77,
+            124,
+            155,
+            140
+          ],
+          "answer_box": [
+            177,
+            124,
+            247,
+            140
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "Lumea",
+          "question_text_raw": "Submitted By:",
+          "question_id": 95,
+          "answer_id": 45,
+          "question_box": [
+            78,
+            631,
+            159,
+            646
+          ],
+          "answer_box": [
+            191,
+            615,
+            287,
+            650
+          ]
+        }
+      ],
+      "supplier": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Analytic Insight, Inc.",
+          "question_text_raw": "Supplier",
+          "question_id": 13,
+          "answer_id": 67,
+          "question_box": [
+            161,
+            218,
+            210,
+            233
+          ],
+          "answer_box": [
+            77,
+            232,
+            183,
+            250
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "Goldfarb Consultants",
+          "question_text_raw": "Supplier",
+          "question_id": 13,
+          "answer_id": 68,
+          "question_box": [
+            161,
+            218,
+            210,
+            233
+          ],
+          "answer_box": [
+            78,
+            251,
+            187,
+            265
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "Analytic Insight, Inc.",
+          "question_text_raw": "Recommended Supplier:",
+          "question_id": 91,
+          "answer_id": 94,
+          "question_box": [
+            78,
+            568,
+            209,
+            583
+          ],
+          "answer_box": [
+            302,
+            567,
+            409,
+            583
+          ]
+        }
+      ],
+      "total_cost": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "29,500",
+          "question_text_raw": "Total Cost",
+          "question_id": 70,
+          "answer_id": 14,
+          "question_box": [
+            487,
+            216,
+            547,
+            233
+          ],
+          "answer_box": [
+            500,
+            235,
+            539,
+            248
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "31,716",
+          "question_text_raw": "Total Cost",
+          "question_id": 70,
+          "answer_id": 15,
+          "question_box": [
+            487,
+            216,
+            547,
+            233
+          ],
+          "answer_box": [
+            501,
+            251,
+            537,
+            264
+          ]
+        }
+      ]
+    },
+    "0060007216": {
+      "approved_by": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "R. S. Sprinkle III",
+          "question_text_raw": "Approved by",
+          "question_id": 26,
+          "answer_id": 30,
+          "question_box": [
+            390,
+            684,
+            478,
+            698
+          ],
+          "answer_box": [
+            392,
+            701,
+            570,
+            749
+          ]
+        }
+      ],
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "RSS",
+          "question_text_raw": "cc:",
+          "question_id": 5,
+          "answer_id": 6,
+          "question_box": [
+            114,
+            725,
+            137,
+            736
+          ],
+          "answer_box": [
+            151,
+            722,
+            176,
+            735
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "RDC",
+          "question_text_raw": "cc:",
+          "question_id": 5,
+          "answer_id": 7,
+          "question_box": [
+            114,
+            725,
+            137,
+            736
+          ],
+          "answer_box": [
+            152,
+            735,
+            177,
+            747
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "PHL",
+          "question_text_raw": "cc:",
+          "question_id": 5,
+          "answer_id": 8,
+          "question_box": [
+            114,
+            725,
+            137,
+            736
+          ],
+          "answer_box": [
+            154,
+            747,
+            177,
+            760
+          ]
+        },
+        {
+          "occurrence_index": 4,
+          "expected_value": "PRC",
+          "question_text_raw": "cc:",
+          "question_id": 5,
+          "answer_id": 9,
+          "question_box": [
+            114,
+            725,
+            137,
+            736
+          ],
+          "answer_box": [
+            152,
+            761,
+            176,
+            773
+          ]
+        },
+        {
+          "occurrence_index": 5,
+          "expected_value": "BMC",
+          "question_text_raw": "cc:",
+          "question_id": 5,
+          "answer_id": 10,
+          "question_box": [
+            114,
+            725,
+            137,
+            736
+          ],
+          "answer_box": [
+            152,
+            773,
+            176,
+            784
+          ]
+        },
+        {
+          "occurrence_index": 6,
+          "expected_value": "Records",
+          "question_text_raw": "cc:",
+          "question_id": 5,
+          "answer_id": 11,
+          "question_box": [
+            114,
+            725,
+            137,
+            736
+          ],
+          "answer_box": [
+            154,
+            785,
+            207,
+            797
+          ]
+        },
+        {
+          "occurrence_index": 7,
+          "expected_value": "Project Leader",
+          "question_text_raw": "cc:",
+          "question_id": 5,
+          "answer_id": 28,
+          "question_box": [
+            114,
+            725,
+            137,
+            736
+          ],
+          "answer_box": [
+            152,
+            797,
+            262,
+            810
+          ]
+        },
+        {
+          "occurrence_index": 8,
+          "expected_value": "Other Personnel Assigned",
+          "question_text_raw": "cc:",
+          "question_id": 5,
+          "answer_id": 27,
+          "question_box": [
+            114,
+            725,
+            137,
+            736
+          ],
+          "answer_box": [
+            152,
+            810,
+            342,
+            826
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "April 30, 1985",
+          "question_text_raw": "DATE",
+          "question_id": 0,
+          "answer_id": 19,
+          "question_box": [
+            439,
+            273,
+            474,
+            286
+          ],
+          "answer_box": [
+            483,
+            270,
+            594,
+            286
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "R. S. Sprinkle, III",
+          "question_text_raw": "WORK REQUESTED BY",
+          "question_id": 16,
+          "answer_id": 22,
+          "question_box": [
+            116,
+            385,
+            247,
+            400
+          ],
+          "answer_box": [
+            275,
+            384,
+            422,
+            400
+          ]
+        }
+      ],
+      "project_name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "PALL MALL Regular Menthol",
+          "question_text_raw": "PROJECT NAME",
+          "question_id": 14,
+          "answer_id": 20,
+          "question_box": [
+            116,
+            309,
+            209,
+            323
+          ],
+          "answer_box": [
+            275,
+            307,
+            467,
+            324
+          ]
+        }
+      ],
+      "project_number": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "PMRM",
+          "question_text_raw": "PROJECT CODE",
+          "question_id": 13,
+          "answer_id": 1,
+          "question_box": [
+            116,
+            270,
+            211,
+            286
+          ],
+          "answer_box": [
+            275,
+            270,
+            308,
+            285
+          ]
+        }
+      ]
+    },
+    "71190280": {
+      "approved_by": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "LKelly",
+          "question_text_raw": "Signature",
+          "question_id": 0,
+          "answer_id": 31,
+          "question_box": [
+            85,
+            527,
+            148,
+            542
+          ],
+          "answer_box": [
+            95,
+            537,
+            180,
+            600
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "10/22/98 10/22/98",
+          "question_text_raw": "Date",
+          "question_id": 2,
+          "answer_id": 33,
+          "question_box": [
+            513,
+            523,
+            548,
+            538
+          ],
+          "answer_box": [
+            517,
+            533,
+            609,
+            578
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "10/22/98",
+          "question_text_raw": "DATE",
+          "question_id": 8,
+          "answer_id": 13,
+          "question_box": [
+            51,
+            239,
+            94,
+            251
+          ],
+          "answer_box": [
+            113,
+            238,
+            168,
+            251
+          ]
+        }
+      ],
+      "department": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "production AE",
+          "question_text_raw": "Department",
+          "question_id": 1,
+          "answer_id": 32,
+          "question_box": [
+            319,
+            525,
+            392,
+            540
+          ],
+          "answer_box": [
+            326,
+            540,
+            436,
+            582
+          ]
+        }
+      ],
+      "description": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Passport Winter Program Ad- EMRO",
+          "question_text_raw": "DESCRIPTION",
+          "question_id": 17,
+          "answer_id": 24,
+          "question_box": [
+            53,
+            199,
+            143,
+            214
+          ],
+          "answer_box": [
+            145,
+            183,
+            419,
+            213
+          ]
+        }
+      ],
+      "product": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "KOOL Natural",
+          "question_text_raw": "BRAND",
+          "question_id": 16,
+          "answer_id": 23,
+          "question_box": [
+            50,
+            159,
+            101,
+            176
+          ],
+          "answer_box": [
+            116,
+            159,
+            202,
+            174
+          ]
+        }
+      ]
+    },
+    "0060165115": {
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "28 Apr. 98",
+          "question_text_raw": "DATE:",
+          "question_id": 0,
+          "answer_id": 16,
+          "question_box": [
+            95,
+            258,
+            142,
+            278
+          ],
+          "answer_box": [
+            267,
+            263,
+            338,
+            277
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Dr. Wolf Reininghaus",
+          "question_text_raw": "FROM:",
+          "question_id": 1,
+          "answer_id": 17,
+          "question_box": [
+            96,
+            309,
+            145,
+            327
+          ],
+          "answer_box": [
+            267,
+            309,
+            404,
+            326
+          ]
+        }
+      ],
+      "location": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Philip Morris Europe Fabriques de Tabac Reunies S. A.",
+          "question_text_raw": "ADDRESS:",
+          "question_id": 3,
+          "answer_id": 20,
+          "question_box": [
+            99,
+            422,
+            176,
+            442
+          ],
+          "answer_box": [
+            267,
+            422,
+            484,
+            454
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "CH- 2003 Neuchatel",
+          "question_text_raw": "ADDRESS:",
+          "question_id": 3,
+          "answer_id": 21,
+          "question_box": [
+            99,
+            422,
+            176,
+            442
+          ],
+          "answer_box": [
+            267,
+            469,
+            396,
+            485
+          ]
+        }
+      ],
+      "subject": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "TPM/ Nocotine ratio",
+          "question_text_raw": "Re.:",
+          "question_id": 6,
+          "answer_id": 27,
+          "question_box": [
+            98,
+            626,
+            132,
+            643
+          ],
+          "answer_box": [
+            135,
+            627,
+            278,
+            642
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Dr. Don Leyden, Dept. Scientific Affairs",
+          "question_text_raw": "TO:",
+          "question_id": 2,
+          "answer_id": 18,
+          "question_box": [
+            98,
+            359,
+            125,
+            374
+          ],
+          "answer_box": [
+            267,
+            359,
+            422,
+            389
+          ]
+        }
+      ]
+    },
+    "00283813": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Dr. A. W. Spears",
+          "question_text_raw": "Copies to",
+          "question_id": 72,
+          "answer_id": 75,
+          "question_box": [
+            68,
+            818,
+            157,
+            835
+          ],
+          "answer_box": [
+            196,
+            818,
+            346,
+            834
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "7/ 16/ 68",
+          "question_text_raw": "Date:",
+          "question_id": 0,
+          "answer_id": 33,
+          "question_box": [
+            461,
+            22,
+            508,
+            40
+          ],
+          "answer_box": [
+            601,
+            21,
+            670,
+            42
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "John H. M. Bohlken",
+          "question_text_raw": "Written by",
+          "question_id": 70,
+          "answer_id": 73,
+          "question_box": [
+            70,
+            784,
+            165,
+            800
+          ],
+          "answer_box": [
+            197,
+            786,
+            365,
+            801
+          ]
+        }
+      ],
+      "product": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "OLD GOLD STRAIGHT",
+          "question_text_raw": "Brand",
+          "question_id": 7,
+          "answer_id": 43,
+          "question_box": [
+            74,
+            321,
+            124,
+            335
+          ],
+          "answer_box": [
+            239,
+            323,
+            398,
+            340
+          ]
+        }
+      ],
+      "quantity": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "OLD GOLD STRAIGHT",
+          "question_text_raw": "Weight",
+          "question_id": 13,
+          "answer_id": 49,
+          "question_box": [
+            73,
+            422,
+            132,
+            436
+          ],
+          "answer_box": [
+            237,
+            420,
+            398,
+            435
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "OLD GOLD STRAIGHT",
+          "question_text_raw": "Cartons",
+          "question_id": 18,
+          "answer_id": 55,
+          "question_box": [
+            437,
+            504,
+            505,
+            519
+          ],
+          "answer_box": [
+            552,
+            506,
+            710,
+            521
+          ]
+        }
+      ]
+    },
+    "93351929_93351931": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "K. AUGUSTYN. L. GIORDANO, M. McGLYNN, S. RAPISARLDI",
+          "question_text_raw": "CC:",
+          "question_id": 2,
+          "answer_id": 15,
+          "question_box": [
+            88,
+            182,
+            110,
+            196
+          ],
+          "answer_box": [
+            127,
+            180,
+            504,
+            197
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "September 1, 1992",
+          "question_text_raw": "COUPON ISSUE DATE",
+          "question_id": 19,
+          "answer_id": 41,
+          "question_box": [
+            85,
+            425,
+            225,
+            439
+          ],
+          "answer_box": [
+            309,
+            425,
+            421,
+            440
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "December 31, 1992",
+          "question_text_raw": "COUPON EXPIRATION DATE",
+          "question_id": 20,
+          "answer_id": 40,
+          "question_box": [
+            85,
+            459,
+            267,
+            473
+          ],
+          "answer_box": [
+            307,
+            459,
+            426,
+            474
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "May 14, 1992",
+          "question_text_raw": "DATE INITIATED",
+          "question_id": 27,
+          "answer_id": 36,
+          "question_box": [
+            82,
+            716,
+            189,
+            731
+          ],
+          "answer_box": [
+            306,
+            715,
+            389,
+            731
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "JESSICA ARATO",
+          "question_text_raw": "FROM:",
+          "question_id": 0,
+          "answer_id": 13,
+          "question_box": [
+            88,
+            113,
+            133,
+            126
+          ],
+          "answer_box": [
+            138,
+            112,
+            246,
+            127
+          ]
+        }
+      ],
+      "project_number": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "414",
+          "question_text_raw": "JOB NUMBER:",
+          "question_id": 31,
+          "answer_id": 34,
+          "question_box": [
+            307,
+            834,
+            399,
+            851
+          ],
+          "answer_box": [
+            553,
+            832,
+            587,
+            849
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "VINCE LOSITO",
+          "question_text_raw": "TO:",
+          "question_id": 1,
+          "answer_id": 14,
+          "question_box": [
+            88,
+            147,
+            110,
+            161
+          ],
+          "answer_box": [
+            127,
+            145,
+            220,
+            160
+          ]
+        }
+      ]
+    },
+    "91974562": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "D. WEST, L. GIORDANO, V. LINDSLEY, A. SADOVNICK S. RAPISARLDI B. DAVIN. A. Pasheluk",
+          "question_text_raw": "CC:",
+          "question_id": 2,
+          "answer_id": 14,
+          "question_box": [
+            108,
+            233,
+            129,
+            248
+          ],
+          "answer_box": [
+            141,
+            232,
+            655,
+            249
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "10/ 13/ 95",
+          "question_text_raw": "COUPON ISSUE DATE",
+          "question_id": 20,
+          "answer_id": 22,
+          "question_box": [
+            106,
+            416,
+            229,
+            431
+          ],
+          "answer_box": [
+            302,
+            416,
+            347,
+            431
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "12/ 17/ 95",
+          "question_text_raw": "COUPON EXPIRATION DATE",
+          "question_id": 21,
+          "answer_id": 23,
+          "question_box": [
+            105,
+            444,
+            261,
+            460
+          ],
+          "answer_box": [
+            300,
+            446,
+            346,
+            461
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "6/ 8/ 95",
+          "question_text_raw": "DATE INITIATED",
+          "question_id": 34,
+          "answer_id": 33,
+          "question_box": [
+            102,
+            689,
+            192,
+            704
+          ],
+          "answer_box": [
+            297,
+            689,
+            331,
+            707
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "THOM SMITH",
+          "question_text_raw": "FROM:",
+          "question_id": 0,
+          "answer_id": 12,
+          "question_box": [
+            106,
+            170,
+            147,
+            185
+          ],
+          "answer_box": [
+            155,
+            172,
+            229,
+            186
+          ]
+        }
+      ],
+      "project_number": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "490",
+          "question_text_raw": "JOB NUMBER:",
+          "question_id": 38,
+          "answer_id": 8,
+          "question_box": [
+            297,
+            796,
+            377,
+            810
+          ],
+          "answer_box": [
+            538,
+            797,
+            574,
+            812
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "VINCE LOSITO",
+          "question_text_raw": "TO:",
+          "question_id": 1,
+          "answer_id": 13,
+          "question_box": [
+            106,
+            203,
+            127,
+            216
+          ],
+          "answer_box": [
+            141,
+            203,
+            223,
+            217
+          ]
+        }
+      ]
+    },
+    "91391310": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "T. BAYLIES, L. GIORDANO V. LINDSLEY, J. SCHNEFF, S. RAPISARLDI, N, DISCENZA E LUNDBERG",
+          "question_text_raw": "CC:",
+          "question_id": 2,
+          "answer_id": 22,
+          "question_box": [
+            99,
+            201,
+            121,
+            215
+          ],
+          "answer_box": [
+            137,
+            191,
+            781,
+            224
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "10/11/93",
+          "question_text_raw": "COUPON ISSUE DATE",
+          "question_id": 27,
+          "answer_id": 9,
+          "question_box": [
+            101,
+            395,
+            239,
+            411
+          ],
+          "answer_box": [
+            317,
+            395,
+            373,
+            409
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "6/30/94",
+          "question_text_raw": "COUPON EXPIRATION DATE",
+          "question_id": 28,
+          "answer_id": 10,
+          "question_box": [
+            101,
+            427,
+            276,
+            445
+          ],
+          "answer_box": [
+            317,
+            427,
+            364,
+            442
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "8/06/93",
+          "question_text_raw": "DATE INITIATED",
+          "question_id": 35,
+          "answer_id": 14,
+          "question_box": [
+            105,
+            687,
+            210,
+            705
+          ],
+          "answer_box": [
+            320,
+            684,
+            366,
+            701
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "M. BORSINI",
+          "question_text_raw": "FROM:",
+          "question_id": 0,
+          "answer_id": 6,
+          "question_box": [
+            98,
+            140,
+            144,
+            154
+          ],
+          "answer_box": [
+            149,
+            137,
+            227,
+            152
+          ]
+        }
+      ],
+      "project_number": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "916",
+          "question_text_raw": "JOB NUMBER:",
+          "question_id": 39,
+          "answer_id": 16,
+          "question_box": [
+            320,
+            797,
+            417,
+            814
+          ],
+          "answer_box": [
+            581,
+            795,
+            616,
+            812
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "VINCE LOSITO",
+          "question_text_raw": "TO:",
+          "question_id": 1,
+          "answer_id": 21,
+          "question_box": [
+            101,
+            169,
+            122,
+            183
+          ],
+          "answer_box": [
+            137,
+            169,
+            232,
+            183
+          ]
+        }
+      ]
+    },
+    "91391286": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "T. BAYLIES, L GIORDANO, V. LINDSLEY, M. MCGLYNN, S RAPISARLDI,",
+          "question_text_raw": "CC:",
+          "question_id": 2,
+          "answer_id": 18,
+          "question_box": [
+            108,
+            184,
+            133,
+            197
+          ],
+          "answer_box": [
+            145,
+            180,
+            591,
+            198
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "5/19/93",
+          "question_text_raw": "COUPON ISSUE DATE",
+          "question_id": 26,
+          "answer_id": 6,
+          "question_box": [
+            106,
+            378,
+            247,
+            394
+          ],
+          "answer_box": [
+            335,
+            381,
+            392,
+            396
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "11/30/93",
+          "question_text_raw": "COUPON EXPIRATION DATE",
+          "question_id": 27,
+          "answer_id": 7,
+          "question_box": [
+            108,
+            411,
+            288,
+            426
+          ],
+          "answer_box": [
+            337,
+            409,
+            401,
+            426
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "2/3/93",
+          "question_text_raw": "DATE INITIATED",
+          "question_id": 37,
+          "answer_id": 10,
+          "question_box": [
+            108,
+            670,
+            211,
+            686
+          ],
+          "answer_box": [
+            366,
+            655,
+            444,
+            694
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "THOM SMITH",
+          "question_text_raw": "FROM:",
+          "question_id": 0,
+          "answer_id": 16,
+          "question_box": [
+            108,
+            117,
+            154,
+            134
+          ],
+          "answer_box": [
+            161,
+            117,
+            245,
+            132
+          ]
+        }
+      ],
+      "project_number": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "9076",
+          "question_text_raw": "JOB NUMBER:",
+          "question_id": 42,
+          "answer_id": 13,
+          "question_box": [
+            325,
+            784,
+            422,
+            798
+          ],
+          "answer_box": [
+            568,
+            781,
+            620,
+            796
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "VINCE LOSITO",
+          "question_text_raw": "TO:",
+          "question_id": 1,
+          "answer_id": 17,
+          "question_box": [
+            108,
+            152,
+            133,
+            165
+          ],
+          "answer_box": [
+            148,
+            149,
+            242,
+            164
+          ]
+        }
+      ]
+    },
+    "87533049": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "R. G. Ryan",
+          "question_text_raw": "cc:",
+          "question_id": 2,
+          "answer_id": 18,
+          "question_box": [
+            138,
+            214,
+            160,
+            225
+          ],
+          "answer_box": [
+            218,
+            211,
+            307,
+            243
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "10 / 90",
+          "question_text_raw": "Coupon Issue Date",
+          "question_id": 24,
+          "answer_id": 35,
+          "question_box": [
+            189,
+            387,
+            326,
+            400
+          ],
+          "answer_box": [
+            425,
+            383,
+            458,
+            397
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "6 / 30 / 91",
+          "question_text_raw": "Coupon Expiration Date",
+          "question_id": 25,
+          "answer_id": 36,
+          "question_box": [
+            187,
+            411,
+            364,
+            426
+          ],
+          "answer_box": [
+            423,
+            408,
+            471,
+            422
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "May 3, 1990",
+          "question_text_raw": "Date Initiated",
+          "question_id": 32,
+          "answer_id": 33,
+          "question_box": [
+            179,
+            612,
+            293,
+            626
+          ],
+          "answer_box": [
+            422,
+            612,
+            498,
+            626
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "J. La Valle",
+          "question_text_raw": "FROM:",
+          "question_id": 0,
+          "answer_id": 16,
+          "question_box": [
+            138,
+            137,
+            177,
+            150
+          ],
+          "answer_box": [
+            225,
+            131,
+            300,
+            147
+          ]
+        }
+      ],
+      "project_number": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "1112",
+          "question_text_raw": "Job Number",
+          "question_id": 43,
+          "answer_id": 14,
+          "question_box": [
+            300,
+            811,
+            382,
+            824
+          ],
+          "answer_box": [
+            420,
+            802,
+            486,
+            823
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "S. A. Rapisarldi",
+          "question_text_raw": "TO:",
+          "question_id": 1,
+          "answer_id": 17,
+          "question_box": [
+            137,
+            173,
+            162,
+            187
+          ],
+          "answer_box": [
+            219,
+            170,
+            349,
+            186
+          ]
+        }
+      ]
+    },
+    "81749056_9057": {
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "S. P. McBride",
+          "question_text_raw": "FROM:",
+          "question_id": 1,
+          "answer_id": 44,
+          "question_box": [
+            61,
+            149,
+            101,
+            162
+          ],
+          "answer_box": [
+            109,
+            149,
+            181,
+            160
+          ]
+        }
+      ],
+      "name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "None",
+          "question_text_raw": "NAME OF ACCOUNT",
+          "question_id": 53,
+          "answer_id": 4,
+          "question_box": [
+            89,
+            302,
+            205,
+            317
+          ],
+          "answer_box": [
+            132,
+            334,
+            165,
+            351
+          ]
+        }
+      ],
+      "quantity": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "3.00",
+          "question_text_raw": "CARTONS",
+          "question_id": 34,
+          "answer_id": 32,
+          "question_box": [
+            106,
+            861,
+            161,
+            874
+          ],
+          "answer_box": [
+            214,
+            861,
+            236,
+            873
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "$ 2.00",
+          "question_text_raw": "CARTONS",
+          "question_id": 34,
+          "answer_id": 75,
+          "question_box": [
+            106,
+            861,
+            161,
+            874
+          ],
+          "answer_box": [
+            283,
+            859,
+            312,
+            870
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "$ 3.00",
+          "question_text_raw": "CARTONS",
+          "question_id": 34,
+          "answer_id": 76,
+          "question_box": [
+            106,
+            861,
+            161,
+            874
+          ],
+          "answer_box": [
+            360,
+            857,
+            389,
+            870
+          ]
+        }
+      ],
+      "subject": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "MAVERICK SPECIALS NON- MENTHOL- EXPANSION PROGRESS REPORT",
+          "question_text_raw": "SUBJECT:",
+          "question_id": 2,
+          "answer_id": 50,
+          "question_box": [
+            61,
+            206,
+            116,
+            223
+          ],
+          "answer_box": [
+            152,
+            203,
+            554,
+            219
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "S. P. ZOLOT",
+          "question_text_raw": "TO:",
+          "question_id": 0,
+          "answer_id": 43,
+          "question_box": [
+            58,
+            123,
+            82,
+            134
+          ],
+          "answer_box": [
+            111,
+            121,
+            176,
+            134
+          ]
+        }
+      ]
+    },
+    "0000989556": {
+      "approved_by": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Director of Technical Operations, Brown & Williamson International Tobacco",
+          "question_text_raw": "Approved by:",
+          "question_id": 96,
+          "answer_id": 97,
+          "question_box": [
+            299,
+            710,
+            388,
+            721
+          ],
+          "answer_box": [
+            391,
+            723,
+            627,
+            762
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "May 1, 1985",
+          "question_text_raw": "Date:",
+          "question_id": 27,
+          "answer_id": 95,
+          "question_box": [
+            299,
+            683,
+            336,
+            693
+          ],
+          "answer_box": [
+            419,
+            680,
+            498,
+            693
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "May 1, 1985",
+          "question_text_raw": "Date:",
+          "question_id": 28,
+          "answer_id": 99,
+          "question_box": [
+            299,
+            778,
+            333,
+            788
+          ],
+          "answer_box": [
+            410,
+            778,
+            493,
+            792
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "May 1, 1985",
+          "question_text_raw": "Date:",
+          "question_id": 30,
+          "answer_id": 98,
+          "question_box": [
+            72,
+            750,
+            108,
+            762
+          ],
+          "answer_box": [
+            139,
+            747,
+            226,
+            764
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "M. HAMERTON / enm",
+          "question_text_raw": "Prepared by:",
+          "question_id": 93,
+          "answer_id": 94,
+          "question_box": [
+            299,
+            656,
+            388,
+            666
+          ],
+          "answer_box": [
+            419,
+            656,
+            544,
+            668
+          ]
+        }
+      ],
+      "name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "B. A. T. CYPRUS",
+          "question_text_raw": "Company:",
+          "question_id": 3,
+          "answer_id": 37,
+          "question_box": [
+            349,
+            130,
+            409,
+            139
+          ],
+          "answer_box": [
+            419,
+            129,
+            518,
+            144
+          ]
+        }
+      ],
+      "product": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "PHOENIX",
+          "question_text_raw": "Brand:",
+          "question_id": 0,
+          "answer_id": 2,
+          "question_box": [
+            76,
+            129,
+            118,
+            139
+          ],
+          "answer_box": [
+            145,
+            127,
+            197,
+            137
+          ]
+        }
+      ]
+    },
+    "92657311_7313": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "EFFECTIVENESS OF SELL (REPORT ON OCT 3 ONLY).",
+          "question_text_raw": "DISTRIBUTION:",
+          "question_id": 3,
+          "answer_id": 17,
+          "question_box": [
+            87,
+            180,
+            193,
+            197
+          ],
+          "answer_box": [
+            197,
+            182,
+            596,
+            198
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "S. J. Farnham",
+          "question_text_raw": "FROM:",
+          "question_id": 1,
+          "answer_id": 11,
+          "question_box": [
+            85,
+            85,
+            134,
+            102
+          ],
+          "answer_box": [
+            147,
+            85,
+            239,
+            102
+          ]
+        }
+      ],
+      "subject": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "HARLEY DAVIDSON 100'S CIGARETTES PROGRESS REPORT",
+          "question_text_raw": "SUBJECT:",
+          "question_id": 2,
+          "answer_id": 12,
+          "question_box": [
+            87,
+            122,
+            157,
+            139
+          ],
+          "answer_box": [
+            161,
+            122,
+            571,
+            139
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "R. B. SPELL",
+          "question_text_raw": "TO:",
+          "question_id": 0,
+          "answer_id": 10,
+          "question_box": [
+            84,
+            53,
+            112,
+            67
+          ],
+          "answer_box": [
+            147,
+            50,
+            228,
+            68
+          ]
+        }
+      ]
+    },
+    "92298125": {
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "JAN 19. 1995",
+          "question_text_raw": "DATE:",
+          "question_id": 2,
+          "answer_id": 13,
+          "question_box": [
+            96,
+            288,
+            137,
+            302
+          ],
+          "answer_box": [
+            179,
+            285,
+            266,
+            303
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Pam Churchill",
+          "question_text_raw": "FROM:",
+          "question_id": 1,
+          "answer_id": 12,
+          "question_box": [
+            95,
+            256,
+            142,
+            273
+          ],
+          "answer_box": [
+            177,
+            253,
+            265,
+            271
+          ]
+        }
+      ],
+      "subject": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "CIGARETTE QUESTIONNAIRE",
+          "question_text_raw": "RE:",
+          "question_id": 3,
+          "answer_id": 15,
+          "question_box": [
+            96,
+            353,
+            121,
+            367
+          ],
+          "answer_box": [
+            189,
+            348,
+            384,
+            366
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "MARY MAZZA",
+          "question_text_raw": "TO:",
+          "question_id": 0,
+          "answer_id": 11,
+          "question_box": [
+            94,
+            225,
+            122,
+            242
+          ],
+          "answer_box": [
+            176,
+            222,
+            271,
+            239
+          ]
+        }
+      ]
+    },
+    "91361993": {
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "10 /5 /92",
+          "question_text_raw": "DATE:",
+          "question_id": 0,
+          "answer_id": 8,
+          "question_box": [
+            115,
+            172,
+            161,
+            192
+          ],
+          "answer_box": [
+            170,
+            172,
+            233,
+            190
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "C. M. WIECHMANN, D. M. , LUBBOCK, TX",
+          "question_text_raw": "REPORTED BY",
+          "question_id": 7,
+          "answer_id": 6,
+          "question_box": [
+            63,
+            119,
+            164,
+            138
+          ],
+          "answer_box": [
+            184,
+            117,
+            492,
+            139
+          ]
+        }
+      ],
+      "product": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "CARDINAL CIGARETTES (11 PACKINGS)",
+          "question_text_raw": "BRAND NAME:",
+          "question_id": 11,
+          "answer_id": 10,
+          "question_box": [
+            63,
+            278,
+            162,
+            297
+          ],
+          "answer_box": [
+            194,
+            278,
+            499,
+            298
+          ]
+        }
+      ],
+      "supplier": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "R. J. REYNOLDS",
+          "question_text_raw": "MANUFACTURER:",
+          "question_id": 2,
+          "answer_id": 9,
+          "question_box": [
+            64,
+            225,
+            186,
+            245
+          ],
+          "answer_box": [
+            229,
+            222,
+            358,
+            242
+          ]
+        }
+      ]
+    },
+    "89817999_8002": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "EFFECTIVENESS OF PRE- SELL (REPORT ON FEB. 17 ONLY).",
+          "question_text_raw": "DISTRIBUTION",
+          "question_id": 3,
+          "answer_id": 14,
+          "question_box": [
+            63,
+            221,
+            166,
+            234
+          ],
+          "answer_box": [
+            174,
+            213,
+            584,
+            232
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "J. J. BUXTON",
+          "question_text_raw": "FROM:",
+          "question_id": 1,
+          "answer_id": 7,
+          "question_box": [
+            63,
+            131,
+            111,
+            148
+          ],
+          "answer_box": [
+            115,
+            128,
+            211,
+            146
+          ]
+        }
+      ],
+      "subject": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "STYLE LIGHTS PROGRESS REPORT",
+          "question_text_raw": "SUBJECT:",
+          "question_id": 2,
+          "answer_id": 13,
+          "question_box": [
+            65,
+            163,
+            135,
+            178
+          ],
+          "answer_box": [
+            141,
+            159,
+            390,
+            176
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "R. H. ORCUTT",
+          "question_text_raw": "TO",
+          "question_id": 0,
+          "answer_id": 6,
+          "question_box": [
+            61,
+            101,
+            88,
+            116
+          ],
+          "answer_box": [
+            115,
+            96,
+            214,
+            115
+          ]
+        }
+      ]
+    },
+    "01191071_1072": {
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "11/12/96",
+          "question_text_raw": "Date:",
+          "question_id": 6,
+          "answer_id": 10,
+          "question_box": [
+            213,
+            822,
+            256,
+            840
+          ],
+          "answer_box": [
+            292,
+            822,
+            357,
+            839
+          ]
+        }
+      ],
+      "name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Philip Morris Management Corp.",
+          "question_text_raw": "Company:",
+          "question_id": 8,
+          "answer_id": 20,
+          "question_box": [
+            178,
+            875,
+            258,
+            890
+          ],
+          "answer_box": [
+            289,
+            872,
+            518,
+            894
+          ]
+        }
+      ],
+      "subject": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Fax Received",
+          "question_text_raw": "Subject:",
+          "question_id": 9,
+          "answer_id": 22,
+          "question_box": [
+            188,
+            927,
+            256,
+            942
+          ],
+          "answer_box": [
+            292,
+            925,
+            386,
+            944
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "John J. Mulderig C/O Mike Baker",
+          "question_text_raw": "Attention:",
+          "question_id": 7,
+          "answer_id": 19,
+          "question_box": [
+            176,
+            849,
+            257,
+            866
+          ],
+          "answer_box": [
+            292,
+            847,
+            515,
+            865
+          ]
+        }
+      ]
+    },
+    "00920294": {
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "3/ 7/ 97",
+          "question_text_raw": "Date:",
+          "question_id": 3,
+          "answer_id": 32,
+          "question_box": [
+            141,
+            166,
+            172,
+            180
+          ],
+          "answer_box": [
+            176,
+            165,
+            213,
+            179
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Drew Huyett",
+          "question_text_raw": "From:",
+          "question_id": 2,
+          "answer_id": 31,
+          "question_box": [
+            138,
+            148,
+            173,
+            162
+          ],
+          "answer_box": [
+            176,
+            149,
+            246,
+            162
+          ]
+        }
+      ],
+      "quantity": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "273",
+          "question_text_raw": "Quantity:",
+          "question_id": 5,
+          "answer_id": 23,
+          "question_box": [
+            122,
+            300,
+            172,
+            317
+          ],
+          "answer_box": [
+            211,
+            302,
+            236,
+            316
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "RJR IR - Suz /Art",
+          "question_text_raw": "To:",
+          "question_id": 1,
+          "answer_id": 30,
+          "question_box": [
+            155,
+            130,
+            173,
+            147
+          ],
+          "answer_box": [
+            177,
+            130,
+            271,
+            145
+          ]
+        }
+      ]
+    },
+    "0071032807": {
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "November 15, 1968",
+          "question_text_raw": "Date",
+          "question_id": 0,
+          "answer_id": 4,
+          "question_box": [
+            501,
+            141,
+            535,
+            156
+          ],
+          "answer_box": [
+            547,
+            141,
+            674,
+            159
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Marketing",
+          "question_text_raw": "Work Requested by",
+          "question_id": 10,
+          "answer_id": 1,
+          "question_box": [
+            53,
+            299,
+            180,
+            316
+          ],
+          "answer_box": [
+            197,
+            295,
+            267,
+            312
+          ]
+        }
+      ],
+      "project_name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Charcoal Smoking Tobacco",
+          "question_text_raw": "Project Name",
+          "question_id": 7,
+          "answer_id": 8,
+          "question_box": [
+            53,
+            209,
+            144,
+            226
+          ],
+          "answer_box": [
+            170,
+            207,
+            349,
+            226
+          ]
+        }
+      ],
+      "project_number": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "CST- N- 68",
+          "question_text_raw": "Project Code",
+          "question_id": 6,
+          "answer_id": 5,
+          "question_box": [
+            54,
+            141,
+            144,
+            159
+          ],
+          "answer_box": [
+            168,
+            141,
+            229,
+            156
+          ]
+        }
+      ]
+    },
+    "0060207528": {
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "2/ 25/ 89",
+          "question_text_raw": "DATE",
+          "question_id": 13,
+          "answer_id": 43,
+          "question_box": [
+            356,
+            895,
+            391,
+            910
+          ],
+          "answer_box": [
+            411,
+            880,
+            509,
+            922
+          ]
+        }
+      ],
+      "name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "THE AMERICAN TOBACCO COMPANY",
+          "question_text_raw": "CLIENT:",
+          "question_id": 1,
+          "answer_id": 22,
+          "question_box": [
+            64,
+            271,
+            118,
+            284
+          ],
+          "answer_box": [
+            130,
+            267,
+            341,
+            286
+          ]
+        }
+      ],
+      "product": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "PALL MALL RED LIGHTS",
+          "question_text_raw": "BRAND NAME:",
+          "question_id": 24,
+          "answer_id": 23,
+          "question_box": [
+            67,
+            299,
+            148,
+            314
+          ],
+          "answer_box": [
+            158,
+            295,
+            308,
+            313
+          ]
+        }
+      ],
+      "total_cost": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "54",
+          "question_text_raw": "TOTAL",
+          "question_id": 6,
+          "answer_id": 5,
+          "question_box": [
+            594,
+            443,
+            635,
+            457
+          ],
+          "answer_box": [
+            601,
+            415,
+            643,
+            440
+          ]
+        }
+      ]
+    },
+    "0012947358": {
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "1- -27 -69",
+          "question_text_raw": "DATE:",
+          "question_id": 4,
+          "answer_id": 48,
+          "question_box": [
+            408,
+            183,
+            437,
+            198
+          ],
+          "answer_box": [
+            454,
+            180,
+            514,
+            195
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "C T Corporation System",
+          "question_text_raw": "FROM:",
+          "question_id": 2,
+          "answer_id": 45,
+          "question_box": [
+            405,
+            99,
+            440,
+            112
+          ],
+          "answer_box": [
+            458,
+            92,
+            634,
+            107
+          ]
+        }
+      ],
+      "subject": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "PROCESS SERVED",
+          "question_text_raw": "RE:",
+          "question_id": 6,
+          "answer_id": 56,
+          "question_box": [
+            53,
+            270,
+            70,
+            281
+          ],
+          "answer_box": [
+            75,
+            267,
+            242,
+            285
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "The Corporation Trust Company",
+          "question_text_raw": "TO:",
+          "question_id": 1,
+          "answer_id": 43,
+          "question_box": [
+            422,
+            43,
+            440,
+            56
+          ],
+          "answer_box": [
+            440,
+            38,
+            672,
+            54
+          ]
+        }
+      ]
+    },
+    "0012178355": {
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "10/ 10/ 84",
+          "question_text_raw": "Date",
+          "question_id": 5,
+          "answer_id": 59,
+          "question_box": [
+            388,
+            506,
+            417,
+            521
+          ],
+          "answer_box": [
+            462,
+            506,
+            521,
+            521
+          ]
+        }
+      ],
+      "description": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "ELI CUTTER KS, for test market, using AMELIA \"B\" Blend (XLF -680G)",
+          "question_text_raw": "Description:",
+          "question_id": 4,
+          "answer_id": 40,
+          "question_box": [
+            45,
+            244,
+            127,
+            257
+          ],
+          "answer_box": [
+            141,
+            243,
+            591,
+            258
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "D. M. Frank",
+          "question_text_raw": "Prepared By:",
+          "question_id": 57,
+          "answer_id": 58,
+          "question_box": [
+            75,
+            507,
+            159,
+            522
+          ],
+          "answer_box": [
+            226,
+            506,
+            302,
+            521
+          ]
+        }
+      ],
+      "product": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "ELI CUTTER KS",
+          "question_text_raw": "BRAND",
+          "question_id": 0,
+          "answer_id": 26,
+          "question_box": [
+            43,
+            89,
+            77,
+            103
+          ],
+          "answer_box": [
+            124,
+            89,
+            214,
+            104
+          ]
+        }
+      ]
+    },
+    "91914407": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "R. E. KLEIN",
+          "question_text_raw": "CC:",
+          "question_id": 10,
+          "answer_id": 28,
+          "question_box": [
+            246,
+            811,
+            273,
+            829
+          ],
+          "answer_box": [
+            281,
+            810,
+            368,
+            831
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "6- 29- 94",
+          "question_text_raw": "DATE:",
+          "question_id": 4,
+          "answer_id": 17,
+          "question_box": [
+            63,
+            321,
+            110,
+            339
+          ],
+          "answer_box": [
+            163,
+            325,
+            228,
+            340
+          ]
+        }
+      ],
+      "description": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "The attached was obtained from Mackoul Dist.",
+          "question_text_raw": "COMMENTS:",
+          "question_id": 9,
+          "answer_id": 27,
+          "question_box": [
+            57,
+            726,
+            159,
+            747
+          ],
+          "answer_box": [
+            207,
+            728,
+            581,
+            748
+          ]
+        }
+      ],
+      "name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Mr. Al Giacoio",
+          "question_text_raw": "NAME:",
+          "question_id": 5,
+          "answer_id": 21,
+          "question_box": [
+            61,
+            441,
+            113,
+            461
+          ],
+          "answer_box": [
+            190,
+            441,
+            314,
+            459
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "Fred Paternostro",
+          "question_text_raw": "NAME:",
+          "question_id": 8,
+          "answer_id": 24,
+          "question_box": [
+            59,
+            626,
+            112,
+            643
+          ],
+          "answer_box": [
+            215,
+            627,
+            356,
+            647
+          ]
+        }
+      ]
+    },
+    "81619486_9488": {
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "R. W. Richardson",
+          "question_text_raw": "FROM:",
+          "question_id": 1,
+          "answer_id": 21,
+          "question_box": [
+            68,
+            138,
+            108,
+            153
+          ],
+          "answer_box": [
+            141,
+            138,
+            229,
+            156
+          ]
+        }
+      ],
+      "name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Meijer Gas",
+          "question_text_raw": "Name of Account",
+          "question_id": 43,
+          "answer_id": 49,
+          "question_box": [
+            80,
+            482,
+            173,
+            497
+          ],
+          "answer_box": [
+            68,
+            510,
+            123,
+            524
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "Ultra Diamond",
+          "question_text_raw": "Name of Account",
+          "question_id": 43,
+          "answer_id": 50,
+          "question_box": [
+            80,
+            482,
+            173,
+            497
+          ],
+          "answer_box": [
+            69,
+            531,
+            141,
+            544
+          ]
+        }
+      ],
+      "subject": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "MAVERICK SPECIALS EXPANSION MARKETS PROGRESS REPORT",
+          "question_text_raw": "SUBJECT:",
+          "question_id": 10,
+          "answer_id": 26,
+          "question_box": [
+            68,
+            203,
+            126,
+            216
+          ],
+          "answer_box": [
+            137,
+            199,
+            525,
+            215
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "S. P. ZOLOT",
+          "question_text_raw": "TO:",
+          "question_id": 0,
+          "answer_id": 19,
+          "question_box": [
+            67,
+            108,
+            89,
+            122
+          ],
+          "answer_box": [
+            140,
+            108,
+            205,
+            121
+          ]
+        }
+      ]
+    },
+    "00093726": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Dr. F. J. Schulz Dr. H. J. Minnemeyer",
+          "question_text_raw": "Copies to",
+          "question_id": 85,
+          "answer_id": 86,
+          "question_box": [
+            38,
+            853,
+            122,
+            868
+          ],
+          "answer_box": [
+            151,
+            851,
+            338,
+            886
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "September 21, 1976",
+          "question_text_raw": "Date:",
+          "question_id": 0,
+          "answer_id": 46,
+          "question_box": [
+            457,
+            7,
+            504,
+            29
+          ],
+          "answer_box": [
+            522,
+            10,
+            696,
+            30
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "P. D. Schickedantz",
+          "question_text_raw": "Written by",
+          "question_id": 83,
+          "answer_id": 87,
+          "question_box": [
+            36,
+            823,
+            130,
+            839
+          ],
+          "answer_box": [
+            151,
+            817,
+            320,
+            841
+          ]
+        }
+      ],
+      "quantity": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "To be det. (803 mg tobacco)",
+          "question_text_raw": "Weight",
+          "question_id": 32,
+          "answer_id": 68,
+          "question_box": [
+            32,
+            358,
+            95,
+            373
+          ],
+          "answer_box": [
+            102,
+            356,
+            351,
+            373
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "\"",
+          "question_text_raw": "Cartons",
+          "question_id": 36,
+          "answer_id": 27,
+          "question_box": [
+            36,
+            563,
+            103,
+            576
+          ],
+          "answer_box": [
+            177,
+            561,
+            194,
+            574
+          ]
+        }
+      ]
+    },
+    "0001209043": {
+      "description": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Tested among a half sample of smokers. Sub- group scores subject to wide variation because of small sample size and should be averaged across several ads for meaningful infor- mation.",
+          "question_text_raw": "COMMENTS",
+          "question_id": 10,
+          "answer_id": 60,
+          "question_box": [
+            542,
+            376,
+            613,
+            393
+          ],
+          "answer_box": [
+            471,
+            454,
+            693,
+            566
+          ]
+        }
+      ],
+      "location": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "CHICAGO, DALLAS/ FORT WORTH, INDIANAPOLIS, LOS ANGELES",
+          "question_text_raw": "Location",
+          "question_id": 4,
+          "answer_id": 55,
+          "question_box": [
+            41,
+            295,
+            112,
+            309
+          ],
+          "answer_box": [
+            138,
+            292,
+            584,
+            312
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "MEMPHIS, PHILADELPHIA, PITTSBURGH",
+          "question_text_raw": "Location",
+          "question_id": 4,
+          "answer_id": 56,
+          "question_box": [
+            41,
+            295,
+            112,
+            309
+          ],
+          "answer_box": [
+            138,
+            321,
+            417,
+            338
+          ]
+        }
+      ],
+      "product": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "SALEM (RJR)",
+          "question_text_raw": "Brand",
+          "question_id": 0,
+          "answer_id": 46,
+          "question_box": [
+            41,
+            127,
+            84,
+            144
+          ],
+          "answer_box": [
+            138,
+            124,
+            236,
+            143
+          ]
+        }
+      ],
+      "subject": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "\"HEAD IN WATER\"",
+          "question_text_raw": "Title",
+          "question_id": 1,
+          "answer_id": 50,
+          "question_box": [
+            41,
+            154,
+            87,
+            172
+          ],
+          "answer_box": [
+            141,
+            152,
+            266,
+            169
+          ]
+        }
+      ]
+    },
+    "91372360": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Mr. R. B. Spell",
+          "question_text_raw": "cc:",
+          "question_id": 8,
+          "answer_id": 30,
+          "question_box": [
+            285,
+            786,
+            308,
+            799
+          ],
+          "answer_box": [
+            316,
+            783,
+            443,
+            798
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "Mr. S. L. Enloe",
+          "question_text_raw": "cc:",
+          "question_id": 8,
+          "answer_id": 31,
+          "question_box": [
+            285,
+            786,
+            308,
+            799
+          ],
+          "answer_box": [
+            321,
+            798,
+            444,
+            812
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "11/4/93",
+          "question_text_raw": "DATE",
+          "question_id": 0,
+          "answer_id": 6,
+          "question_box": [
+            156,
+            270,
+            211,
+            290
+          ],
+          "answer_box": [
+            235,
+            273,
+            295,
+            286
+          ]
+        }
+      ],
+      "description": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "The attached Competitive information was secured in Oklahoma today. If you should have any questions.",
+          "question_text_raw": "COMMENTS:",
+          "question_id": 7,
+          "answer_id": 28,
+          "question_box": [
+            155,
+            611,
+            266,
+            627
+          ],
+          "answer_box": [
+            285,
+            611,
+            588,
+            689
+          ]
+        }
+      ],
+      "name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Mr. A. J. Giacoio",
+          "question_text_raw": "NAME:",
+          "question_id": 2,
+          "answer_id": 19,
+          "question_box": [
+            160,
+            380,
+            215,
+            399
+          ],
+          "answer_box": [
+            249,
+            382,
+            392,
+            398
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "R F",
+          "question_text_raw": "NAME:",
+          "question_id": 4,
+          "answer_id": 24,
+          "question_box": [
+            156,
+            516,
+            216,
+            536
+          ],
+          "answer_box": [
+            253,
+            519,
+            349,
+            535
+          ]
+        }
+      ]
+    },
+    "0011899960": {
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "7/ 9/ 84",
+          "question_text_raw": "Date",
+          "question_id": 7,
+          "answer_id": 22,
+          "question_box": [
+            515,
+            297,
+            550,
+            314
+          ],
+          "answer_box": [
+            581,
+            295,
+            637,
+            314
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "JUL 10 1984 JOHN ALAR",
+          "question_text_raw": "RECEIVED",
+          "question_id": 8,
+          "answer_id": 29,
+          "question_box": [
+            552,
+            736,
+            620,
+            756
+          ],
+          "answer_box": [
+            547,
+            764,
+            639,
+            811
+          ]
+        }
+      ],
+      "department": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "CORPORATE AFFAIRS",
+          "question_text_raw": "Department",
+          "question_id": 2,
+          "answer_id": 11,
+          "question_box": [
+            430,
+            106,
+            518,
+            121
+          ],
+          "answer_box": [
+            524,
+            103,
+            669,
+            124
+          ]
+        }
+      ],
+      "subject": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "L&M Lawsuit",
+          "question_text_raw": "Subject",
+          "question_id": 3,
+          "answer_id": 14,
+          "question_box": [
+            314,
+            159,
+            373,
+            176
+          ],
+          "answer_box": [
+            406,
+            159,
+            503,
+            176
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "DR. HUGHES, MESSRS. ALAR, SANDEFUR,",
+          "question_text_raw": "Attention",
+          "question_id": 0,
+          "answer_id": 10,
+          "question_box": [
+            15,
+            102,
+            95,
+            120
+          ],
+          "answer_box": [
+            102,
+            101,
+            401,
+            125
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "BLOTT, BUTLER, MIDDLETON, CHRISTENSEN, PEPPLES, SACHS FREEDMAN",
+          "question_text_raw": "Attention",
+          "question_id": 0,
+          "answer_id": 12,
+          "question_box": [
+            15,
+            102,
+            95,
+            120
+          ],
+          "answer_box": [
+            103,
+            128,
+            637,
+            151
+          ]
+        }
+      ]
+    },
+    "0011859695": {
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "September 25, 1969",
+          "question_text_raw": "Date:",
+          "question_id": 2,
+          "answer_id": 14,
+          "question_box": [
+            388,
+            201,
+            416,
+            215
+          ],
+          "answer_box": [
+            440,
+            190,
+            596,
+            210
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "SEP 30",
+          "question_text_raw": "RECEIVED",
+          "question_id": 7,
+          "answer_id": 20,
+          "question_box": [
+            573,
+            384,
+            623,
+            401
+          ],
+          "answer_box": [
+            553,
+            419,
+            639,
+            443
+          ]
+        }
+      ],
+      "location": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "575 Lexington Avenue, New York, New York 10022",
+          "question_text_raw": "Address:",
+          "question_id": 4,
+          "answer_id": 16,
+          "question_box": [
+            60,
+            300,
+            110,
+            314
+          ],
+          "answer_box": [
+            120,
+            289,
+            522,
+            308
+          ]
+        }
+      ],
+      "name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "SSC&B, Inc",
+          "question_text_raw": "Agency:",
+          "question_id": 0,
+          "answer_id": 13,
+          "question_box": [
+            60,
+            247,
+            102,
+            261
+          ],
+          "answer_box": [
+            119,
+            236,
+            207,
+            254
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "American Tobacco Company",
+          "question_text_raw": "Client:",
+          "question_id": 3,
+          "answer_id": 17,
+          "question_box": [
+            60,
+            352,
+            99,
+            369
+          ],
+          "answer_box": [
+            120,
+            346,
+            331,
+            366
+          ]
+        }
+      ],
+      "product": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Pall Mail Filter tip",
+          "question_text_raw": "Product:",
+          "question_id": 5,
+          "answer_id": 18,
+          "question_box": [
+            61,
+            409,
+            107,
+            424
+          ],
+          "answer_box": [
+            119,
+            395,
+            297,
+            416
+          ]
+        }
+      ]
+    },
+    "92091873": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "R. P. Bonomo",
+          "question_text_raw": "cc:",
+          "question_id": 33,
+          "answer_id": 70,
+          "question_box": [
+            155,
+            884,
+            177,
+            901
+          ],
+          "answer_box": [
+            191,
+            887,
+            284,
+            902
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "6/",
+          "question_text_raw": "Date",
+          "question_id": 12,
+          "answer_id": 35,
+          "question_box": [
+            105,
+            327,
+            133,
+            341
+          ],
+          "answer_box": [
+            190,
+            321,
+            207,
+            339
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "12/",
+          "question_text_raw": "Date",
+          "question_id": 12,
+          "answer_id": 36,
+          "question_box": [
+            105,
+            327,
+            133,
+            341
+          ],
+          "answer_box": [
+            211,
+            321,
+            233,
+            341
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "95",
+          "question_text_raw": "Date",
+          "question_id": 12,
+          "answer_id": 37,
+          "question_box": [
+            105,
+            327,
+            133,
+            341
+          ],
+          "answer_box": [
+            235,
+            321,
+            250,
+            339
+          ]
+        },
+        {
+          "occurrence_index": 4,
+          "expected_value": "9/ 6/ 95",
+          "question_text_raw": "Date Rec'd",
+          "question_id": 53,
+          "answer_id": 55,
+          "question_box": [
+            434,
+            323,
+            501,
+            341
+          ],
+          "answer_box": [
+            520,
+            321,
+            566,
+            340
+          ]
+        }
+      ],
+      "department": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "San Jose/ 933",
+          "question_text_raw": "Division",
+          "question_id": 1,
+          "answer_id": 40,
+          "question_box": [
+            425,
+            130,
+            475,
+            145
+          ],
+          "answer_box": [
+            518,
+            126,
+            618,
+            147
+          ]
+        }
+      ],
+      "location": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Leguna Seca, Monterey, Ca",
+          "question_text_raw": "Location",
+          "question_id": 0,
+          "answer_id": 39,
+          "question_box": [
+            105,
+            134,
+            158,
+            149
+          ],
+          "answer_box": [
+            176,
+            133,
+            381,
+            148
+          ]
+        }
+      ]
+    },
+    "92657391": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "R. B. Spell",
+          "question_text_raw": "cc:",
+          "question_id": 9,
+          "answer_id": 31,
+          "question_box": [
+            274,
+            729,
+            298,
+            742
+          ],
+          "answer_box": [
+            309,
+            726,
+            390,
+            743
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "A. J. Giacoio",
+          "question_text_raw": "cc:",
+          "question_id": 9,
+          "answer_id": 32,
+          "question_box": [
+            274,
+            729,
+            298,
+            742
+          ],
+          "answer_box": [
+            309,
+            746,
+            405,
+            761
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "P. J. McCann",
+          "question_text_raw": "cc:",
+          "question_id": 9,
+          "answer_id": 33,
+          "question_box": [
+            274,
+            729,
+            298,
+            742
+          ],
+          "answer_box": [
+            306,
+            763,
+            398,
+            777
+          ]
+        },
+        {
+          "occurrence_index": 4,
+          "expected_value": "S. L. Enloe",
+          "question_text_raw": "cc:",
+          "question_id": 9,
+          "answer_id": 34,
+          "question_box": [
+            274,
+            729,
+            298,
+            742
+          ],
+          "answer_box": [
+            309,
+            779,
+            392,
+            794
+          ]
+        },
+        {
+          "occurrence_index": 5,
+          "expected_value": "T. L. Achey",
+          "question_text_raw": "cc:",
+          "question_id": 9,
+          "answer_id": 35,
+          "question_box": [
+            274,
+            729,
+            298,
+            742
+          ],
+          "answer_box": [
+            307,
+            796,
+            391,
+            811
+          ]
+        }
+      ],
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "12/ 28/ 94",
+          "question_text_raw": "DATE:",
+          "question_id": 1,
+          "answer_id": 16,
+          "question_box": [
+            77,
+            204,
+            127,
+            221
+          ],
+          "answer_box": [
+            228,
+            207,
+            288,
+            224
+          ]
+        }
+      ],
+      "description": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Harley Davidson 100's Progress Report.",
+          "question_text_raw": "COMMENTS:",
+          "question_id": 8,
+          "answer_id": 30,
+          "question_box": [
+            74,
+            654,
+            173,
+            675
+          ],
+          "answer_box": [
+            275,
+            658,
+            549,
+            677
+          ]
+        }
+      ],
+      "name": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "R. H. Orcutt",
+          "question_text_raw": "NAME:",
+          "question_id": 4,
+          "answer_id": 22,
+          "question_box": [
+            78,
+            342,
+            131,
+            362
+          ],
+          "answer_box": [
+            278,
+            348,
+            364,
+            363
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "J. L. McGinnis - Region 9",
+          "question_text_raw": "NAME:",
+          "question_id": 6,
+          "answer_id": 26,
+          "question_box": [
+            75,
+            515,
+            128,
+            532
+          ],
+          "answer_box": [
+            274,
+            521,
+            458,
+            539
+          ]
+        }
+      ]
+    },
+    "0060077689": {
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "January 3, 1995",
+          "question_text_raw": "DATE",
+          "question_id": 19,
+          "answer_id": 64,
+          "question_box": [
+            443,
+            852,
+            464,
+            860
+          ],
+          "answer_box": [
+            469,
+            855,
+            568,
+            871
+          ]
+        }
+      ],
+      "description": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "CARLTON \"Free\" Carton\" Direct Mail Piece",
+          "question_text_raw": "DESCRIPTION",
+          "question_id": 7,
+          "answer_id": 39,
+          "question_box": [
+            327,
+            306,
+            411,
+            319
+          ],
+          "answer_box": [
+            179,
+            318,
+            442,
+            338
+          ]
+        },
+        {
+          "occurrence_index": 2,
+          "expected_value": "This Purchase order is to cover all costs incurred to- date listed below.",
+          "question_text_raw": "DESCRIPTION",
+          "question_id": 7,
+          "answer_id": 40,
+          "question_box": [
+            327,
+            306,
+            411,
+            319
+          ],
+          "answer_box": [
+            179,
+            352,
+            538,
+            382
+          ]
+        },
+        {
+          "occurrence_index": 3,
+          "expected_value": "42,000 lbs. of 80 lb Sterling C/ 2/ S - 36- 1/ 2\" roll",
+          "question_text_raw": "DESCRIPTION",
+          "question_id": 7,
+          "answer_id": 41,
+          "question_box": [
+            327,
+            306,
+            411,
+            319
+          ],
+          "answer_box": [
+            179,
+            398,
+            469,
+            412
+          ]
+        },
+        {
+          "occurrence_index": 4,
+          "expected_value": "31,000 lbs. of 80 lb. Sterling C/ 2/ S - 26- 1/ 2\" roll",
+          "question_text_raw": "DESCRIPTION",
+          "question_id": 7,
+          "answer_id": 42,
+          "question_box": [
+            327,
+            306,
+            411,
+            319
+          ],
+          "answer_box": [
+            177,
+            413,
+            469,
+            429
+          ]
+        },
+        {
+          "occurrence_index": 5,
+          "expected_value": "Prep. (line negatives, paper prints, camera/ stripping)",
+          "question_text_raw": "DESCRIPTION",
+          "question_id": 7,
+          "answer_id": 43,
+          "question_box": [
+            327,
+            306,
+            411,
+            319
+          ],
+          "answer_box": [
+            179,
+            444,
+            506,
+            460
+          ]
+        },
+        {
+          "occurrence_index": 6,
+          "expected_value": "Federal Express charges",
+          "question_text_raw": "DESCRIPTION",
+          "question_id": 7,
+          "answer_id": 44,
+          "question_box": [
+            327,
+            306,
+            411,
+            319
+          ],
+          "answer_box": [
+            179,
+            472,
+            335,
+            489
+          ]
+        },
+        {
+          "occurrence_index": 7,
+          "expected_value": "ALL MATERIALS HAVE BEEN CANCELLED.",
+          "question_text_raw": "DESCRIPTION",
+          "question_id": 7,
+          "answer_id": 45,
+          "question_box": [
+            327,
+            306,
+            411,
+            319
+          ],
+          "answer_box": [
+            179,
+            504,
+            448,
+            518
+          ]
+        }
+      ],
+      "location": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "STAMFORD, CT",
+          "question_text_raw": "LOCATION",
+          "question_id": 0,
+          "answer_id": 25,
+          "question_box": [
+            263,
+            80,
+            304,
+            93
+          ],
+          "answer_box": [
+            325,
+            85,
+            420,
+            102
+          ]
+        }
+      ],
+      "supplier": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "WEBCRAFT TECHNOLOGIES INC",
+          "question_text_raw": "SUPPLIER",
+          "question_id": 2,
+          "answer_id": 31,
+          "question_box": [
+            41,
+            134,
+            79,
+            147
+          ],
+          "answer_box": [
+            64,
+            151,
+            280,
+            166
+          ]
+        }
+      ]
+    },
+    "93213298": {
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "05/ 01/ 95",
+          "question_text_raw": "Date Rec'd",
+          "question_id": 51,
+          "answer_id": 52,
+          "question_box": [
+            415,
+            345,
+            491,
+            365
+          ],
+          "answer_box": [
+            508,
+            341,
+            577,
+            361
+          ]
+        }
+      ],
+      "department": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Detroit - MCA",
+          "question_text_raw": "Division",
+          "question_id": 0,
+          "answer_id": 35,
+          "question_box": [
+            404,
+            144,
+            460,
+            162
+          ],
+          "answer_box": [
+            504,
+            137,
+            613,
+            160
+          ]
+        }
+      ],
+      "location": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "DETROIT GRAND PRIX",
+          "question_text_raw": "Location",
+          "question_id": 1,
+          "answer_id": 39,
+          "question_box": [
+            75,
+            151,
+            135,
+            171
+          ],
+          "answer_box": [
+            159,
+            147,
+            311,
+            167
+          ]
+        }
+      ]
+    },
+    "92327794": {
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "July 22, 1993",
+          "question_text_raw": "DATE:",
+          "question_id": 2,
+          "answer_id": 12,
+          "question_box": [
+            151,
+            379,
+            198,
+            392
+          ],
+          "answer_box": [
+            239,
+            372,
+            334,
+            387
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Becky Hayden",
+          "question_text_raw": "FROM:",
+          "question_id": 1,
+          "answer_id": 11,
+          "question_box": [
+            153,
+            349,
+            198,
+            366
+          ],
+          "answer_box": [
+            234,
+            346,
+            329,
+            359
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "(919) 378- 001 Ron Goldbrenner",
+          "question_text_raw": "TO:",
+          "question_id": 0,
+          "answer_id": 10,
+          "question_box": [
+            151,
+            319,
+            181,
+            339
+          ],
+          "answer_box": [
+            239,
+            296,
+            347,
+            332
+          ]
+        }
+      ]
+    },
+    "91315069_91315070": {
+      "cc": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "EFFECTIVENESS OF PRE- SELL (REPORT ON OCT. 3 ONLY).",
+          "question_text_raw": "DISTRIBUTION:",
+          "question_id": 3,
+          "answer_id": 14,
+          "question_box": [
+            39,
+            198,
+            142,
+            219
+          ],
+          "answer_box": [
+            148,
+            194,
+            554,
+            215
+          ]
+        }
+      ],
+      "subject": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "HARLEY- DAVIDSON 100'S CIGARETTES PROGRESS REPORT",
+          "question_text_raw": "SUBJECT:",
+          "question_id": 2,
+          "answer_id": 13,
+          "question_box": [
+            41,
+            138,
+            111,
+            153
+          ],
+          "answer_box": [
+            115,
+            133,
+            523,
+            154
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "R. H. ORCUTT",
+          "question_text_raw": "TO:",
+          "question_id": 0,
+          "answer_id": 7,
+          "question_box": [
+            41,
+            68,
+            69,
+            88
+          ],
+          "answer_box": [
+            98,
+            67,
+            198,
+            87
+          ]
+        }
+      ]
+    },
+    "80728670": {
+      "date": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "2 /28 /84",
+          "question_text_raw": "DATE:",
+          "question_id": 2,
+          "answer_id": 15,
+          "question_box": [
+            469,
+            142,
+            508,
+            160
+          ],
+          "answer_box": [
+            534,
+            134,
+            598,
+            154
+          ]
+        }
+      ],
+      "from": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "Mary Anne Kayiatos",
+          "question_text_raw": "FROM:",
+          "question_id": 1,
+          "answer_id": 14,
+          "question_box": [
+            92,
+            190,
+            130,
+            211
+          ],
+          "answer_box": [
+            159,
+            182,
+            321,
+            203
+          ]
+        }
+      ],
+      "to": [
+        {
+          "occurrence_index": 1,
+          "expected_value": "J. R. Mueller",
+          "question_text_raw": "TO:",
+          "question_id": 0,
+          "answer_id": 13,
+          "question_box": [
+            91,
+            148,
+            115,
+            165
+          ],
+          "answer_box": [
+            180,
+            144,
+            279,
+            162
+          ]
+        }
+      ]
+    }
+  }
+}
