@@ -1,9 +1,11 @@
-# CORD v2 receipt slice: pinned sources, no extraction result yet
+# CORD v2 receipt slice: pinned sources and development baseline
 
 **Status, 12 October 2026:** the creator-hosted test parquet was downloaded,
 verified, and converted to a local source cohort with separate gold labels.
-No receipt in this slice has been processed by the current product runtime as
-part of this receipt, so no extraction accuracy is claimed.
+The 60-image development split has been processed by the current no-model
+product path. Its [separate evaluation report](CORD_DEVELOPMENT_NO_MODEL_V1.md)
+records zero exact recall on the mapped positive labels. The 40-image reserved
+split remains unprocessed by this workflow.
 
 ## Source and rights
 
@@ -93,7 +95,7 @@ CORD publishes boxes and word text, but this product gold does not assert OCR
 character-offset evidence spans. These derived scores must not be compared
 with official CORD parsing scores.
 
-## Reproduce, then execute after the volume gate
+## Reproduce and evaluate
 
 Install the optional reader dependencies in an isolated environment. The
 staging code requires `pyarrow` and Pillow; `huggingface_hub` is needed only
@@ -114,10 +116,10 @@ different name, hash, schema, row count, or test version. Use a new directory
 when reproducing an existing stage. Compare its `metadata.json` hashes to
 the receipt above before a run.
 
-After the separate OCR and 2,000-source execution gates complete, process
-the two image-only input directories with the same frozen product commit and
-model/OCR configuration. For each split, verify every source was processed,
-including failed or unsupported documents, then run the separate scorer:
+The development run used the image-only input directory and pinned local
+Tesseract configuration documented in its evaluation report. To repeat it,
+verify every source was processed, including failed or unsupported documents,
+then run the separate scorer:
 
 ```powershell
 python -m idpo.cli process-auto `
@@ -136,10 +138,10 @@ python -m product_eval.datasets.cord_positive_score `
 ```
 
 Use `input_reserved`, `cohort_reserved.jsonl`, `gold_reserved.jsonl`, and
-`--min-unique 40` for one final reserved run after development choices are
-fixed. Record both run IDs, product commit, model/provider, OCR configuration,
-candidate hashes, execution receipts, and review decisions. If a model is
-configured, `process-auto` also needs matching `--model` and `--api-base-url`
-arguments and its API key environment variable; keep that configuration the
-same across both splits. The default `process-auto` path uses the local
-baseline. Neither path has yet been run for this CORD stage.
+`--min-unique 40` for one final reserved run only after development choices
+are fixed. Record both run IDs, product commit, model/provider, OCR
+configuration, candidate hashes, execution receipts, and review decisions.
+If a model is configured, `process-auto` also needs matching `--model` and
+`--api-base-url` arguments and its API key environment variable; keep that
+configuration the same across both splits. The default `process-auto` path
+uses the local baseline.
