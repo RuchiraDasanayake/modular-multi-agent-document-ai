@@ -38,6 +38,8 @@ MAX_FILE_BYTES = 2_000_000
 MAX_PAGE_PIXELS = 25_000_000
 RENDER_SCALE = 2.0
 DOCUMENT_TIMEOUT_SECONDS = 360
+MAX_PROCESS_TREE_RSS_BYTES = 18 * 1024**3
+MIN_AVAILABLE_MEMORY_BYTES = 2 * 1024**3
 PACKAGE_VERSIONS = {
     "paddleocr": "3.7.0",
     "paddlepaddle": "3.2.1",
@@ -189,7 +191,7 @@ def bounded_worker(command: list[str], env: dict[str, str], cwd: Path) -> tuple[
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     started = time.perf_counter()
     peak_rss = 0
-    timed_out = False
+    stop_reason = None
     try:
         try:
             observer = psutil.Process(process.pid)
@@ -203,7 +205,10 @@ def bounded_worker(command: list[str], env: dict[str, str], cwd: Path) -> tuple[
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
             if time.perf_counter() - started >= DOCUMENT_TIMEOUT_SECONDS:
-                timed_out = True
+                stop_reason = "timeout"
+            elif peak_rss > MAX_PROCESS_TREE_RSS_BYTES or psutil.virtual_memory().available < MIN_AVAILABLE_MEMORY_BYTES:
+                stop_reason = "resource_limit"
+            if stop_reason is not None:
                 for child in observer.children(recursive=True) if observer else []:
                     try:
                         child.kill()
@@ -217,7 +222,7 @@ def bounded_worker(command: list[str], env: dict[str, str], cwd: Path) -> tuple[
         if process.poll() is None:
             process.kill()
             process.wait(timeout=10)
-    return ("timeout" if timed_out else "finished", code, peak_rss)
+    return (stop_reason or "finished", code, peak_rss)
 
 
 def table_strings(pages: list[dict[str, Any]]) -> tuple[list[str], list[list[str]], dict[str, int]]:
@@ -415,8 +420,8 @@ def run(selection: Path, cohort: Path, corpus_root: Path, gold: Path, config: Pa
                     env=env, cwd=Path(__file__).resolve().parents[1],
                 )
                 worker = folder / "worker.json"
-                if worker_status == "timeout":
-                    status = "timeout"
+                if worker_status in {"timeout", "resource_limit"}:
+                    status = worker_status
                 elif exit_code == 0 and worker.exists():
                     outcome = json.loads(worker.read_text(encoding="utf-8"))
                     status = outcome["status"]
@@ -446,6 +451,8 @@ def run(selection: Path, cohort: Path, corpus_root: Path, gold: Path, config: Pa
                                   "render": "PDFium 144 DPI", "max_pages": MAX_PAGES,
                                   "max_file_bytes": MAX_FILE_BYTES,
                                   "document_timeout_seconds": DOCUMENT_TIMEOUT_SECONDS,
+                                  "max_process_tree_rss_bytes": MAX_PROCESS_TREE_RSS_BYTES,
+                                  "min_available_memory_bytes": MIN_AVAILABLE_MEMORY_BYTES,
                                   "formula_chart_seal_preprocess": False},
                 "score_sha256": sha256_file(score_path), "raw_outputs_outside_git": True}
     write_json(output_dir / "run.json", metadata)

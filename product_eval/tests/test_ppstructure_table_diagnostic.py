@@ -2,12 +2,24 @@
 
 from __future__ import annotations
 
+import os
+import sys
 from pathlib import Path
 
 import pytest
 
 from product_eval import ppstructure_table_diagnostic as tables
 from product_eval.contracts import ContractError
+
+
+def test_bounded_worker_stops_when_memory_limit_is_reached(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(tables, "MAX_PROCESS_TREE_RSS_BYTES", 0)
+    status, exit_code, peak_rss = tables.bounded_worker(
+        [sys.executable, "-c", "import time; time.sleep(10)"], os.environ.copy(), tmp_path,
+    )
+    assert status == "resource_limit"
+    assert exit_code is not None
+    assert peak_rss > 0
 
 
 def _config(model_dir: Path) -> dict:

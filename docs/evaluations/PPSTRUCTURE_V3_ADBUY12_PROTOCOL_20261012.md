@@ -97,6 +97,11 @@ resolution from another parser can affect its accuracy; paired source IDs and
 the same row scorer make the outcome comparable as a pipeline choice, not a
 controlled neural model ablation.
 
+The child is also stopped with `resource_limit` when sampled process-tree RSS
+exceeds 18 GiB or available host memory drops below 2 GiB. Sampling every
+250 ms cannot prevent every transient allocation peak. A resource-limited
+document remains in the 12-document failure denominator.
+
 The first gate is **complete exact linked rows** and exact one-to-one cells on
 this 219-row slice. Also inspect scan versus native PDF failures, extra HTML
 rows, field/column shifts, source page/table boxes, malformed output,
