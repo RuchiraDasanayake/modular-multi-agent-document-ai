@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { writeFileSync as writeFileAtomicSync } from "atomically";
 import type {
   JobAHMNSummary,
   JobCounts,
@@ -380,7 +381,7 @@ function claimIfRunning(job: JobStatus): JobStatus {
 function persistJob(job: JobStatus): void {
   const normalized = normalizeJob(claimIfRunning(job));
   const filePath = getJobFile(normalized.jobId);
-  fs.writeFileSync(filePath, JSON.stringify(normalized, null, 2), "utf-8");
+  writeFileAtomicSync(filePath, JSON.stringify(normalized, null, 2), "utf8");
   inMemoryJobs.set(normalized.jobId, normalized);
 }
 
