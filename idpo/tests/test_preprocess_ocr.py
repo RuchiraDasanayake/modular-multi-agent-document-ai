@@ -66,6 +66,18 @@ def test_extract_with_confidence_uses_tesseract_word_confidence() -> None:
     assert conf == 88.0
 
 
+def test_stale_tessdata_environment_falls_back_to_tesseract_directory(tmp_path: Path, monkeypatch) -> None:
+    valid_tessdata = tmp_path / "tessdata"
+    valid_tessdata.mkdir()
+    monkeypatch.setenv("TESSDATA_PREFIX", str(tmp_path / "missing"))
+
+    agent = OcrAgent()
+    config = agent._tessdata_config(valid_tessdata, psm=6, oem=3)
+
+    assert f"--tessdata-dir {agent._short_path(str(valid_tessdata))}" in config
+    assert str(tmp_path / "missing") not in config
+
+
 def test_native_text_detector_accepts_clean_text() -> None:
     agent = OcrAgent()
     assert agent._looks_like_native_text("Invoice Number INV-100 Total Amount 120.00 Due Date 2026-03-25")  # noqa: SLF001

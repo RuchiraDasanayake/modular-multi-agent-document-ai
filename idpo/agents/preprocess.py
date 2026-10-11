@@ -724,10 +724,10 @@ class OcrAgent(Agent):
     def _tessdata_config(self, tessdata_dir: Path | None, psm: int, oem: int) -> str:
         parts = [f"--oem {oem}", f"--psm {psm}"]
         env_dir = os.environ.get("TESSDATA_PREFIX")
-        if env_dir:
+        if env_dir and Path(env_dir).is_dir():
             short_path = self._short_path(env_dir)
             parts.append(f"--tessdata-dir {short_path}")
-        elif tessdata_dir and tessdata_dir.exists():
+        elif tessdata_dir and tessdata_dir.is_dir():
             short_path = self._short_path(str(tessdata_dir))
             parts.append(f"--tessdata-dir {short_path}")
         return " ".join(parts)

@@ -33,15 +33,15 @@ class OpenAICompatibleChat:
     ) -> None:
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", api_key_env):
             raise ValueError("api_key_env must name one environment variable")
-        key = os.environ.get(api_key_env, "").strip()
-        if not key:
-            raise ValueError(f"{api_key_env} is not set")
         parsed = urlparse(base_url)
-        is_local = parsed.hostname in {"localhost", "127.0.0.1", "::1"}
-        if parsed.scheme != "https" and not (parsed.scheme == "http" and is_local):
+        local_http = parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1", "::1"}
+        if parsed.scheme != "https" and not local_http:
             raise ValueError("model base URL must use HTTPS or local HTTP")
         if not parsed.netloc or not model.strip():
             raise ValueError("model base URL and model ID are required")
+        key = os.environ.get(api_key_env, "").strip()
+        if not key and not local_http:
+            raise ValueError(f"{api_key_env} is not set")
         try:
             from openai import OpenAI
         except ImportError as exc:
@@ -49,7 +49,13 @@ class OpenAICompatibleChat:
         self.model = model.strip()
         self.base_url = base_url.rstrip("/")
         self.max_tokens = max(1, int(max_tokens))
-        self.client = OpenAI(api_key=key, base_url=self.base_url, timeout=max(1, timeout_s))
+        # The SDK requires a nonempty key even when a loopback server has no authentication.
+        # Never forward a cloud key from this process to a local model server.
+        self.client = OpenAI(
+            api_key="local-no-auth" if local_http else key,
+            base_url=self.base_url,
+            timeout=max(1, timeout_s),
+        )
 
     def complete_json(self, *, system: str, prompt: str) -> ModelReply:
         started = time.perf_counter()

@@ -8,6 +8,8 @@ import sys
 import types
 from pathlib import Path
 
+import pytest
+
 from idpo.product_auto import process_auto
 from idpo.product_auto.provider import ModelReply, OpenAICompatibleChat
 from product_eval.contracts import load_jsonl
@@ -315,3 +317,38 @@ def test_openai_compatible_adapter_uses_env_key_and_sanitizes_errors(monkeypatch
     error_reply = model.complete_json(system="system", prompt="prompt")
     assert error_reply.error == "RuntimeError"
     assert secret not in str(error_reply)
+
+
+def test_openai_compatible_adapter_allows_keyless_loopback_only(monkeypatch) -> None:
+    monkeypatch.delenv("PRODUCT_TEST_KEY", raising=False)
+    captured: dict = {}
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setitem(sys.modules, "openai", types.SimpleNamespace(OpenAI=FakeOpenAI))
+    model = OpenAICompatibleChat(
+        base_url="http://127.0.0.1:8080/v1",
+        model="local-model",
+        api_key_env="PRODUCT_TEST_KEY",
+    )
+    assert model.model == "local-model"
+    assert captured["api_key"] == "local-no-auth"
+    assert captured["base_url"] == "http://127.0.0.1:8080/v1"
+
+    monkeypatch.setenv("PRODUCT_TEST_KEY", "cloud-secret")
+    OpenAICompatibleChat(
+        base_url="http://localhost:8080/v1", model="local-model", api_key_env="PRODUCT_TEST_KEY"
+    )
+    assert captured["api_key"] == "local-no-auth"
+    monkeypatch.delenv("PRODUCT_TEST_KEY")
+
+    with pytest.raises(ValueError, match="PRODUCT_TEST_KEY is not set"):
+        OpenAICompatibleChat(
+            base_url="https://remote.example/v1", model="remote-model", api_key_env="PRODUCT_TEST_KEY"
+        )
+    with pytest.raises(ValueError, match="HTTPS or local HTTP"):
+        OpenAICompatibleChat(
+            base_url="http://localhost.evil.example/v1", model="remote-model", api_key_env="PRODUCT_TEST_KEY"
+        )
