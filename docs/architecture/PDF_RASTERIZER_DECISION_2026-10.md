@@ -1,0 +1,21 @@
+# Product PDF rasterizer decision (12 October 2026)
+
+The product's default scan-page rasterizer is **pypdfium2 5.14.0**. The previous default was PyMuPDF. The [PyMuPDF publisher](https://artifex.com/blog/pymupdf-acquired-by-artifex) describes AGPL and commercial licensing; [pypdfium2](https://github.com/pypdfium2-team/pypdfium2#licensing) offers its Python code under Apache-2.0 or BSD-3-Clause and bundles PDFium under a BSD-style license with additional third-party notices. This removes PyMuPDF from the default product dependencies; it does not make every PDF-related dependency notice-free. Preserve the wheel's `*.dist-info/licenses/` contents when distributing worker images, and inspect the notices for the exact wheel/platform shipped. The 5.14.0 Windows x64 wheel inspected here includes PDFium and dependency notices under `licenses/data/windows_x64/BUILD_LICENSES/`. A Python 3.13 compatible Linux x64 wheel for the product worker downloaded successfully; SHA-256 `11f281613fa22313d9c7ab89947665e84eccf8ebe40e1198a84a88352305648d`, with corresponding `licenses/data/linux_x64/BUILD_LICENSES/` notices. This is a dependency decision, not a legal opinion.
+
+`rasterize_pdf_page` still selects one **zero-based** PDF page, renders at `dpi / 72` scale, applies the PDF's stored rotation, creates an independent RGB image, and records the PDF source and requested DPI in page metadata. The existing `pdf2image` + Poppler path remains a fallback for a missing/failed PDFium renderer. [PDFium's Python API is not thread-safe](https://pypdfium2.readthedocs.io/en/stable/python_api.html#incompatibility-with-threading), so rendering and object closure are serialized within one process; separate worker processes can render independently. Preflight accepts either PDFium or `pdf2image` with a discoverable `pdftoppm` binary.
+
+## Bounded public-page smoke
+
+Three previously frozen public VRDU scan pages were checked against their retained v5 product PNGs, rendered by the old backend. Each PDF's SHA-256 was verified against the frozen cohort before loading. Both renderers used 300 DPI. The new product helper produced images for all three requested pages, including one PDF page with stored 270° rotation. RGB mean absolute difference was computed on the overlapping pixel rectangle; it is a renderer difference measure, not an OCR quality metric.
+
+| Family / page | Stored PDF rotation | Old -> PDFium pixels | Overlap RGB MAE (0–255) | Direct Tesseract `--psm 6` page-local scalar strings, old -> PDFium |
+| --- | ---: | --- | ---: | ---: |
+| Ad-buy / 1 | 270° | 2550×3300 -> 2550×3301 | 3.597 | 7/8 -> 7/8 |
+| Registration / 2 | 0° | 2544×3295 -> 2544×3295 | 0.448 | 0/3 -> 0/3 |
+| Registration / 2 | 0° | 2552×3300 -> 2552×3301 | 0.848 | 3/3 -> 3/3 |
+
+PDFium rounded one dimension one pixel larger on two pages. Do not assume old pixel dimensions or reuse pixel boxes across renderers without a transform. Page identity, upright orientation and requested DPI were retained in this smoke. Direct Tesseract found the same **10/14** exact page-local scalar strings across these three old and new PNGs. That narrow check does not establish full extraction equivalence or rule out OCR regressions on other documents; the 2,000-document post-change gate remains necessary.
+
+Raw PNGs and comparison records are outside the repository at `E:\DocAI-Benchmarks\vrdu-cohort-04a4df7\pdfium-render-smoke\`. `summary.json` SHA-256: `e80412cc36fabab137b113717f453bf61b21ef192b251d099ab33c2bd3382686`; `ocr_smoke.json` SHA-256: `50ba3608ef683a09b92b08c0cc05a9753f8967d63c6ee1e430a24b12ebd73fa0`. The source selection was the first ad-buy page and the first and third registration pages in the locked [30-page OCR manifest](../evaluations/RAPIDOCR_PPOCRV6_THIRTY_SCAN_PILOT.md); the third registration page was added to include a positive exact-string control. The Tesseract binary was the pinned local v5.5.3.20260724 build with `eng` traineddata described in that report. No private PDFs or cloud services were used.
+
+The historical `scripts/build_hard_docs_pack.py` benchmark generator still imports `fitz` to create a synthetic text-layer PDF. It is outside the product runtime and is not installed by default. Rebuilding that historical pack requires an explicit, separately licensed PyMuPDF installation; the tracked pack and product path do not require it.

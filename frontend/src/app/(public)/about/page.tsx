@@ -24,7 +24,7 @@ const values = [
 ];
 
 const techStack = [
-    { category: "Pipeline", items: ["Python 3.10", "PaddleOCR + Tesseract", "Ollama (local LLM)", "PyMuPDF"] },
+    { category: "Pipeline", items: ["Python 3.10", "PaddleOCR + Tesseract", "Ollama (local LLM)", "PDFium"] },
     { category: "Intelligence", items: ["Thompson Sampling", "RABI Cold Start", "DAAF Drift Detection", "Grounded Validation"] },
     { category: "Frontend", items: ["Next.js 15", "React 19", "Tailwind CSS", "Framer Motion"] },
     { category: "Services", items: ["FastAPI Gateway", "JWT Auth", "PostgreSQL", "Docker Compose"] },

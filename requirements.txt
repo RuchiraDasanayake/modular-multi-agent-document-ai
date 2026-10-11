@@ -27,9 +27,9 @@ imgaug==0.4.0
 albumentations==1.4.10
 python-docx==1.2.0
 
-# PDF (PyMuPDF renders scanned PDF pages for OCR without a Poppler install)
+# PDF (PDFium renders scanned pages; Poppler remains an optional fallback)
 pypdf==6.10.2
-pymupdf==1.26.7
+pypdfium2==5.14.0
 
 # Frontend API server
 fastapi==0.136.0

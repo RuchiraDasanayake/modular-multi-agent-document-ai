@@ -5,7 +5,6 @@ from __future__ import annotations
 import math
 import os
 import re
-import shutil
 import subprocess
 import threading
 import time
@@ -17,7 +16,7 @@ from typing import Any
 from idpo.agents.base import Agent, AgentContext
 from idpo.agents.degarble import degarble, is_garbled
 from idpo.core.contracts import AgentMessage
-from idpo.core.preflight import find_tesseract_cmd
+from idpo.core.preflight import find_poppler_path, find_tesseract_cmd
 from idpo.core.types import AgentResult, Document, Page, StageSignal
 
 # A PaddleOCR engine keeps working memory for every input shape it has run (about 0.5 GB per shape at the
@@ -25,6 +24,8 @@ from idpo.core.types import AgentResult, Document, Page, StageSignal
 # recognition crops up to a few fixed widths.
 _PADDLE_ENGINES: dict[str, Any] = {}
 _PADDLE_LOCK = threading.Lock()
+# PDFium is not thread-safe, including calls made on different documents.
+_PDFIUM_RENDER_LOCK = threading.Lock()
 _PADDLE_REC_WIDTH_STEP_PX = 320
 _DENOISE_MIN_SHORT_SIDE_PX = 1600
 # Boxes whose vertical centres differ by less than this fraction of the shorter box height share a row.
@@ -150,15 +151,26 @@ def _save_processed_image(ctx: AgentContext, doc_id: str, page_number: int, stag
 
 
 def _render_pdf_page(pdf_path: str, page_index: int, dpi: int):
-    """Render one PDF page to a PIL image. PyMuPDF first (no system binary), then pdf2image/Poppler."""
+    """Render one PDF page to an owned RGB image, using PDFium then Poppler."""
     try:
-        import fitz
-        from PIL import Image
+        import pypdfium2 as pdfium
 
-        with fitz.open(pdf_path) as pdf:
-            if 0 <= page_index < pdf.page_count:
-                pixmap = pdf[page_index].get_pixmap(dpi=dpi)
-                return Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
+        with _PDFIUM_RENDER_LOCK:
+            pdf = pdfium.PdfDocument(pdf_path)
+            try:
+                if 0 <= page_index < len(pdf):
+                    page = pdf[page_index]
+                    try:
+                        bitmap = page.render(scale=dpi / 72)
+                        try:
+                            # to_pil() may share PDFium's buffer. Detach before closing it.
+                            return bitmap.to_pil().convert("RGB").copy()
+                        finally:
+                            bitmap.close()
+                    finally:
+                        page.close()
+            finally:
+                pdf.close()
     except Exception:
         pass
     try:
@@ -819,33 +831,9 @@ class OcrAgent(Agent):
     def _find_poppler_path(self) -> str | None:
         if self._poppler_searched:
             return self._cached_poppler_path
-        env_path = os.environ.get("POPPLER_PATH")
-        if env_path and Path(env_path).exists():
-            self._cached_poppler_path = env_path
-            self._poppler_searched = True
-            return env_path
-        which_path = shutil.which("pdftoppm")
-        if which_path:
-            self._cached_poppler_path = str(Path(which_path).parent)
-            self._poppler_searched = True
-            return self._cached_poppler_path
-
-        local_appdata = os.environ.get("LOCALAPPDATA")
-        if not local_appdata:
-            return None
-        base = Path(local_appdata) / "Microsoft" / "WinGet" / "Packages"
-        if not base.exists():
-            return None
-        candidates = base.glob("*Poppler*")
-        for candidate in candidates:
-            for bin_path in [candidate / "Library" / "bin", candidate / "bin"]:
-                exe_path = bin_path / "pdftoppm.exe"
-                if exe_path.exists():
-                    self._cached_poppler_path = str(bin_path)
-                    self._poppler_searched = True
-                    return self._cached_poppler_path
+        self._cached_poppler_path = find_poppler_path()
         self._poppler_searched = True
-        return None
+        return self._cached_poppler_path
 
     def _configure_tesseract(self, pytesseract) -> Path | None:
         if self._tessdata_configured:

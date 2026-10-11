@@ -5,11 +5,13 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import sys
 import urllib.error
 import urllib.request
-import sys
+from pathlib import Path
 
 from idpo.core.config import PipelineConfig
+
 
 def run_preflight(config: PipelineConfig, strict: bool = False) -> list[str]:
     issues: list[str] = []
@@ -18,7 +20,7 @@ def run_preflight(config: PipelineConfig, strict: bool = False) -> list[str]:
     if str(config.preprocessing.ocr_engine).lower() in {"paddle", "paddleocr"}:
         issues.extend(_check_paddleocr())
     issues.extend(_check_tesseract())
-    issues.extend(_check_poppler())
+    issues.extend(_check_pdf_rasterizer())
 
     if config.llm.use_extraction:
         if config.llm.default_mode == "local" and config.llm.provider.lower() == "ollama":
@@ -43,10 +45,6 @@ def _check_python_deps() -> list[str]:
         import pytesseract  # noqa: F401
     except Exception:
         missing.append("Python package pytesseract is missing (install with pip install -e .[ocr])")
-    try:
-        import pdf2image  # noqa: F401
-    except Exception:
-        missing.append("Python package pdf2image is missing (install with pip install -e .[ocr])")
     return missing
 
 def _check_paddleocr() -> list[str]:
@@ -85,18 +83,39 @@ def _check_tesseract() -> list[str]:
         return []
     return ["Tesseract OCR not found (install it, add it to PATH, or set TESSERACT_CMD)"]
 
-def _check_poppler() -> list[str]:
+
+def find_poppler_path() -> str | None:
+    """Return a Poppler binary directory accepted by pdf2image, if available."""
+    configured = os.environ.get("POPPLER_PATH", "").strip()
+    if configured and shutil.which("pdftoppm", path=configured):
+        return configured
+    on_path = shutil.which("pdftoppm")
+    if on_path:
+        return str(Path(on_path).parent)
+    local_appdata = os.environ.get("LOCALAPPDATA")
+    if local_appdata:
+        base = Path(local_appdata) / "Microsoft" / "WinGet" / "Packages"
+        if base.exists():
+            for package in base.glob("*Poppler*"):
+                for binary_dir in (package / "Library" / "bin", package / "bin"):
+                    if (binary_dir / "pdftoppm.exe").is_file():
+                        return str(binary_dir)
+    return None
+
+
+def _check_pdf_rasterizer() -> list[str]:
     try:
-        import fitz  # noqa: F401  PyMuPDF renders scanned PDF pages without Poppler
+        import pypdfium2  # noqa: F401
         return []
     except Exception:
         pass
-    env_path = os.environ.get("POPPLER_PATH")
-    if env_path and (shutil.which("pdftoppm") or os.path.exists(env_path)):
+    try:
+        import pdf2image  # noqa: F401
+    except Exception:
+        return ["No PDF rasterizer for scanned PDFs (install pypdfium2, or pdf2image with Poppler)"]
+    if find_poppler_path():
         return []
-    if shutil.which("pdftoppm"):
-        return []
-    return ["No PDF rasterizer for scanned PDFs (pip install pymupdf, or install Poppler and set POPPLER_PATH)"]
+    return ["No PDF rasterizer for scanned PDFs (install pypdfium2, or install Poppler and set POPPLER_PATH)"]
 
 def _check_ollama(base_url: str, model: str) -> list[str]:
     url = base_url.rstrip("/") + "/api/tags"

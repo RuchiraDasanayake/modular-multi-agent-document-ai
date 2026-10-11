@@ -85,8 +85,8 @@ Required on the demo host:
 - Ollama
 - pulled Ollama model `qwen3.5:9b` (the `llm.local_model` in `configs/idpo_research_config.json`)
 - `paddleocr` installed in the Python environment
-- `pymupdf` installed in the Python environment, for scanned / image-only PDFs
-  (Poppler is no longer required; `pdf2image` + Poppler is only a fallback)
+- `pypdfium2==5.14.0` installed in the Python environment for scanned / image-only PDFs.
+  `pdf2image` with Poppler remains a fallback if PDFium cannot render a page.
 - Tesseract OCR, as the fallback OCR engine. It is found on `PATH`, via
   `TESSERACT_CMD`, or in the default Windows install folders under
   `Program Files` / `%LOCALAPPDATA%\Programs`

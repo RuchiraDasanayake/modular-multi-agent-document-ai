@@ -484,6 +484,97 @@ def test_rasterize_pdf_page_renders_the_requested_page_of_an_image_only_pdf(tmp_
         assert img.size == (300, 500)
 
 
+def test_rasterize_pdf_page_honors_pdf_page_rotation(tmp_path: Path) -> None:
+    pypdf = pytest.importorskip("pypdf")
+    source = tmp_path / "source.pdf"
+    rotated = tmp_path / "rotated.pdf"
+    Image.new("RGB", (400, 300), "white").save(source, "PDF", resolution=100)
+    writer = pypdf.PdfWriter()
+    writer.add_page(pypdf.PdfReader(source).pages[0]).rotate(90)
+    with rotated.open("wb") as file:
+        writer.write(file)
+
+    page = Page(number=1, text="", image_path=str(rotated), metadata={"pdf_page_index": 0})
+    rendered = rasterize_pdf_page(page, "rotated", _ctx(tmp_path), dpi=100)
+
+    assert rendered.image_path is not None
+    with Image.open(rendered.image_path) as img:
+        assert img.size == (300, 400)
+
+
+def test_pdfium_failure_falls_back_to_one_based_poppler_page(tmp_path: Path, monkeypatch) -> None:
+    import pypdfium2
+
+    expected = Image.new("RGB", (30, 50), "white")
+    calls = []
+
+    def unavailable(pdf_path):  # noqa: ANN001, ARG001
+        raise RuntimeError("PDFium unavailable")
+
+    def poppler(pdf_path, **kwargs):  # noqa: ANN001
+        calls.append((pdf_path, kwargs))
+        return [expected]
+
+    monkeypatch.setattr(pypdfium2, "PdfDocument", unavailable)
+    monkeypatch.setattr(OcrAgent, "_find_poppler_path", lambda self: str(tmp_path))
+    monkeypatch.setattr("pdf2image.convert_from_path", poppler)
+
+    actual = preprocess._render_pdf_page("scan.pdf", page_index=1, dpi=150)  # noqa: SLF001
+
+    assert actual is expected
+    assert calls == [("scan.pdf", {"first_page": 2, "last_page": 2, "poppler_path": str(tmp_path), "dpi": 150})]
+
+
+def test_pdfium_render_is_serialized_and_image_does_not_share_bitmap_buffer(monkeypatch) -> None:
+    import pypdfium2
+
+    state = {"active": 0, "peak": 0}
+    guard = threading.Lock()
+
+    class Bitmap:
+        def __init__(self) -> None:
+            self.image = Image.new("RGB", (10, 10), "white")
+
+        def to_pil(self):
+            return self.image
+
+        def close(self) -> None:
+            self.image.paste("black", (0, 0, 10, 10))
+
+    class PdfPage:
+        def render(self, scale):  # noqa: ANN001
+            assert scale == 100 / 72
+            time.sleep(0.01)
+            return Bitmap()
+
+        def close(self) -> None:
+            pass
+
+    class PdfDocument:
+        def __init__(self, path):  # noqa: ANN001, ARG002
+            with guard:
+                state["active"] += 1
+                state["peak"] = max(state["peak"], state["active"])
+
+        def __len__(self) -> int:
+            return 1
+
+        def __getitem__(self, index):  # noqa: ANN001
+            assert index == 0
+            return PdfPage()
+
+        def close(self) -> None:
+            with guard:
+                state["active"] -= 1
+
+    monkeypatch.setattr(pypdfium2, "PdfDocument", PdfDocument)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        images = list(pool.map(lambda _: preprocess._render_pdf_page("scan.pdf", 0, 100), range(4)))
+
+    assert state == {"active": 0, "peak": 1}
+    assert all(image is not None and image.getpixel((0, 0)) == (255, 255, 255) for image in images)
+
+
 def test_rasterize_pdf_page_leaves_image_pages_untouched(tmp_path: Path) -> None:
     page = Page(number=1, text="", image_path=str(tmp_path / "receipt.png"))
     assert rasterize_pdf_page(page, "receipt", _ctx(tmp_path)) is page
