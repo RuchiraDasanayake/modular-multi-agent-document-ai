@@ -7,7 +7,7 @@ import types
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageFilter, ImageOps
 
 from idpo.agents import preprocess
 from idpo.agents.base import AgentContext
@@ -15,7 +15,7 @@ from idpo.agents.preprocess import DenoiseAgent, OcrAgent, rasterize_pdf_page
 from idpo.core.artifacts import ArtifactStore
 from idpo.core.config import PipelineConfig
 from idpo.core.provenance import ProvenanceRecorder
-from idpo.core.types import Page
+from idpo.core.types import Document, Page
 
 
 def _ctx(tmp_path: Path, config: PipelineConfig | None = None) -> AgentContext:
@@ -64,6 +64,56 @@ def test_extract_with_confidence_uses_tesseract_word_confidence() -> None:
     )
     assert text == "Total Amount: 100.00"
     assert conf == 88.0
+
+
+def test_single_initial_ocr_uses_one_variant_while_default_keeps_search(monkeypatch) -> None:
+    agent = OcrAgent()
+    image = Image.new("RGB", (20, 20), "white")
+    calls: list[str] = []
+
+    def extract(pytesseract, candidate_image, lang, config):  # noqa: ANN001, ARG001
+        calls.append(config)
+        return "readable text", 35.0
+
+    monkeypatch.setattr(agent, "_extract_with_confidence", extract)
+    agent._run_ocr_variants(  # noqa: SLF001
+        image, object(), None, "eng", 6, 3, [], ImageOps, ImageFilter, single_pass=True
+    )
+    assert len(calls) == 1
+    assert "--psm 6" in calls[0]
+
+    calls.clear()
+    agent._run_ocr_variants(image, object(), None, "eng", 6, 3, [], ImageOps, ImageFilter)  # noqa: SLF001
+    assert len(calls) > 1
+    assert PipelineConfig().preprocessing.ocr_initial_single_pass is False
+
+
+def test_empty_product_initial_ocr_escalates_to_existing_retry(tmp_path: Path, monkeypatch) -> None:
+    cfg = PipelineConfig()
+    cfg.preprocessing.ocr_initial_single_pass = True
+    cfg.preprocessing.ocr_passes = 1
+    cfg.preprocessing.ocr_alt_psm = []
+    ctx = _ctx(tmp_path, cfg)
+    agent = OcrAgent()
+    settings_seen: list[dict] = []
+
+    def ocr_image(page, settings, engine_name):  # noqa: ANN001, ARG001
+        settings_seen.append(dict(settings))
+        if len(settings_seen) == 1:
+            return "", True, None, {"ocr_confidence": 0.0, "ocr_variant": "base"}
+        return "Recovered invoice number INV-17", True, None, {"ocr_confidence": 86.0, "ocr_variant": "base"}
+
+    monkeypatch.setattr(agent, "_ocr_image", ocr_image)
+    doc = Document(doc_id="scan", source="scanned", path="scan.png", pages=[Page(number=1, text="", image_path="scan.png")])
+    result = agent.run({"document": doc}, ctx)
+
+    assert len(settings_seen) == 2
+    assert settings_seen[0]["single_pass"] is True
+    assert settings_seen[0]["alt_psm"] == []
+    assert settings_seen[1]["single_pass"] is False
+    assert 11 in settings_seen[1]["alt_psm"]
+    assert result.artifacts["document"].pages[0].text == "Recovered invoice number INV-17"
+    assert result.artifacts["document"].pages[0].metadata["ocr_rerun_used"] is True
 
 
 def test_stale_tessdata_environment_falls_back_to_tesseract_directory(tmp_path: Path, monkeypatch) -> None:
@@ -157,7 +207,7 @@ def test_ocr_image_falls_back_to_tesseract_when_paddle_returns_no_text(tmp_path:
     monkeypatch.setattr(
         agent,
         "_run_ocr_variants",
-        lambda cleaned, pytesseract, tessdata_dir, lang, psm, oem, alt_psm, ImageOps, ImageFilter: (
+            lambda cleaned, pytesseract, tessdata_dir, lang, psm, oem, alt_psm, ImageOps, ImageFilter, single_pass=False: (
             "Total Amount: 42.00",
             {"ocr_psm": psm, "ocr_oem": oem, "ocr_variant": "base", "ocr_confidence": 88.0},
         ),

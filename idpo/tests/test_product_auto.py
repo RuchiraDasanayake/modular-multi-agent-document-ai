@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from idpo.product_auto import process_auto
+from idpo.agents.preprocess import OcrAgent
 from idpo.product_auto.provider import ModelReply, OpenAICompatibleChat
 from product_eval.contracts import load_jsonl
 
@@ -61,6 +62,8 @@ def test_invoice_baseline_preserves_zero_and_exact_spans(tmp_path: Path) -> None
     assert values["total"]["review_state"] == "pending"
     assert values["invoice_number"]["value"] == "INV-42"
     assert sidecar["reason"] == "unapproved_dynamic_schema"
+    assert sidecar["ocr_pages"][0]["page"] == 1
+    assert sidecar["ocr_pages"][0]["rerun_attempted"] is False
     assert sidecar["api_cost_usd"] is None
     assert candidate["measurements"]["latency_ms"] >= 0
     assert "api_cost_usd" not in candidate["measurements"]
@@ -75,6 +78,25 @@ def test_invoice_baseline_preserves_zero_and_exact_spans(tmp_path: Path) -> None
     assert receipt["run_id"] == "invoice"
     assert receipt["duration_ms"] >= 0
     assert json.loads((Path(run["run_dir"]) / "run.json").read_text(encoding="utf-8"))["doc_count"] == 1
+
+
+def test_product_auto_sets_single_initial_ocr_profile(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "invoice.txt"
+    source.write_text("Invoice Number: INV-42\n", encoding="utf-8")
+    seen: list[tuple[int, int, list[int], bool]] = []
+    original_run = OcrAgent.run
+
+    def inspect_run(self, payload, ctx):  # noqa: ANN001
+        preprocessing = ctx.config.preprocessing
+        seen.append((preprocessing.ocr_psm, preprocessing.ocr_passes, preprocessing.ocr_alt_psm, preprocessing.ocr_initial_single_pass))
+        return original_run(self, payload, ctx)
+
+    monkeypatch.setattr(OcrAgent, "run", inspect_run)
+    run = process_auto(source, run_id="fast_ocr", output_root=tmp_path / "runs")
+    run_payload = json.loads((Path(run["run_dir"]) / "run.json").read_text(encoding="utf-8"))
+
+    assert seen == [(6, 1, [], True)]
+    assert run_payload["ocr_profile"] == "psm6_single_initial_quality_retry"
 
 
 def test_numeric_identifiers_keep_leading_zeros(tmp_path: Path) -> None:

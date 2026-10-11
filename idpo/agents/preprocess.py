@@ -196,12 +196,16 @@ class OcrAgent(Agent):
         if quality_bin == "A" and content_profile == "text-heavy":
             alt_psm = []  # Skip alt PSM variants for clean text-heavy docs
         alt_psm_list = self._normalize_alt_psm(alt_psm, passes)
+        initial_single_pass = bool(
+            payload.get("initial_single_pass", ctx.config.preprocessing.ocr_initial_single_pass)
+        )
         settings = {
             "lang": lang,
             "psm": psm,
             "oem": oem,
             "dpi": dpi,
             "alt_psm": alt_psm_list,
+            "single_pass": initial_single_pass,
         }
         cleaned_pages: list[Page] = []
         failure_reason = None
@@ -237,7 +241,7 @@ class OcrAgent(Agent):
                 if (
                     page_used
                     and not page_failure
-                    and ocr_text
+                    and (ocr_text or initial_single_pass)
                     and rerun_reason is not None
                     and int(ctx.config.preprocessing.ocr_max_reruns_per_page) > 0
                 ):
@@ -436,6 +440,7 @@ class OcrAgent(Agent):
         psm = int(settings.get("psm") or 6)
         oem = int(settings.get("oem") or 3)
         alt_psm = settings.get("alt_psm") or []
+        single_pass = bool(settings.get("single_pass", False))
         dpi = int(settings.get("dpi") or 300)
         requested_engine = (engine_name or "").strip().lower()
         if requested_engine in {"paddle", "paddleocr"}:
@@ -469,6 +474,7 @@ class OcrAgent(Agent):
                     oem,
                     alt_psm,
                     dpi,
+                    single_pass,
                 )
                 if failure:
                     return "", True, failure, {}
@@ -487,6 +493,7 @@ class OcrAgent(Agent):
                     alt_psm,
                     ImageOps,
                     ImageFilter,
+                    single_pass=single_pass,
                 )
                 meta["ocr_rotation_applied"] = rotation
                 meta["ocr_engine_used"] = "tesseract"
@@ -614,6 +621,7 @@ class OcrAgent(Agent):
         oem: int,
         alt_psm: list[int],
         dpi: int,
+        single_pass: bool = False,
     ) -> tuple[str, str | None, dict[str, object]]:
         page_index = page.metadata.get("pdf_page_index", 0)
         try:
@@ -641,6 +649,7 @@ class OcrAgent(Agent):
                     alt_psm,
                     ImageOps,
                     ImageFilter,
+                    single_pass=single_pass,
                 )
                 meta["ocr_rotation_applied"] = rotation
                 return text, None, meta
@@ -666,6 +675,7 @@ class OcrAgent(Agent):
                             alt_psm,
                             ImageOps,
                             ImageFilter,
+                            single_pass=single_pass,
                         )
                         meta["ocr_rotation_applied"] = rotation
                         texts.append(text)
@@ -764,6 +774,7 @@ class OcrAgent(Agent):
         )
         retry_psm = [psm] + list(ctx.config.preprocessing.ocr_retry_alt_psm or [])
         retry_settings["alt_psm"] = self._normalize_alt_psm(retry_psm, passes=2)
+        retry_settings["single_pass"] = False
         return retry_settings
 
     def _normalize_image(self, img, Image, ImageOps, ImageFilter):
@@ -790,26 +801,29 @@ class OcrAgent(Agent):
         alt_psm: list[int],
         ImageOps,
         ImageFilter,
+        *,
+        single_pass: bool = False,
     ) -> tuple[str, dict[str, object]]:
         variants = [("base", img)]
-        # Only add inverted variant if we have alt_psm (i.e. multi-pass mode)
-        if alt_psm:
+        # Product auto starts with one variant; the quality-triggered retry uses the full search.
+        if not single_pass and alt_psm:
             try:
                 variants.append(("invert", ImageOps.invert(img.convert("RGB")).convert("L")))
             except Exception:
                 pass
         # Thresholding and median smoothing improve OCR on noisy scans.
-        try:
-            binary = img.convert("L").point(lambda px: 255 if px > 170 else 0, mode="1").convert("L")
-            variants.append(("binary", binary))
-        except Exception:
-            pass
-        try:
-            median = img.convert("L").filter(ImageFilter.MedianFilter(size=3))
-            variants.append(("median", median))
-        except Exception:
-            pass
-        psm_values = [psm] + [value for value in alt_psm if value != psm]
+        if not single_pass:
+            try:
+                binary = img.convert("L").point(lambda px: 255 if px > 170 else 0, mode="1").convert("L")
+                variants.append(("binary", binary))
+            except Exception:
+                pass
+            try:
+                median = img.convert("L").filter(ImageFilter.MedianFilter(size=3))
+                variants.append(("median", median))
+            except Exception:
+                pass
+        psm_values = [psm] if single_pass else [psm] + [value for value in alt_psm if value != psm]
         best_text = ""
         best_score = -1.0
         best_meta = {"ocr_psm": psm, "ocr_oem": oem, "ocr_variant": "base", "ocr_confidence": 0.0}

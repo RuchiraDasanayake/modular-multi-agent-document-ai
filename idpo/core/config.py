@@ -21,6 +21,7 @@ class PreprocessingConfig:
     ocr_dpi: int = 300
     ocr_alt_psm: list[int] = field(default_factory=lambda: [4, 11])
     ocr_passes: int = 2
+    ocr_initial_single_pass: bool = False
     ocr_min_confidence: float = 55.0
     ocr_retry_dpi: int = 450
     ocr_retry_alt_psm: list[int] = field(default_factory=lambda: [3, 4, 6, 11, 12])

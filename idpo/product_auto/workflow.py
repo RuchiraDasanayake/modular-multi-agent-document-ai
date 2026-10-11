@@ -74,6 +74,10 @@ def process_auto(
     config = PipelineConfig()
     config.preprocessing.ocr_engine = ocr_engine
     config.preprocessing.ocr_lang = ocr_lang
+    config.preprocessing.ocr_psm = 6
+    config.preprocessing.ocr_passes = 1
+    config.preprocessing.ocr_alt_psm = []
+    config.preprocessing.ocr_initial_single_pass = True
     ctx = AgentContext(
         config=config,
         artifact_store=ArtifactStore(str(run_dir / "artifacts")),
@@ -169,6 +173,7 @@ def process_auto(
         "status_counts": counts,
         "ocr_engine": ocr_engine,
         "ocr_lang": ocr_lang,
+        "ocr_profile": "psm6_single_initial_quality_retry",
         "model_configured": model is not None,
         "model_id": getattr(model, "model", None) if model is not None else None,
         "duration_ms": round((time.perf_counter() - run_started) * 1000, 3),
@@ -215,6 +220,19 @@ def _process_document(
         ocr_failure = getattr(signal, "failure_reason", None)
         pages: list[dict[str, object]] = [{"page": page.number, "text": page.text} for page in processed_doc.pages]
         sidecar["pages"] = pages
+        sidecar["ocr_pages"] = [
+            {
+                "page": page.number,
+                "engine": page.metadata.get("ocr_engine_used"),
+                "psm": page.metadata.get("ocr_psm"),
+                "variant": page.metadata.get("ocr_variant"),
+                "confidence": page.metadata.get("ocr_confidence"),
+                "rerun_attempted": page.metadata.get("ocr_rerun_attempted", False),
+                "rerun_used": page.metadata.get("ocr_rerun_used", False),
+                "rerun_reason": page.metadata.get("ocr_rerun_reason"),
+            }
+            for page in processed_doc.pages
+        ]
     except Exception:  # noqa: BLE001 - OCR failures remain reviewable per-document outcomes
         sidecar["reason"] = "ocr_failed"
         candidate["document_status"] = "needs_review"
