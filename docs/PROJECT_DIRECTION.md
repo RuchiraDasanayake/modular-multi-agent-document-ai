@@ -80,6 +80,8 @@ This phase is successful when:
 - each extracted field can be inspected against source evidence, corrected or abstained from, with review time recorded
 - a candidate system meets predeclared quality and cost gates on an untouched holdout; no agentic or adaptive path is
   promoted based only on an internal proxy reward
+- every substantive extraction implementation milestone processes at least 2,000 unique documents end to end, with
+  failures, quality, evidence validity, review work, latency and total cost reported by document-family slice
 - the relevant backend, frontend and runner tests pass for each release candidate
 
 ## Document Roles

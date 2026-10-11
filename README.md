@@ -10,13 +10,35 @@ A microservices-based research system for adaptive document extraction. A docume
 
 > **Research results and how to reproduce them:** see [`docs/REPRODUCING_RESULTS.md`](docs/REPRODUCING_RESULTS.md).
 
-> **Project status:** This is a research prototype under product stabilization.
+> **Project status:** This is a research prototype under product stabilization. An opt-in
+> automatic extraction path now proposes flat schemas and source-anchored values,
+> with owner-scoped human review. It is a single-host pilot, not a validated
+> general-purpose extractor. The first 2,000-document no-model development run
+> scored 4.33% strict schema F1 and 0.95% strict value F1; see
+> [`docs/evaluations/VRDU_2000_NO_MODEL_V1.md`](docs/evaluations/VRDU_2000_NO_MODEL_V1.md).
 > The later October paired evaluation in [`paper/FINAL_EVIDENCE.md`](paper/FINAL_EVIDENCE.md)
 > did not show an accuracy gain from adaptive routing, and the canonical Docker
 > document job path is incomplete. See the [productization plan](docs/PRODUCTIZATION_PLAN.md)
 > for the proposed quality, cost, review, and deployment gates.
 
-## Key Features
+## Opt-in Product Pilot
+
+On a configured single-host installation, upload a document to a job and open its **Automatic extraction** page.
+The job owner can inspect the proposed fields, source quotes and original file, then record field decisions and
+corrections. Model-backed runs currently require an admin. The command-line equivalent is:
+
+```powershell
+python -m idpo.cli process-auto --input path/to/document.pdf
+```
+
+Add `--model MODEL_ID --api-base-url HTTPS_OR_LOCAL_URL` to use a configured OpenAI-compatible model; the server reads
+the key from `ICORE_API_KEY` by default for remote providers. A loopback HTTP model server can run without an API key.
+The local, no-model route is a weak label/value baseline, not an accuracy
+substitute for a model or reviewer. Run artifacts are written to `IDPO_DATA_DIR/product_runs/<run_id>` and stay separate
+from the research `process-inbox` path. `run.json` is the completion marker. See the
+[current system contract](docs/SYSTEM_CONTRACT.md) and [product direction](docs/PROJECT_DIRECTION.md) for the boundaries.
+
+## Research Components
 
 - **Policy-driven document pipeline** — Intake → Document analysis → Policy selection → Preprocessing and OCR → Extraction → Validation → Recovery → Export, with each stage parameterised by the selected policy
 - **Local-first entity extraction** — Ollama (`qwen3.5:9b`) with JSON-schema-constrained output, a grounding check against the source text, and optional OpenAI cloud fallback
@@ -27,22 +49,14 @@ A microservices-based research system for adaptive document extraction. A docume
 - **Human-in-the-Loop** — Structured feedback loop with 5 feedback types, 4 priority levels, and 3 rating dimensions
 - **Full Text Extraction** — OCR'd or digitally extracted text shown in-app with copy functionality
 
-## Performance Notes
-
-| Optimization           | Before                       | After                  | Impact                                                            |
-| ---------------------- | ---------------------------- | ---------------------- | ----------------------------------------------------------------- |
-| **PaddleOCR memory**   | ~13 GB peak, 4 workers       | 2.5 GB peak            | One shared engine per language, recognition widths padded to 320 px buckets |
-| **LIME perturbations** | 500 fixed                    | 30-80 dynamic          | ~85% latency reduction with prediction caching                    |
-| **Sentence relevance** | Per-sentence QA forward pass | TF-IDF pre-filtering   | O(1) vs O(n) model calls                                          |
-| **Noise entities**     | 100+ spurious                | ~0                     | Aggressive filtering (special chars, short values, numeric keys)  |
-| **HTTP connections**   | New client per call          | Singleton with pooling | Connection reuse across integration cycle                         |
-| **Text normalization** | Raw PDF artifacts            | Intake-level cleaning  | Ligature replacement, whitespace normalization, null byte removal |
-
 ## Supported Domains & File Formats
 
 ### Document Domains
 
-The **IDPO pipeline is domain-agnostic** — it classifies documents by structural layout (table, form, text, scanned), not business domain. Any document type can be processed. The **Guardrails layer** provides domain-specific schema validation for 7 document types:
+The research IDPO pipeline classifies documents by structural layout (table, form, text, scanned) rather than business
+domain. It can attempt many document types, but its extraction accuracy on a new family is not guaranteed. The separate
+Guardrails service provides domain-specific schema validation for 7 document types; it is not part of the measured
+document-processing path:
 
 | Domain          | Document Types                           | Validated Fields                                          |
 | --------------- | ---------------------------------------- | --------------------------------------------------------- |

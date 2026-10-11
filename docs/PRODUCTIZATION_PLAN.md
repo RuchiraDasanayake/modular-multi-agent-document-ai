@@ -1,6 +1,6 @@
 # Productization Plan
 
-Status: proposed architecture and release gates, 2026-10-11. This is not a description of implemented behavior.
+Status: target architecture and release gates, updated 2026-10-12. This is not, by itself, a description of implemented behavior.
 `docs/SYSTEM_CONTRACT.md` records the current runtime; `paper/FINAL_EVIDENCE.md` records the frozen October internal
 study. The author-provided May PDF appears to be the reported accepted paper, pending verification against the exact
 CMT-uploaded manuscript. Neither study is the future product benchmark.
@@ -21,6 +21,15 @@ receipt accuracy. These are facts about the [frozen October experiment](../paper
 every possible router or the reported accepted submission.
 
 ## Current Starting Point And Boundaries
+
+- The opt-in `idpo.cli process-auto` path and owner-scoped review UI now exist as a single-host pilot. They propose
+  scalar fields and values, verify exact OCR text spans, and keep unapproved schemas in review. They have no durable
+  queue, approved recipe, linked rows, priced cost meter, or demonstrated arbitrary-family accuracy. The first
+  2,000-document no-model development baseline failed the quality gate; see
+  [the measured v1 report](evaluations/VRDU_2000_NO_MODEL_V1.md). The [v2 safety run](evaluations/VRDU_2000_NO_MODEL_V2.md)
+  verified 2,000 distinct sources and eliminated automatic release of unapproved schemas, while strict schema F1
+  remained 4.33% and pre-review accepted-value F1 became 0%. These paths are distinct from the research pipeline and
+  paper results.
 
 - Current job execution is `frontend job API -> frontend runner -> python -m idpo.cli process-inbox -> IDPO_DATA_DIR`.
   IDPO runs `ingest/inbox -> orchestrator -> executor -> exports`. AHMN direct advice is in process. Guardrails and
@@ -100,15 +109,16 @@ part of each release candidate.
 
 ### First Cloud Candidate: ICORE
 
-The user supplied an ICORE endpoint and credential for testing. IDPO already has an OpenAI-compatible chat adapter
-that accepts a custom base URL, model and key; no new provider branch is needed for the first trial. A safe experiment
-uses `cloud_provider=openai`, `openai_api_url=https://icore.innobothealth.us/innobot-api/v1`,
-`openai_api_key=${ICORE_API_KEY}`, `cloud_model=innobot-luna-6`, and `default_mode=cloud` in a separate experiment config.
-Keep the actual key out of files, logs, test fixtures and commits. Start with JSON-mode flags disabled because structured
-response support is unverified. The supplied ICORE quick start describes chat, embeddings and image-generation routes;
-the screenshot's other model names are discovery leads, not confirmed extraction or vision capabilities. A connection
-attempt from this workstation timed out before HTTP, so there is no live ICORE result or cost measurement yet. Gate the
-trial on reachable service, data-use terms and a hard spend limit; score it against local baselines on the same documents.
+The user supplied an ICORE endpoint and credential for testing. The opt-in `process-auto` route accepts its OpenAI-compatible
+base URL and model ID at runtime, using a server-side `ICORE_API_KEY`. A synthetic invoice smoke call to
+`innobot-luna-6` succeeded: one schema call, 336 prompt and 179 completion tokens, seven source-grounded accepted fields,
+and about 4.3 seconds total. This proves connectivity and response handling for that one example, not field accuracy or
+price. Keep the actual key out of files, logs, test fixtures and commits. The
+[synthetic pilot](evaluations/ICORE_SYNTHETIC_PILOT.json) authenticated the nine-ID model catalog and exercised schema
+and value calls for two synthetic texts with `innobot-luna-6` and `innobot-minimax-m2-5`. The catalog advertises separate
+text embedding and image generation routes and some chat models with image inputs; vision extraction was not tested.
+No VRDU or private document has been sent to ICORE. Published prices, data-use terms and a hard spend limit are still
+required before a real-data trial, which must be scored against the local baseline on the same authorized documents.
 
 ## Quality-Cost Evaluation Contract
 
@@ -136,6 +146,12 @@ trial on reachable service, data-use terms and a hard spend limit; score it agai
    p95 latency and budget per accepted document for the intended deployment. A candidate advances only if it meets
    those predeclared limits and either improves quality without exceeding the cost cap or reduces cost while staying
    within a predeclared quality non-inferiority margin. Show the full quality-cost frontier, not a single blended score.
+5. After each substantive extraction implementation milestone, run **at least 2,000 unique documents end to end**
+   through the actual candidate pipeline before promoting it. Freeze document hashes, sources, rights, gold version,
+   family/layout/scan slices, provider/config/model versions and run IDs. Report all failures and missing outputs in
+   the denominator. Small fixtures and repeated copies of the same document are useful for development or load tests,
+   but do not satisfy this quality gate. Run cheap focused checks during development; reserve the full batch for each
+   reviewable candidate to control compute and API spend.
 
 ### AHMN And Agent Keep/Remove Gate
 
@@ -157,7 +173,7 @@ failures, reinforcing the need for the ablation.
 | 0. Close release blockers | Owner-scoped frontend jobs/runs/documents/artifacts; gate legacy proxy routes until they have ownership; replace or de-advertise Docker runner | Two viewers cannot cross-read or mutate each other's resources through any API/content route; admin cross-user access works only under the documented role and is tested. A Docker-launched job either emits real IDPO artifacts or that deployment is explicitly unsupported. Tests cover both. |
 | 1. Establish the baseline | Versioned gold set, separate schema/value scorers, cost telemetry, reproducible simple route and error taxonomy | Clean-checkout rerun matches manifest and metrics on known and unseen document families; local compute, cloud API, storage, setup and reviewer-time costs are observable. Frozen October runs remain untouched. |
 | 2. Auto discovery, grounded extraction and HITL | No-template upload, proposed schema with field evidence, reusable approved recipe, review UI with source alongside values, adjudication and audit history | A new document gets proposed typed fields and values without manual setup; ambiguous or high-risk outputs abstain under policy. Every accepted field has inspectable evidence or an explicit reviewer override; corrections and recipe edits are durable and versioned; review time and false acceptance are measured on holdout slices. |
-| 3. Candidate frontier | Paired parser/model/route experiments across local CPU, local GPU and approved cloud APIs; clear keep/remove decisions | Candidate satisfies the predeclared quality and cost gates; cloud trials have documented data authorization and spend caps; AHMN/agents remain off the hot path unless they clear their separate gate. |
+| 3. Candidate frontier | Paired parser/model/route experiments across local CPU, local GPU and approved cloud APIs; clear keep/remove decisions | Every substantive candidate completes the frozen 2,000-unique-document end-to-end gate and satisfies predeclared quality and cost limits; cloud trials have documented data authorization and spend caps; AHMN/agents remain off the hot path unless they clear their separate gate. |
 | 4. Reliable scale | Dedicated worker, bounded queue/retries, isolation, backups, observability and restore drill | Representative load and worker-failure tests recover without duplicate or missing results; p95 latency and cost targets hold; authorization, retention and audit checks pass. |
 | 5. External release | Versioned contracts, operator docs, supported deployment, license/model inventory | Fresh-install smoke processes a real document through upload, extraction, evidence, review and export; no placeholder runner or unowned artifact read remains. |
 

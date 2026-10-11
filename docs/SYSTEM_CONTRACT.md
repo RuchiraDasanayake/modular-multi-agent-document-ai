@@ -7,7 +7,8 @@ It is intentionally shorter and stricter than the long architecture docs.
 
 ## Purpose
 
-The system is a document-processing platform with one canonical runtime path and a few legacy or research-facing support surfaces.
+The system is a document-processing platform with a canonical research runtime and a separate opt-in product extraction
+path, plus a few legacy or research-facing support surfaces.
 
 The current runtime must remain understandable, stable and auditable while product stabilization proceeds. Its research
 policy outputs are retained for the frozen October internal study, which is separate from the author-reported accepted
@@ -30,7 +31,7 @@ Use the project docs with this precedence:
 
 If they conflict, update the stale document instead of letting the mismatch persist.
 
-## Canonical Runtime
+## Canonical Research Runtime
 
 The canonical operational path is:
 
@@ -41,6 +42,38 @@ Inside IDPO, the canonical runtime path is:
 `ingest/inbox -> orchestrator -> executor -> exports`
 
 That is the path cleanup work should protect.
+
+## Opt-in Product Extraction Path
+
+The separate, experimental product path is:
+
+`owner-scoped job upload -> POST /api/jobs/<job_id>/auto -> frontend server runner -> idpo.cli process-auto -> IDPO_DATA_DIR/product_runs/<run_id>`
+
+The CLI accepts one file or a directory. It supports PDF, common raster images, text, and the existing JSON document
+format. It uses local OCR/text extraction and either a deterministic label/value proposal or an optional
+OpenAI-compatible chat model for flat schema discovery followed by value extraction. Local loopback HTTP servers may
+run without an API key; remote providers require an HTTPS URL and server-side key. The model can replace the
+heuristic schema. Proposed values require exact text-span evidence for machine acceptance. A newly discovered schema
+is unapproved, so every document remains `needs_review` until an operator reviews it. There is no approved recipe or
+automatic release policy yet. The current contract covers scalar fields only; it does not extract table rows or guarantee
+useful fields on unfamiliar documents.
+
+`product_runs/<run_id>` contains `run.json` as the completion marker, `manifest.jsonl` with source hashes and per-document
+receipts, `candidates.jsonl`, and `docs/<doc_id>/result.json` with OCR pages, the proposal, model-call telemetry and
+reason. Cost fields exist but remain null until provider prices, compute rates and review work are recorded. The
+frontend checks source hashes and artifact consistency before displaying a completed run. Owner-scoped result and
+source routes lead to a field review page. A reviewer can correct or remove proposed scalar fields and add missing
+scalar fields. The API derives a document-scoped `correctedResult` from the immutable machine candidate and latest
+review snapshot. Undecided machine values remain in review; human-added fields have no machine evidence. Review changes
+append revisioned events and reject stale saves. This is one-document adjudication, not an approved reusable recipe.
+
+This path runs as a child process of the single-host frontend server. It has no durable queue, retry budget, cancellation,
+approved schema registry, table/row result contract, per-user cloud quota, or verified Docker execution. Model-backed
+UI runs are admin-only until cloud data and spend controls exist. It does not use the AHMN policy router, Guardrails
+service, or the separate XAI-HITL service. Its benchmarks and outputs must never be represented as the submitted paper's
+results or as the canonical research runtime's outputs.
+
+## Canonical Research Policy Routing
 
 Policy routing runs in-process through `ahmn_core/direct_advisor.py` (Thompson Sampling over the policies whose conditions match, with job-scoped posteriors). The runtime does not call the Guardrails or XAI-HITL services, and RABI and DAAF are not active in it; those are separate services and simulation experiments.
 
@@ -256,9 +289,9 @@ Rules:
 
 ## What The System Should Be
 
-For current-runtime cleanup, the system should be:
+For cleanup of the canonical research runtime, that path should be:
 
-- one understandable runtime path
+- one understandable research runtime path
 - one stable run artifact contract
 - one primary UI path for reading results
 - adaptive extraction results presented more clearly than supporting metrics or subsystem detail
@@ -267,13 +300,13 @@ For current-runtime cleanup, the system should be:
 
 It should not be:
 
-- a collection of overlapping entrypoints with different behavior
+- a collection of undocumented overlapping research entrypoints with different behavior
 - a mix of demo logic and production-path logic in the same core files
 - dependent on giant multi-purpose files for basic reasoning
 
-The product target in `docs/PRODUCTIZATION_PLAN.md` may simplify or replace these service boundaries after measured
-quality, cost, security and operability checks. Its worker, grounded field-evidence and review requirements are not
-promises made by this current-runtime contract.
+The separate product pilot above may simplify or replace these service boundaries after measured quality, cost,
+security and operability checks. The target worker, structured visual evidence, approved recipes and scalable review
+requirements in `docs/PRODUCTIZATION_PLAN.md` remain future work.
 
 ## Change Protocol
 
