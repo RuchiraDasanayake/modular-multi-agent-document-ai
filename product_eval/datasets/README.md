@@ -1,5 +1,16 @@
 # Product evaluation datasets
 
+## Secondary CORD v2 receipt slice
+
+`cord_test.py` freezes all 100 creator-hosted CORD v2 test images from one
+revision- and SHA256-pinned parquet, stages PNGs and positive-only gold
+outside Git, and creates a 60-development/40-reserved source-only visual
+component split. `cord_positive_score.py` scores exact summary values,
+linked menu cells, and complete rows without claiming precision or official
+CORD benchmark comparability. See [the receipt slice audit](../../docs/evaluations/CORD_SECONDARY_SLICE.md)
+for licensing, provenance, exact hashes, split limits, and commands. No
+extraction run or accuracy claim has been made for this slice yet.
+
 ## Secondary FUNSD research slice
 
 `funsd_remainder.py` freezes all 30 FUNSD test images outside the historical
