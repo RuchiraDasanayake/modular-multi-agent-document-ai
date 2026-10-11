@@ -50,6 +50,8 @@ def main() -> None:
     auto_parser.add_argument("--run-id", default=None)
     auto_parser.add_argument("--ocr-engine", default="tesseract")
     auto_parser.add_argument("--ocr-lang", default="eng")
+    auto_parser.add_argument("--ocr-call-timeout-s", type=float, default=30.0)
+    auto_parser.add_argument("--ocr-page-budget-s", type=float, default=120.0)
     auto_parser.add_argument("--model", default=None, help="Optional OpenAI-compatible model ID")
     auto_parser.add_argument("--api-base-url", default=None, help="HTTPS model endpoint or local HTTP endpoint")
     auto_parser.add_argument("--api-key-env", default="ICORE_API_KEY", help="Environment variable containing the API key")
@@ -162,6 +164,8 @@ def main() -> None:
             model=model,
             ocr_engine=args.ocr_engine,
             ocr_lang=args.ocr_lang,
+            ocr_call_timeout_s=args.ocr_call_timeout_s,
+            ocr_page_budget_s=args.ocr_page_budget_s,
         )
         print(json.dumps(result, indent=2))
         return

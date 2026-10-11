@@ -7,6 +7,7 @@ import types
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import pytest
 from PIL import Image, ImageFilter, ImageOps
 
 from idpo.agents import preprocess
@@ -64,6 +65,148 @@ def test_extract_with_confidence_uses_tesseract_word_confidence() -> None:
     )
     assert text == "Total Amount: 100.00"
     assert conf == 88.0
+
+
+def test_product_tesseract_budget_is_shared_across_osd_text_and_confidence(monkeypatch) -> None:
+    clock = [0.0]
+    monkeypatch.setattr(preprocess.time, "monotonic", lambda: clock[0])
+    observed: list[tuple[str, float]] = []
+
+    class StubTesseract:
+        class Output:
+            DICT = "DICT"
+
+        def image_to_osd(self, image, config, timeout):  # noqa: ANN001, ARG002
+            observed.append(("osd", timeout))
+            clock[0] += 2.0
+            return "Rotate: 0"
+
+        def image_to_string(self, image, lang, config, timeout):  # noqa: ANN001, ARG002
+            observed.append(("text", timeout))
+            clock[0] += 4.0
+            return "Invoice Number INV-42"
+
+        def image_to_data(self, image, lang, config, output_type, timeout):  # noqa: ANN001, ARG002
+            observed.append(("data", timeout))
+            return {"conf": ["90"]}
+
+    agent = OcrAgent()
+    budget = preprocess._TesseractBudget(call_timeout_s=5.0, deadline=10.0)  # noqa: SLF001
+    assert agent._detect_rotation_degrees(object(), StubTesseract(), "eng", budget) == 0  # noqa: SLF001
+    text, confidence = agent._extract_with_confidence(  # noqa: SLF001
+        StubTesseract(), object(), "eng", "--psm 6", budget=budget,
+    )
+    assert (text, confidence) == ("Invoice Number INV-42", 90.0)
+    assert observed == [("osd", 5.0), ("text", 5.0), ("data", 4.0)]
+
+
+def test_product_page_budget_exhaustion_preserves_text_from_completed_call(monkeypatch) -> None:
+    clock = [0.0]
+    monkeypatch.setattr(preprocess.time, "monotonic", lambda: clock[0])
+
+    class StubTesseract:
+        class Output:
+            DICT = "DICT"
+
+        def image_to_string(self, image, lang, config, timeout):  # noqa: ANN001, ARG002
+            assert timeout == 3.0
+            clock[0] = 4.0
+            return "Invoice Number INV-42"
+
+        def image_to_data(self, image, lang, config, output_type, timeout):  # noqa: ANN001, ARG002
+            raise AssertionError("The page budget must stop further Tesseract calls")
+
+    with pytest.raises(preprocess._TesseractTimeout) as raised:  # noqa: SLF001
+        OcrAgent()._extract_with_confidence(  # noqa: SLF001
+            StubTesseract(), object(), "eng", "--psm 6",
+            budget=preprocess._TesseractBudget(call_timeout_s=30.0, deadline=3.0),  # noqa: SLF001
+        )
+    assert raised.value.partial_text == "Invoice Number INV-42"
+
+
+def test_product_engine_start_failure_is_not_silently_treated_as_empty_scan() -> None:
+    class MissingTesseract:
+        def image_to_string(self, image, lang, config, timeout):  # noqa: ANN001, ARG002
+            raise FileNotFoundError("Tesseract binary is absent")
+
+    agent = OcrAgent()
+    with pytest.raises(FileNotFoundError, match="Tesseract binary is absent"):
+        agent._extract_with_confidence(  # noqa: SLF001
+            MissingTesseract(), object(), "eng", "--psm 6",
+            budget=preprocess._TesseractBudget(30.0, time.monotonic() + 120.0),  # noqa: SLF001
+        )
+    assert agent._extract_with_confidence(  # noqa: SLF001
+        MissingTesseract(), object(), "eng", "--psm 6",
+    ) == ("", 0.0)
+
+
+def test_product_tesseract_subprocess_timeout_is_classified(monkeypatch) -> None:
+    class SlowTesseract:
+        def image_to_string(self, image, lang, config, timeout):  # noqa: ANN001, ARG002
+            raise RuntimeError("Tesseract process timeout")
+
+    with pytest.raises(preprocess._TesseractTimeout):  # noqa: SLF001
+        OcrAgent()._extract_with_confidence(  # noqa: SLF001
+            SlowTesseract(), object(), "eng", "--psm 6",
+            budget=preprocess._TesseractBudget(30.0, time.monotonic() + 120.0),  # noqa: SLF001
+        )
+    assert PipelineConfig().preprocessing.ocr_tesseract_call_timeout_s is None
+    assert PipelineConfig().preprocessing.ocr_tesseract_page_budget_s is None
+
+
+def test_tesseract_timeout_preserves_earlier_candidate_and_stops_search(monkeypatch) -> None:
+    agent = OcrAgent()
+    calls = 0
+
+    def extract(pytesseract, image, lang, config, *, budget):  # noqa: ANN001, ARG001
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return "Invoice Number INV-42", 80.0
+        raise preprocess._TesseractTimeout()  # noqa: SLF001
+
+    monkeypatch.setattr(agent, "_extract_with_confidence", extract)
+    text, meta = agent._run_ocr_variants(  # noqa: SLF001
+        Image.new("RGB", (20, 20), "white"), object(), None, "eng", 6, 3, [3],
+        ImageOps, ImageFilter,
+        budget=preprocess._TesseractBudget(call_timeout_s=30.0, deadline=time.monotonic() + 120.0),  # noqa: SLF001
+    )
+    assert text == "Invoice Number INV-42"
+    assert meta["ocr_timeout"] is True
+    assert meta["ocr_candidate_count"] == 2
+    assert calls == 2
+
+
+def test_product_retry_timeout_keeps_initial_text_for_review(tmp_path: Path, monkeypatch) -> None:
+    config = PipelineConfig()
+    config.preprocessing.ocr_initial_single_pass = True
+    config.preprocessing.ocr_tesseract_call_timeout_s = 30.0
+    config.preprocessing.ocr_tesseract_page_budget_s = 120.0
+    agent = OcrAgent()
+    calls = 0
+
+    def ocr_image(page, settings, engine_name):  # noqa: ANN001, ARG001
+        nonlocal calls
+        calls += 1
+        assert isinstance(settings["tesseract_budget"], preprocess._TesseractBudget)  # noqa: SLF001
+        if calls == 1:
+            return "Invoice Number INV-42 !!!! @@", True, None, {
+                "ocr_confidence": 75.0, "ocr_engine_used": "tesseract", "ocr_candidate_count": 1,
+            }
+        return "", True, "ocr_timeout", {"ocr_engine_used": "tesseract", "ocr_candidate_count": 1}
+
+    monkeypatch.setattr(agent, "_ocr_image", ocr_image)
+    document = Document(
+        doc_id="scan", source="scanned", path="scan.png",
+        pages=[Page(number=1, text="", image_path="scan.png")],
+    )
+    result = agent.run({"document": document}, _ctx(tmp_path, config))
+    page = result.artifacts["document"].pages[0]
+    assert calls == 2
+    assert result.artifacts["signal"].failure_reason == "ocr_timeout"
+    assert page.text == "Invoice Number INV-42 !!!! @@"
+    assert page.metadata["ocr_failure_reason"] == "ocr_timeout"
+    assert page.metadata["ocr_retry_path"] == "quick_psm11_timeout"
 
 
 def test_single_initial_ocr_uses_one_variant_while_default_keeps_search(monkeypatch) -> None:

@@ -6,9 +6,11 @@ import math
 import os
 import re
 import shutil
+import subprocess
 import threading
 import time
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +30,35 @@ _DENOISE_MIN_SHORT_SIDE_PX = 1600
 # Boxes whose vertical centres differ by less than this fraction of the shorter box height share a row.
 _ROW_CENTER_TOLERANCE = 0.5
 _OCR_NOISE_RETRY_THRESHOLD = 0.12
+
+
+class _TesseractTimeout(Exception):
+    def __init__(self, partial_text: str = "") -> None:
+        super().__init__("Tesseract exceeded the product OCR time budget")
+        self.partial_text = partial_text
+
+
+@dataclass(frozen=True)
+class _TesseractBudget:
+    call_timeout_s: float
+    deadline: float
+
+    def next_timeout_s(self) -> float:
+        remaining = self.deadline - time.monotonic()
+        if remaining <= 0:
+            raise _TesseractTimeout()
+        return min(self.call_timeout_s, remaining)
+
+
+def _call_tesseract(method, *args, budget: _TesseractBudget | None = None, **kwargs):
+    if budget is not None:
+        kwargs["timeout"] = budget.next_timeout_s()
+    try:
+        return method(*args, **kwargs)
+    except (RuntimeError, subprocess.TimeoutExpired) as exc:
+        if budget is not None and (isinstance(exc, subprocess.TimeoutExpired) or "timeout" in str(exc).lower()):
+            raise _TesseractTimeout() from exc
+        raise
 
 
 def _bucket_recognition_widths(engine: Any, step: int = _PADDLE_REC_WIDTH_STEP_PX) -> None:
@@ -234,7 +265,17 @@ class OcrAgent(Agent):
                     }
                 else:
                     page = rasterize_pdf_page(page, doc.doc_id, ctx, dpi)
-                    ocr_text, page_used, page_failure, ocr_meta = self._ocr_image(page, settings, engine_name=str(engine))
+                    page_settings = dict(settings)
+                    call_timeout = ctx.config.preprocessing.ocr_tesseract_call_timeout_s
+                    page_budget = ctx.config.preprocessing.ocr_tesseract_page_budget_s
+                    if call_timeout is not None and page_budget is not None:
+                        page_settings["tesseract_budget"] = _TesseractBudget(
+                            call_timeout_s=call_timeout,
+                            deadline=time.monotonic() + page_budget,
+                        )
+                    ocr_text, page_used, page_failure, ocr_meta = self._ocr_image(
+                        page, page_settings, engine_name=str(engine)
+                    )
                 used_image_ocr = used_image_ocr or page_used
                 initial_conf = self._safe_confidence(ocr_meta.get("ocr_confidence"))
                 initial_noise_ratio = self._ocr_noise_ratio(ocr_text)
@@ -264,13 +305,16 @@ class OcrAgent(Agent):
                         and ocr_meta.get("ocr_engine_used") == "tesseract"
                     ):
                         quick_attempted = True
-                        quick_settings = {**settings, "psm": 11, "alt_psm": [], "single_pass": True}
+                        quick_settings = {**page_settings, "psm": 11, "alt_psm": [], "single_pass": True}
                         quick_text, _, quick_failure, quick_meta = self._ocr_image(
                             page, quick_settings, engine_name=str(engine)
                         )
                         candidate_count += int(quick_meta.get("ocr_candidate_count") or 0)
                         quick_conf = self._safe_confidence(quick_meta.get("ocr_confidence"))
                         quick_score = self._score_ocr_candidate(quick_text, quick_conf) if quick_text else -1.0
+                        if quick_failure == "ocr_timeout":
+                            page_failure = quick_failure
+                            retry_path = "quick_psm11_timeout"
                         if (
                             quick_text
                             and not quick_failure
@@ -282,14 +326,16 @@ class OcrAgent(Agent):
                             quick_accepted = True
                             rerun_used = True
                             retry_path = "quick_psm11"
-                    if not quick_accepted:
-                        retry_settings = self._build_retry_settings(settings, ctx)
+                    if not quick_accepted and page_failure != "ocr_timeout":
+                        retry_settings = self._build_retry_settings(page_settings, ctx)
                         retry_text, _, retry_failure, retry_meta = self._ocr_image(
                             page, retry_settings, engine_name=str(engine)
                         )
                         candidate_count += int(retry_meta.get("ocr_candidate_count") or 0)
                         retry_conf = self._safe_confidence(retry_meta.get("ocr_confidence"))
                         retry_score = self._score_ocr_candidate(retry_text, retry_conf) if retry_text else -1.0
+                        if retry_failure == "ocr_timeout":
+                            page_failure = retry_failure
                         valid_retries = []
                         if quick_text and not quick_failure:
                             valid_retries.append((quick_score, quick_text, quick_meta))
@@ -299,7 +345,8 @@ class OcrAgent(Agent):
                         if best_retry and best_retry[0] > current_score + rerun_min_gain:
                             _, ocr_text, selected_meta = best_retry
                             ocr_meta = dict(selected_meta)
-                            page_failure = None
+                            if retry_failure != "ocr_timeout":
+                                page_failure = None
                             rerun_used = True
                         retry_path = "quick_then_full_bounded" if quick_attempted else "full_bounded"
                     if rerun_used:
@@ -315,6 +362,7 @@ class OcrAgent(Agent):
                     ocr_meta["ocr_rerun_used"] = False
                 ocr_meta["ocr_retry_path"] = retry_path
                 ocr_meta["ocr_candidate_count_total"] = candidate_count
+                ocr_meta["ocr_failure_reason"] = page_failure
                 if page_failure and failure_reason is None:
                     failure_reason = page_failure
                 if not ocr_text:
@@ -375,6 +423,7 @@ class OcrAgent(Agent):
                         "ocr_noise_ratio": ocr_meta.get("ocr_noise_ratio"),
                         "ocr_dpi": dpi,
                         "ocr_engine_used": ocr_meta.get("ocr_engine_used", engine),
+                        "ocr_failure_reason": ocr_meta.get("ocr_failure_reason"),
                     },
                 )
             )
@@ -494,6 +543,9 @@ class OcrAgent(Agent):
         alt_psm = settings.get("alt_psm") or []
         single_pass = bool(settings.get("single_pass", False))
         max_candidates = settings.get("max_candidates")
+        budget = settings.get("tesseract_budget")
+        if budget is not None and not isinstance(budget, _TesseractBudget):
+            raise TypeError("tesseract_budget must be a _TesseractBudget")
         dpi = int(settings.get("dpi") or 300)
         requested_engine = (engine_name or "").strip().lower()
         if requested_engine in {"paddle", "paddleocr"}:
@@ -529,14 +581,18 @@ class OcrAgent(Agent):
                     dpi,
                     single_pass,
                     max_candidates,
+                    budget,
                 )
                 if failure:
-                    return "", True, failure, {}
+                    return text.strip(), True, failure, meta
                 meta["ocr_engine_used"] = "tesseract"
                 return text.strip(), True, None, meta
             with Image.open(path) as img:
                 cleaned = self._normalize_image(img, Image, ImageOps, ImageFilter)
-                cleaned, rotation = self._apply_orientation_correction(cleaned, pytesseract, lang)
+                cleaned, rotation = (
+                    self._apply_orientation_correction(cleaned, pytesseract, lang, budget)
+                    if budget else self._apply_orientation_correction(cleaned, pytesseract, lang)
+                )
                 text, meta = self._run_ocr_variants(
                     cleaned,
                     pytesseract,
@@ -549,10 +605,13 @@ class OcrAgent(Agent):
                     ImageFilter,
                     single_pass=single_pass,
                     max_candidates=max_candidates,
+                    **({"budget": budget} if budget else {}),
                 )
                 meta["ocr_rotation_applied"] = rotation
                 meta["ocr_engine_used"] = "tesseract"
-            return text.strip(), True, None, meta
+            return text.strip(), True, "ocr_timeout" if meta.get("ocr_timeout") else None, meta
+        except _TesseractTimeout:
+            return "", True, "ocr_timeout", {"ocr_engine_used": "tesseract"}
         except Exception as exc:
             message = str(exc)
             if "TESSDATA_PREFIX" in message or "tessdata" in message:
@@ -678,6 +737,7 @@ class OcrAgent(Agent):
         dpi: int,
         single_pass: bool = False,
         max_candidates: int | None = None,
+        budget: _TesseractBudget | None = None,
     ) -> tuple[str, str | None, dict[str, object]]:
         page_index = page.metadata.get("pdf_page_index", 0)
         try:
@@ -694,7 +754,10 @@ class OcrAgent(Agent):
                 from PIL import ImageFilter, ImageOps
 
                 cleaned = self._normalize_image(images[0], Image, ImageOps, ImageFilter)
-                cleaned, rotation = self._apply_orientation_correction(cleaned, pytesseract, lang)
+                cleaned, rotation = (
+                    self._apply_orientation_correction(cleaned, pytesseract, lang, budget)
+                    if budget else self._apply_orientation_correction(cleaned, pytesseract, lang)
+                )
                 text, meta = self._run_ocr_variants(
                     cleaned,
                     pytesseract,
@@ -707,9 +770,12 @@ class OcrAgent(Agent):
                     ImageFilter,
                     single_pass=single_pass,
                     max_candidates=max_candidates,
+                    **({"budget": budget} if budget else {}),
                 )
                 meta["ocr_rotation_applied"] = rotation
-                return text, None, meta
+                return text, "ocr_timeout" if meta.get("ocr_timeout") else None, meta
+        except _TesseractTimeout:
+            raise
         except Exception:
             pass
 
@@ -721,7 +787,10 @@ class OcrAgent(Agent):
                         from PIL import ImageFilter, ImageOps
 
                         cleaned = self._normalize_image(frame, Image, ImageOps, ImageFilter)
-                        cleaned, rotation = self._apply_orientation_correction(cleaned, pytesseract, lang)
+                        cleaned, rotation = (
+                            self._apply_orientation_correction(cleaned, pytesseract, lang, budget)
+                            if budget else self._apply_orientation_correction(cleaned, pytesseract, lang)
+                        )
                         text, meta = self._run_ocr_variants(
                             cleaned,
                             pytesseract,
@@ -734,12 +803,15 @@ class OcrAgent(Agent):
                             ImageFilter,
                             single_pass=single_pass,
                             max_candidates=max_candidates,
+                            **({"budget": budget} if budget else {}),
                         )
                         meta["ocr_rotation_applied"] = rotation
                         texts.append(text)
                         break
             if texts:
-                return "\n".join(texts), None, meta
+                return "\n".join(texts), "ocr_timeout" if meta.get("ocr_timeout") else None, meta
+        except _TesseractTimeout:
+            raise
         except Exception:
             return "", "pdf_render_failed", {}
         return "", "pdf_render_failed", {}
@@ -863,6 +935,7 @@ class OcrAgent(Agent):
         *,
         single_pass: bool = False,
         max_candidates: int | None = None,
+        budget: _TesseractBudget | None = None,
     ) -> tuple[str, dict[str, object]]:
         variants = [("base", img)]
         # Product auto starts with one variant; the quality-triggered retry uses the full search.
@@ -903,14 +976,29 @@ class OcrAgent(Agent):
         best_text = ""
         best_score = -1.0
         best_meta = {"ocr_psm": psm, "ocr_oem": oem, "ocr_variant": "base", "ocr_confidence": 0.0}
+        attempted = 0
         for attempts, (variant_name, variant_img, psm_value) in enumerate(candidates, start=1):
+            attempted = attempts
             config = self._tessdata_config(tessdata_dir, psm_value, oem)
-            text, ocr_confidence = self._extract_with_confidence(
-                pytesseract,
-                variant_img,
-                lang,
-                config,
-            )
+            try:
+                text, ocr_confidence = (
+                    self._extract_with_confidence(pytesseract, variant_img, lang, config, budget=budget)
+                    if budget else self._extract_with_confidence(pytesseract, variant_img, lang, config)
+                )
+            except _TesseractTimeout as exc:
+                if exc.partial_text:
+                    partial_score = self._score_ocr_candidate(exc.partial_text, 0.0)
+                    if partial_score > best_score:
+                        best_text = exc.partial_text
+                        best_score = partial_score
+                        best_meta = {
+                            "ocr_psm": psm_value,
+                            "ocr_oem": oem,
+                            "ocr_variant": variant_name,
+                            "ocr_confidence": 0.0,
+                        }
+                best_meta["ocr_timeout"] = True
+                break
             if not text:
                 continue
             score = self._score_ocr_candidate(text, ocr_confidence)
@@ -927,17 +1015,26 @@ class OcrAgent(Agent):
                 if best_score > 0.78 and ocr_confidence >= 70 and not alt_psm:
                     best_meta["ocr_candidate_count"] = attempts
                     return self._postprocess_ocr(best_text), best_meta
-        best_meta["ocr_candidate_count"] = len(candidates)
+        best_meta["ocr_candidate_count"] = attempted
         return self._postprocess_ocr(best_text), best_meta
 
-    def _extract_with_confidence(self, pytesseract, image, lang: str, config: str) -> tuple[str, float]:
+    def _extract_with_confidence(
+        self, pytesseract, image, lang: str, config: str, *, budget: _TesseractBudget | None = None,
+    ) -> tuple[str, float]:
         try:
-            text = pytesseract.image_to_string(image, lang=lang, config=config)
+            text = _call_tesseract(pytesseract.image_to_string, image, lang=lang, config=config, budget=budget)
+        except _TesseractTimeout:
+            raise
         except Exception:
+            if budget is not None:
+                raise
             return "", 0.0
         confidences: list[float] = []
         try:
-            data = pytesseract.image_to_data(image, lang=lang, config=config, output_type=pytesseract.Output.DICT)
+            data = _call_tesseract(
+                pytesseract.image_to_data, image, lang=lang, config=config,
+                output_type=pytesseract.Output.DICT, budget=budget,
+            )
             for value in data.get("conf", []):
                 try:
                     score = float(value)
@@ -945,6 +1042,8 @@ class OcrAgent(Agent):
                     continue
                 if score >= 0:
                     confidences.append(score)
+        except _TesseractTimeout as exc:
+            raise _TesseractTimeout(partial_text=text) from exc
         except Exception:
             pass
         avg_conf = sum(confidences) / len(confidences) if confidences else 0.0
@@ -983,8 +1082,10 @@ class OcrAgent(Agent):
         total_tokens = max(len(tokens), 1)
         return min(suspicious / total_tokens, 1.0)
 
-    def _apply_orientation_correction(self, img, pytesseract, lang: str) -> tuple[object, int]:
-        rotation = self._detect_rotation_degrees(img, pytesseract, lang)
+    def _apply_orientation_correction(
+        self, img, pytesseract, lang: str, budget: _TesseractBudget | None = None,
+    ) -> tuple[object, int]:
+        rotation = self._detect_rotation_degrees(img, pytesseract, lang, budget)
         if rotation in {90, 180, 270}:
             try:
                 return img.rotate(-rotation, expand=True), rotation
@@ -992,12 +1093,15 @@ class OcrAgent(Agent):
                 return img, 0
         return img, 0
 
-    def _detect_rotation_degrees(self, img, pytesseract, lang: str) -> int:
+    def _detect_rotation_degrees(
+        self, img, pytesseract, lang: str, budget: _TesseractBudget | None = None,
+    ) -> int:
         try:
-            osd = pytesseract.image_to_osd(
-                img,
-                config=f"--psm 0 -l {lang}",
+            osd = _call_tesseract(
+                pytesseract.image_to_osd, img, config=f"--psm 0 -l {lang}", budget=budget,
             )
+        except _TesseractTimeout:
+            raise
         except Exception:
             return 0
         match = re.search(r"Rotate:\s*(\d+)", osd or "")

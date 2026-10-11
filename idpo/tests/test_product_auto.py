@@ -9,6 +9,7 @@ import types
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
 from idpo.agents.preprocess import OcrAgent
 from idpo.product_auto import process_auto
@@ -85,7 +86,7 @@ def test_invoice_baseline_preserves_zero_and_exact_spans(tmp_path: Path) -> None
 def test_product_auto_sets_single_initial_ocr_profile(tmp_path: Path, monkeypatch) -> None:
     source = tmp_path / "invoice.txt"
     source.write_text("Invoice Number: INV-42\n", encoding="utf-8")
-    seen: list[tuple[int, int, list[int], bool, int | None]] = []
+    seen: list[tuple[int, int, list[int], bool, int | None, float, float]] = []
     original_run = OcrAgent.run
 
     def inspect_run(self, payload, ctx):
@@ -96,6 +97,8 @@ def test_product_auto_sets_single_initial_ocr_profile(tmp_path: Path, monkeypatc
             preprocessing.ocr_alt_psm,
             preprocessing.ocr_initial_single_pass,
             preprocessing.ocr_retry_max_candidates,
+            preprocessing.ocr_tesseract_call_timeout_s,
+            preprocessing.ocr_tesseract_page_budget_s,
         ))
         return original_run(self, payload, ctx)
 
@@ -103,9 +106,11 @@ def test_product_auto_sets_single_initial_ocr_profile(tmp_path: Path, monkeypatc
     run = process_auto(source, run_id="fast_ocr", output_root=tmp_path / "runs")
     run_payload = json.loads((Path(run["run_dir"]) / "run.json").read_text(encoding="utf-8"))
 
-    assert seen == [(6, 1, [], True, 8)]
+    assert seen == [(6, 1, [], True, 8, 30.0, 120.0)]
     assert run_payload["ocr_profile"] == "psm6_single_initial_quality_retry"
     assert run_payload["ocr_retry_max_candidates"] == 8
+    assert run_payload["ocr_call_timeout_s"] == 30.0
+    assert run_payload["ocr_page_budget_s"] == 120.0
 
 
 def test_numeric_identifiers_keep_leading_zeros(tmp_path: Path) -> None:
@@ -171,6 +176,42 @@ def test_empty_ocr_with_engine_failure_is_a_failed_run_not_an_unsupported_source
     candidate, sidecar = _result(run["run_dir"])
     assert candidate["document_status"] == "failed"
     assert sidecar["reason"] == "ocr_failed"
+
+
+@pytest.mark.parametrize(
+    ("ocr_text", "expected_status", "expected_reason"),
+    [
+        ("", "failed", "ocr_timeout"),
+        ("Invoice Number: INV-42\nTotal: 100", "needs_review", "ocr_partial_failure"),
+    ],
+)
+def test_product_tesseract_timeout_classifies_empty_and_partial_ocr(
+    tmp_path: Path, monkeypatch, ocr_text: str, expected_status: str, expected_reason: str,
+) -> None:
+    source = tmp_path / "scan.png"
+    Image.new("RGB", (80, 40), "white").save(source)
+
+    def timed_out_ocr(self, page, settings, engine_name):  # noqa: ANN001, ARG001
+        return ocr_text, True, "ocr_timeout", {
+            "ocr_engine_used": "tesseract", "ocr_candidate_count": 1,
+        }
+
+    monkeypatch.setattr(OcrAgent, "_ocr_image", timed_out_ocr)
+    run = process_auto(source, run_id="ocr_timeout", output_root=tmp_path / "runs")
+    candidate, sidecar = _result(run["run_dir"])
+    assert candidate["document_status"] == expected_status
+    assert sidecar["reason"] == expected_reason
+    assert sidecar["ocr_pages"][0]["failure_reason"] == "ocr_timeout"
+    assert sidecar["model_calls"] == []
+
+
+@pytest.mark.parametrize("overrides", [{"ocr_call_timeout_s": 0}, {"ocr_page_budget_s": float("inf")}])
+def test_product_rejects_invalid_ocr_budgets_before_creating_run(tmp_path: Path, overrides: dict) -> None:
+    source = tmp_path / "invoice.txt"
+    source.write_text("Invoice Number INV-42", encoding="utf-8")
+    with pytest.raises(ValueError, match="must be a finite positive number"):
+        process_auto(source, run_id="invalid_budget", output_root=tmp_path / "runs", **overrides)
+    assert not (tmp_path / "runs").exists()
 
 
 def test_missing_marker_stays_distinct_from_numeric_zero(tmp_path: Path) -> None:
