@@ -18,6 +18,9 @@ A microservices-based research system for adaptive document extraction. A docume
 > the second kept every discovered schema in review and scored 0% pre-review accepted-value F1.
 > The [v4 run](docs/evaluations/VRDU_2000_NO_MODEL_V4.md) verified 2,000 distinct sources but lacked its OCR
 > executable, so it is not a valid OCR comparison; it also proposed zero linked cells against 30,133 gold cells.
+> The [v5 pinned-OCR run](docs/evaluations/VRDU_2000_NO_MODEL_V5.md) recovered text on all 35 previously unsupported
+> scans across 2,000 distinct PDFs, but strict schema F1 was only 4.245%, every result required review, and no linked
+> cells were proposed. It did not configure a model or measure cost per correct document.
 > See [v1](docs/evaluations/VRDU_2000_NO_MODEL_V1.md) and [v2](docs/evaluations/VRDU_2000_NO_MODEL_V2.md).
 > The later October paired evaluation in [`paper/FINAL_EVIDENCE.md`](paper/FINAL_EVIDENCE.md)
 > did not show an accuracy gain from adaptive routing, and the canonical research

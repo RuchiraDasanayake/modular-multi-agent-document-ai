@@ -37,7 +37,10 @@ every possible router or the reported accepted submission.
   a completed quality gate. The [v4 full run](evaluations/VRDU_2000_NO_MODEL_V4.md) verified 2,000 distinct sources,
   but its OCR comparison is invalid because the Tesseract executable was absent from that run's environment. It
   found zero candidate linked cells or rows against 30,133 gold cells and 7,234 gold rows. It did not configure a
-  model and cannot evaluate the new model-backed row path.
+  model and cannot evaluate the new model-backed row path. The [v5 pinned-OCR gate](evaluations/VRDU_2000_NO_MODEL_V5.md)
+  verified all 2,000 distinct PDFs with a working Tesseract preflight and recovered text on all 35 previously
+  unsupported scans. Strict schema F1 was 4.245%, all 2,000 remained in review, and linked cells stayed at zero.
+  The subsequent product OCR timeout change is not part of v5 and requires a new 2,000-source gate.
 
 - Current job execution is `frontend job API -> frontend runner -> python -m idpo.cli process-inbox -> IDPO_DATA_DIR`.
   IDPO runs `ingest/inbox -> orchestrator -> executor -> exports`. AHMN direct advice is in process. Guardrails and

@@ -57,6 +57,9 @@ The canonical research job runner is explicitly unavailable in Docker.
 The CLI accepts one file or a directory. It supports PDF, common raster images, text, and the existing JSON document
 format. It uses local OCR/text extraction and either a deterministic label/value proposal or an optional
 OpenAI-compatible chat model for scalar or bounded repeated-column schema discovery followed by value extraction.
+Product-auto Tesseract calls now have a 30-second default timeout and a 120-second per-image-page search budget;
+these limits are configurable in the CLI and do not alter the canonical research OCR route. A timeout with no text is
+an execution failure, while partial text remains in review. This implementation postdates the pinned v5 gate.
 Local loopback HTTP servers may run without an API key; remote providers require an HTTPS URL and server-side key. The model can replace the
 heuristic schema. Proposed values require exact text-span evidence and a matching, JSON-round-trippable typed value
 for machine acceptance. Ambiguous boolean quotes and partial identifier matches stay pending review. A newly
@@ -75,7 +78,8 @@ scalar fields, and inspect or correct bounded linked cells by row. The server ch
 and requires an exact source quote for a newly added scalar. It accepts a human row correction only as a typed array.
 The API derives a document-scoped `correctedResult` from the
 immutable machine candidate and latest review snapshot. Undecided machine values remain in review; human corrections
-are assertions and have no machine evidence. Review changes append revisioned events and reject stale saves. The
+are reviewer assertions; newly added scalar corrections also carry a checked OCR quote, which proves source presence
+but not semantic correctness. Review changes append revisioned events and reject stale saves. The
 job-scoped recipe API separately records owner-scoped draft, approval, and disable events from completed reviews; it
 requires explicit linked-row group confirmation and does not yet configure extraction. This is not geometric table annotation.
 

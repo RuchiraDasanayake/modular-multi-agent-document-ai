@@ -184,10 +184,13 @@ Which code areas are most affected: frontend job API/runner, gateway access chec
 
 ## Current Next Step
 
-1. complete and score the fresh 2,000-source OCR gate with a recorded Tesseract executable and English traineddata;
-   the earlier v4 run verified volume but its OCR experiment was invalid because the executable was absent
-2. improve field semantics and linked rows on small authorized, adjudicated development slices before another full
-   model-backed gate; the initial local Qwen and bounded ICORE pilots did not pass real-document quality/reliability
+1. use the completed [v5 2,000-source pinned-OCR gate](evaluations/VRDU_2000_NO_MODEL_V5.md) as the reproducible
+   no-model comparator: it recovered all 35 formerly unsupported scans, but strict schema F1 remained 4.245%, all
+   documents required review, and linked cells remained zero; run a separate pinned 2,000-source gate for the later
+   OCR timeout implementation before considering it promoted
+2. isolate schema discovery from value extraction with the bounded local oracle-schema diagnostic, then improve field
+   semantics and linked rows on small authorized, adjudicated development slices before any model-backed full gate;
+   the initial local Qwen and bounded ICORE pilots did not pass real-document quality/reliability
 3. complete a live Docker worker smoke on a host with a daemon, then add durable bounded jobs and price plus review-time
    accounting before claiming a scalable lower-cost deployment
 4. verify and archive the CMT-submitted manuscript and reconcile camera-ready changes with the reviewers and venue,
