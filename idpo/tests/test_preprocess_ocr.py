@@ -88,6 +88,31 @@ def test_single_initial_ocr_uses_one_variant_while_default_keeps_search(monkeypa
     assert PipelineConfig().preprocessing.ocr_initial_single_pass is False
 
 
+def test_bounded_full_retry_checks_eight_prioritized_candidates(monkeypatch) -> None:
+    agent = OcrAgent()
+    image = Image.new("RGB", (20, 20), "white")
+    calls: list[str] = []
+
+    def extract(pytesseract, candidate_image, lang, config):  # noqa: ANN001, ARG001
+        calls.append(config)
+        return "readable text", 35.0
+
+    monkeypatch.setattr(agent, "_extract_with_confidence", extract)
+    _, meta = agent._run_ocr_variants(  # noqa: SLF001
+        image, object(), None, "eng", 6, 3, [3, 4, 11, 12], ImageOps, ImageFilter, max_candidates=8
+    )
+
+    assert len(calls) == 8
+    assert [int(config.split("--psm ")[1].split()[0]) for config in calls] == [6, 11, 3, 12, 4, 6, 11, 6]
+    assert meta["ocr_candidate_count"] == 8
+
+    calls.clear()
+    agent._run_ocr_variants(  # noqa: SLF001
+        image, object(), None, "eng", 6, 3, [3, 4, 11, 12], ImageOps, ImageFilter
+    )
+    assert len(calls) == 20
+
+
 def test_empty_product_initial_ocr_escalates_to_existing_retry(tmp_path: Path, monkeypatch) -> None:
     cfg = PipelineConfig()
     cfg.preprocessing.ocr_initial_single_pass = True
@@ -100,11 +125,16 @@ def test_empty_product_initial_ocr_escalates_to_existing_retry(tmp_path: Path, m
     def ocr_image(page, settings, engine_name):  # noqa: ANN001, ARG001
         settings_seen.append(dict(settings))
         if len(settings_seen) == 1:
-            return "", True, None, {"ocr_confidence": 0.0, "ocr_variant": "base"}
-        return "Recovered invoice number INV-17", True, None, {"ocr_confidence": 86.0, "ocr_variant": "base"}
+            return "", True, None, {"ocr_confidence": 0.0, "ocr_variant": "base", "ocr_candidate_count": 1}
+        return "Recovered invoice number INV-17", True, None, {
+            "ocr_confidence": 86.0, "ocr_variant": "base", "ocr_candidate_count": 8
+        }
 
     monkeypatch.setattr(agent, "_ocr_image", ocr_image)
-    doc = Document(doc_id="scan", source="scanned", path="scan.png", pages=[Page(number=1, text="", image_path="scan.png")])
+    doc = Document(
+        doc_id="scan", source="scanned", path="scan.png",
+        pages=[Page(number=1, text="", image_path="scan.png")],
+    )
     result = agent.run({"document": doc}, ctx)
 
     assert len(settings_seen) == 2
@@ -114,6 +144,77 @@ def test_empty_product_initial_ocr_escalates_to_existing_retry(tmp_path: Path, m
     assert 11 in settings_seen[1]["alt_psm"]
     assert result.artifacts["document"].pages[0].text == "Recovered invoice number INV-17"
     assert result.artifacts["document"].pages[0].metadata["ocr_rerun_used"] is True
+    assert result.artifacts["document"].pages[0].metadata["ocr_retry_path"] == "full_bounded"
+    assert result.artifacts["document"].pages[0].metadata["ocr_candidate_count"] == 9
+
+
+def test_high_confidence_noisy_product_ocr_uses_quick_psm11_retry(tmp_path: Path, monkeypatch) -> None:
+    cfg = PipelineConfig()
+    cfg.preprocessing.ocr_initial_single_pass = True
+    cfg.preprocessing.ocr_passes = 1
+    cfg.preprocessing.ocr_alt_psm = []
+    cfg.preprocessing.ocr_retry_max_candidates = 8
+    agent = OcrAgent()
+    settings_seen: list[dict] = []
+
+    def ocr_image(page, settings, engine_name):  # noqa: ANN001, ARG001
+        settings_seen.append(dict(settings))
+        if len(settings_seen) == 1:
+            return "Invoice Number INV-17 !!!! @@", True, None, {
+                "ocr_confidence": 75.0, "ocr_engine_used": "tesseract", "ocr_candidate_count": 1
+            }
+        return "Invoice Number INV-17 Total 100", True, None, {
+            "ocr_confidence": 78.0, "ocr_engine_used": "tesseract", "ocr_candidate_count": 1
+        }
+
+    monkeypatch.setattr(agent, "_ocr_image", ocr_image)
+    doc = Document(
+        doc_id="scan", source="scanned", path="scan.png",
+        pages=[Page(number=1, text="", image_path="scan.png")],
+    )
+    page = agent.run({"document": doc}, _ctx(tmp_path, cfg)).artifacts["document"].pages[0]
+
+    assert len(settings_seen) == 2
+    assert settings_seen[1]["psm"] == 11
+    assert settings_seen[1]["single_pass"] is True
+    assert settings_seen[1]["alt_psm"] == []
+    assert page.text == "Invoice Number INV-17 Total 100"
+    assert page.metadata["ocr_retry_path"] == "quick_psm11"
+    assert page.metadata["ocr_candidate_count"] == 2
+    assert page.metadata["ocr_rerun_used"] is True
+
+
+def test_noisy_quick_retry_escalates_when_still_noisy(tmp_path: Path, monkeypatch) -> None:
+    cfg = PipelineConfig()
+    cfg.preprocessing.ocr_initial_single_pass = True
+    cfg.preprocessing.ocr_passes = 1
+    cfg.preprocessing.ocr_alt_psm = []
+    cfg.preprocessing.ocr_retry_max_candidates = 8
+    agent = OcrAgent()
+    settings_seen: list[dict] = []
+
+    def ocr_image(page, settings, engine_name):  # noqa: ANN001, ARG001
+        settings_seen.append(dict(settings))
+        if len(settings_seen) < 3:
+            return "Invoice Number INV-17 !!!! @@", True, None, {
+                "ocr_confidence": 75.0, "ocr_engine_used": "tesseract", "ocr_candidate_count": 1
+            }
+        return "Invoice Number INV-17 Total 100", True, None, {
+            "ocr_confidence": 90.0, "ocr_engine_used": "tesseract", "ocr_candidate_count": 8
+        }
+
+    monkeypatch.setattr(agent, "_ocr_image", ocr_image)
+    doc = Document(
+        doc_id="scan", source="scanned", path="scan.png",
+        pages=[Page(number=1, text="", image_path="scan.png")],
+    )
+    page = agent.run({"document": doc}, _ctx(tmp_path, cfg)).artifacts["document"].pages[0]
+
+    assert len(settings_seen) == 3
+    assert settings_seen[2]["single_pass"] is False
+    assert settings_seen[2]["max_candidates"] == 8
+    assert page.metadata["ocr_retry_path"] == "quick_then_full_bounded"
+    assert page.metadata["ocr_candidate_count"] == 10
 
 
 def test_stale_tessdata_environment_falls_back_to_tesseract_directory(tmp_path: Path, monkeypatch) -> None:
@@ -207,7 +308,7 @@ def test_ocr_image_falls_back_to_tesseract_when_paddle_returns_no_text(tmp_path:
     monkeypatch.setattr(
         agent,
         "_run_ocr_variants",
-            lambda cleaned, pytesseract, tessdata_dir, lang, psm, oem, alt_psm, ImageOps, ImageFilter, single_pass=False: (
+            lambda cleaned, pytesseract, tessdata_dir, lang, psm, oem, alt_psm, ImageOps, ImageFilter, single_pass=False, max_candidates=None: (
             "Total Amount: 42.00",
             {"ocr_psm": psm, "ocr_oem": oem, "ocr_variant": "base", "ocr_confidence": 88.0},
         ),

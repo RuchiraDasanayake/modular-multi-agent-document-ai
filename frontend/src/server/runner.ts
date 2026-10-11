@@ -3,6 +3,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { loadRunnerConfig, getCommandConfig } from "@/server/config";
+import { AccessError } from "@/server/auth";
 import type { DocumentSummary, JobDocumentRecord, JobExecutionMode, JobFieldConfig, JobRunMode, JobStatus } from "@/types/idpo";
 import {
   addDocumentsToJob,
@@ -1136,6 +1137,9 @@ async function runSingleJobMode(
 }
 
 export async function startJobRuns(payload: StartJobRunsRequest): Promise<JobStatus> {
+  if (!loadRunnerConfig().canonicalRunnerAvailable) {
+    throw new AccessError("Research job execution is unavailable in this deployment. Use Automatic extraction.", 503);
+  }
   const currentJob = getJobOrThrow(payload.jobId);
   const selectedFileIds = Array.from(new Set(payload.selectedFileIds)).filter((fileId) =>
     (currentJob.documents ?? []).some((document) => document.fileId === fileId),
@@ -1238,6 +1242,9 @@ export async function startJobRuns(payload: StartJobRunsRequest): Promise<JobSta
 }
 
 export async function startRunJob(payload: StartRunRequest) {
+  if (!loadRunnerConfig().canonicalRunnerAvailable) {
+    throw new AccessError("Research job execution is unavailable in this deployment. Use Automatic extraction.", 503);
+  }
   const hasFiles = Array.isArray(payload.files) && payload.files.length > 0;
   if (!hasFiles && !payload.sourceRunId) {
     throw new Error("Upload files or provide sourceRunId");

@@ -170,6 +170,7 @@ export function JobDetailPage() {
   const hydratedJobIdRef = useRef<string | null>(null);
 
   const [job, setJob] = useState<JobStatus | null>(null);
+  const [canonicalRunnerAvailable, setCanonicalRunnerAvailable] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [busyAction, setBusyAction] = useState<"upload" | "process" | "retry" | "review" | null>(null);
@@ -205,6 +206,7 @@ export function JobDetailPage() {
       }
       const payload = await idpoApi.getJob(activeJobId);
       setJob(payload);
+      setCanonicalRunnerAvailable(payload.canonicalRunnerAvailable !== false);
       setPollFailed(false);
       if (!background) {
         setError("");
@@ -706,7 +708,9 @@ export function JobDetailPage() {
               <StatusBadge value={runActive ? "running" : job.status} />
             </div>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Upload files, choose which ones to process, then open a finished document to check its fields.
+              {canonicalRunnerAvailable
+                ? "Upload files, choose which ones to process, then open a finished document to check its fields."
+                : "Upload files, then use Automatic schema extraction for Docker-backed processing and review."}
             </p>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Job <span className="font-mono" title={job.jobId}>{shortId(job.jobId)}</span> · created {formatDate(job.createdAt)}
@@ -905,7 +909,7 @@ export function JobDetailPage() {
                 <Icon name="upload" className="h-4 w-4" />
                 {busyAction === "upload" ? "Uploading..." : "Upload files"}
               </button>
-              {queueSummary.failed > 0 ? (
+              {canonicalRunnerAvailable && queueSummary.failed > 0 ? (
                 <button
                   type="button"
                   onClick={() => void startRun(mode, true)}
@@ -925,14 +929,16 @@ export function JobDetailPage() {
               >
                 {busyAction === "review" ? "Reviewing..." : "Auto review"}
               </button> : null}
-              <button
-                type="button"
-                onClick={() => void startRun(mode, false)}
-                disabled={saving || selectedDocuments.length === 0}
-                className={primaryButton}
-              >
-                {processLabel}
-              </button>
+              {canonicalRunnerAvailable ? (
+                <button
+                  type="button"
+                  onClick={() => void startRun(mode, false)}
+                  disabled={saving || selectedDocuments.length === 0}
+                  className={primaryButton}
+                >
+                  {processLabel}
+                </button>
+              ) : null}
             </div>
           </div>
 

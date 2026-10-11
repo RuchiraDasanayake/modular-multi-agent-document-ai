@@ -4,6 +4,7 @@ import { requireJob } from "@/server/access";
 import { AccessError, requireUser } from "@/server/auth";
 import { apiError } from "@/server/api/response";
 import { syncActiveJobProgress } from "@/server/runner";
+import { loadRunnerConfig } from "@/server/config";
 import { readJobValidationContext, updateJobValidationContextManualInput } from "@/server/review-context";
 import type { JobExecutionMode, JobFieldConfig, JobValidationContextManualInput } from "@/types/idpo";
 
@@ -39,7 +40,8 @@ export async function GET(request: Request, { params }: Params) {
     if (reviewContext) {
       job.reviewContext = reviewContext;
     }
-    return NextResponse.json(job, { headers: NO_STORE_HEADERS });
+    return NextResponse.json({ ...job, canonicalRunnerAvailable: loadRunnerConfig().canonicalRunnerAvailable },
+      { headers: NO_STORE_HEADERS });
   } catch (error) {
     return apiError(error, 400);
   }

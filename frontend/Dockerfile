@@ -32,6 +32,7 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/runner.config.docker.json ./runner.config.json
+COPY --from=builder /app/scripts/product-worker-client.mjs ./scripts/product-worker-client.mjs
 
 EXPOSE 3000
 

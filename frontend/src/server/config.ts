@@ -28,6 +28,7 @@ export interface RunnerConfig {
   maxUploadMb: number;
   allowedExtensions: string[];
   defaultCommandId: string;
+  canonicalRunnerAvailable: boolean;
   commands: RunnerCommandConfig[];
   backendChecks: BackendCheckConfig[];
 }
@@ -101,6 +102,7 @@ export function loadRunnerConfig(): RunnerConfig {
       ext.toLowerCase(),
     ),
     defaultCommandId: raw.defaultCommandId,
+    canonicalRunnerAvailable: raw.canonicalRunnerAvailable ?? true,
     commands: raw.commands.map((cmd) => ({
       ...cmd,
       program: resolveExecutable(appRoot, cmd.program),

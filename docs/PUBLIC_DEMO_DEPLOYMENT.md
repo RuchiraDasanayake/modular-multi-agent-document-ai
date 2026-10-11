@@ -33,13 +33,41 @@ That means the machine running the frontend must also have:
 - local repo workspace access
 - writable `IDPO_DATA_DIR`
 
-## Unsupported For The Full Runtime
+## Docker Product Extraction
+
+Both Compose files now run the opt-in **Automatic extraction** path with a dedicated Python product worker. The
+frontend stages uploads in the `idpo_data` named volume and sends the run request over a Unix socket in that volume.
+The worker has no published port. The frontend reads the worker's source-hash receipts and candidate artifacts from
+the same volume before showing a result. Frontend authentication, job ownership and review audit routes remain in
+place. The worker accepts only a staged directory whose name matches the run ID and executes one run at a time.
+
+```powershell
+docker compose up --build -d
+docker compose ps
+docker compose exec frontend node /app/scripts/product-worker-client.mjs --health
+```
+
+In the UI, create a job, upload a document, then open **Automatic extraction**. With no model configured, the local
+heuristic proposes fields and leaves them for review. To opt into a hosted OpenAI-compatible model, set
+`IDPO_AUTO_MODEL`, `IDPO_AUTO_API_BASE_URL` (HTTPS), and `ICORE_API_KEY` in a local `.env` file before starting Compose.
+Model runs remain admin-only. The key is passed to the frontend server and worker containers as an environment
+variable; it is never stored in the runner config or browser bundle. Do not send private documents to a provider
+until its data handling terms are confirmed. A loopback model endpoint in the host is not reachable as worker
+loopback; local model routing in Docker requires a separately verified configuration.
+
+The `idpo_data` volume holds uploads, runs, and review events; back it up alongside the database volumes. This is
+a single-host execution boundary, not a durable distributed queue. One product run executes at a time; another
+simultaneous request is rejected and can be retried. Docker image build and end-to-end container execution still need
+validation on a host with an available Docker daemon. The worker pins its direct Python dependencies, but transitive
+dependencies and the Python base image are not digest-locked yet.
+
+## Unsupported For The Full Research Runtime
 
 These are not the supported end-to-end deployment path right now:
 
 - Vercel-only deployment
-- frontend-only Docker deployment (the image ships `runner.config.docker.json`, whose
-  command is a placeholder; jobs started there fail with "wrote no run output")
+- canonical research `process-inbox` jobs in Docker: the Docker frontend returns a clear `503` for that action, while
+  the separate product Automatic extraction path runs through the worker above
 - any deployment where the frontend server cannot run local Python commands
 
 Vercel can still host the UI later, but not the current full job-runner path without a separate worker redesign.

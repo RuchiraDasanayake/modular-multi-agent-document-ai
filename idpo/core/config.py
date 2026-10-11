@@ -25,6 +25,7 @@ class PreprocessingConfig:
     ocr_min_confidence: float = 55.0
     ocr_retry_dpi: int = 450
     ocr_retry_alt_psm: list[int] = field(default_factory=lambda: [3, 4, 6, 11, 12])
+    ocr_retry_max_candidates: int | None = None
     ocr_max_reruns_per_page: int = 1
     ocr_rerun_min_score_gain: float = 0.03
     ocr_fast_exit_score: float = 0.82

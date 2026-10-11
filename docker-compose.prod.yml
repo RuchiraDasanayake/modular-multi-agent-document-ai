@@ -269,6 +269,32 @@ services:
       - internal
       - external
 
+  # Product extraction worker. Its Unix socket and artifacts are shared only
+  # with the frontend; no worker TCP port is published.
+  product-worker:
+    build:
+      context: .
+      dockerfile: idpo/product_auto/Dockerfile.worker
+    restart: always
+    environment:
+      IDPO_DATA_DIR: /idpo-data
+      PRODUCT_WORKER_SOCKET: /idpo-data/product-worker.sock
+      ICORE_API_KEY: ${ICORE_API_KEY:-}
+    volumes:
+      - idpo_data:/idpo-data
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "2.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    networks:
+      - external
+
   # ── Frontend (port 3000) ──
   frontend:
     build:
@@ -281,10 +307,19 @@ services:
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
       - INTERNAL_API_URL=http://gateway:8000
       - HOSTNAME=0.0.0.0
+      - IDPO_DATA_DIR=/idpo-data
+      - PRODUCT_WORKER_SOCKET=/idpo-data/product-worker.sock
+      - IDPO_AUTO_MODEL=${IDPO_AUTO_MODEL:-}
+      - IDPO_AUTO_API_BASE_URL=${IDPO_AUTO_API_BASE_URL:-}
+      - ICORE_API_KEY=${ICORE_API_KEY:-}
+    volumes:
+      - idpo_data:/idpo-data
     ports:
       - "0.0.0.0:${FRONTEND_PORT:-3000}:3000"  # Exposed to external
     depends_on:
       gateway:
+        condition: service_healthy
+      product-worker:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000',(r)=>{process.exit(r.statusCode<400?0:1)}).on('error',()=>process.exit(1))\""]
@@ -316,4 +351,6 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  idpo_data:
     driver: local

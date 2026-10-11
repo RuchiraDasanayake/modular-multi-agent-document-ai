@@ -27,6 +27,7 @@ _PADDLE_REC_WIDTH_STEP_PX = 320
 _DENOISE_MIN_SHORT_SIDE_PX = 1600
 # Boxes whose vertical centres differ by less than this fraction of the shorter box height share a row.
 _ROW_CENTER_TOLERANCE = 0.5
+_OCR_NOISE_RETRY_THRESHOLD = 0.12
 
 
 def _bucket_recognition_widths(engine: Any, step: int = _PADDLE_REC_WIDTH_STEP_PX) -> None:
@@ -238,6 +239,9 @@ class OcrAgent(Agent):
                 initial_conf = self._safe_confidence(ocr_meta.get("ocr_confidence"))
                 initial_noise_ratio = self._ocr_noise_ratio(ocr_text)
                 rerun_reason = self._ocr_rerun_reason(ocr_text, initial_conf, ctx)
+                candidate_count = int(ocr_meta.get("ocr_candidate_count") or 0)
+                retry_path = None
+                rerun_used = False
                 if (
                     page_used
                     and not page_failure
@@ -246,27 +250,71 @@ class OcrAgent(Agent):
                     and int(ctx.config.preprocessing.ocr_max_reruns_per_page) > 0
                 ):
                     rerun_attempted_pages += 1
-                    retry_settings = self._build_retry_settings(settings, ctx)
-                    retry_text, _, retry_failure, retry_meta = self._ocr_image(
-                        page, retry_settings, engine_name=str(engine)
-                    )
-                    retry_conf = self._safe_confidence(retry_meta.get("ocr_confidence"))
                     current_score = self._score_ocr_candidate(ocr_text, initial_conf)
-                    retry_score = self._score_ocr_candidate(retry_text, retry_conf) if retry_text else -1.0
-                    if retry_text and not retry_failure and retry_score > current_score + rerun_min_gain:
-                        ocr_text = retry_text
-                        ocr_meta = dict(retry_meta)
-                        page_failure = None
+                    quick_accepted = False
+                    quick_attempted = False
+                    quick_text = ""
+                    quick_failure = None
+                    quick_meta: dict[str, object] = {}
+                    quick_score = -1.0
+                    if (
+                        initial_single_pass
+                        and rerun_reason == "noisy_text"
+                        and initial_conf >= 70
+                        and ocr_meta.get("ocr_engine_used") == "tesseract"
+                    ):
+                        quick_attempted = True
+                        quick_settings = {**settings, "psm": 11, "alt_psm": [], "single_pass": True}
+                        quick_text, _, quick_failure, quick_meta = self._ocr_image(
+                            page, quick_settings, engine_name=str(engine)
+                        )
+                        candidate_count += int(quick_meta.get("ocr_candidate_count") or 0)
+                        quick_conf = self._safe_confidence(quick_meta.get("ocr_confidence"))
+                        quick_score = self._score_ocr_candidate(quick_text, quick_conf) if quick_text else -1.0
+                        if (
+                            quick_text
+                            and not quick_failure
+                            and self._ocr_noise_ratio(quick_text) < _OCR_NOISE_RETRY_THRESHOLD
+                            and quick_score >= current_score - rerun_min_gain
+                        ):
+                            ocr_text = quick_text
+                            ocr_meta = dict(quick_meta)
+                            quick_accepted = True
+                            rerun_used = True
+                            retry_path = "quick_psm11"
+                    if not quick_accepted:
+                        retry_settings = self._build_retry_settings(settings, ctx)
+                        retry_text, _, retry_failure, retry_meta = self._ocr_image(
+                            page, retry_settings, engine_name=str(engine)
+                        )
+                        candidate_count += int(retry_meta.get("ocr_candidate_count") or 0)
+                        retry_conf = self._safe_confidence(retry_meta.get("ocr_confidence"))
+                        retry_score = self._score_ocr_candidate(retry_text, retry_conf) if retry_text else -1.0
+                        valid_retries = []
+                        if quick_text and not quick_failure:
+                            valid_retries.append((quick_score, quick_text, quick_meta))
+                        if retry_text and not retry_failure:
+                            valid_retries.append((retry_score, retry_text, retry_meta))
+                        best_retry = max(valid_retries, key=lambda item: item[0]) if valid_retries else None
+                        if best_retry and best_retry[0] > current_score + rerun_min_gain:
+                            _, ocr_text, selected_meta = best_retry
+                            ocr_meta = dict(selected_meta)
+                            page_failure = None
+                            rerun_used = True
+                        retry_path = "quick_then_full_bounded" if quick_attempted else "full_bounded"
+                    if rerun_used:
                         rerun_used_pages += 1
                     ocr_meta["ocr_rerun_reason"] = rerun_reason
                     ocr_meta["ocr_noise_ratio"] = initial_noise_ratio
                     ocr_meta["ocr_rerun_attempted"] = True
-                    ocr_meta["ocr_rerun_used"] = bool(retry_text and retry_score > current_score + rerun_min_gain)
+                    ocr_meta["ocr_rerun_used"] = rerun_used
                 else:
                     ocr_meta["ocr_rerun_reason"] = rerun_reason
                     ocr_meta["ocr_noise_ratio"] = initial_noise_ratio
                     ocr_meta["ocr_rerun_attempted"] = False
                     ocr_meta["ocr_rerun_used"] = False
+                ocr_meta["ocr_retry_path"] = retry_path
+                ocr_meta["ocr_candidate_count_total"] = candidate_count
                 if page_failure and failure_reason is None:
                     failure_reason = page_failure
                 if not ocr_text:
@@ -320,6 +368,10 @@ class OcrAgent(Agent):
                         "ocr_rerun_attempted": ocr_meta.get("ocr_rerun_attempted", False),
                         "ocr_rerun_used": ocr_meta.get("ocr_rerun_used", False),
                         "ocr_rerun_reason": ocr_meta.get("ocr_rerun_reason"),
+                        "ocr_retry_path": ocr_meta.get("ocr_retry_path"),
+                        "ocr_candidate_count": ocr_meta.get(
+                            "ocr_candidate_count_total", ocr_meta.get("ocr_candidate_count", 0)
+                        ),
                         "ocr_noise_ratio": ocr_meta.get("ocr_noise_ratio"),
                         "ocr_dpi": dpi,
                         "ocr_engine_used": ocr_meta.get("ocr_engine_used", engine),
@@ -441,6 +493,7 @@ class OcrAgent(Agent):
         oem = int(settings.get("oem") or 3)
         alt_psm = settings.get("alt_psm") or []
         single_pass = bool(settings.get("single_pass", False))
+        max_candidates = settings.get("max_candidates")
         dpi = int(settings.get("dpi") or 300)
         requested_engine = (engine_name or "").strip().lower()
         if requested_engine in {"paddle", "paddleocr"}:
@@ -475,6 +528,7 @@ class OcrAgent(Agent):
                     alt_psm,
                     dpi,
                     single_pass,
+                    max_candidates,
                 )
                 if failure:
                     return "", True, failure, {}
@@ -494,6 +548,7 @@ class OcrAgent(Agent):
                     ImageOps,
                     ImageFilter,
                     single_pass=single_pass,
+                    max_candidates=max_candidates,
                 )
                 meta["ocr_rotation_applied"] = rotation
                 meta["ocr_engine_used"] = "tesseract"
@@ -622,6 +677,7 @@ class OcrAgent(Agent):
         alt_psm: list[int],
         dpi: int,
         single_pass: bool = False,
+        max_candidates: int | None = None,
     ) -> tuple[str, str | None, dict[str, object]]:
         page_index = page.metadata.get("pdf_page_index", 0)
         try:
@@ -650,6 +706,7 @@ class OcrAgent(Agent):
                     ImageOps,
                     ImageFilter,
                     single_pass=single_pass,
+                    max_candidates=max_candidates,
                 )
                 meta["ocr_rotation_applied"] = rotation
                 return text, None, meta
@@ -676,6 +733,7 @@ class OcrAgent(Agent):
                             ImageOps,
                             ImageFilter,
                             single_pass=single_pass,
+                            max_candidates=max_candidates,
                         )
                         meta["ocr_rotation_applied"] = rotation
                         texts.append(text)
@@ -775,6 +833,7 @@ class OcrAgent(Agent):
         retry_psm = [psm] + list(ctx.config.preprocessing.ocr_retry_alt_psm or [])
         retry_settings["alt_psm"] = self._normalize_alt_psm(retry_psm, passes=2)
         retry_settings["single_pass"] = False
+        retry_settings["max_candidates"] = ctx.config.preprocessing.ocr_retry_max_candidates
         return retry_settings
 
     def _normalize_image(self, img, Image, ImageOps, ImageFilter):
@@ -803,6 +862,7 @@ class OcrAgent(Agent):
         ImageFilter,
         *,
         single_pass: bool = False,
+        max_candidates: int | None = None,
     ) -> tuple[str, dict[str, object]]:
         variants = [("base", img)]
         # Product auto starts with one variant; the quality-triggered retry uses the full search.
@@ -824,33 +884,50 @@ class OcrAgent(Agent):
             except Exception:
                 pass
         psm_values = [psm] if single_pass else [psm] + [value for value in alt_psm if value != psm]
+        candidates = [
+            (variant_name, variant_img, psm_value)
+            for variant_name, variant_img in variants
+            for psm_value in psm_values
+        ]
+        if max_candidates is not None:
+            limit = int(max_candidates)
+            if limit < 1:
+                raise ValueError("max_candidates must be positive")
+            candidate_map = {(name, value): (name, image, value) for name, image, value in candidates}
+            priority = [
+                ("base", psm), ("base", 11), ("base", 3), ("base", 12),
+                ("median", 4), ("binary", psm), ("invert", 11), ("median", psm),
+            ]
+            order = dict.fromkeys([*priority, *candidate_map])
+            candidates = [candidate_map[key] for key in order if key in candidate_map][:limit]
         best_text = ""
         best_score = -1.0
         best_meta = {"ocr_psm": psm, "ocr_oem": oem, "ocr_variant": "base", "ocr_confidence": 0.0}
-        for variant_name, variant_img in variants:
-            for psm_value in psm_values:
-                config = self._tessdata_config(tessdata_dir, psm_value, oem)
-                text, ocr_confidence = self._extract_with_confidence(
-                    pytesseract,
-                    variant_img,
-                    lang,
-                    config,
-                )
-                if not text:
-                    continue
-                score = self._score_ocr_candidate(text, ocr_confidence)
-                if score > best_score:
-                    best_score = score
-                    best_text = text
-                    best_meta = {
-                        "ocr_psm": psm_value,
-                        "ocr_oem": oem,
-                        "ocr_variant": variant_name,
-                        "ocr_confidence": ocr_confidence,
-                    }
-                    # Early exit: if first variant scores well, skip rest
-                    if best_score > 0.78 and ocr_confidence >= 70 and not alt_psm:
-                        return self._postprocess_ocr(best_text), best_meta
+        for attempts, (variant_name, variant_img, psm_value) in enumerate(candidates, start=1):
+            config = self._tessdata_config(tessdata_dir, psm_value, oem)
+            text, ocr_confidence = self._extract_with_confidence(
+                pytesseract,
+                variant_img,
+                lang,
+                config,
+            )
+            if not text:
+                continue
+            score = self._score_ocr_candidate(text, ocr_confidence)
+            if score > best_score:
+                best_score = score
+                best_text = text
+                best_meta = {
+                    "ocr_psm": psm_value,
+                    "ocr_oem": oem,
+                    "ocr_variant": variant_name,
+                    "ocr_confidence": ocr_confidence,
+                }
+                # Preserve the existing fast exit in the unbounded/default path.
+                if best_score > 0.78 and ocr_confidence >= 70 and not alt_psm:
+                    best_meta["ocr_candidate_count"] = attempts
+                    return self._postprocess_ocr(best_text), best_meta
+        best_meta["ocr_candidate_count"] = len(candidates)
         return self._postprocess_ocr(best_text), best_meta
 
     def _extract_with_confidence(self, pytesseract, image, lang: str, config: str) -> tuple[str, float]:
@@ -881,7 +958,7 @@ class OcrAgent(Agent):
     def _ocr_rerun_reason(self, text: str, ocr_confidence: float, ctx: AgentContext) -> str | None:
         if ocr_confidence < float(ctx.config.preprocessing.ocr_min_confidence):
             return "low_confidence"
-        if self._ocr_noise_ratio(text) >= 0.12:
+        if self._ocr_noise_ratio(text) >= _OCR_NOISE_RETRY_THRESHOLD:
             return "noisy_text"
         return None
 

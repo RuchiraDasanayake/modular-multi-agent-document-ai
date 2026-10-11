@@ -83,20 +83,27 @@ def test_invoice_baseline_preserves_zero_and_exact_spans(tmp_path: Path) -> None
 def test_product_auto_sets_single_initial_ocr_profile(tmp_path: Path, monkeypatch) -> None:
     source = tmp_path / "invoice.txt"
     source.write_text("Invoice Number: INV-42\n", encoding="utf-8")
-    seen: list[tuple[int, int, list[int], bool]] = []
+    seen: list[tuple[int, int, list[int], bool, int | None]] = []
     original_run = OcrAgent.run
 
     def inspect_run(self, payload, ctx):  # noqa: ANN001
         preprocessing = ctx.config.preprocessing
-        seen.append((preprocessing.ocr_psm, preprocessing.ocr_passes, preprocessing.ocr_alt_psm, preprocessing.ocr_initial_single_pass))
+        seen.append((
+            preprocessing.ocr_psm,
+            preprocessing.ocr_passes,
+            preprocessing.ocr_alt_psm,
+            preprocessing.ocr_initial_single_pass,
+            preprocessing.ocr_retry_max_candidates,
+        ))
         return original_run(self, payload, ctx)
 
     monkeypatch.setattr(OcrAgent, "run", inspect_run)
     run = process_auto(source, run_id="fast_ocr", output_root=tmp_path / "runs")
     run_payload = json.loads((Path(run["run_dir"]) / "run.json").read_text(encoding="utf-8"))
 
-    assert seen == [(6, 1, [], True)]
+    assert seen == [(6, 1, [], True, 8)]
     assert run_payload["ocr_profile"] == "psm6_single_initial_quality_retry"
+    assert run_payload["ocr_retry_max_candidates"] == 8
 
 
 def test_numeric_identifiers_keep_leading_zeros(tmp_path: Path) -> None:

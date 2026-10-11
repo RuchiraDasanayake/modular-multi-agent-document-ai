@@ -78,6 +78,7 @@ def process_auto(
     config.preprocessing.ocr_passes = 1
     config.preprocessing.ocr_alt_psm = []
     config.preprocessing.ocr_initial_single_pass = True
+    config.preprocessing.ocr_retry_max_candidates = 8
     ctx = AgentContext(
         config=config,
         artifact_store=ArtifactStore(str(run_dir / "artifacts")),
@@ -174,6 +175,7 @@ def process_auto(
         "ocr_engine": ocr_engine,
         "ocr_lang": ocr_lang,
         "ocr_profile": "psm6_single_initial_quality_retry",
+        "ocr_retry_max_candidates": config.preprocessing.ocr_retry_max_candidates,
         "model_configured": model is not None,
         "model_id": getattr(model, "model", None) if model is not None else None,
         "duration_ms": round((time.perf_counter() - run_started) * 1000, 3),
@@ -230,6 +232,8 @@ def _process_document(
                 "rerun_attempted": page.metadata.get("ocr_rerun_attempted", False),
                 "rerun_used": page.metadata.get("ocr_rerun_used", False),
                 "rerun_reason": page.metadata.get("ocr_rerun_reason"),
+                "retry_path": page.metadata.get("ocr_retry_path"),
+                "candidate_count": page.metadata.get("ocr_candidate_count"),
             }
             for page in processed_doc.pages
         ]

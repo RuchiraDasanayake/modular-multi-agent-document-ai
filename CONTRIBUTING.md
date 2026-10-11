@@ -29,9 +29,10 @@ cp .env.example .env
 docker compose up --build
 ```
 
-This starts the service stack and UI, but the Docker frontend job runner is a
-placeholder. Use [Public Demo Deployment](docs/PUBLIC_DEMO_DEPLOYMENT.md) for
-end-to-end extraction until a worker-backed container path is implemented.
+This starts the service stack and UI. Docker's Automatic extraction path uses a
+private product worker and shared data volume. The canonical research job runner
+still requires the single-host setup. See [Public Demo Deployment](docs/PUBLIC_DEMO_DEPLOYMENT.md)
+for each supported path and its validation limits.
 
 ## Development Workflow
 
