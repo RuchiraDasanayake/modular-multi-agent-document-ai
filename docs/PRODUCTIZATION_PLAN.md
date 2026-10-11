@@ -29,7 +29,9 @@ every possible router or the reported accepted submission.
   [the measured v1 report](evaluations/VRDU_2000_NO_MODEL_V1.md). The [v2 safety run](evaluations/VRDU_2000_NO_MODEL_V2.md)
   verified 2,000 distinct sources and eliminated automatic release of unapproved schemas, while strict schema F1
   remained 4.33% and pre-review accepted-value F1 became 0%. These paths are distinct from the research pipeline and
-  paper results.
+  paper results. The [v3 corrected-OCR diagnostic](evaluations/VRDU_V3_ABORTED_DIAGNOSTIC.md) recovered some previously
+  unsupported scans but was stopped at 1,229 distinct sidecars because multipass scan latency was too high. It is not
+  a completed quality gate.
 
 - Current job execution is `frontend job API -> frontend runner -> python -m idpo.cli process-inbox -> IDPO_DATA_DIR`.
   IDPO runs `ingest/inbox -> orchestrator -> executor -> exports`. AHMN direct advice is in process. Guardrails and
