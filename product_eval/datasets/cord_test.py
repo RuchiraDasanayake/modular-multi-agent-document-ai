@@ -233,10 +233,10 @@ def build_cord_test_cohort(parquet_path: Path, output_dir: Path) -> dict[str, An
         import pyarrow.parquet as pq
     except ImportError as exc:
         raise CordSliceError("Install pyarrow to read the pinned CORD parquet") from exc
-    table = pq.read_table(parquet_path)
-    if table.num_rows != EXPECTED_TEST_ROWS or set(table.column_names) != {"image", "ground_truth"}:
+    parquet = pq.ParquetFile(parquet_path)
+    if parquet.metadata.num_rows != EXPECTED_TEST_ROWS or set(parquet.schema_arrow.names) != {"image", "ground_truth"}:
         raise CordSliceError("CORD test parquet schema or row count differs from the pinned dataset")
-    image_rows = table.column("image").to_pylist()
+    image_rows = parquet.read(columns=["image"]).column("image").to_pylist()
     sources: list[dict[str, Any]] = []
     source_hashes: set[str] = set()
     for index, payload in enumerate(image_rows):
@@ -252,7 +252,7 @@ def build_cord_test_cohort(parquet_path: Path, output_dir: Path) -> dict[str, An
     splits, split_stats = _assign_splits(sources)
 
     # Label parsing starts here; all 100 sources and their split are already fixed.
-    annotations = table.column("ground_truth").to_pylist()
+    annotations = parquet.read(columns=["ground_truth"]).column("ground_truth").to_pylist()
     gold: list[dict[str, Any]] = []
     gold_by_split: dict[str, list[dict[str, Any]]] = {"development": [], "reserved": []}
     stats: Counter[str] = Counter()
