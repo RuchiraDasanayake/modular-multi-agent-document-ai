@@ -42,6 +42,17 @@ three malformed responses included missing `value` keys, duplicate field IDs,
 and an unknown field ID. Constraining structure may reduce those failures;
 it has no demonstrated effect on the wrong values and rows.
 
+The separate [frozen October paper evidence](../../paper/FINAL_EVIDENCE.md)
+reported 0.884 micro F1 on CORD-100 for its static pipeline using PaddleOCR
+2.9.1 and `qwen3.5:9b` through Ollama 0.35.1 with pack-defined fields. That
+result is a useful stronger local-model reference, but it uses a different
+receipt pipeline, field contract, and scorer. It does not measure product-auto
+schema discovery and cannot be compared directly with this 4B VRDU pilot.
+The 4B constraint comparison below tests the **output interface**, not the
+best local model choice. This host has neither the Ollama binary nor the 9B
+model blobs. After the volume gate, a source-locked 9B product-auto pilot may
+be more valuable for schema discovery if disk and memory permit.
+
 ## Reuse choice
 
 | Option | Assessment |
