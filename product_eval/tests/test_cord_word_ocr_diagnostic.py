@@ -103,3 +103,103 @@ def test_recognition_only_stage_uses_one_result_and_keeps_failed_crop() -> None:
     text, _, score, failure = diagnostic._rapid_crop(EmptyEngine(), Path("crop.png"))
     assert text == "" and score is None
     assert failure is not None
+
+
+def _single_crop_manifest(tmp_path: Path, monkeypatch) -> Path:
+    crop = tmp_path / "crops" / "doc-a" / "crop.png"
+    crop.parent.mkdir(parents=True)
+    Image.new("RGB", (8, 8), "white").save(crop)
+    record = {
+        "crop_id": "doc-a:l000:w000", "doc_id": "doc-a", "source_sha256": "source-a",
+        "crop_path": str(crop), "crop_sha256": diagnostic.sha256_file(crop), "gold_text": "TOTAL",
+    }
+    manifest = tmp_path / "manifest.jsonl"
+    manifest.write_text(json.dumps(record) + "\n", encoding="utf-8")
+    manifest_hash = diagnostic.sha256_file(manifest)
+    receipt = {
+        "manifest_sha256": manifest_hash,
+        "cohort_development_sha256": diagnostic.DEVELOPMENT_COHORT_SHA256,
+        "creator_parquet_sha256": diagnostic.PARQUET_SHA256,
+        "source_count": 1, "line_count": 1, "crop_count": 1, "multi_token_box_count": 0,
+    }
+    (tmp_path / "manifest_receipt.json").write_text(json.dumps(receipt), encoding="utf-8")
+    monkeypatch.setattr(diagnostic, "FROZEN_CROP_MANIFEST_SHA256", manifest_hash)
+    monkeypatch.setattr(diagnostic, "EXPECTED_DEVELOPMENT_SOURCES", 1)
+    monkeypatch.setattr(diagnostic, "EXPECTED_DEVELOPMENT_LINES", 1)
+    monkeypatch.setattr(diagnostic, "EXPECTED_ANNOTATED_BOXES", 1)
+    monkeypatch.setattr(diagnostic, "EXPECTED_MULTI_TOKEN_BOXES", 0)
+    return manifest
+
+
+def test_frozen_manifest_rejects_joint_manifest_and_receipt_tampering(tmp_path: Path, monkeypatch) -> None:
+    manifest = _single_crop_manifest(tmp_path, monkeypatch)
+    assert len(diagnostic.load_manifest(manifest)[0]) == 1
+
+    row = json.loads(manifest.read_text(encoding="utf-8"))
+    row["gold_text"] = "ALTERED"
+    manifest.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    receipt_path = tmp_path / "manifest_receipt.json"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt["manifest_sha256"] = diagnostic.sha256_file(manifest)
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="frozen development experiment"):
+        diagnostic.load_manifest(manifest)
+
+
+def test_check_run_inputs_validates_cpu_assets_without_inference(tmp_path: Path, monkeypatch) -> None:
+    import importlib.metadata
+    import importlib.util
+
+    manifest = _single_crop_manifest(tmp_path, monkeypatch)
+    tesseract = tmp_path / "tesseract.exe"
+    tesseract.write_bytes(b"tesseract")
+    tessdata = tmp_path / "tessdata"
+    tessdata.mkdir()
+    english = tessdata / "eng.traineddata"
+    english.write_bytes(b"english")
+    package = tmp_path / "rapidocr"
+    (package / "models").mkdir(parents=True)
+    package_init = package / "__init__.py"
+    package_init.write_text("", encoding="utf-8")
+    model = package / "models" / "PP-OCRv6_rec_small.onnx"
+    model.write_bytes(b"model")
+    monkeypatch.setattr(diagnostic, "TESSERACT_EXE_SHA256", diagnostic.sha256_file(tesseract))
+    monkeypatch.setattr(diagnostic, "TESSERACT_ENG_SHA256", diagnostic.sha256_file(english))
+    monkeypatch.setattr(diagnostic, "RAPIDOCR_REC_SHA256", diagnostic.sha256_file(model))
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name: SimpleNamespace(origin=str(package_init)))
+    monkeypatch.setattr(importlib.metadata, "version", lambda name: {
+        "rapidocr": "3.10.0", "onnxruntime": "1.23.2",
+    }[name])
+    output, summary = tmp_path / "raw.jsonl", tmp_path / "summary.json"
+
+    result = diagnostic.check_run_inputs(
+        manifest_path=manifest, output_path=output, summary_path=summary,
+        tesseract=tesseract, tessdata=tessdata,
+    )
+
+    assert result["ready"] is True and result["inference_performed"] is False
+    assert (result["source_count"], result["crop_count"]) == (1, 1)
+    assert not output.exists() and not summary.exists()
+    output.write_text("", encoding="utf-8")
+    with pytest.raises(ValueError, match="already exists"):
+        diagnostic.check_run_inputs(
+            manifest_path=manifest, output_path=output, summary_path=summary,
+            tesseract=tesseract, tessdata=tessdata,
+        )
+
+
+def test_actual_rapidocr_provider_must_be_cpu() -> None:
+    class Session:
+        def __init__(self, providers: list[str]) -> None:
+            self.providers = providers
+
+        def get_providers(self) -> list[str]:
+            return self.providers
+
+    def engine(providers: list[str]) -> SimpleNamespace:
+        return SimpleNamespace(text_rec=SimpleNamespace(session=SimpleNamespace(session=Session(providers))))
+
+    assert diagnostic._require_cpu_provider(engine(["CPUExecutionProvider"])) == ["CPUExecutionProvider"]
+    with pytest.raises(RuntimeError, match="Unexpected RapidOCR inference providers"):
+        diagnostic._require_cpu_provider(engine(["CUDAExecutionProvider", "CPUExecutionProvider"]))

@@ -14,7 +14,7 @@ Does PP-OCRv6 small recognize the *same creator-annotated CORD text boxes* more 
 | `cohort_development.jsonl` | `48f9af8c04a5ee874c68ccb4c70a5fb81bcfddc508064747779678949103414a` |
 | 1,389-crop `manifest.jsonl` | `03eeddf3526b28031582460419b3c1ed27bcacc285e194d193b19110fbb610f5` |
 
-The manifest and crop PNGs are outside Git at `E:\DocAI-Benchmarks\cord-v2-test-100-7f0115a\word-ocr-dev-v1`. Each row carries the original PNG SHA-256, stable Parquet row, line/word indices, original quad, gold text, crop path, and crop SHA-256. The runner rechecks every crop and rejects paths outside that frozen directory. The creator Parquet has one row group, so Arrow decompresses its annotation column, but code parses and uses only the 60 development row indices. It does not read the 40 reserved PNGs or parse their annotations.
+The manifest and crop PNGs are outside Git at `E:\DocAI-Benchmarks\cord-v2-test-100-7f0115a\word-ocr-dev-v1`. Each row carries the original PNG SHA-256, stable Parquet row, line/word indices, original quad, gold text, crop path, and crop SHA-256. The runner requires the published manifest SHA-256, rechecks every crop, and rejects paths outside that frozen directory. This also rejects a jointly modified manifest and receipt. The creator Parquet has one row group, so Arrow decompresses its annotation column, but code parses and uses only the 60 development row indices. It does not read the 40 reserved PNGs or parse their annotations.
 
 ## Fixed crop and recognizers
 
@@ -47,6 +47,20 @@ python -m product_eval.cord_word_ocr_diagnostic prepare `
   --output-dir 'E:\DocAI-Benchmarks\cord-v2-test-100-7f0115a\word-ocr-dev-v1'
 ```
 
+The `run` and `check` commands accept only the published v1 manifest hash. Repeating `prepare` at another path creates a separate artifact that requires an explicit source-lock review and new diagnostic version before inference.
+
+The read-only `check` command verifies the frozen manifest, every crop, pinned Tesseract files, PP-OCRv6 small ONNX weights, pinned RapidOCR/ONNX Runtime versions, and unused output paths. It records the Pillow version. It does not load the OCR model or run recognition. On this host it returned `ready=true`, 60 sources, 796 annotated lines, 1,389 crops, and 20 boxes containing spaces. The isolated runtime has RapidOCR 3.10.0, ONNX Runtime 1.23.2, and Pillow 12.3.0; the saved preparation receipt records its separate Pillow version. Run this exact preflight immediately before inference:
+
+```powershell
+& 'E:\DocAI-Benchmarks\tools\rapidocr-3.10-venv\Scripts\python.exe' `
+  -m product_eval.cord_word_ocr_diagnostic check `
+  --manifest 'E:\DocAI-Benchmarks\cord-v2-test-100-7f0115a\word-ocr-dev-v1\manifest.jsonl' `
+  --output 'E:\DocAI-Benchmarks\cord-v2-test-100-7f0115a\word-ocr-dev-v1\paired_raw.jsonl' `
+  --summary 'E:\DocAI-Benchmarks\cord-v2-test-100-7f0115a\word-ocr-dev-v1\paired_summary.json' `
+  --tesseract 'E:\DocAI-Benchmarks\tools\Tesseract-OCR\tesseract.exe' `
+  --tessdata 'E:\DocAI-Benchmarks\tools\Tesseract-OCR\tessdata'
+```
+
 Only after the active product gate finishes and the CORD jobs are sequenced, run the paired OCR pass in the isolated Python 3.11 environment. The runner refuses existing output paths; a one-hour wall budget leaves an explicitly incomplete raw file rather than issuing a partial score:
 
 ```powershell
@@ -59,5 +73,7 @@ Only after the active product gate finishes and the CORD jobs are sequenced, run
   --tessdata 'E:\DocAI-Benchmarks\tools\Tesseract-OCR\tessdata' `
   --max-wall-seconds 3600
 ```
+
+A complete run must have 1,389 paired raw records over exactly 60 source hashes, with every failed crop still present. The locked manifest contains 6,853 code points after the declared normalization. The four paired exact-match categories must sum to 1,389; each recognizer's failures remain in that denominator. Record per-engine exact match, CER, document-cluster bootstrap interval, and p50/p95/summed crop time. The runner checks the actual ONNX provider after the first crop and stops if it is not CPU. If the one-hour budget expires, retain the partial raw file as incomplete and use a new output path for any rerun. Do not open or process the 40 reserved receipts for this diagnostic.
 
 Before choosing a production OCR route, verify any crop-level gain on source-locked scanned pages with **detection plus recognition**, source geometry and linked-row scoring, review decisions, and measured cost per correct extraction. The 40 reserved CORD receipts should not be used for iterative OCR selection.

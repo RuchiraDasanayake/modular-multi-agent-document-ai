@@ -29,6 +29,7 @@ from PIL import Image, ImageOps
 from product_eval.datasets.cord_test import PARQUET_SHA256
 
 DEVELOPMENT_COHORT_SHA256 = "48f9af8c04a5ee874c68ccb4c70a5fb81bcfddc508064747779678949103414a"
+FROZEN_CROP_MANIFEST_SHA256 = "03eeddf3526b28031582460419b3c1ed27bcacc285e194d193b19110fbb610f5"
 EXPECTED_DEVELOPMENT_SOURCES = 60
 EXPECTED_DEVELOPMENT_LINES = 796
 EXPECTED_ANNOTATED_BOXES = 1389
@@ -229,10 +230,22 @@ def prepare_manifest(*, stage_root: Path, parquet_path: Path, output_dir: Path) 
 def load_manifest(manifest_path: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     receipt_path = manifest_path.parent / "manifest_receipt.json"
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-    if sha256_file(manifest_path) != receipt["manifest_sha256"]:
-        raise ValueError("CORD crop manifest changed")
+    manifest_sha256 = sha256_file(manifest_path)
+    if manifest_sha256 != FROZEN_CROP_MANIFEST_SHA256:
+        raise ValueError("CORD crop manifest differs from the frozen development experiment")
+    if manifest_sha256 != receipt.get("manifest_sha256"):
+        raise ValueError("CORD crop receipt does not match the manifest")
+    if (
+        receipt.get("cohort_development_sha256") != DEVELOPMENT_COHORT_SHA256
+        or receipt.get("creator_parquet_sha256") != PARQUET_SHA256
+        or receipt.get("source_count") != EXPECTED_DEVELOPMENT_SOURCES
+        or receipt.get("line_count") != EXPECTED_DEVELOPMENT_LINES
+        or receipt.get("crop_count") != EXPECTED_ANNOTATED_BOXES
+        or receipt.get("multi_token_box_count") != EXPECTED_MULTI_TOKEN_BOXES
+    ):
+        raise ValueError("CORD crop receipt differs from the frozen development experiment")
     records = _read_jsonl(manifest_path)
-    if len(records) != EXPECTED_ANNOTATED_BOXES or len({row["doc_id"] for row in records}) != 60:
+    if len(records) != EXPECTED_ANNOTATED_BOXES or len({row["doc_id"] for row in records}) != EXPECTED_DEVELOPMENT_SOURCES:
         raise ValueError("CORD crop manifest count changed")
     if len({row["crop_id"] for row in records}) != len(records):
         raise ValueError("CORD crop IDs are not unique")
@@ -243,6 +256,36 @@ def load_manifest(manifest_path: Path) -> tuple[list[dict[str, Any]], dict[str, 
         if not path.is_file() or sha256_file(path) != row["crop_sha256"]:
             raise ValueError(f"CORD crop changed: {row['crop_id']}")
     return records, receipt
+
+
+def check_run_inputs(*, manifest_path: Path, output_path: Path, summary_path: Path,
+                     tesseract: Path, tessdata: Path) -> dict[str, Any]:
+    """Validate the frozen sources and local CPU runtime without loading OCR models."""
+    from importlib import metadata, util
+
+    records, receipt = load_manifest(manifest_path)
+    if output_path.exists() or summary_path.exists() or output_path.resolve() == summary_path.resolve():
+        raise ValueError("OCR output already exists; choose new paths to preserve evidence")
+    if sha256_file(tesseract) != TESSERACT_EXE_SHA256 or sha256_file(tessdata / "eng.traineddata") != TESSERACT_ENG_SHA256:
+        raise ValueError("Pinned Tesseract executable or English traineddata changed")
+    rapidocr_spec = util.find_spec("rapidocr")
+    if rapidocr_spec is None or rapidocr_spec.origin is None:
+        raise RuntimeError("Pinned RapidOCR package is not installed")
+    model = Path(rapidocr_spec.origin).parent / "models" / "PP-OCRv6_rec_small.onnx"
+    if sha256_file(model) != RAPIDOCR_REC_SHA256:
+        raise ValueError("Pinned PP-OCRv6 small recognition weights changed")
+    versions = {"rapidocr": metadata.version("rapidocr"), "onnxruntime": metadata.version("onnxruntime"),
+                "pillow": Image.__version__}
+    if versions["rapidocr"] != "3.10.0" or versions["onnxruntime"] != "1.23.2":
+        raise ValueError("Pinned RapidOCR or ONNX Runtime version changed")
+    return {
+        "ready": True, "manifest_sha256": receipt["manifest_sha256"],
+        "source_count": receipt["source_count"], "line_count": receipt["line_count"],
+        "crop_count": len(records), "multi_token_box_count": receipt["multi_token_box_count"],
+        "tesseract_exe_sha256": TESSERACT_EXE_SHA256, "tesseract_eng_sha256": TESSERACT_ENG_SHA256,
+        "rapidocr_rec_model_path": str(model), "rapidocr_rec_model_sha256": RAPIDOCR_REC_SHA256,
+        "runtime_versions": versions, "inference_performed": False,
+    }
 
 
 def _tesseract_crop(image_path: Path, executable: Path, tessdata: Path) -> tuple[str, float, str | None]:
@@ -274,27 +317,27 @@ def _rapid_crop(engine: Any, image_path: Path) -> tuple[str, float, float | None
         return "", round((time.perf_counter() - started) * 1000, 3), None, f"{type(exc).__name__}:{str(exc)[:120]}"
 
 
+def _require_cpu_provider(engine: Any) -> list[str]:
+    providers = engine.text_rec.session.session.get_providers() if engine.text_rec is not None else []
+    if providers != ["CPUExecutionProvider"]:
+        raise RuntimeError(f"Unexpected RapidOCR inference providers: {providers}")
+    return providers
+
+
 def run_recognizers(
     *, manifest_path: Path, output_path: Path, summary_path: Path, tesseract: Path, tessdata: Path,
     max_wall_seconds: int = 3600,
 ) -> dict[str, Any]:
-    import importlib.metadata as metadata
-
-    import rapidocr
     from rapidocr import ModelType, OCRVersion, RapidOCR
 
-    records, receipt = load_manifest(manifest_path)
-    if output_path.exists() or summary_path.exists() or output_path.resolve() == summary_path.resolve():
-        raise ValueError("OCR output already exists; choose new paths to preserve evidence")
     if max_wall_seconds < 1:
         raise ValueError("OCR wall-time budget must be positive")
-    if sha256_file(tesseract) != TESSERACT_EXE_SHA256 or sha256_file(tessdata / "eng.traineddata") != TESSERACT_ENG_SHA256:
-        raise ValueError("Pinned Tesseract executable or English traineddata changed")
-    model = Path(rapidocr.__file__).parent / "models" / "PP-OCRv6_rec_small.onnx"
-    if sha256_file(model) != RAPIDOCR_REC_SHA256:
-        raise ValueError("Pinned PP-OCRv6 small recognition weights changed")
-    if metadata.version("rapidocr") != "3.10.0" or metadata.version("onnxruntime") != "1.23.2":
-        raise ValueError("Pinned RapidOCR or ONNX Runtime version changed")
+    preflight = check_run_inputs(
+        manifest_path=manifest_path, output_path=output_path, summary_path=summary_path,
+        tesseract=tesseract, tessdata=tessdata,
+    )
+    records, receipt = load_manifest(manifest_path)
+    model = Path(preflight["rapidocr_rec_model_path"])
     params = {
         "Global.use_det": False, "Global.use_cls": False, "Global.use_rec": True,
         "Global.use_preprocess_img": False,
@@ -310,6 +353,7 @@ def run_recognizers(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
+    providers: list[str] = []
     with output_path.open("w", encoding="utf-8", newline="\n") as handle:
         for index, row in enumerate(records, 1):
             if time.monotonic() - started >= max_wall_seconds:
@@ -317,6 +361,10 @@ def run_recognizers(
             path = Path(row["crop_path"])
             tess_text, tess_ms, tess_failure = _tesseract_crop(path, tesseract, tessdata)
             rapid_text, rapid_ms, rapid_score, rapid_failure = _rapid_crop(engine, path)
+            if index == 1:
+                # The model loads on the first crop; verify its actual session
+                # before spending the rest of the CPU-only experiment budget.
+                providers = _require_cpu_provider(engine)
             result = {
                 "crop_id": row["crop_id"], "doc_id": row["doc_id"],
                 "source_sha256": row["source_sha256"], "crop_sha256": row["crop_sha256"],
@@ -328,15 +376,11 @@ def run_recognizers(
             handle.flush()
             if index % 50 == 0 or index == len(records):
                 print(f"{index}/{len(records)} recognition-only CORD crops", flush=True)
-    providers = engine.text_rec.session.session.get_providers() if engine.text_rec is not None else []
-    if providers != ["CPUExecutionProvider"]:
-        raise RuntimeError(f"Unexpected RapidOCR inference providers: {providers}")
     return summarize_predictions(
         manifest_path, output_path, summary_path, receipt=receipt,
         params={key: value.value if isinstance(value, Enum) else value for key, value in params.items()},
         model_sha256=RAPIDOCR_REC_SHA256, providers=providers,
-        versions={"rapidocr": metadata.version("rapidocr"), "onnxruntime": metadata.version("onnxruntime"),
-                  "pillow": Image.__version__},
+        versions=preflight["runtime_versions"],
     )
 
 
@@ -476,16 +520,23 @@ def main() -> None:
     prepare.add_argument("--stage-root", type=Path, required=True)
     prepare.add_argument("--parquet", type=Path, required=True)
     prepare.add_argument("--output-dir", type=Path, required=True)
+    check = commands.add_parser("check", help="Verify the frozen crop manifest and CPU runtime without OCR inference")
     run = commands.add_parser("run", help="Run paired recognition on the frozen manifest")
-    run.add_argument("--manifest", type=Path, required=True)
-    run.add_argument("--output", type=Path, required=True)
-    run.add_argument("--summary", type=Path, required=True)
-    run.add_argument("--tesseract", type=Path, required=True)
-    run.add_argument("--tessdata", type=Path, required=True)
+    for command in (check, run):
+        command.add_argument("--manifest", type=Path, required=True)
+        command.add_argument("--output", type=Path, required=True)
+        command.add_argument("--summary", type=Path, required=True)
+        command.add_argument("--tesseract", type=Path, required=True)
+        command.add_argument("--tessdata", type=Path, required=True)
     run.add_argument("--max-wall-seconds", type=int, default=3600)
     args = parser.parse_args()
     if args.command == "prepare":
         result = prepare_manifest(stage_root=args.stage_root, parquet_path=args.parquet, output_dir=args.output_dir)
+    elif args.command == "check":
+        result = check_run_inputs(
+            manifest_path=args.manifest, output_path=args.output, summary_path=args.summary,
+            tesseract=args.tesseract, tessdata=args.tessdata,
+        )
     else:
         result = run_recognizers(
             manifest_path=args.manifest, output_path=args.output, summary_path=args.summary,
