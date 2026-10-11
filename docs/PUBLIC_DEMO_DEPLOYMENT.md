@@ -40,6 +40,9 @@ frontend stages uploads in the `idpo_data` named volume and sends the run reques
 The worker has no published port. The frontend reads the worker's source-hash receipts and candidate artifacts from
 the same volume before showing a result. Frontend authentication, job ownership and review audit routes remain in
 place. The worker accepts only a staged directory whose name matches the run ID and executes one run at a time.
+The default Compose profile starts PostgreSQL, Redis, gateway, product worker, and frontend. Add
+`--profile research` to start the separate AHMN, Guardrails, XAI-HITL, and legacy IDPO services for their
+dashboard and research APIs; Automatic extraction does not depend on them.
 
 ```powershell
 docker compose up --build -d

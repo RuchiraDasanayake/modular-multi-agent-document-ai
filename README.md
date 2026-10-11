@@ -200,6 +200,9 @@ The **Automatic extraction** path targets that worker; the canonical research jo
 unavailable response in Docker. Compose configuration and focused tests pass, but a live image/container extraction
 smoke has not run on this host. The verified end-to-end research demo remains the single-host setup in
 [Public Demo Deployment](docs/PUBLIC_DEMO_DEPLOYMENT.md), checked with `scripts/run_public_demo_smoke.ps1`.
+By default, Compose starts the five services needed for the product pilot: PostgreSQL, Redis, gateway,
+product worker, and frontend. The AHMN, Guardrails, XAI-HITL, and legacy IDPO services are available with
+`docker compose --profile research up --build`; they are not called by Automatic extraction.
 
 ```bash
 # 1. Clone the repository
@@ -210,7 +213,7 @@ cd modular-multi-agent-document-ai
 cp .env.example .env
 # Edit .env: set JWT_SECRET_KEY to a random 32-char string and ADMIN_PASSWORD for the first admin account
 
-# 3. Build and start the supporting services and UI
+# 3. Build and start the product pilot
 docker compose up --build
 
 # 4. Open the app

@@ -61,6 +61,7 @@ services:
 
   # ── AHMN Service (port 8001) ──
   ahmn:
+    profiles: [research]
     build:
       context: .
       dockerfile: ahmn_core/Dockerfile
@@ -102,6 +103,7 @@ services:
 
   # ── Guardrails Service (port 8002) ──
   guardrails:
+    profiles: [research]
     build:
       context: .
       dockerfile: guardrails/Dockerfile
@@ -137,6 +139,7 @@ services:
 
   # ── XAI-HITL Service (port 8003) ──
   xai-hitl:
+    profiles: [research]
     build:
       context: .
       dockerfile: xai_hitl/Dockerfile
@@ -172,6 +175,7 @@ services:
 
   # ── IDPO Service (port 8004) ──
   idpo:
+    profiles: [research]
     build:
       context: .
       dockerfile: idpo/Dockerfile
@@ -237,14 +241,6 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      ahmn:
-        condition: service_healthy
-      guardrails:
-        condition: service_healthy
-      xai-hitl:
-        condition: service_healthy
-      idpo:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
