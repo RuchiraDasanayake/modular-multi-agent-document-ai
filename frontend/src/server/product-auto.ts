@@ -26,8 +26,11 @@ const MAX_REVIEW_NOTE = 2000;
 const MAX_CORRECTION = 10000;
 const MAX_LINKED_CORRECTION = 300000;
 const MAX_LINKED_ROWS = 128;
+const MAX_SCHEMA_FIELDS = 24;
 const MAX_ADDED_FIELDS = 100;
 const ADDED_FIELD_ID = /^[a-z][a-z0-9_]{0,63}$/;
+const SCHEMA_FIELD_ID = /^[\p{L}][\p{L}\p{N}_]{0,63}$/u;
+const SCHEMA_TYPES = new Set(["string", "integer", "decimal", "boolean", "date", "array[object]"]);
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 const interrupted = "The server stopped before extraction finished. Run the documents again.";
 const instanceId: string = (() => {
@@ -189,7 +192,8 @@ function candidateFromArtifact(value: unknown, docId: string, pages: unknown): P
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid candidate.");
   const candidate = value as Record<string, unknown>;
   if (candidate.contract_version !== 1 || candidate.doc_id !== docId ||
-    !Array.isArray(candidate.proposed_schema) || !Array.isArray(candidate.extracted_values)) {
+    !Array.isArray(candidate.proposed_schema) || candidate.proposed_schema.length > MAX_SCHEMA_FIELDS ||
+    !Array.isArray(candidate.extracted_values)) {
     throw new Error("Invalid candidate.");
   }
   if (!["processed", "needs_review", "unsupported", "failed"].includes(String(candidate.document_status))) {
@@ -199,7 +203,11 @@ function candidateFromArtifact(value: unknown, docId: string, pages: unknown): P
   const schemaTypes = new Map<string, string>();
   for (const field of candidate.proposed_schema) {
     if (!field || typeof field !== "object" || typeof field.field_id !== "string" ||
-      typeof field.type !== "string" || !field.field_id || schemaIds.has(field.field_id)) {
+      !SCHEMA_FIELD_ID.test(field.field_id) || field.field_id.endsWith("_") ||
+      field.field_id !== field.field_id.normalize("NFKC").toLowerCase() ||
+      typeof field.type !== "string" || !SCHEMA_TYPES.has(field.type) || schemaIds.has(field.field_id) ||
+      "group" in field && (typeof field.group !== "string" || !field.group ||
+        field.group.trim() !== field.group || [...field.group].length > 64)) {
       throw new Error("Invalid proposed schema.");
     }
     schemaIds.add(field.field_id);

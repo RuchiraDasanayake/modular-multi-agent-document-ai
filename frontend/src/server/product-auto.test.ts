@@ -347,6 +347,65 @@ test("legacy linked-row approval stays pending when a cell is unverified", () =>
   assert.equal(derived.fields[0].status, "needs_review");
 });
 
+test("machine schema artifacts enforce normalized IDs, types, field limits, and bounded groups", async () => withStorage(async (dataDir) => {
+  const job = createWorkspaceJob({ ownerUserId: "alice-id" });
+  const updated = await addDocumentsToJob(job.jobId, [new File(["Café"], "source.txt")]);
+  const source = updated.documents![0];
+  const sha256 = createHash("sha256").update(fs.readFileSync(path.join(updated.uploadsPath!, source.storedName))).digest("hex");
+  const runId = `auto_${"c".repeat(32)}`;
+  const docId = "schema1";
+  const output = path.join(dataDir, "product_runs", runId);
+  const sidecarDir = path.join(output, "docs", docId);
+  fs.mkdirSync(sidecarDir, { recursive: true });
+  fs.writeFileSync(path.join(output, "run.json"), JSON.stringify({ contract_version: 1, run_id: runId, doc_count: 1 }));
+  fs.writeFileSync(path.join(output, "manifest.jsonl"), JSON.stringify({
+    contract_version: 1, run_id: runId, doc_id: docId, source_file: source.storedName,
+    source_container_sha256: sha256, document_status: "needs_review",
+  }) + "\n");
+  const metadataDir = path.join(dataDir, "frontend", "auto_runs", job.jobId);
+  fs.mkdirSync(metadataDir, { recursive: true });
+  fs.writeFileSync(path.join(metadataDir, `${runId}.json`), JSON.stringify({
+    runId, jobId: job.jobId, status: "running", createdAt: new Date().toISOString(),
+    serverInstanceId: "previous-server", selectedFiles: [{ fileId: source.fileId,
+      fileName: source.fileName, storedName: source.storedName, sha256 }], documents: [],
+  }));
+  const docUrl = `/api/jobs/${job.jobId}/auto/${runId}/docs/${docId}`;
+  const params = { params: Promise.resolve({ jobId: job.jobId, runId, docId }) };
+  const readSchema = async (schema: Array<Record<string, unknown>>) => {
+    fs.writeFileSync(path.join(sidecarDir, "result.json"), JSON.stringify({
+      pages: [{ page: 1, text: "Café" }],
+      candidate: { contract_version: 1, doc_id: docId, document_status: "needs_review",
+        proposed_schema: schema, extracted_values: schema.map((field) => ({
+          field_id: field.field_id, value: null, status: "missing", review_state: "pending",
+        })) },
+    }));
+    return getAutoDocRoute(request(docUrl, "alice"), params);
+  };
+
+  assert.equal((await readSchema([{ field_id: "café", type: "string", group: "header" },
+    { field_id: "line_item", type: "array[object]", group: "line items" }])).status, 200);
+  assert.equal((await readSchema([{ field_id: "line_item", type: "array[object]" }])).status, 200);
+  assert.equal((await readSchema(Array.from({ length: 24 }, (_, index) => ({
+    field_id: `field_${index}`, type: "integer",
+  })))).status, 200);
+  const invalidSchemas: Array<Array<Record<string, unknown>>> = [
+    [{ field_id: "Total", type: "string" }],
+    [{ field_id: "line-item", type: "string" }],
+    [{ field_id: "field_", type: "string" }],
+    [{ field_id: "x".repeat(65), type: "string" }],
+    [{ field_id: "total", type: "array[string]" }],
+    [{ field_id: "total", type: "object" }],
+    [{ field_id: "line_item", type: "array[object]", group: "" }],
+    [{ field_id: "line_item", type: "array[object]", group: " items" }],
+    [{ field_id: "line_item", type: "array[object]", group: "x".repeat(65) }],
+    [{ field_id: "line_item", type: "array[object]", group: { name: "items" } }],
+    Array.from({ length: 25 }, (_, index) => ({ field_id: `field_${index}`, type: "string" })),
+  ];
+  for (const schema of invalidSchemas) {
+    assert.equal((await readSchema(schema)).status, 500, JSON.stringify(schema));
+  }
+}));
+
 test("a viewer cannot trigger operator configured model calls", async () => withStorage(async () => {
   const job = createWorkspaceJob({ ownerUserId: "alice-id" });
   const updated = await addDocumentsToJob(job.jobId, [new File(["Total: 100"], "invoice.txt")]);
