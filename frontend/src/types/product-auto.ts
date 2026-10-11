@@ -3,6 +3,25 @@ export type ProductAutoValueStatus = "accepted" | "needs_review" | "missing" | "
 export type ProductAutoReviewDecision = "correct" | "incorrect" | "corrected" | "not_present" | "remove";
 export type ProductAutoScalarType = "string" | "integer" | "decimal" | "boolean" | "date";
 
+export interface ProductAutoEvidence {
+  page: number;
+  start: number;
+  end: number;
+  quote: string;
+}
+
+export interface ProductAutoLinkedCell {
+  row: number;
+  value: string;
+  status: "accepted" | "needs_review";
+  evidence?: ProductAutoEvidence;
+}
+
+export interface ProductAutoLinkedCorrectionRow {
+  row: number;
+  value: string;
+}
+
 export interface ProductAutoField {
   field_id: string;
   type: string;
@@ -14,7 +33,7 @@ export interface ProductAutoValue {
   value: unknown;
   status: ProductAutoValueStatus;
   review_state: "none" | "pending" | "completed";
-  evidence?: { page: number; start: number; end: number; quote: string };
+  evidence?: ProductAutoEvidence;
 }
 
 export interface ProductAutoCandidate {

@@ -11,6 +11,9 @@ import type {
   ProductAutoCandidate,
   ProductAutoCorrectedResult,
   ProductAutoDocumentDetail,
+  ProductAutoEvidence,
+  ProductAutoLinkedCell,
+  ProductAutoLinkedCorrectionRow,
   ProductAutoReview,
   ProductAutoReviewDecision,
   ProductAutoReviewField,
@@ -21,6 +24,8 @@ import type {
 const SAFE_ID = /^[a-zA-Z0-9_-]{1,100}$/;
 const MAX_REVIEW_NOTE = 2000;
 const MAX_CORRECTION = 10000;
+const MAX_LINKED_CORRECTION = 300000;
+const MAX_LINKED_ROWS = 128;
 const MAX_ADDED_FIELDS = 100;
 const ADDED_FIELD_ID = /^[a-z][a-z0-9_]{0,63}$/;
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
@@ -125,6 +130,61 @@ function sha256File(filePath: string): string {
   return createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
 }
 
+function hasEvidenceShape(value: unknown): value is ProductAutoEvidence {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const evidence = value as Record<string, unknown>;
+  return Number.isInteger(evidence.page) && typeof evidence.page === "number" && evidence.page > 0 &&
+    Number.isInteger(evidence.start) && typeof evidence.start === "number" && evidence.start >= 0 &&
+    Number.isInteger(evidence.end) && typeof evidence.end === "number" && evidence.end > evidence.start &&
+    typeof evidence.quote === "string" && evidence.quote.length > 0;
+}
+
+function assertSourceEvidence(value: unknown, pages: unknown): asserts value is ProductAutoEvidence {
+  if (!hasEvidenceShape(value)) throw new Error("Invalid candidate evidence.");
+  const page = Array.isArray(pages) ? pages.find((item) => item && typeof item === "object" && item.page === value.page) : null;
+  if (!page || typeof page.text !== "string" || [...page.text].slice(value.start, value.end).join("") !== value.quote) {
+    throw new Error("Candidate evidence does not match source text.");
+  }
+}
+
+function linkedValueMatchesQuote(value: string, quote: string): boolean {
+  const needle = value.toLowerCase();
+  const text = quote.toLowerCase();
+  if (!needle) return false;
+  const word = /[\p{L}\p{N}_]/u;
+  let index = text.indexOf(needle);
+  while (index >= 0) {
+    const before = index > 0 ? [...text.slice(0, index)].at(-1) : undefined;
+    const after = [...text.slice(index + needle.length)][0];
+    if ((!before || !word.test(before)) && (!after || !word.test(after))) return true;
+    index = text.indexOf(needle, index + 1);
+  }
+  return false;
+}
+
+function machineLinkedRows(value: unknown): ProductAutoLinkedCell[] | null {
+  if (!Array.isArray(value) || value.length > MAX_LINKED_ROWS) return null;
+  const seen = new Set<number>();
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+    const cell = item as Record<string, unknown>;
+    if (Object.keys(cell).some((key) => !["row", "value", "status", "evidence"].includes(key)) ||
+      !Number.isInteger(cell.row) || typeof cell.row !== "number" || cell.row < 0 || cell.row >= MAX_LINKED_ROWS ||
+      seen.has(cell.row) || typeof cell.value !== "string" || !cell.value.trim() || [...cell.value].length > 500 ||
+      !["accepted", "needs_review"].includes(String(cell.status)) ||
+      cell.status === "accepted" && !hasEvidenceShape(cell.evidence) ||
+      cell.status === "accepted" && hasEvidenceShape(cell.evidence) && !linkedValueMatchesQuote(cell.value, cell.evidence.quote) ||
+      cell.evidence != null && !hasEvidenceShape(cell.evidence)) return null;
+    seen.add(cell.row);
+  }
+  return value as ProductAutoLinkedCell[];
+}
+
+function linkedRowsAreVerified(value: unknown): boolean {
+  const rows = machineLinkedRows(value);
+  return Boolean(rows?.length && rows.every((cell) => cell.status === "accepted" && cell.evidence));
+}
+
 function candidateFromArtifact(value: unknown, docId: string, pages: unknown): ProductAutoCandidate {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid candidate.");
   const candidate = value as Record<string, unknown>;
@@ -136,12 +196,14 @@ function candidateFromArtifact(value: unknown, docId: string, pages: unknown): P
     throw new Error("Invalid candidate status.");
   }
   const schemaIds = new Set<string>();
+  const schemaTypes = new Map<string, string>();
   for (const field of candidate.proposed_schema) {
     if (!field || typeof field !== "object" || typeof field.field_id !== "string" ||
       typeof field.type !== "string" || !field.field_id || schemaIds.has(field.field_id)) {
       throw new Error("Invalid proposed schema.");
     }
     schemaIds.add(field.field_id);
+    schemaTypes.set(field.field_id, field.type);
   }
   for (const field of candidate.extracted_values) {
     if (!field || typeof field !== "object" || typeof field.field_id !== "string" ||
@@ -149,14 +211,16 @@ function candidateFromArtifact(value: unknown, docId: string, pages: unknown): P
       throw new Error("Invalid extracted value.");
     }
     if (field.status === "accepted" && !field.evidence) throw new Error("Accepted value has no evidence.");
-    if (field.evidence) {
-      const evidence = field.evidence as Record<string, unknown>;
-      const page = Array.isArray(pages) ? pages.find((item) => item && typeof item === "object" && item.page === evidence.page) : null;
-      if (!page || typeof page.text !== "string" || !Number.isInteger(evidence.start) ||
-        !Number.isInteger(evidence.end) || typeof evidence.start !== "number" || typeof evidence.end !== "number" ||
-        evidence.start < 0 || evidence.end <= evidence.start || typeof evidence.quote !== "string" ||
-        [...page.text].slice(evidence.start, evidence.end).join("") !== evidence.quote) {
-        throw new Error("Candidate evidence does not match source text.");
+    if (field.evidence) assertSourceEvidence(field.evidence, pages);
+    if (schemaTypes.get(field.field_id) === "array[object]") {
+      if (field.value === null) {
+        if (field.status === "accepted") throw new Error("A missing linked field cannot be accepted.");
+        continue;
+      }
+      const rows = machineLinkedRows(field.value);
+      if (!rows || field.status === "accepted") throw new Error("Invalid linked row candidate.");
+      for (const cell of rows) {
+        if (cell.evidence) assertSourceEvidence(cell.evidence, pages);
       }
     }
   }
@@ -436,6 +500,7 @@ export function deriveProductAutoCorrectedResult(
   const decisions = new Map(review?.fields.map((item) => [item.field_id, item]) ?? []);
   const removed_field_ids: string[] = [];
   const fields: ProductAutoCorrectedResult["fields"] = [];
+  let unsafeLinkedReview = false;
   for (const schema of candidate.proposed_schema) {
     const decision = decisions.get(schema.field_id);
     if (decision?.decision === "not_present" || decision?.decision === "remove") {
@@ -445,20 +510,25 @@ export function deriveProductAutoCorrectedResult(
     const machine = machineValues.get(schema.field_id);
     const identity = { field_id: schema.field_id, type: schema.type, ...(schema.group ? { group: schema.group } : {}) };
     if (decision?.decision === "corrected") {
-      let value: string | number | boolean | null = null;
+      let value: string | number | boolean | ProductAutoLinkedCorrectionRow[] | null = null;
       try {
-        if (decision.corrected_value) value = parseCorrectedValue(decision.corrected_value, schema.type);
+        if (decision.corrected_value) value = schema.type === "array[object]"
+          ? parseCorrectedRows(decision.corrected_value)
+          : parseCorrectedValue(decision.corrected_value, schema.type);
       } catch {
         // Older audit events could contain a correction that does not match the field type.
       }
+      if (schema.type === "array[object]" && value === null) unsafeLinkedReview = true;
       fields.push({ ...identity, value, status: value === null ? "needs_review" : "accepted", provenance: "human_correction" });
     } else if (decision?.decision === "incorrect") {
       fields.push({ ...identity, value: null, status: "needs_review", provenance: "machine" });
     } else {
       const verified = decision?.decision === "correct";
-      const status = verified ? machine?.value == null ? "missing" : "accepted" : "needs_review";
+      const linkedVerified = schema.type !== "array[object]" || linkedRowsAreVerified(machine?.value);
+      if (verified && !linkedVerified) unsafeLinkedReview = true;
+      const status = verified && linkedVerified ? machine?.value == null ? "missing" : "accepted" : "needs_review";
       fields.push({ ...identity, value: machine?.value ?? null, status,
-        provenance: verified ? "human_verified" : "machine",
+        provenance: verified && linkedVerified ? "human_verified" : "machine",
         ...(machine?.evidence ? { evidence: machine.evidence } : {}) });
     }
   }
@@ -467,12 +537,13 @@ export function deriveProductAutoCorrectedResult(
       status: "accepted", provenance: "human_added" });
   }
   return { scope: "document", doc_id: candidate.doc_id, review_revision: review?.revision ?? 0,
-    review_status: review?.status ?? "unreviewed", fields, removed_field_ids };
+    review_status: unsafeLinkedReview ? "pending" : review?.status ?? "unreviewed", fields, removed_field_ids };
 }
 
 function parseCorrectedValue(raw: string, fieldType: string): string | number | boolean {
   const text = raw.trim();
   if (!text || text.length > MAX_CORRECTION) throw new AccessError("Invalid corrected value.", 400);
+  if (fieldType === "array[object]") throw new AccessError("Linked rows require structured row correction.", 400);
   if (fieldType === "boolean") {
     if (!/^(?:true|false|yes|no)$/i.test(text)) throw new AccessError("Correction must be a boolean.", 400);
     return /^(?:true|yes)$/i.test(text);
@@ -495,6 +566,37 @@ function parseCorrectedValue(raw: string, fieldType: string): string | number | 
     }
   }
   return text;
+}
+
+function parseCorrectedRows(raw: string): ProductAutoLinkedCorrectionRow[] {
+  if (!raw.trim() || raw.length > MAX_LINKED_CORRECTION) {
+    throw new AccessError("Invalid linked row correction.", 400);
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new AccessError("Linked row correction must be a JSON array.", 400);
+  }
+  if (!Array.isArray(parsed) || parsed.length < 1 || parsed.length > MAX_LINKED_ROWS) {
+    throw new AccessError("Linked row correction must contain 1 to 128 rows.", 400);
+  }
+  const seen = new Set<number>();
+  const rows: ProductAutoLinkedCorrectionRow[] = [];
+  for (const item of parsed) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new AccessError("Invalid linked row.", 400);
+    }
+    const row = item as Record<string, unknown>;
+    if (Object.keys(row).sort().join(",") !== "row,value" ||
+      !Number.isInteger(row.row) || typeof row.row !== "number" || row.row < 0 || row.row >= MAX_LINKED_ROWS ||
+      seen.has(row.row) || typeof row.value !== "string" || !row.value.trim() || [...row.value].length > 500) {
+      throw new AccessError("Invalid linked row index or value.", 400);
+    }
+    seen.add(row.row);
+    rows.push({ row: row.row, value: row.value.trim() });
+  }
+  return rows.sort((left, right) => left.row - right.row);
 }
 
 function parseAddedFields(values: unknown, proposedIds: Set<string>): ProductAutoAddedField[] {
@@ -541,6 +643,7 @@ function saveProductAutoReviewWithRevision(
   if (!Array.isArray(fields)) throw new AccessError("Review fields must be a list.", 400);
   const allowed = new Set(detail.candidate.proposed_schema.map((field) => field.field_id));
   const fieldTypes = new Map(detail.candidate.proposed_schema.map((field) => [field.field_id, field.type]));
+  const machineValueByField = new Map(detail.candidate.extracted_values.map((field) => [field.field_id, field.value]));
   const parsedAdded = parseAddedFields(addedFields, allowed);
   const seen = new Set<string>();
   const parsed: ProductAutoReviewField[] = [];
@@ -557,13 +660,22 @@ function saveProductAutoReviewWithRevision(
     if (item.note != null && typeof item.note !== "string") throw new AccessError("Invalid review note.", 400);
     const correctedValue = typeof item.corrected_value === "string" ? item.corrected_value.trim() : null;
     const note = typeof item.note === "string" ? item.note.trim() : null;
-    if (correctedValue && correctedValue.length > MAX_CORRECTION || note && note.length > MAX_REVIEW_NOTE ||
+    const fieldType = fieldTypes.get(fieldId) ?? "string";
+    if (correctedValue && correctedValue.length > (fieldType === "array[object]" ? MAX_LINKED_CORRECTION : MAX_CORRECTION) ||
+      note && note.length > MAX_REVIEW_NOTE ||
       decision === "corrected" && !correctedValue || decision !== "corrected" && correctedValue) {
       throw new AccessError("Invalid review correction or note.", 400);
     }
-    if (decision === "corrected" && correctedValue) parseCorrectedValue(correctedValue, fieldTypes.get(fieldId) ?? "string");
+    if (fieldType === "array[object]" && decision === "correct" && !linkedRowsAreVerified(machineValueByField.get(fieldId))) {
+      throw new AccessError("Linked rows need verified evidence for every cell or a structured correction.", 400);
+    }
+    let storedCorrection = correctedValue;
+    if (decision === "corrected" && correctedValue) {
+      if (fieldType === "array[object]") storedCorrection = JSON.stringify(parseCorrectedRows(correctedValue));
+      else parseCorrectedValue(correctedValue, fieldType);
+    }
     parsed.push({ field_id: fieldId, decision: decision as ProductAutoReviewDecision,
-      corrected_value: correctedValue, note });
+      corrected_value: storedCorrection, note });
     seen.add(fieldId);
   }
   const previous = detail.review;

@@ -251,6 +251,102 @@ test("numeric corrections are typed and invalid legacy corrections remain unreso
   assert.equal(legacyInvalid.fields[0].status, "needs_review");
 });
 
+test("linked rows require inspectable cell evidence or a typed human correction", async () => withStorage(async (dataDir) => {
+  const job = createWorkspaceJob({ ownerUserId: "alice-id" });
+  const updated = await addDocumentsToJob(job.jobId, [new File(["Widget 3\nGadget 4"], "items.txt")]);
+  const source = updated.documents![0];
+  const sha256 = createHash("sha256").update(fs.readFileSync(path.join(updated.uploadsPath!, source.storedName))).digest("hex");
+  const runId = `auto_${"b".repeat(32)}`;
+  const docId = "linked1";
+  const sidecarDir = path.join(dataDir, "product_runs", runId, "docs", docId);
+  fs.mkdirSync(sidecarDir, { recursive: true });
+  const candidate: ProductAutoCandidate = {
+    contract_version: 1, doc_id: docId, document_status: "needs_review",
+    proposed_schema: [{ field_id: "item_name", type: "array[object]", group: "items" },
+      { field_id: "quantity", type: "array[object]", group: "items" }],
+    extracted_values: [
+      { field_id: "item_name", status: "needs_review", review_state: "pending", value: [
+        { row: 0, value: "Widget", status: "accepted", evidence: { page: 1, start: 0, end: 6, quote: "Widget" } },
+        { row: 1, value: "Gadget", status: "accepted", evidence: { page: 1, start: 9, end: 15, quote: "Gadget" } },
+      ] },
+      { field_id: "quantity", status: "needs_review", review_state: "pending", value: [
+        { row: 0, value: "3", status: "accepted", evidence: { page: 1, start: 7, end: 8, quote: "3" } },
+        { row: 1, value: "4", status: "needs_review" },
+      ] },
+    ],
+  };
+  const sidecarPath = path.join(sidecarDir, "result.json");
+  const writeSidecar = () => fs.writeFileSync(sidecarPath, JSON.stringify({ pages: [{ page: 1, text: "Widget 3\nGadget 4" }], candidate }));
+  writeSidecar();
+  fs.writeFileSync(path.join(dataDir, "product_runs", runId, "run.json"), JSON.stringify({ contract_version: 1, run_id: runId, doc_count: 1 }));
+  fs.writeFileSync(path.join(dataDir, "product_runs", runId, "manifest.jsonl"), JSON.stringify({
+    contract_version: 1, run_id: runId, doc_id: docId, source_file: source.storedName,
+    source_container_sha256: sha256, document_status: "needs_review",
+  }) + "\n");
+  const metadataDir = path.join(dataDir, "frontend", "auto_runs", job.jobId);
+  fs.mkdirSync(metadataDir, { recursive: true });
+  fs.writeFileSync(path.join(metadataDir, `${runId}.json`), JSON.stringify({
+    runId, jobId: job.jobId, status: "running", createdAt: new Date().toISOString(),
+    serverInstanceId: "previous-server", selectedFiles: [{ fileId: source.fileId,
+      fileName: source.fileName, storedName: source.storedName, sha256 }], documents: [],
+  }));
+  const docUrl = `/api/jobs/${job.jobId}/auto/${runId}/docs/${docId}`;
+  const params = { params: Promise.resolve({ jobId: job.jobId, runId, docId }) };
+  const post = (expectedRevision: number, fields: unknown) => reviewAutoDocRoute(request(docUrl, "alice", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: expectedRevision, fields }),
+  }), params);
+
+  const original = await getAutoDocRoute(request(docUrl, "alice"), params);
+  assert.equal(original.status, 200);
+  assert.equal((await original.json()).candidate.extracted_values[0].value[0].evidence.quote, "Widget");
+  assert.equal((await post(0, [{ field_id: "item_name", decision: "correct" },
+    { field_id: "quantity", decision: "correct" }])).status, 400);
+  for (const invalid of ["not rows", "[]", JSON.stringify([{ row: 0, value: "3" }, { row: 0, value: "4" }]),
+    JSON.stringify([{ row: 128, value: "3" }]), JSON.stringify([{ row: 0, value: "3", source: "invented" }]),
+    JSON.stringify([{ row: 0, value: "x".repeat(501) }]),
+    JSON.stringify(Array.from({ length: 129 }, (_, row) => ({ row, value: "1" })))]) {
+    assert.equal((await post(0, [{ field_id: "item_name", decision: "correct" },
+      { field_id: "quantity", decision: "corrected", corrected_value: invalid }])).status, 400, invalid);
+  }
+  const corrected = await post(0, [{ field_id: "item_name", decision: "correct" },
+    { field_id: "quantity", decision: "corrected", corrected_value: JSON.stringify([
+      { row: 1, value: "4" }, { row: 0, value: "3" },
+    ]) }]);
+  assert.equal(corrected.status, 200);
+  const body = await corrected.json();
+  assert.equal(body.review.status, "completed");
+  assert.equal(body.correctedResult.fields[0].provenance, "human_verified");
+  assert.deepEqual(body.correctedResult.fields[1].value, [{ row: 0, value: "3" }, { row: 1, value: "4" }]);
+  assert.equal(body.correctedResult.fields[1].provenance, "human_correction");
+  assert.equal(body.review.fields[1].corrected_value, '[{"row":0,"value":"3"},{"row":1,"value":"4"}]');
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), params)).status, 200);
+  const audited = await (await getAutoDocRoute(request(docUrl, "alice"), params)).json();
+  assert.equal(audited.auditTrail.length, 1);
+  assert.equal(audited.auditTrail[0].machine_fields[1].value[1].status, "needs_review");
+
+  const nameCells = candidate.extracted_values[0].value as Array<{ evidence: { quote: string }; value: string }>;
+  nameCells[0].evidence.quote = "Tampered";
+  writeSidecar();
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), params)).status, 500);
+  nameCells[0].evidence.quote = "Widget";
+  nameCells[0].value = "Invented";
+  writeSidecar();
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), params)).status, 500);
+}));
+
+test("legacy linked-row approval stays pending when a cell is unverified", () => {
+  const candidate: ProductAutoCandidate = { contract_version: 1, doc_id: "rows", document_status: "needs_review",
+    proposed_schema: [{ field_id: "items", type: "array[object]" }],
+    extracted_values: [{ field_id: "items", status: "needs_review", review_state: "pending",
+      value: [{ row: 0, value: "A", status: "needs_review" }] }] };
+  const review: ProductAutoReview = { review_version: 1, job_id: "job", run_id: "run", doc_id: "rows",
+    status: "completed", reviewer_user_id: "reviewer", updated_at: "2026-01-01T00:00:00Z",
+    fields: [{ field_id: "items", decision: "correct" }], revision: 1, audit_event_id: "event" };
+  const derived = deriveProductAutoCorrectedResult(candidate, review);
+  assert.equal(derived.review_status, "pending");
+  assert.equal(derived.fields[0].status, "needs_review");
+});
+
 test("a viewer cannot trigger operator configured model calls", async () => withStorage(async () => {
   const job = createWorkspaceJob({ ownerUserId: "alice-id" });
   const updated = await addDocumentsToJob(job.jobId, [new File(["Total: 100"], "invoice.txt")]);
