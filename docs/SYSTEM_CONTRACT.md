@@ -53,10 +53,11 @@ The CLI accepts one file or a directory. It supports PDF, common raster images, 
 format. It uses local OCR/text extraction and either a deterministic label/value proposal or an optional
 OpenAI-compatible chat model for flat schema discovery followed by value extraction. Local loopback HTTP servers may
 run without an API key; remote providers require an HTTPS URL and server-side key. The model can replace the
-heuristic schema. Proposed values require exact text-span evidence for machine acceptance. A newly discovered schema
-is unapproved, so every document remains `needs_review` until an operator reviews it. There is no approved recipe or
-automatic release policy yet. The current contract covers scalar fields only; it does not extract table rows or guarantee
-useful fields on unfamiliar documents.
+heuristic schema. Proposed values require exact text-span evidence and a matching, JSON-round-trippable typed value
+for machine acceptance. Ambiguous boolean quotes and partial identifier matches stay pending review. A newly
+discovered schema is unapproved, so every document remains `needs_review` until an operator reviews it. There is no
+approved recipe or automatic release policy yet. The current contract covers scalar fields only; it does not extract
+table rows or guarantee useful fields on unfamiliar documents.
 
 `product_runs/<run_id>` contains `run.json` as the completion marker, `manifest.jsonl` with source hashes and per-document
 receipts, `candidates.jsonl`, and `docs/<doc_id>/result.json` with OCR pages, the proposal, model-call telemetry and

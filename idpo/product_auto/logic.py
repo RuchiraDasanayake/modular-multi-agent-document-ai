@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import unicodedata
 from datetime import date
@@ -12,6 +13,7 @@ from idpo.agents.extraction_generic_kv import parse_kv_line
 from idpo.core.types import Document
 
 MAX_FIELDS = 24
+MAX_EXACT_JSON_INTEGER = 2**53 - 1
 SUPPORTED_TYPES = {"string", "integer", "decimal", "boolean", "date"}
 _NUMBER_RE = re.compile(r"[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?")
 _MISSING_MARKERS = {"n/a", "na", "none", "null", "not available", "unknown", "-", "—"}
@@ -71,15 +73,20 @@ def coerce_value(value: object, field_type: str) -> tuple[object, bool]:
         if type(value) not in {str, int, float}:
             return value, False
         raw = str(value).strip().replace(",", "").removeprefix("$").strip()
+        if len(raw) > 128:
+            return str(value), False
         try:
             number = Decimal(raw)
         except InvalidOperation:
             return value, False
-        if not number.is_finite():
-            return value, False
+        if not number.is_finite() or abs(number) > MAX_EXACT_JSON_INTEGER:
+            return str(value), False
         if field_type == "integer":
             return (int(number), True) if number == number.to_integral_value() else (value, False)
-        return float(number), True
+        converted = float(number)
+        if not math.isfinite(converted) or Decimal(str(converted)) != number:
+            return str(value), False
+        return converted, True
     if field_type == "date":
         if isinstance(value, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value.strip()):
             try:
@@ -91,14 +98,19 @@ def coerce_value(value: object, field_type: str) -> tuple[object, bool]:
     return value, False
 
 
-def value_matches_quote(value: object, field_type: str, quote: str) -> bool:
+def value_matches_quote(value: object, field_type: str, quote: str, field_id: str = "") -> bool:
     if value is None or not quote.strip():
         return False
     if field_type in {"string", "date"}:
+        if field_type == "string" and _is_identifier(field_id):
+            return quote.strip().casefold() == str(value).strip().casefold()
         return re.search(r"(?<!\w)" + re.escape(str(value).casefold()) + r"(?!\w)", quote.casefold()) is not None
     if field_type == "boolean":
         tokens = set(re.findall(r"\b(?:true|false|yes|no)\b", quote.casefold()))
-        return bool(tokens & ({"true", "yes"} if value is True else {"false", "no"}))
+        if type(value) is not bool:
+            return False
+        polarities = {token in {"true", "yes"} for token in tokens}
+        return polarities == {value}
     if field_type in {"integer", "decimal"}:
         matches = _NUMBER_RE.findall(quote)
         if len(matches) != 1:
@@ -183,7 +195,7 @@ def baseline_proposals(doc: Document) -> tuple[list[dict[str, object]], list[dic
 
 def parse_schema_reply(text: str) -> list[dict[str, object]] | None:
     try:
-        payload = json.loads(text)
+        payload = json.loads(text, parse_constant=_reject_nonfinite_json)
     except (TypeError, ValueError):
         return None
     items = payload.get("fields") if isinstance(payload, dict) else None
@@ -219,7 +231,7 @@ def parse_values_reply(
     pages: list[dict[str, object]],
 ) -> dict[str, dict[str, object]] | None:
     try:
-        payload = json.loads(text)
+        payload = json.loads(text, parse_constant=_reject_nonfinite_json)
     except (TypeError, ValueError):
         return None
     items = payload.get("values") if isinstance(payload, dict) else None
@@ -237,6 +249,10 @@ def parse_values_reply(
         if field_id not in field_types or field_id in results:
             return None
         raw_value = item["value"]
+        if type(raw_value) not in {str, int, float, bool, type(None)} or (
+            type(raw_value) is float and not math.isfinite(raw_value)
+        ):
+            return None
         if raw_value is None:
             results[field_id] = {"field_id": field_id, "value": None, "status": "missing", "review_state": "pending"}
             continue
@@ -250,7 +266,7 @@ def parse_values_reply(
             if isinstance(quote, str) and valid_page_hint
             else None
         )
-        accepted = typed and evidence is not None and value_matches_quote(value, field_type, quote)
+        accepted = typed and evidence is not None and value_matches_quote(value, field_type, quote, field_id)
         result: dict[str, object] = {
             "field_id": field_id,
             "value": value,
@@ -261,6 +277,10 @@ def parse_values_reply(
             result["evidence"] = evidence
         results[field_id] = result
     return results
+
+
+def _reject_nonfinite_json(value: str) -> None:
+    raise ValueError(f"Non-finite JSON number: {value}")
 
 
 def schema_prompt(pages: list[dict[str, object]]) -> str:
