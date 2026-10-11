@@ -191,7 +191,7 @@ def test_product_tesseract_timeout_classifies_empty_and_partial_ocr(
     source = tmp_path / "scan.png"
     Image.new("RGB", (80, 40), "white").save(source)
 
-    def timed_out_ocr(self, page, settings, engine_name):  # noqa: ANN001, ARG001
+    def timed_out_ocr(self, page, settings, engine_name):
         return ocr_text, True, "ocr_timeout", {
             "ocr_engine_used": "tesseract", "ocr_candidate_count": 1,
         }
@@ -303,6 +303,44 @@ def test_invalid_schema_model_response_abstains(tmp_path: Path) -> None:
     assert candidate["proposed_schema"] == []
     assert candidate["extracted_values"] == []
     assert sidecar["reason"] == "invalid_schema_model_response"
+
+
+@pytest.mark.parametrize(
+    ("phase", "expected_reason", "expected_attempts"),
+    [
+        ("schema", "schema_provider_error", 1),
+        ("values", "values_provider_error", 2),
+    ],
+)
+def test_provider_failure_is_failed_and_counts_known_sdk_attempts(
+    tmp_path: Path, phase: str, expected_reason: str, expected_attempts: int,
+) -> None:
+    source = tmp_path / "invoice.txt"
+    source.write_text("Invoice Number: INV-42\n", encoding="utf-8")
+    failure = ModelReply(
+        text="", latency_ms=10, error="APIConnectionError",
+        error_category="transport_timeout", sdk_attempts=1,
+    )
+    schema = ModelReply(
+        text='{"fields":[{"field_id":"invoice_number","type":"string"}]}',
+        latency_ms=1, sdk_attempts=1,
+    )
+    model = FakeModel(failure) if phase == "schema" else FakeModel(schema, failure)
+
+    run = process_auto(source, run_id=f"provider_{phase}", model=model, output_root=tmp_path / "runs")
+    candidate, sidecar = _result(run["run_dir"])
+    run_dir = Path(run["run_dir"])
+    receipt = json.loads((run_dir / "manifest.jsonl").read_text(encoding="utf-8"))
+    run_metadata = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+
+    assert candidate["document_status"] == "failed"
+    assert sidecar["reason"] == expected_reason
+    assert sidecar["model_calls"][-1]["error_category"] == "transport_timeout"
+    assert len(model.calls) == expected_attempts
+    assert receipt["model_call_count"] == expected_attempts
+    assert receipt["model_sdk_attempt_count"] == expected_attempts
+    assert run_metadata["model_call_count"] == expected_attempts
+    assert run_metadata["model_sdk_attempt_count"] == expected_attempts
 
 
 def test_more_than_field_limit_requires_review_without_model_call(tmp_path: Path) -> None:
@@ -438,8 +476,10 @@ def test_openai_compatible_adapter_uses_env_key_and_sanitizes_errors(monkeypatch
     model = OpenAICompatibleChat(base_url="https://example.invalid/v1", model="example-model", api_key_env="PRODUCT_TEST_KEY")
     reply = model.complete_json(system="system", prompt="prompt")
     assert captured["client"]["api_key"] == secret
+    assert captured["client"]["max_retries"] == 0
     assert captured["request"]["model"] == "example-model"
     assert (reply.prompt_tokens, reply.completion_tokens, reply.finish_reason) == (7, 4, "stop")
+    assert reply.sdk_attempts == 1
 
     def raise_with_secret(**kwargs):
         raise RuntimeError(secret)
@@ -447,7 +487,71 @@ def test_openai_compatible_adapter_uses_env_key_and_sanitizes_errors(monkeypatch
     model.client.chat.completions.create = raise_with_secret
     error_reply = model.complete_json(system="system", prompt="prompt")
     assert error_reply.error == "RuntimeError"
+    assert error_reply.error_category == "provider_other"
+    assert error_reply.sdk_attempts == 1
     assert secret not in str(error_reply)
+
+
+def test_openai_compatible_adapter_classifies_transport_and_http_errors_without_messages(monkeypatch) -> None:
+    secret = "private-document-or-key-must-not-appear"
+    monkeypatch.setenv("PRODUCT_TEST_KEY", secret)
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs):
+            self.chat = types.SimpleNamespace(completions=types.SimpleNamespace(create=self.create))
+
+        def create(self, **kwargs):
+            try:
+                raise TimeoutError(secret)
+            except TimeoutError as cause:
+                raise APIConnectionError(secret) from cause
+
+    class APIConnectionError(Exception):
+        pass
+
+    monkeypatch.setitem(sys.modules, "openai", types.SimpleNamespace(OpenAI=FakeOpenAI))
+    model = OpenAICompatibleChat(base_url="https://example.invalid/v1", model="example-model", api_key_env="PRODUCT_TEST_KEY")
+    reply = model.complete_json(system="system", prompt="prompt")
+    assert (reply.error, reply.error_category, reply.sdk_attempts) == ("APIConnectionError", "transport_timeout", 1)
+    assert secret not in str(reply)
+
+    class HttpFailure(Exception):
+        status_code = 429
+
+    def rate_limited(**kwargs):
+        raise HttpFailure(secret)
+
+    model.client.chat.completions.create = rate_limited
+    reply = model.complete_json(system="system", prompt="prompt")
+    assert (reply.error, reply.error_category, reply.sdk_attempts) == ("http_429", "rate_limit", 1)
+    assert secret not in str(reply)
+
+
+def test_openai_sdk_503_uses_one_mock_transport_attempt(monkeypatch) -> None:
+    openai = pytest.importorskip("openai")
+    httpx = pytest.importorskip("httpx")
+    secret = "private-document-or-key-must-not-appear"
+    monkeypatch.setenv("PRODUCT_TEST_KEY", secret)
+    requests: list[object] = []
+
+    def respond(request):
+        requests.append(request)
+        return httpx.Response(503, json={"error": {"message": secret, "type": "server_error"}})
+
+    real_openai = openai.OpenAI
+
+    def client_factory(**kwargs):
+        return real_openai(**kwargs, http_client=httpx.Client(transport=httpx.MockTransport(respond)))
+
+    monkeypatch.setattr(openai, "OpenAI", client_factory)
+    model = OpenAICompatibleChat(base_url="https://example.invalid/v1", model="example-model", api_key_env="PRODUCT_TEST_KEY")
+    try:
+        reply = model.complete_json(system="system", prompt="prompt")
+    finally:
+        model.client.close()
+    assert len(requests) == 1
+    assert (reply.error, reply.error_category, reply.sdk_attempts) == ("http_503", "provider_server", 1)
+    assert secret not in str(reply)
 
 
 def test_openai_compatible_adapter_allows_keyless_loopback_only(monkeypatch) -> None:

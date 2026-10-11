@@ -184,10 +184,12 @@ def process_auto(
                 "duration_ms": duration_ms,
                 "page_count": len(sidecar["pages"]),
                 "model_call_count": len(sidecar["model_calls"]),
+                "model_sdk_attempt_count": _known_sdk_attempts(sidecar["model_calls"]),
             })
 
     _write_jsonl(run_dir / "candidates.jsonl", candidates)
     _write_jsonl(run_dir / "manifest.jsonl", receipts)
+    known_attempts = [receipt["model_sdk_attempt_count"] for receipt in receipts]
     run_payload = {
         "contract_version": CONTRACT_VERSION,
         "run_id": resolved_run_id,
@@ -202,6 +204,11 @@ def process_auto(
         "ocr_page_budget_s": ocr_page_budget_s,
         "model_configured": model is not None,
         "model_id": getattr(model, "model", None) if model is not None else None,
+        "model_call_count": sum(int(receipt["model_call_count"]) for receipt in receipts),
+        "model_sdk_attempt_count": (
+            sum(int(attempts) for attempts in known_attempts)
+            if all(type(attempts) is int for attempts in known_attempts) else None
+        ),
         "duration_ms": round((time.perf_counter() - run_started) * 1000, 3),
         "api_cost_usd": None,
         "compute_cost_usd": None,
@@ -281,6 +288,7 @@ def _process_document(
     schema: list[dict[str, object]] = []
     values: dict[str, dict[str, object]] = {}
     force_review = bool(ocr_failure)
+    provider_failed = False
     if ocr_failure:
         sidecar["reason"] = "ocr_partial_failure"
     page_numbers = [page["page"] for page in pages]
@@ -307,7 +315,8 @@ def _process_document(
         )
         if proposed is None:
             force_review = True
-            sidecar["reason"] = "invalid_schema_model_response"
+            provider_failed = schema_reply.error is not None
+            sidecar["reason"] = "schema_provider_error" if provider_failed else "invalid_schema_model_response"
         else:
             schema = proposed
             values_reply = _complete_model(model, values_prompt(pages, schema))
@@ -319,7 +328,8 @@ def _process_document(
             )
             if proposed_values is None:
                 force_review = True
-                sidecar["reason"] = "invalid_values_model_response"
+                provider_failed = values_reply.error is not None
+                sidecar["reason"] = "values_provider_error" if provider_failed else "invalid_values_model_response"
             else:
                 values.update(proposed_values)
 
@@ -335,7 +345,7 @@ def _process_document(
             value["status"] = "needs_review"
     candidate["proposed_schema"] = schema
     candidate["extracted_values"] = [values[str(field["field_id"])] for field in schema]
-    candidate["document_status"] = "needs_review"
+    candidate["document_status"] = "failed" if provider_failed else "needs_review"
     if not schema and sidecar["reason"] is None:
         sidecar["reason"] = "no_fields_discovered"
     elif schema and sidecar["reason"] is None:
@@ -353,7 +363,18 @@ def _record_model_call(sidecar: dict[str, object], phase: str, reply: ModelReply
         "completion_tokens": reply.completion_tokens,
         "finish_reason": reply.finish_reason,
         "error": reply.error,
+        "error_category": reply.error_category,
+        "sdk_attempts": reply.sdk_attempts,
     })
+
+
+def _known_sdk_attempts(calls: object) -> int | None:
+    if not isinstance(calls, list):
+        return None
+    attempts = [call.get("sdk_attempts") for call in calls if isinstance(call, dict)]
+    if len(attempts) != len(calls) or any(type(count) is not int or count < 0 for count in attempts):
+        return None
+    return sum(int(count) for count in attempts)
 
 
 def _complete_model(model: ChatModel, prompt: str) -> ModelReply:
@@ -361,7 +382,12 @@ def _complete_model(model: ChatModel, prompt: str) -> ModelReply:
     try:
         return model.complete_json(system=_MODEL_SYSTEM, prompt=prompt)
     except Exception as exc:  # noqa: BLE001 - providers raise SDK-specific exceptions
-        return ModelReply(text="", latency_ms=(time.perf_counter() - started) * 1000, error=type(exc).__name__)
+        return ModelReply(
+            text="",
+            latency_ms=(time.perf_counter() - started) * 1000,
+            error=type(exc).__name__,
+            error_category="adapter_error",
+        )
 
 
 def _doc_id(file_name: str, source_hash: str, index: int) -> str:
