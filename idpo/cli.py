@@ -45,6 +45,17 @@ def main() -> None:
         help="Print a summary payload or the full process_inbox result as JSON",
     )
 
+    auto_parser = subparsers.add_parser("process-auto", help="Discover fields and extract source-grounded values")
+    auto_parser.add_argument("--input", required=True, help="One document or a directory of documents")
+    auto_parser.add_argument("--run-id", default=None)
+    auto_parser.add_argument("--ocr-engine", default="tesseract")
+    auto_parser.add_argument("--ocr-lang", default="eng")
+    auto_parser.add_argument("--model", default=None, help="Optional OpenAI-compatible model ID")
+    auto_parser.add_argument("--api-base-url", default=None, help="HTTPS model endpoint or local HTTP endpoint")
+    auto_parser.add_argument("--api-key-env", default="ICORE_API_KEY", help="Environment variable containing the API key")
+    auto_parser.add_argument("--timeout-s", type=int, default=60)
+    auto_parser.add_argument("--max-tokens", type=int, default=1200)
+
     migrate_parser = subparsers.add_parser("migrate-storage", help="Move legacy repo-root runtime data into IDPO_DATA_DIR")
     migrate_parser.add_argument("--root", default=".", help="Legacy repo root containing runs/ and inputs/")
     migrate_parser.add_argument("--data-root", default=None, help="Override target data root (defaults to IDPO_DATA_DIR)")
@@ -126,6 +137,33 @@ def main() -> None:
         )
         payload = result if args.output_mode == "full" else {"run_id": result["run_id"], "run_dir": result["run_dir"]}
         print(json.dumps(payload, indent=2))
+        return
+
+    if args.command == "process-auto":
+        from idpo.product_auto import process_auto
+        from idpo.product_auto.provider import OpenAICompatibleChat
+
+        if bool(args.model) != bool(args.api_base_url):
+            parser.error("--model and --api-base-url must be supplied together")
+        model = (
+            OpenAICompatibleChat(
+                base_url=args.api_base_url,
+                model=args.model,
+                api_key_env=args.api_key_env,
+                timeout_s=args.timeout_s,
+                max_tokens=args.max_tokens,
+            )
+            if args.model
+            else None
+        )
+        result = process_auto(
+            args.input,
+            run_id=args.run_id,
+            model=model,
+            ocr_engine=args.ocr_engine,
+            ocr_lang=args.ocr_lang,
+        )
+        print(json.dumps(result, indent=2))
         return
 
     if args.command == "migrate-storage":
