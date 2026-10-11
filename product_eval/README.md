@@ -31,11 +31,15 @@ subprocess, verifies every source hash, joins all candidate records, requires th
 and writes execution, quality, provenance, exit-code and per-shard log files. Pass a frozen VRDU `--cohort` to also
 produce a source-verified family and OCR-grounding report. Use a new gate ID and report directory for
 each candidate; partial shards are never silently reused. It removes provider secrets from the child environment and
-records the Git commit and whether the working tree was dirty. Example:
+records the Git commit and whether the working tree was dirty. PDF/image gates require a working Tesseract executable,
+English traineddata and a generated-image OCR smoke **before** any report or run directory is created. The resolved
+executable/version and traineddata SHA are recorded in provenance and pinned into each shard's environment. Set
+`TESSERACT_CMD` and `TESSDATA_PREFIX` explicitly when using a portable installation; a native-text-only gate does not
+need OCR. This preflight was added after the v4 run silently lacked its executable. Example:
 
 ```powershell
 python -m product_eval.run_gate --gold path/to/gold.jsonl --cohort path/to/cohort.jsonl --data-dir path/to/runtime `
-  --report-dir path/to/gate-v4 --gate-id vrdu_v4 --min-unique 2000 --workers 4 `
+  --report-dir path/to/gate-v5 --gate-id vrdu_v5 --min-unique 2000 --workers 4 `
   path/to/shards/ad_00 path/to/shards/ad_01 path/to/shards/reg_00 path/to/shards/reg_01 `
   path/to/shards/reg_02 path/to/shards/reg_03 path/to/shards/reg_04 path/to/shards/reg_05
 ```

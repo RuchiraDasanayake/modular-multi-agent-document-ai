@@ -184,11 +184,11 @@ Which code areas are most affected: frontend job API/runner, gateway access chec
 
 ## Current Next Step
 
-1. close and test cross-user job/run/document/artifact access in every entrypoint, then make the advertised Docker job
-   path execute real IDPO work or remove that deployment claim
-2. verify and archive the CMT-submitted manuscript; reconcile camera-ready changes with the reviewers, venue and
-   October findings without blending the studies or new product measurements
-3. build the product holdout and run a simple auto-discovery and extraction baseline with field-level evidence,
-   separate schema/value scores, setup and review time, and cost instrumentation
-4. compare candidate parsers and extractors on that same holdout; keep adaptive routing only if it clears the gate in
-   `docs/PRODUCTIZATION_PLAN.md`
+1. complete and score the fresh 2,000-source OCR gate with a recorded Tesseract executable and English traineddata;
+   the earlier v4 run verified volume but its OCR experiment was invalid because the executable was absent
+2. improve field semantics and linked rows on small authorized, adjudicated development slices before another full
+   model-backed gate; the initial local Qwen and bounded ICORE pilots did not pass real-document quality/reliability
+3. complete a live Docker worker smoke on a host with a daemon, then add durable bounded jobs and price plus review-time
+   accounting before claiming a scalable lower-cost deployment
+4. verify and archive the CMT-submitted manuscript and reconcile camera-ready changes with the reviewers and venue,
+   keeping new product results and the frozen October study separately attributed

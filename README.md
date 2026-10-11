@@ -16,6 +16,8 @@ A microservices-based research system for adaptive document extraction. A docume
 > general-purpose extractor. The first 2,000-document no-model development run
 > scored 4.33% strict schema F1 and 0.95% strict value F1, with unsafe automatic acceptance;
 > the second kept every discovered schema in review and scored 0% pre-review accepted-value F1.
+> The [v4 run](docs/evaluations/VRDU_2000_NO_MODEL_V4.md) verified 2,000 distinct sources but lacked its OCR
+> executable, so it is not a valid OCR comparison; it also proposed zero linked cells against 30,133 gold cells.
 > See [v1](docs/evaluations/VRDU_2000_NO_MODEL_V1.md) and [v2](docs/evaluations/VRDU_2000_NO_MODEL_V2.md).
 > The later October paired evaluation in [`paper/FINAL_EVIDENCE.md`](paper/FINAL_EVIDENCE.md)
 > did not show an accuracy gain from adaptive routing, and the canonical research
@@ -25,8 +27,8 @@ A microservices-based research system for adaptive document extraction. A docume
 ## Opt-in Product Pilot
 
 On a configured single-host installation, upload a document to a job and open its **Automatic extraction** page.
-The job owner can inspect the proposed fields, source quotes and original file, then record field decisions and
-corrections. Model-backed runs currently require an admin. The command-line equivalent is:
+The job owner can inspect proposed fields, linked cells, source quotes and the original file, then record field and
+row corrections. Model-backed runs currently require an admin. The command-line equivalent is:
 
 ```powershell
 python -m idpo.cli process-auto --input path/to/document.pdf
