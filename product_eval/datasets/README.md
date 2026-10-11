@@ -1,4 +1,17 @@
-# VRDU cohort and derived gold
+# Product evaluation datasets
+
+## Secondary FUNSD research slice
+
+`funsd_remainder.py` freezes all 30 FUNSD test images outside the historical
+`datasets/funsd_pack_20.json` into a source-hash-pinned execution cohort. Only
+18 have positive linked `DATE`, `TO`, or `FROM` answers; the other 12 stay in
+the execution denominator and are explicitly excluded from field scoring.
+The separate `funsd_positive_score.py` reports exact accepted and pending
+positive-value recall without inventing absent-field labels or precision.
+See [the slice audit](../../docs/evaluations/FUNSD_SECONDARY_SLICE.md) for
+license restrictions, provenance limits, the local receipt and commands.
+
+## VRDU primary volume cohort
 
 `vrdu.py` builds a fixed 2,000-PDF execution cohort from the creator's
 [VRDU repository](https://github.com/google-research-datasets/vrdu) at commit
