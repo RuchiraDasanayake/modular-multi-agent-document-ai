@@ -62,7 +62,8 @@ required before product use. This is a license reading, not legal advice.
    Docling/PP-StructureV3/MinerU basic on relevant layout/table pages. A candidate
    proceeds only if 12/12 return explicit success/failure, no crash/OOM or silent
    page loss occurs, and page/box overlays map back to the original image. Reject
-   default PP-StructureV3 GPU if peak exceeds 7.5 GiB; retry a named small/CPU
+   a GPU configuration if its measured peak leaves less than 0.5 GiB free on
+   the shared 8 GiB card; retry a named small/CPU
    configuration rather than silently changing models. Report cold/warm latency,
    peak host RAM/VRAM, model downloads, retries, text coverage and table cells.
 3. **50-document adjudicated comparison.** Freeze an untouched manifest and gold
