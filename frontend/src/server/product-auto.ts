@@ -7,6 +7,7 @@ import { getCommandConfig, loadRunnerConfig } from "@/server/config";
 import { getJobOrThrow } from "@/server/jobs";
 import type {
   ProductAutoAddedField,
+  ProductAutoAddedLinkedCell,
   ProductAutoAuditEvent,
   ProductAutoCandidate,
   ProductAutoCorrectedResult,
@@ -19,6 +20,7 @@ import type {
   ProductAutoReviewField,
   ProductAutoRun,
   ProductAutoRunDocument,
+  ProductAutoScalarType,
 } from "@/types/product-auto";
 
 const SAFE_ID = /^[a-zA-Z0-9_-]{1,100}$/;
@@ -29,7 +31,6 @@ const MAX_LINKED_ROWS = 128;
 const MAX_SCHEMA_FIELDS = 24;
 const MAX_ADDED_FIELDS = MAX_SCHEMA_FIELDS;
 const MAX_ADDED_QUOTE = 500;
-const ADDED_FIELD_ID = /^[a-z][a-z0-9_]{0,63}$/;
 const SCHEMA_FIELD_ID = /^[\p{L}][\p{L}\p{N}_]{0,63}$/u;
 const SCHEMA_TYPES = new Set(["string", "integer", "decimal", "boolean", "date", "array[object]"]);
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
@@ -251,6 +252,27 @@ function linkedValueMatchesQuote(value: string, quote: string): boolean {
   return false;
 }
 
+function addedLinkedValueMatchesQuote(value: string, quote: string): boolean {
+  const needle = value.toLowerCase();
+  const text = quote.toLowerCase();
+  const word = /[\p{L}\p{N}_]/u;
+  const numeric = /^[+-]?\d+(?:[.,]\d+)*$/u.test(value);
+  let matches = 0;
+  let index = text.indexOf(needle);
+  while (index >= 0) {
+    const prefix = text.slice(0, index);
+    const suffix = text.slice(index + needle.length);
+    const before = [...prefix].at(-1);
+    const after = [...suffix][0];
+    const separateToken = (!before || !word.test(before)) && (!after || !word.test(after));
+    const partialNumber = numeric && (/[+-]$/u.test(prefix) || /\d[.,]$/u.test(prefix) ||
+      /^[.,-]\d/u.test(suffix));
+    if (separateToken && !partialNumber) matches += 1;
+    index = text.indexOf(needle, index + 1);
+  }
+  return matches === 1;
+}
+
 function canonicalDecimal(value: string): string | null {
   const match = /^([+-]?)(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(value);
   if (!match) return null;
@@ -401,7 +423,9 @@ function readReview(jobId: string, runId: string, docId: string): ProductAutoRev
 
 function effectiveReviewStatus(review: ProductAutoReview | null): "unreviewed" | "pending" | "completed" {
   if (!review) return "unreviewed";
-  return review.added_fields?.some((field) => !hasEvidenceShape(field.evidence)) ? "pending" : review.status;
+  return review.added_fields?.some((field) => field.type === "array[object]"
+    ? !field.value.length || field.value.some((cell) => !hasEvidenceShape(cell.evidence))
+    : !hasEvidenceShape(field.evidence)) ? "pending" : review.status;
 }
 
 function readAuditTrail(jobId: string, runId: string, docId: string): ProductAutoAuditEvent[] {
@@ -703,6 +727,14 @@ export function getProductAutoDocument(jobId: string, runId: string, docId: stri
   const sourcePages = readSourcePages(runId, docId);
   const auditTrail = readAuditTrail(jobId, runId, docId);
   const review = auditTrail.at(-1)?.review_snapshot ?? null;
+  if (review?.source_container_sha256 &&
+    verifiedReviewSourceHash(jobId, runId, document.fileId) !== review.source_container_sha256) {
+    throw new AccessError("The reviewed source no longer matches its audit receipt.", 409);
+  }
+  if (review?.source_pages_sha256 &&
+    createHash("sha256").update(JSON.stringify(sourcePages)).digest("hex") !== review.source_pages_sha256) {
+    throw new AccessError("The reviewed OCR text no longer matches its audit receipt.", 409);
+  }
   return {
     runId, fileId: document.fileId, fileName: document.fileName,
     candidate, sourcePages, review, auditTrail,
@@ -751,6 +783,13 @@ export function deriveProductAutoCorrectedResult(
   }
   let unsafeAddedReview = false;
   for (const added of [...(review?.added_fields ?? [])].sort((left, right) => left.field_id.localeCompare(right.field_id))) {
+    if (added.type === "array[object]") {
+      const grounded = added.value.length > 0 && added.value.every((cell) => hasEvidenceShape(cell.evidence));
+      if (!grounded) unsafeAddedReview = true;
+      fields.push({ field_id: added.field_id, type: added.type, group: added.group, value: added.value,
+        status: grounded ? "accepted" : "needs_review", provenance: "human_added" });
+      continue;
+    }
     const grounded = hasEvidenceShape(added.evidence);
     if (!grounded) unsafeAddedReview = true;
     fields.push({ field_id: added.field_id, type: added.type, value: added.value,
@@ -820,6 +859,72 @@ function parseCorrectedRows(raw: string): ProductAutoLinkedCorrectionRow[] {
   return rows.sort((left, right) => left.row - right.row);
 }
 
+function canonicalAddedFieldId(value: unknown): value is string {
+  return typeof value === "string" && SCHEMA_FIELD_ID.test(value) && !value.endsWith("_") &&
+    value === value.normalize("NFKC").toLowerCase();
+}
+
+function validLinkedGroup(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && [...value].length <= 64 &&
+    value.trim() === value && !/[\u0000-\u001f\u007f]/u.test(value);
+}
+
+function resolveAddedEvidence(
+  source: unknown, value: string, sourcePages: Array<{ page: number; text: string }>,
+  linkedCell = false,
+): ProductAutoEvidence {
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    throw new AccessError("Added field needs a source page and exact OCR quote.", 400);
+  }
+  const input = source as Record<string, unknown>;
+  if (Object.keys(input).some((key) => key !== "page" && key !== "quote") ||
+    !Number.isSafeInteger(input.page) || typeof input.page !== "number" ||
+    typeof input.quote !== "string" || !input.quote.trim() ||
+    [...input.quote].length > MAX_ADDED_QUOTE) {
+    throw new AccessError("Invalid added field source quote.", 400);
+  }
+  const page = sourcePages.find((item) => item.page === input.page);
+  const quote = input.quote;
+  const offset = page?.text.indexOf(quote) ?? -1;
+  if (!page || offset < 0 || !(linkedCell
+    ? addedLinkedValueMatchesQuote(value, quote) : linkedValueMatchesQuote(value, quote))) {
+    throw new AccessError("Added field value and quote must match the OCR source page.", 400);
+  }
+  if (page.text.indexOf(quote, offset + 1) >= 0) {
+    throw new AccessError("Source quote occurs more than once on the page. Select a longer quote.", 400);
+  }
+  const start = [...page.text.slice(0, offset)].length;
+  const evidence = { page: page.page, start, end: start + [...quote].length, quote };
+  assertSourceEvidence(evidence, sourcePages);
+  return evidence;
+}
+
+function parseAddedLinkedCells(
+  value: unknown, sourcePages: Array<{ page: number; text: string }>,
+): ProductAutoAddedLinkedCell[] {
+  if (!Array.isArray(value) || value.length < 1 || value.length > MAX_LINKED_ROWS) {
+    throw new AccessError("An added linked column needs 1 to 128 cells.", 400);
+  }
+  const rows = new Set<number>();
+  const spans = new Set<string>();
+  return value.map((raw): ProductAutoAddedLinkedCell => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new AccessError("Invalid added linked cell.", 400);
+    const cell = raw as Record<string, unknown>;
+    if (Object.keys(cell).sort().join(",") !== "evidence,row,value" ||
+      !Number.isSafeInteger(cell.row) || typeof cell.row !== "number" || cell.row < 0 ||
+      cell.row >= MAX_LINKED_ROWS || rows.has(cell.row) ||
+      typeof cell.value !== "string" || !cell.value.trim() || [...cell.value].length > 500) {
+      throw new AccessError("Invalid or repeated linked row or cell value.", 400);
+    }
+    rows.add(cell.row);
+    const evidence = resolveAddedEvidence(cell.evidence, cell.value.trim(), sourcePages, true);
+    const span = `${evidence.page}:${evidence.start}:${evidence.end}`;
+    if (spans.has(span)) throw new AccessError("One source quote cannot support two rows in the same column.", 400);
+    spans.add(span);
+    return { row: cell.row, value: cell.value.trim(), status: "accepted", evidence };
+  }).sort((left, right) => left.row - right.row);
+}
+
 function parseAddedFields(
   values: unknown, proposedIds: Set<string>, sourcePages: Array<{ page: number; text: string }>,
 ): ProductAutoAddedField[] {
@@ -831,41 +936,41 @@ function parseAddedFields(
     const item = value as Record<string, unknown>;
     const fieldId = item.field_id;
     const type = item.type;
-    if (typeof fieldId !== "string" || !ADDED_FIELD_ID.test(fieldId) || proposedIds.has(fieldId) || seen.has(fieldId) ||
-      !["string", "integer", "decimal", "boolean", "date"].includes(String(type))) {
+    if (!canonicalAddedFieldId(fieldId) || proposedIds.has(fieldId) || seen.has(fieldId) ||
+      !["string", "integer", "decimal", "boolean", "date", "array[object]"].includes(String(type))) {
       throw new AccessError("Invalid or repeated added field.", 400);
     }
     seen.add(fieldId);
     if (item.note != null && typeof item.note !== "string") throw new AccessError("Invalid added field note.", 400);
     const note = typeof item.note === "string" ? item.note.trim() : null;
     if (note && note.length > MAX_REVIEW_NOTE) throw new AccessError("Added field note is too long.", 400);
+    if (type === "array[object]") {
+      if (!validLinkedGroup(item.group) ||
+        Object.keys(item).some((key) => !["field_id", "type", "group", "value", "note"].includes(key))) {
+        throw new AccessError("Added linked columns need a valid group and column identity.", 400);
+      }
+      return { field_id: fieldId, type, group: item.group,
+        value: parseAddedLinkedCells(item.value, sourcePages), note };
+    }
     if (typeof item.value !== "string") throw new AccessError("Invalid added field value.", 400);
     const parsedValue = parseCorrectedValue(item.value, type as string);
-    const source = item.evidence;
-    if (!source || typeof source !== "object" || Array.isArray(source)) {
-      throw new AccessError("Added field needs a source page and exact OCR quote.", 400);
-    }
-    const evidenceInput = source as Record<string, unknown>;
-    if (Object.keys(evidenceInput).some((key) => key !== "page" && key !== "quote") ||
-      !Number.isSafeInteger(evidenceInput.page) || typeof evidenceInput.page !== "number" ||
-      typeof evidenceInput.quote !== "string" || !evidenceInput.quote.trim() ||
-      [...evidenceInput.quote].length > MAX_ADDED_QUOTE) {
-      throw new AccessError("Invalid added field source quote.", 400);
-    }
-    const page = sourcePages.find((item) => item.page === evidenceInput.page);
-    const quote = evidenceInput.quote;
-    const offset = page?.text.indexOf(quote) ?? -1;
-    if (!page || offset < 0 || !linkedValueMatchesQuote(item.value.trim(), quote)) {
-      throw new AccessError("Added field value and quote must match the OCR source page.", 400);
-    }
-    if (page.text.indexOf(quote, offset + 1) >= 0) {
-      throw new AccessError("Source quote occurs more than once on the page. Select a longer quote.", 400);
-    }
-    const start = [...page.text.slice(0, offset)].length;
-    const evidence = { page: page.page, start, end: start + [...quote].length, quote };
-    assertSourceEvidence(evidence, sourcePages);
-    return { field_id: fieldId, type: type as ProductAutoAddedField["type"], value: parsedValue, evidence, note };
+    const evidence = resolveAddedEvidence(item.evidence, item.value.trim(), sourcePages);
+    return { field_id: fieldId, type: type as ProductAutoScalarType, value: parsedValue, evidence, note };
   });
+}
+
+function verifiedReviewSourceHash(jobId: string, runId: string, fileId: string): string {
+  const selected = readRunRecord(jobId, runId).selectedFiles.find((file) => file.fileId === fileId);
+  if (!selected || !/^[a-f0-9]{64}$/.test(selected.sha256)) {
+    throw new AccessError("The original source receipt is unavailable.", 409);
+  }
+  const sourceDirectory = path.resolve(loadRunnerConfig().uploadsDir, `job_${jobId}`);
+  const sourcePath = path.resolve(sourceDirectory, selected.storedName);
+  if (path.dirname(sourcePath) !== sourceDirectory || !fs.existsSync(sourcePath) ||
+    !fs.lstatSync(sourcePath).isFile() || sha256File(sourcePath) !== selected.sha256) {
+    throw new AccessError("The original source changed since extraction. Start a new run.", 409);
+  }
+  return selected.sha256;
 }
 
 export function saveProductAutoReview(
@@ -924,6 +1029,10 @@ function saveProductAutoReviewWithRevision(
     seen.add(fieldId);
   }
   const parsedAdded = parseAddedFields(addedFields, allowed, detail.sourcePages);
+  const sourceHash = parsedAdded.some((field) => field.type === "array[object]")
+    ? verifiedReviewSourceHash(jobId, runId, detail.fileId) : undefined;
+  const sourcePagesHash = sourceHash
+    ? createHash("sha256").update(JSON.stringify(detail.sourcePages)).digest("hex") : undefined;
   const removedCount = parsed.filter((field) => field.decision === "not_present" || field.decision === "remove").length;
   if (allowed.size - removedCount + parsedAdded.length > MAX_SCHEMA_FIELDS) {
     throw new AccessError("Reviewed schema exceeds the 24-field limit.", 400);
@@ -937,6 +1046,8 @@ function saveProductAutoReviewWithRevision(
     status: seen.size === allowed.size && (seen.size > 0 || parsedAdded.length > 0) &&
       parsed.every((field) => field.decision !== "incorrect") ? "completed" : "pending",
     reviewer_user_id: reviewerUserId, updated_at: createdAt, fields: parsed, added_fields: parsedAdded,
+    ...(sourceHash ? { source_container_sha256: sourceHash } : {}),
+    ...(sourcePagesHash ? { source_pages_sha256: sourcePagesHash } : {}),
     revision, audit_event_id: eventId,
   };
   const machineValues = new Map(detail.candidate.extracted_values.map((item) => [item.field_id, item]));
@@ -951,6 +1062,8 @@ function saveProductAutoReviewWithRevision(
     }),
     review_fields: parsed,
     review_added_fields: parsedAdded,
+    ...(sourceHash ? { source_container_sha256: sourceHash } : {}),
+    ...(sourcePagesHash ? { source_pages_sha256: sourcePagesHash } : {}),
   };
   const directory = auditDir(jobId, runId, docId);
   publishAuditEvent(directory, event);

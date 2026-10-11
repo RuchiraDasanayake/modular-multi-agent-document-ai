@@ -122,6 +122,10 @@ function reviewedSchema(detail: ProductAutoDocumentDetail): {
   if (resultFields.length < 1 || resultFields.length > MAX_FIELDS) {
     throw new AccessError("A recipe needs 1 to 24 reviewed fields.", 400);
   }
+  if (resultFields.some((field) => field.provenance === "human_added" && field.type === "array[object]") &&
+    (!SHA256.test(review.source_container_sha256 ?? "") || !SHA256.test(review.source_pages_sha256 ?? ""))) {
+    throw new AccessError("Human-added linked columns need verified original and OCR source receipts.", 400);
+  }
   const seenIds = new Set<string>();
   const linkedByGroup = new Map<string, Array<{ fieldId: string; rows: Set<number> }>>();
   const scalarGroups = new Set<string>();
@@ -163,8 +167,8 @@ function reviewedSchema(detail: ProductAutoDocumentDetail): {
     for (const column of columns) {
       for (const row of column.rows) rowCounts.set(row, (rowCounts.get(row) ?? 0) + 1);
     }
-    if (columns.some((column) => ![...column.rows].some((row) => (rowCounts.get(row) ?? 0) > 1))) {
-      throw new AccessError("Every linked column needs a reviewed row shared with another column.", 400);
+    if ([...rowCounts.values()].some((count) => count < 2)) {
+      throw new AccessError("Every linked row needs reviewed values in at least two columns.", 400);
     }
     rowGroups.push({ group, field_ids: columns.map((column) => column.fieldId).sort(), alignment: "shared_ordinal" });
   }

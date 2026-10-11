@@ -64,8 +64,9 @@ async function fixture(dataDir: string, candidate: ProductAutoCandidate, text: s
   const docId = "doc1";
   candidate.doc_id = docId;
   const sidecarDir = path.join(dataDir, "product_runs", runId, "docs", docId);
+  const resultPath = path.join(sidecarDir, "result.json");
   fs.mkdirSync(sidecarDir, { recursive: true });
-  fs.writeFileSync(path.join(sidecarDir, "result.json"), JSON.stringify({
+  fs.writeFileSync(resultPath, JSON.stringify({
     pages: [{ page: 1, text }], candidate,
   }));
   fs.writeFileSync(path.join(dataDir, "product_runs", runId, "run.json"), JSON.stringify({
@@ -83,7 +84,7 @@ async function fixture(dataDir: string, candidate: ProductAutoCandidate, text: s
       fileId: source.fileId, fileName: source.fileName, storedName: source.storedName, sha256,
     }], documents: [],
   }));
-  return { jobId: job.jobId, runId, docId };
+  return { jobId: job.jobId, runId, docId, sourcePath, resultPath };
 }
 
 function scalarCandidate(type = "string"): ProductAutoCandidate {
@@ -95,9 +96,10 @@ function scalarCandidate(type = "string"): ProductAutoCandidate {
   };
 }
 
-async function reviewFields(jobId: string, runId: string, docId: string, fields: unknown[], expectedRevision = 0) {
+async function reviewFields(jobId: string, runId: string, docId: string, fields: unknown[], expectedRevision = 0,
+  addedFields?: unknown[]) {
   return saveReview(request(`/api/jobs/${jobId}/auto/${runId}/docs/${docId}`, "alice", {
-    expected_revision: expectedRevision, fields,
+    expected_revision: expectedRevision, fields, ...(addedFields === undefined ? {} : { added_fields: addedFields }),
   }), { params: Promise.resolve({ jobId, runId, docId }) });
 }
 
@@ -282,4 +284,96 @@ test("linked-row groups require two aligned columns and explicit approval confir
   assert.equal((await reviewFields(oneColumnSource.jobId, oneColumnSource.runId, oneColumnSource.docId,
     [{ field_id: "item_name", decision: "correct" }])).status, 200);
   assert.equal((await draft(oneColumnSource.jobId, oneColumnSource.runId, oneColumnSource.docId)).status, 400);
+}));
+
+test("human-added linked columns require unique source-backed cells and aligned rows for recipe approval", async () => withStorage(async (dataDir) => {
+  const text = "🧾\nTea 2\nBread 2\nPrice 2.50\nRepeated 2 2\n";
+  const candidate: ProductAutoCandidate = {
+    contract_version: 1, doc_id: "doc1", document_status: "needs_review",
+    proposed_schema: [], extracted_values: [],
+  };
+  const { jobId, runId, docId, sourcePath, resultPath } = await fixture(dataDir, candidate, text);
+  const url = `/api/jobs/${jobId}/auto/${runId}/docs/${docId}`;
+  const params = { params: Promise.resolve({ jobId, runId, docId }) };
+  const post = (token: string, expectedRevision: number, addedFields: unknown[]) => saveReview(
+    request(url, token, { expected_revision: expectedRevision, fields: [], added_fields: addedFields }), params);
+  const cell = (row: number, value: string, quote: string) => ({ row, value, evidence: { page: 1, quote } });
+  const name = { field_id: "item_name", type: "array[object]", group: "line_items", value: [
+    cell(0, "Tea", "Tea 2"), cell(1, "Bread", "Bread 2"),
+  ] };
+  const count = { field_id: "quantity", type: "array[object]", group: "line_items", value: [
+    cell(0, "2", "Tea 2"),
+  ] };
+  assert.equal((await post("bob", 0, [name, count])).status, 404);
+  assert.equal((await post("alice", 0, [{ ...name, field_id: "item_name_" }, count])).status, 400);
+  assert.equal((await post("alice", 0, [{ ...name, group: "line\nitems" }, count])).status, 400);
+  assert.equal((await post("alice", 0, [{ ...name, value: [] }, count])).status, 400);
+  assert.equal((await post("alice", 0, [{ ...name, value: Array.from({ length: 129 }, (_, row) =>
+    cell(row, "Tea", "Tea 2")) }, count])).status, 400);
+  assert.equal((await post("alice", 0, [{ ...name, value: [cell(0, "Tea", "Tea 2"), cell(0, "Bread", "Bread 2")] }, count])).status, 400);
+  assert.equal((await post("alice", 0, [{ ...name, value: [cell(0, "Tea", "Tea 2"), cell(1, "Bread", "Tea 2")] }, count])).status, 400);
+  assert.equal((await post("alice", 0, [{ ...name, value: [cell(0, "Coffee", "Tea 2")] }, count])).status, 400);
+  assert.equal((await post("alice", 0, [{ ...count, value: [cell(0, "2", "Price 2.50")] }, name])).status, 400);
+  assert.equal((await post("alice", 0, [{ ...count, value: [cell(0, "2", "Repeated 2 2")] }, name])).status, 400);
+  assert.equal((await post("alice", 0, [{ ...name, value: [cell(0, "Tea", "Tea 2"),
+    { ...cell(1, "Bread", "Bread 2"), evidence: { page: 2, quote: "Bread 2" } }] }, count])).status, 400);
+  const ambiguous = await post("alice", 0, [{ ...count, value: [cell(0, "2", "2")] }, name]);
+  assert.equal(ambiguous.status, 400);
+  assert.match((await ambiguous.json()).error, /more than once/);
+
+  const first = await post("alice", 0, [name, count]);
+  assert.equal(first.status, 200);
+  const firstBody = await first.json();
+  assert.equal(firstBody.review.status, "completed");
+  assert.equal(firstBody.review.source_container_sha256.length, 64);
+  assert.equal(firstBody.review.source_pages_sha256.length, 64);
+  assert.deepEqual(firstBody.correctedResult.fields.map((field: { field_id: string }) => field.field_id),
+    ["item_name", "quantity"]);
+  assert.deepEqual(firstBody.correctedResult.fields[0].value.map((entry: { row: number; status: string }) =>
+    [entry.row, entry.status]), [[0, "accepted"], [1, "accepted"]]);
+  assert.equal(firstBody.correctedResult.fields[0].group, "line_items");
+  assert.equal(firstBody.review.added_fields[0].value[0].evidence.start, 2);
+  assert.equal(firstBody.review.added_fields[0].value[0].evidence.quote, "Tea 2");
+  assert.equal((await draft(jobId, runId, docId)).status, 400);
+
+  const auditDir = path.join(dataDir, "frontend", "auto_reviews", jobId, runId, "events", docId);
+  const firstAudit = path.join(auditDir, "000000000001.json");
+  const firstBytes = fs.readFileSync(firstAudit);
+  const alignedCount = { ...count, value: [...count.value, cell(1, "2", "Bread 2")] };
+  const second = await post("alice", 1, [name, alignedCount]);
+  assert.equal(second.status, 200);
+  assert.deepEqual(fs.readFileSync(firstAudit), firstBytes);
+  const secondBody = await second.json();
+  assert.equal(secondBody.review.revision, 2);
+  const created = await draft(jobId, runId, docId, 2);
+  assert.equal(created.status, 201);
+  const recipe = (await created.json()).recipe;
+  assert.deepEqual(recipe.fields, [
+    { field_id: "item_name", type: "array[object]", group: "line_items" },
+    { field_id: "quantity", type: "array[object]", group: "line_items" },
+  ]);
+  assert.deepEqual(recipe.row_groups, [{ group: "line_items", field_ids: ["item_name", "quantity"],
+    alignment: "shared_ordinal" }]);
+  assert.equal(JSON.stringify(recipe).includes("Tea 2"), false);
+  const rejected = await changeRecipe(request(`/api/jobs/${jobId}/auto/recipes/${recipe.recipe_id}`, "alice", {
+    action: "approve", expectedRevision: 1, confirmedRowGroups: [],
+  }), { params: Promise.resolve({ jobId, recipeId: recipe.recipe_id }) });
+  assert.equal(rejected.status, 400);
+  const approved = await changeRecipe(request(`/api/jobs/${jobId}/auto/recipes/${recipe.recipe_id}`, "alice", {
+    action: "approve", expectedRevision: 1, confirmedRowGroups: ["line_items"],
+  }), { params: Promise.resolve({ jobId, recipeId: recipe.recipe_id }) });
+  assert.equal(approved.status, 200);
+
+  const originalResult = fs.readFileSync(resultPath);
+  const alteredResult = JSON.parse(originalResult.toString("utf8"));
+  alteredResult.pages[0].text = alteredResult.pages[0].text.replace("Tea 2", "Tea 3");
+  fs.writeFileSync(resultPath, JSON.stringify(alteredResult));
+  const changedOcr = await post("alice", 2, [name, alignedCount]);
+  assert.equal(changedOcr.status, 409);
+  assert.match((await changedOcr.json()).error, /OCR text no longer matches/);
+  fs.writeFileSync(resultPath, originalResult);
+  fs.writeFileSync(sourcePath, "changed source bytes");
+  const changed = await post("alice", 2, [name, alignedCount]);
+  assert.equal(changed.status, 409);
+  assert.match((await changed.json()).error, /original source changed/);
 }));

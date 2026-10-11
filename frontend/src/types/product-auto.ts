@@ -52,7 +52,7 @@ export interface ProductAutoReviewField {
   note?: string | null;
 }
 
-export interface ProductAutoAddedField {
+export interface ProductAutoAddedScalarField {
   field_id: string;
   type: ProductAutoScalarType;
   value: string | number | boolean;
@@ -61,13 +61,39 @@ export interface ProductAutoAddedField {
   note?: string | null;
 }
 
-export interface ProductAutoAddedFieldInput {
+export interface ProductAutoAddedScalarFieldInput {
   field_id: string;
   type: ProductAutoScalarType;
   value: string;
   evidence: Pick<ProductAutoEvidence, "page" | "quote">;
   note?: string | null;
 }
+
+export interface ProductAutoAddedLinkedCell {
+  row: number;
+  value: string;
+  status: "accepted";
+  evidence: ProductAutoEvidence;
+}
+
+export interface ProductAutoAddedLinkedField {
+  field_id: string;
+  type: "array[object]";
+  group: string;
+  value: ProductAutoAddedLinkedCell[];
+  note?: string | null;
+}
+
+export interface ProductAutoAddedLinkedFieldInput {
+  field_id: string;
+  type: "array[object]";
+  group: string;
+  value: Array<{ row: number; value: string; evidence: Pick<ProductAutoEvidence, "page" | "quote"> }>;
+  note?: string | null;
+}
+
+export type ProductAutoAddedField = ProductAutoAddedScalarField | ProductAutoAddedLinkedField;
+export type ProductAutoAddedFieldInput = ProductAutoAddedScalarFieldInput | ProductAutoAddedLinkedFieldInput;
 
 export interface ProductAutoReview {
   review_version: 1;
@@ -80,6 +106,9 @@ export interface ProductAutoReview {
   fields: ProductAutoReviewField[];
   // Optional so review events written before human-added fields remain readable.
   added_fields?: ProductAutoAddedField[];
+  // Present on new source-verified linked additions; absent in older review artifacts.
+  source_container_sha256?: string;
+  source_pages_sha256?: string;
   revision: number;
   audit_event_id: string;
 }
@@ -99,6 +128,8 @@ export interface ProductAutoAuditEvent {
   }>;
   review_fields: ProductAutoReviewField[];
   review_added_fields?: ProductAutoAddedField[];
+  source_container_sha256?: string;
+  source_pages_sha256?: string;
 }
 
 export interface ProductAutoCorrectedField {

@@ -5,10 +5,12 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { IdpoCard } from "@/components/idpo/card";
 import { idpoApi } from "@/lib/idpo-api";
-import type { ProductAutoAddedFieldInput, ProductAutoDocumentDetail, ProductAutoLinkedCell, ProductAutoLinkedCorrectionRow, ProductAutoReviewDecision, ProductAutoReviewField, ProductAutoScalarType } from "@/types/product-auto";
+import type { ProductAutoAddedFieldInput, ProductAutoAddedLinkedFieldInput, ProductAutoAddedScalarFieldInput, ProductAutoDocumentDetail, ProductAutoLinkedCell, ProductAutoLinkedCorrectionRow, ProductAutoReviewDecision, ProductAutoReviewField, ProductAutoScalarType } from "@/types/product-auto";
 
 type Draft = Record<string, { decision: ProductAutoReviewDecision | ""; corrected_value: string; note: string }>;
-type AddedDraft = ProductAutoAddedFieldInput & { clientId: string };
+type AddedScalarDraft = ProductAutoAddedScalarFieldInput & { clientId: string };
+type AddedLinkedDraft = ProductAutoAddedLinkedFieldInput & { clientId: string };
+type AddedDraft = AddedScalarDraft | AddedLinkedDraft;
 
 function displayValue(value: unknown): string {
   if (value === null || value === undefined) return "No value proposed";
@@ -32,6 +34,16 @@ function linkedCorrectionRows(value: string | null | undefined, machine: unknown
     } catch { /* fall back to machine rows */ }
   }
   return linkedCells(machine).map(({ row, value: cellValue }) => ({ row, value: cellValue }));
+}
+
+function addedDrafts(detail: ProductAutoDocumentDetail): AddedDraft[] {
+  return (detail.review?.added_fields ?? []).map((field): AddedDraft => field.type === "array[object]"
+    ? { field_id: field.field_id, type: field.type, group: field.group, note: field.note,
+      value: field.value.map((cell) => ({ row: cell.row, value: cell.value,
+        evidence: { page: cell.evidence.page, quote: cell.evidence.quote } })), clientId: field.field_id }
+    : { field_id: field.field_id, type: field.type, value: String(field.value), note: field.note,
+      evidence: { page: field.evidence?.page ?? detail.sourcePages[0]?.page ?? 1,
+        quote: field.evidence?.quote ?? "" }, clientId: field.field_id });
 }
 
 export function ProductAutoDocumentPage() {
@@ -62,9 +74,7 @@ export function ProductAutoDocumentPage() {
       setLinkedDraft(Object.fromEntries(data.candidate.proposed_schema.filter((field) => field.type === "array[object]")
         .map((field) => [field.field_id, linkedCorrectionRows(reviews.get(field.field_id)?.corrected_value,
           machine.get(field.field_id))])));
-      setAddedDraft((data.review?.added_fields ?? []).map((field) => ({ ...field, value: String(field.value),
-        evidence: { page: field.evidence?.page ?? data.sourcePages[0]?.page ?? 1, quote: field.evidence?.quote ?? "" },
-        clientId: field.field_id })));
+      setAddedDraft(addedDrafts(data));
     }).catch((cause) => {
       if (current) setError(cause instanceof Error ? cause.message : "Failed to load extraction result.");
     }).finally(() => { if (current) setLoading(false); });
@@ -76,8 +86,39 @@ export function ProductAutoDocumentPage() {
     setMessage("");
   }
 
-  function updateAdded(clientId: string, patch: Partial<AddedDraft>) {
-    setAddedDraft((current) => current.map((field) => field.clientId === clientId ? { ...field, ...patch } : field));
+  function updateAdded(clientId: string, patch: Partial<AddedScalarDraft>) {
+    setAddedDraft((current) => current.map((field) => field.clientId === clientId && field.type !== "array[object]"
+      ? { ...field, ...patch } : field));
+    setMessage("");
+  }
+
+  function updateAddedLinked(clientId: string, patch: Partial<AddedLinkedDraft>) {
+    setAddedDraft((current) => current.map((field) => field.clientId === clientId && field.type === "array[object]"
+      ? { ...field, ...patch } : field));
+    setMessage("");
+  }
+
+  function updateAddedLinkedCell(clientId: string, index: number, patch: Partial<AddedLinkedDraft["value"][number]>) {
+    setAddedDraft((current) => current.map((field) => field.clientId === clientId && field.type === "array[object]"
+      ? { ...field, value: field.value.map((cell, cellIndex) => cellIndex === index ? { ...cell, ...patch } : cell) }
+      : field));
+    setMessage("");
+  }
+
+  function addAddedLinkedCell(clientId: string) {
+    setAddedDraft((current) => current.map((field) => {
+      if (field.clientId !== clientId || field.type !== "array[object]" || field.value.length >= 128) return field;
+      const used = new Set(field.value.map((cell) => cell.row));
+      const row = Array.from({ length: 128 }, (_, index) => index).find((index) => !used.has(index));
+      return row === undefined ? field : { ...field, value: [...field.value, { row, value: "",
+        evidence: { page: detail?.sourcePages[0]?.page ?? 1, quote: "" } }] };
+    }));
+    setMessage("");
+  }
+
+  function removeAddedLinkedCell(clientId: string, index: number) {
+    setAddedDraft((current) => current.map((field) => field.clientId === clientId && field.type === "array[object]"
+      ? { ...field, value: field.value.filter((_, cellIndex) => cellIndex !== index) } : field));
     setMessage("");
   }
 
@@ -117,14 +158,14 @@ export function ProductAutoDocumentPage() {
     setSaving(true);
     setError("");
     try {
-      const addedFields: ProductAutoAddedFieldInput[] = addedDraft.map(({ field_id, type, value, evidence, note }) =>
-        ({ field_id, type, value, evidence, note }));
+      const addedFields: ProductAutoAddedFieldInput[] = addedDraft.map((field) => field.type === "array[object]"
+        ? { field_id: field.field_id, type: field.type, group: field.group, value: field.value, note: field.note }
+        : { field_id: field.field_id, type: field.type, value: field.value, evidence: field.evidence,
+          note: field.note });
       const result = await idpoApi.saveProductAutoReview(jobId, runId, docId, detail.review?.revision ?? 0, fields, addedFields);
       const refreshed = await idpoApi.getProductAutoDocument(jobId, runId, docId);
       setDetail(refreshed);
-      setAddedDraft((refreshed.review?.added_fields ?? []).map((field) => ({ ...field, value: String(field.value),
-        evidence: { page: field.evidence?.page ?? refreshed.sourcePages[0]?.page ?? 1, quote: field.evidence?.quote ?? "" },
-        clientId: field.field_id })));
+      setAddedDraft(addedDrafts(refreshed));
       setMessage(result.review.status === "completed" ? "Human review completed." : "Partial human review saved.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Failed to save review.");
@@ -194,7 +235,7 @@ export function ProductAutoDocumentPage() {
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Proposed schema and values</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Accepted values have exact text evidence. Other values need review or are missing.</p>
         {candidate.proposed_schema.length === 0 ? (
-          <p className="mt-4 text-sm text-amber-700 dark:text-amber-300">No fields were proposed. Inspect the source and add any missed scalar fields below.</p>
+          <p className="mt-4 text-sm text-amber-700 dark:text-amber-300">No fields were proposed. Inspect the source and add missed scalar fields or linked columns below.</p>
         ) : (
           <div className="mt-4 space-y-4">
             {candidate.proposed_schema.map((field) => {
@@ -306,7 +347,7 @@ export function ProductAutoDocumentPage() {
               className="rounded-lg border border-cyan-600 px-3 py-2 text-sm font-medium text-cyan-700 hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-cyan-300 dark:hover:bg-cyan-900/20">Add field</button>
           </div>
           <div className="mt-3 space-y-3">
-            {addedDraft.map((field) => (
+            {addedDraft.filter((field): field is AddedScalarDraft => field.type !== "array[object]").map((field) => (
               <div key={field.clientId} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
                 <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr),130px]">
                   <label className="text-sm text-slate-700 dark:text-slate-200">Field ID
@@ -356,10 +397,76 @@ export function ProductAutoDocumentPage() {
             ))}
           </div>
         </div>
+        <div className="mt-5 border-t border-slate-200 pt-5 dark:border-slate-700">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="font-semibold text-slate-900 dark:text-white">Missed linked columns</h3>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Give related columns the same group and row numbers. Every cell needs a page and a unique exact OCR quote containing its value. A recipe needs at least two columns aligned on each row.</p>
+            </div>
+            <button type="button" disabled={atFieldLimit || detail.sourcePages.length === 0}
+              onClick={() => setAddedDraft((current) => [...current, { clientId: crypto.randomUUID(), field_id: "",
+                type: "array[object]", group: "line_items", value: [{ row: 0, value: "",
+                  evidence: { page: detail.sourcePages[0]?.page ?? 1, quote: "" } }], note: "" }])}
+              className="rounded-lg border border-cyan-600 px-3 py-2 text-sm font-medium text-cyan-700 hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-cyan-300 dark:hover:bg-cyan-900/20">Add linked column</button>
+          </div>
+          <div className="mt-3 space-y-3">
+            {addedDraft.filter((field): field is AddedLinkedDraft => field.type === "array[object]").map((field) => (
+              <div key={field.clientId} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-sm text-slate-700 dark:text-slate-200">Column field ID
+                    <input value={field.field_id} onChange={(event) => updateAddedLinked(field.clientId, { field_id: event.target.value })}
+                      placeholder="item_name" maxLength={64}
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950" />
+                  </label>
+                  <label className="text-sm text-slate-700 dark:text-slate-200">Linked group
+                    <input value={field.group} onChange={(event) => updateAddedLinked(field.clientId, { group: event.target.value })}
+                      placeholder="line_items" maxLength={64}
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950" />
+                  </label>
+                </div>
+                <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[680px] text-left text-xs">
+                  <thead><tr><th className="p-2">Row</th><th className="p-2">Cell value</th><th className="p-2">OCR page</th><th className="p-2">Unique exact OCR quote</th><th className="p-2">Action</th></tr></thead>
+                  <tbody>{field.value.map((cell, index) => <tr key={index} className="align-top">
+                    <td className="p-2"><input type="number" min={1} max={128} aria-label={`${field.field_id || "New column"} row number ${index + 1}`}
+                      value={cell.row < 0 ? "" : cell.row + 1}
+                      onChange={(event) => updateAddedLinkedCell(field.clientId, index,
+                        { row: event.target.value === "" ? -1 : Number(event.target.value) - 1 })}
+                      className="w-20 rounded-lg border border-slate-300 bg-white px-2 py-1 tabular-nums dark:border-slate-700 dark:bg-slate-950" /></td>
+                    <td className="p-2"><input aria-label={`${field.field_id || "New column"} row ${index + 1} value`} value={cell.value}
+                      onChange={(event) => updateAddedLinkedCell(field.clientId, index, { value: event.target.value })}
+                      maxLength={500} className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 dark:border-slate-700 dark:bg-slate-950" /></td>
+                    <td className="p-2"><select value={cell.evidence.page}
+                      aria-label={`${field.field_id || "New column"} row ${index + 1} OCR page`}
+                      onChange={(event) => updateAddedLinkedCell(field.clientId, index,
+                        { evidence: { ...cell.evidence, page: Number(event.target.value) } })}
+                      className="rounded-lg border border-slate-300 bg-white px-2 py-1 dark:border-slate-700 dark:bg-slate-950">
+                      {detail.sourcePages.map((page) => <option key={page.page} value={page.page}>{page.page}</option>)}
+                    </select></td>
+                    <td className="p-2"><textarea value={cell.evidence.quote}
+                      aria-label={`${field.field_id || "New column"} row ${index + 1} exact OCR quote`}
+                      onChange={(event) => updateAddedLinkedCell(field.clientId, index,
+                        { evidence: { ...cell.evidence, quote: event.target.value } })}
+                      rows={2} maxLength={500} className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 dark:border-slate-700 dark:bg-slate-950" /></td>
+                    <td className="p-2"><button type="button" onClick={() => removeAddedLinkedCell(field.clientId, index)}
+                      className="text-rose-700 hover:underline dark:text-rose-300">Remove</button></td>
+                  </tr>)}</tbody>
+                </table></div>
+                <button type="button" onClick={() => addAddedLinkedCell(field.clientId)} disabled={field.value.length >= 128}
+                  className="mt-2 rounded-lg border border-cyan-600 px-3 py-1 text-xs font-medium text-cyan-700 disabled:opacity-50 dark:text-cyan-300">Add cell</button>
+                <label className="mt-3 block text-sm text-slate-700 dark:text-slate-200">Review note
+                  <textarea value={field.note ?? ""} onChange={(event) => updateAddedLinked(field.clientId, { note: event.target.value })}
+                    rows={2} maxLength={2000} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950" />
+                </label>
+                <button type="button" onClick={() => setAddedDraft((current) => current.filter((item) => item.clientId !== field.clientId))}
+                  className="mt-2 text-sm font-medium text-rose-700 hover:underline dark:text-rose-300">Remove linked column</button>
+              </div>
+            ))}
+          </div>
+        </div>
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <button type="button" onClick={() => void save()} disabled={saving}
             className="rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50">{saving ? "Saving…" : "Save human review"}</button>
-          <span className="text-xs text-slate-500 dark:text-slate-400">A review is complete when every proposed field has a decision. This adjudicates this document only; it does not approve a reusable recipe.</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">A review is complete when every proposed field has a decision and added fields have source-backed values. Linked columns need at least two aligned values per row before a reusable recipe can be approved.</span>
         </div>
       </IdpoCard>
       </div>
@@ -386,7 +493,14 @@ export function ProductAutoDocumentPage() {
                       <span className="font-medium">{field.field_id}</span>: {displayValue(machine?.value)} → {field.decision.replaceAll("_", " ")}{field.corrected_value ? `: ${field.corrected_value}` : ""}
                     </li>;
                   })}
-                  {(event.review_added_fields ?? event.review_snapshot.added_fields ?? []).map((field) => (
+                  {(event.review_added_fields ?? event.review_snapshot.added_fields ?? []).map((field) => field.type === "array[object]" ? (
+                    <li key={`added-${field.field_id}`} className="break-words">
+                      <span className="font-medium">{field.field_id}</span>: added linked column in {field.group}
+                      <ul className="ml-4 list-disc">{field.value.map((cell) => <li key={cell.row}>
+                        Row {cell.row + 1}: {cell.value} · page {cell.evidence.page}: <q>{cell.evidence.quote}</q>
+                      </li>)}</ul>
+                    </li>
+                  ) : (
                     <li key={`added-${field.field_id}`} className="break-words"><span className="font-medium">{field.field_id}</span>: added {field.type} value {displayValue(field.value)}
                       {field.evidence ? <> · page {field.evidence.page}: <q>{field.evidence.quote}</q></> : " · no source evidence"}</li>
                   ))}
