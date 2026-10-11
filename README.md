@@ -93,6 +93,10 @@ document-processing path:
 
 ## Architecture Overview
 
+The diagram below shows the research services available through the `research` Compose profile. The default
+product pilot uses the gateway, frontend, product worker, PostgreSQL, and Redis; Automatic extraction does not
+call AHMN, Guardrails, XAI-HITL, or the legacy IDPO HTTP service.
+
 ```
                         ┌──────────────────────────────────┐
                         │    frontend/  (Next.js 15)        │
