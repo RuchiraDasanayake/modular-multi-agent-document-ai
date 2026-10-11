@@ -685,8 +685,22 @@
     "Every runtime OCR page set differs from its frozen gold page set. Gold evidence validity and typed-value exact match cannot be read as independent OCR-normalized scores.",
     "Exact spans to the runtime OCR prove traceability to text, not that the selected field or value is semantically correct.",
     "No candidate array[object] field, linked cell, or complete row was proposed despite 429 gold cells and 111 gold rows.",
-    "Two public PDFs yielded no OCR text; one exceeded the configured auto-mode length limit and received no model call.",
+    "Two public PDFs yielded no OCR text under an unverified Tesseract environment; these are invalid scan-quality observations and received no model call. One text-bearing PDF exceeded the configured auto-mode length limit and also received no model call.",
     "Twelve hash-selected documents are a bounded diagnostic, not an accuracy or cost estimate for arbitrary documents."
   ],
-  "decision": "Do not promote this prompt repair to production or launch a 2,000-source Qwen extraction gate. Prioritize OCR robustness and stable source-text provenance, then test canonical field mapping and a table-aware model/parser on pinned held-out documents. Require nonzero linked-row recall and materially better grounded typed-value accuracy before broader inference."
+  "decision": "Do not promote this prompt repair to production or launch a 2,000-source Qwen extraction gate. First pin and preflight the OCR executable, then measure a table-aware parser/model and canonical field mapping on held-out documents. The nine model-served PDFs still show zero linked cells and only one exact typed-value true positive; require a material improvement before broader inference.",
+  "ocr_dependency_audit": {
+    "audited_after_pilot": true,
+    "runner_pinned_TESSERACT_CMD": false,
+    "runner_recorded_resolved_executable": false,
+    "same_host_current_find_tesseract_cmd": null,
+    "code_path": "idpo.agents.preprocess._extract_with_confidence catches Tesseract launch exceptions and returns empty text with confidence 0.0; the pilot version then marked zero-text pages unsupported.",
+    "zero_text_doc_ids": [
+      "e2e3a1f8d204396dbd270eb9392e5454",
+      "480ff75645024ee29844be53be120fcf"
+    ],
+    "zero_text_page_observations": "Each page logged engine=tesseract, confidence=0.0 and nine rapidly attempted candidates; no model call was made for either document.",
+    "inference": "The missing executable is strongly indicated, but pilot-time process environment was not recorded. Treat both unsupported labels as invalid evidence of document illegibility or OCR quality.",
+    "effect_on_model_findings": "The two zero-text scans provide no model-quality observation. Nine documents received model calls; the tenth text-bearing document exceeded the configured length limit. The frozen 12-document denominator and score are retained as executed."
+  }
 }

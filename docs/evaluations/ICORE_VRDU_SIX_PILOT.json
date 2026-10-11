@@ -319,13 +319,13 @@
     "The one successful schema proposal had 16 fields, of which one field ID matched the frozen canonical gold exactly. The scorer does not adjudicate semantic aliases, so schema precision/recall is a strict ID metric.",
     "No value response succeeded. Zero accepted values means evidence presence and validity rates are undefined, not perfect.",
     "The frozen gold contains 221 linked cells in 48 rows across the six PDFs. The candidate proposed zero linked fields/cells; ad-buy schema calls did not succeed, so this does not demonstrate the model's table capability.",
-    "One public ad-buy PDF produced zero text after local OCR and was marked unsupported before any provider call. OCR needs a separate fix or fallback.",
+    "One public ad-buy PDF produced zero text under an unverified Tesseract environment and was marked unsupported before any provider call. This scan outcome is invalid as evidence of document illegibility; the executable must be pinned and preflighted.",
     "All proposed values remain subject to human review because dynamic schemas are unapproved; this run produced no correctly auto-released document."
   ],
   "decision": {
     "gate": "FAIL",
     "reason": "No accepted extraction and unstable provider connectivity in this bounded trial.",
-    "next_step": "Diagnose ICORE transport/timeouts and the OCR-empty public PDF, then rerun a new bounded holdout with a documented spend cap before any larger cloud batch. Preserve this failed attempt in the denominator."
+    "next_step": "Pin and preflight the Tesseract executable before evaluating scanned PDFs. Diagnose ICORE transport/timeouts before any new bounded cloud holdout. Preserve this attempt in the denominator."
   },
   "external_artifacts": {
     "pilot_dir": "E:/DocAI-Benchmarks/vrdu-icore-six-20261011T193706Z-e4d294",
@@ -333,5 +333,16 @@
     "quality_report": "quality-report.json",
     "candidate_subset": "candidate-six.jsonl",
     "gold_subset": "gold-six.jsonl"
+  },
+  "ocr_dependency_audit": {
+    "audited_after_pilot": true,
+    "runner_pinned_TESSERACT_CMD": false,
+    "runner_recorded_resolved_executable": false,
+    "same_host_current_find_tesseract_cmd": null,
+    "code_path": "idpo.agents.preprocess._extract_with_confidence catches Tesseract launch exceptions and returns empty text with confidence 0.0; the pilot version then marked zero-text pages unsupported.",
+    "zero_text_doc_id": "e2e3a1f8d204396dbd270eb9392e5454",
+    "zero_text_page_observation": "The one page logged engine=tesseract, confidence=0.0 and nine rapid OCR candidates; no provider call was made.",
+    "inference": "The missing executable is strongly indicated, but pilot-time process environment was not recorded. Treat the unsupported label as invalid evidence of document illegibility or OCR quality.",
+    "effect_on_model_findings": "The zero-text scan provides no ICORE model-quality observation. Connectivity results and measured 6-document score remain as executed; five text-bearing documents reached provider attempts."
   }
 }
