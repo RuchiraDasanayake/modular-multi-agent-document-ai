@@ -20,6 +20,7 @@ import subprocess
 import time
 import unicodedata
 from collections import Counter
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -280,7 +281,7 @@ def run_recognizers(
     import importlib.metadata as metadata
 
     import rapidocr
-    from rapidocr import RapidOCR
+    from rapidocr import ModelType, OCRVersion, RapidOCR
 
     records, receipt = load_manifest(manifest_path)
     if output_path.exists() or summary_path.exists() or output_path.resolve() == summary_path.resolve():
@@ -297,7 +298,7 @@ def run_recognizers(
     params = {
         "Global.use_det": False, "Global.use_cls": False, "Global.use_rec": True,
         "Global.use_preprocess_img": False,
-        "Rec.lang_type": "en", "Rec.ocr_version": "PP-OCRv6", "Rec.model_type": "small",
+        "Rec.lang_type": "en", "Rec.ocr_version": OCRVersion.PPOCRV6, "Rec.model_type": ModelType.SMALL,
         "Rec.model_path": str(model),
         "EngineConfig.onnxruntime.intra_op_num_threads": 4,
         "EngineConfig.onnxruntime.inter_op_num_threads": 1,
@@ -331,7 +332,8 @@ def run_recognizers(
     if providers != ["CPUExecutionProvider"]:
         raise RuntimeError(f"Unexpected RapidOCR inference providers: {providers}")
     return summarize_predictions(
-        manifest_path, output_path, summary_path, receipt=receipt, params=params,
+        manifest_path, output_path, summary_path, receipt=receipt,
+        params={key: value.value if isinstance(value, Enum) else value for key, value in params.items()},
         model_sha256=RAPIDOCR_REC_SHA256, providers=providers,
         versions={"rapidocr": metadata.version("rapidocr"), "onnxruntime": metadata.version("onnxruntime"),
                   "pillow": Image.__version__},
