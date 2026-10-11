@@ -237,14 +237,18 @@ def check_server(url: str, model_file: Path) -> dict[str, Any]:
         raise ContractError("local server model path differs from the verified GGUF path")
     if props.get("modalities", {}).get("vision") is not True:
         raise ContractError("local server does not report loaded vision capability")
-    models = _local_json(base + "/v1/models").get("data", [])
-    matches = [model for model in models if model.get("id") == MODEL_ID]
+    catalog = _local_json(base + "/v1/models")
+    matches = [model for model in catalog.get("data", []) if model.get("id") == MODEL_ID]
     if len(matches) != 1:
         raise ContractError("local server does not advertise the pinned vision model alias")
-    if "image" not in matches[0].get("architecture", {}).get("input_modalities", []):
-        raise ContractError("local server does not advertise image input")
+    capabilities = [
+        model.get("capabilities", []) for model in catalog.get("models", [])
+        if model.get("name") == MODEL_ID
+    ]
+    if len(capabilities) != 1 or "multimodal" not in capabilities[0]:
+        raise ContractError("local server does not advertise multimodal input")
     return {"build_info": props.get("build_info"), "model_path": props["model_path"],
-            "input_modalities": matches[0]["architecture"]["input_modalities"]}
+            "modalities": props["modalities"], "capabilities": capabilities[0]}
 
 
 def local_completion(messages: list[dict[str, Any]], url: str) -> dict[str, Any]:

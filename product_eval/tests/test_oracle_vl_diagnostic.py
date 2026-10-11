@@ -161,14 +161,17 @@ def test_server_requires_loaded_vision_model(tmp_path: Path, monkeypatch: pytest
             "model_path": str(model), "modalities": {"vision": True},
         },
         "http://127.0.0.1:18082/v1/models": {
-            "data": [{"id": vl.MODEL_ID, "architecture": {"input_modalities": ["text"]}}],
+            "data": [{"id": vl.MODEL_ID}],
+            "models": [{"name": vl.MODEL_ID, "capabilities": ["completion"]}],
         },
     }
     monkeypatch.setattr(vl, "_local_json", replies.__getitem__)
-    with pytest.raises(vl.ContractError, match="image input"):
+    with pytest.raises(vl.ContractError, match="multimodal input"):
         vl.check_server("http://127.0.0.1:18082/v1/chat/completions", model)
-    replies["http://127.0.0.1:18082/v1/models"]["data"][0]["architecture"]["input_modalities"].append("image")
-    vl.check_server("http://127.0.0.1:18082/v1/chat/completions", model)
+    replies["http://127.0.0.1:18082/v1/models"]["models"][0]["capabilities"].append("multimodal")
+    receipt = vl.check_server("http://127.0.0.1:18082/v1/chat/completions", model)
+    assert receipt["modalities"]["vision"] is True
+    assert "multimodal" in receipt["capabilities"]
     replies["http://127.0.0.1:18082/props"]["model_path"] = str(tmp_path / "other.gguf")
     with pytest.raises(vl.ContractError, match="model path"):
         vl.check_server("http://127.0.0.1:18082/v1/chat/completions", model)
