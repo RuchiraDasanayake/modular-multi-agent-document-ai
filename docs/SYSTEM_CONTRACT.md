@@ -52,7 +52,9 @@ The separate, experimental product path is:
 On a single host, the runner executes `idpo.cli process-auto` directly. In Compose, the frontend invokes a Node
 bridge to a private Python worker over a Unix socket in the shared data volume. That Docker path has passed static
 Compose checks, a frontend build and focused tests but has **not** completed a live container extraction smoke here.
-The canonical research job runner is explicitly unavailable in Docker.
+The default Compose profile starts PostgreSQL, Redis, gateway, product worker, and frontend. The four separate
+research services start only with `--profile research`; they are not used by this product path. The canonical
+research job runner is explicitly unavailable in Docker.
 
 The CLI accepts one file or a directory. It supports PDF, common raster images, text, and the existing JSON document
 format. It uses local OCR/text extraction and either a deterministic label/value proposal or an optional
