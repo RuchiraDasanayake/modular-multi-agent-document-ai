@@ -1,6 +1,6 @@
 {
   "name": "cord_v2_labeled_50",
-  "description": "CORD v2 receipts — 50 labeled samples (seed17).",
+  "description": "CORD v2 receipts - 50 labeled validation samples (seed 17), labels from scripts/build_cord_benchmark_pack.py (cord_totals_v1).",
   "batch_mode": "single_run_per_condition",
   "shared_fields": {
     "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
@@ -20,9 +20,9 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0000.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "change_amount": "Change returned to customer. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "23.000",
@@ -40,14 +40,18 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0001.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "subtotal_amount": "Subtotal before tax. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "28,000",
         "cash_amount": "28,000",
-        "subtotal_amount": "28,000"
+        "change_amount": "0",
+        "subtotal_amount": "28,000",
+        "tax_amount": "0"
       }
     },
     {
@@ -60,11 +64,11 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0002.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "change_amount": "Change returned to customer. Number only.",
-        "subtotal_amount": "Subtotal before tax. Number only.",
-        "tax_amount": "Tax amount. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "59,500",
@@ -84,10 +88,10 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0003.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "change_amount": "Change returned to customer. Number only.",
-        "subtotal_amount": "Subtotal before tax. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "11,700",
@@ -106,12 +110,14 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0004.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "20,000",
-        "cash_amount": "20,000"
+        "cash_amount": "20,000",
+        "change_amount": "0"
       }
     },
     {
@@ -124,12 +130,14 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0005.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "60.000",
-        "cash_amount": "60.000"
+        "cash_amount": "60.000",
+        "change_amount": "0"
       }
     },
     {
@@ -142,14 +150,14 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0006.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "subtotal_amount": "Subtotal before tax. Number only.",
-        "tax_amount": "Tax amount. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
-        "total_amount": "39.600",
-        "subtotal_amount": "36.000",
-        "tax_amount": "3.600"
+        "total_amount": "Rp 39.600",
+        "subtotal_amount": "Rp 36.000",
+        "tax_amount": "Rp 3.600"
       }
     },
     {
@@ -162,18 +170,18 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0007.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "change_amount": "Change returned to customer. Number only.",
-        "subtotal_amount": "Subtotal before tax. Number only.",
-        "tax_amount": "Tax amount. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
-        "total_amount": "59.400",
-        "cash_amount": "100.000",
-        "change_amount": "40.600",
-        "subtotal_amount": "54.000",
-        "tax_amount": "5.400"
+        "total_amount": "Rp 59.400",
+        "cash_amount": "Rp 100.000",
+        "change_amount": "Rp 40.600",
+        "subtotal_amount": "Rp 54.000",
+        "tax_amount": "Rp 5.400"
       }
     },
     {
@@ -186,10 +194,10 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0008.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "change_amount": "Change returned to customer. Number only.",
-        "subtotal_amount": "Subtotal before tax. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "20,000",
@@ -208,9 +216,9 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0009.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "change_amount": "Change returned to customer. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "42,500",
@@ -228,14 +236,14 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0010.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "subtotal_amount": "Subtotal before tax. Number only.",
-        "tax_amount": "Tax amount. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
-        "total_amount": "224,908",
-        "subtotal_amount": "194,726",
-        "tax_amount": "20,446"
+        "total_amount": "Rp 224,908",
+        "subtotal_amount": "Rp 194,726",
+        "tax_amount": "Rp 20,446"
       }
     },
     {
@@ -248,9 +256,9 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0011.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "subtotal_amount": "Subtotal before tax. Number only.",
-        "tax_amount": "Tax amount. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "308,000",
@@ -268,10 +276,10 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0012.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "subtotal_amount": "Subtotal before tax. Number only.",
-        "tax_amount": "Tax amount. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "20.000",
@@ -290,9 +298,9 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0013.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "subtotal_amount": "Subtotal before tax. Number only.",
-        "tax_amount": "Tax amount. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "207,900",
@@ -310,10 +318,10 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0014.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
-        "total_amount": ". 35.000"
+        "total_amount": "Rp. 35.000"
       }
     },
     {
@@ -326,9 +334,9 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0015.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "subtotal_amount": "Subtotal before tax. Number only.",
-        "tax_amount": "Tax amount. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "17,999",
@@ -346,12 +354,14 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0016.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "24,000",
-        "cash_amount": "24,000"
+        "cash_amount": "24,000",
+        "change_amount": "0"
       }
     },
     {
@@ -364,8 +374,8 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0017.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "subtotal_amount": "Subtotal before tax. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "6.000",
@@ -382,9 +392,9 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0018.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "subtotal_amount": "Subtotal before tax. Number only.",
-        "tax_amount": "Tax amount. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "304,326",
@@ -402,10 +412,10 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0019.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "subtotal_amount": "Subtotal before tax. Number only.",
-        "tax_amount": "Tax amount. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "18,999",
@@ -424,10 +434,10 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0020.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "subtotal_amount": "Subtotal before tax. Number only.",
-        "tax_amount": "Tax amount. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "70,000",
@@ -446,9 +456,9 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0021.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "change_amount": "Change returned to customer. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "20,000",
@@ -466,11 +476,11 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0022.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "change_amount": "Change returned to customer. Number only.",
-        "subtotal_amount": "Subtotal before tax. Number only.",
-        "tax_amount": "Tax amount. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "97,900",
@@ -490,9 +500,9 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0023.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "subtotal_amount": "Subtotal before tax. Number only.",
-        "tax_amount": "Tax amount. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "379,500",
@@ -510,11 +520,13 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0024.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "subtotal_amount": "Subtotal before tax. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "53,000",
+        "change_amount": "0",
         "subtotal_amount": "53,000"
       }
     },
@@ -528,9 +540,9 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0025.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "change_amount": "Change returned to customer. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "278.000",
@@ -548,12 +560,14 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0026.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "22,000",
-        "cash_amount": "22,000"
+        "cash_amount": "22,000",
+        "change_amount": "0"
       }
     },
     {
@@ -566,9 +580,9 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0027.png",
       "fields": {
-        "cash_amount": "Cash paid by customer. Number only.",
-        "subtotal_amount": "Subtotal before tax. Number only.",
-        "tax_amount": "Tax amount. Number only."
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "cash_amount": "81.400",
@@ -586,8 +600,8 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0028.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "subtotal_amount": "Subtotal before tax. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "57.200",
@@ -604,13 +618,15 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0029.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "subtotal_amount": "Subtotal before tax. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "56.000",
         "cash_amount": "56.000",
+        "change_amount": "0",
         "subtotal_amount": "56.000"
       }
     },
@@ -624,9 +640,9 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0030.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "change_amount": "Change returned to customer. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "31.000",
@@ -644,7 +660,7 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0031.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "180,000"
@@ -660,9 +676,9 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0032.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "change_amount": "Change returned to customer. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "20,000",
@@ -680,11 +696,11 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0033.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "change_amount": "Change returned to customer. Number only.",
-        "subtotal_amount": "Subtotal before tax. Number only.",
-        "tax_amount": "Tax amount. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "54.600",
@@ -704,8 +720,8 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0034.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "7,000",
@@ -722,9 +738,9 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0035.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "change_amount": "Change returned to customer. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "26,000",
@@ -742,9 +758,9 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0036.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "subtotal_amount": "Subtotal before tax. Number only.",
-        "tax_amount": "Tax amount. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "174.983",
@@ -762,9 +778,9 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0037.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "subtotal_amount": "Subtotal before tax. Number only.",
-        "tax_amount": "Tax amount. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "121,798",
@@ -782,10 +798,10 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0038.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "change_amount": "Change returned to customer. Number only.",
-        "subtotal_amount": "Subtotal before tax. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "20.000",
@@ -804,11 +820,13 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0039.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "subtotal_amount": "Subtotal before tax. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "36,000",
+        "change_amount": "0",
         "subtotal_amount": "36,000"
       }
     },
@@ -822,8 +840,8 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0040.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "subtotal_amount": "Subtotal before tax. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "72.000",
@@ -840,8 +858,8 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0041.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "25.000",
@@ -858,9 +876,9 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0042.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "subtotal_amount": "Subtotal before tax. Number only.",
-        "tax_amount": "Tax amount. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "276,000",
@@ -878,14 +896,18 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0043.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "subtotal_amount": "Subtotal before tax. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "17,000",
         "cash_amount": "17,000",
-        "subtotal_amount": "17,000"
+        "change_amount": "0",
+        "subtotal_amount": "17,000",
+        "tax_amount": "0"
       }
     },
     {
@@ -898,8 +920,8 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0044.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "subtotal_amount": "Subtotal before tax. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "52,000",
@@ -916,8 +938,8 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0045.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "change_amount": "Change returned to customer. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "70000.00",
@@ -934,16 +956,16 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0046.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "change_amount": "Change returned to customer. Number only.",
-        "subtotal_amount": "Subtotal before tax. Number only.",
-        "tax_amount": "Tax amount. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "44,000",
-        "cash_amount": ". 50,000",
-        "change_amount": ". 6,000",
+        "cash_amount": "Rp. 50,000",
+        "change_amount": "Rp. 6,000",
         "subtotal_amount": "40,000",
         "tax_amount": "4,000"
       }
@@ -958,9 +980,9 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0047.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "subtotal_amount": "Subtotal before tax. Number only.",
-        "tax_amount": "Tax amount. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "172,000",
@@ -978,9 +1000,9 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0048.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only.",
-        "change_amount": "Change returned to customer. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "25.000",
@@ -998,13 +1020,16 @@
       ],
       "path": "datasets/derived/cord_validation_50_seed17/images/cord_validation_0049.png",
       "fields": {
-        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol.",
-        "cash_amount": "Cash paid by customer. Number only."
+        "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+        "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
       },
       "expected": {
         "total_amount": "100.000",
-        "cash_amount": "100.000"
+        "cash_amount": "100.000",
+        "change_amount": "0"
       }
     }
-  ]
+  ],
+  "field_mapping_version": "cord_totals_v1"
 }

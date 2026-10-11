@@ -15,7 +15,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from datasets import load_dataset
 from PIL import Image
 
 FIELD_DESCRIPTIONS = {
@@ -33,8 +32,12 @@ def _load_split_records(dataset_root: Path, split: str) -> list[dict[str, Any]]:
     files = sorted(str(path) for path in data_dir.glob(f"{split}-*.parquet"))
     if not files:
         raise SystemExit(f"No parquet files found for split '{split}' under {data_dir}")
-    dataset = load_dataset("parquet", data_files={split: files})
-    return [dataset[split][index] for index in range(len(dataset[split]))]
+    import pyarrow.parquet as pq
+
+    records: list[dict[str, Any]] = []
+    for file in files:
+        records.extend(pq.read_table(file).to_pylist())
+    return records
 
 
 def _select_indices(count: int, limit: int | None, seed: int) -> list[int]:

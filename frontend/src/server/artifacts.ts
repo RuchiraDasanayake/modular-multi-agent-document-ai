@@ -229,7 +229,6 @@ function computeStatus(primaryPath: string): "ready" | "running" | "failed" | "u
 function mapResultToDocumentSummary(entry: ResultDocRecord): DocumentSummary {
   const docId = String(entry.doc_id ?? "unknown_doc");
   const validationIssueCount = Array.isArray(entry.validation_issues) ? entry.validation_issues.length : 0;
-  const rewardDetails = asRecord(entry.reward_details) ?? {};
   return {
     docId,
     filename: String(entry.filename ?? entry.path ?? docId),
@@ -312,7 +311,6 @@ function mapDocsLayoutToDocumentSummary(runId: string, primaryPath: string, docI
     ? ((readJsonFile<Record<string, unknown>>(path.join(docDir, "structuring", "extracted.json")) ?? {}).entities as unknown[])
     : [];
   const escalation = mapEscalation(escalationRaw);
-  const rewardDetails = asRecord(reward.reward_details) ?? {};
   const review = readReviewArtifact(runId, docId);
   const validationIssues = mapValidationIssues(validate.issues);
   const fields = extractionSource.map(mapField).filter((item): item is FieldExtraction => item !== null);
@@ -839,6 +837,29 @@ export function getRunDocuments(runId: string): DocumentSummary[] {
     });
 }
 
+export function readRunOcrText(runId: string, docId: string): string {
+  if (!runId || !docId || path.basename(docId) !== docId) {
+    return "";
+  }
+  let primaryPath: string;
+  try {
+    primaryPath = resolvePrimaryRunPath(resolveRunRoot(runId).rootPath);
+  } catch {
+    return "";
+  }
+  const payload = readJsonFile<Record<string, unknown>>(
+    path.join(primaryPath, "docs", docId, "preprocessing", "ocr", "text.json"),
+  );
+  const pages = Array.isArray(payload?.pages) ? payload.pages : [];
+  return pages
+    .map((page) => {
+      const entry = asRecord(page);
+      return typeof entry?.text === "string" ? entry.text.trim() : "";
+    })
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 export function getRunDocument(runId: string, docId: string): Record<string, unknown> {
   const context = buildRunContext(runId);
   const review = readReviewArtifact(runId, docId);
@@ -1286,10 +1307,4 @@ export function getRunOverview(runId: string): RunOverview {
     policyChangedCount,
     directScoredDocCount,
   };
-}
-
-export function findNewestRunIdAfter(startedAtMs: number): string | null {
-  const runs = listRuns();
-  const candidate = runs.find((run) => Date.parse(run.createdAt) >= startedAtMs - 5000 || Date.parse(run.updatedAt) >= startedAtMs - 5000);
-  return candidate?.runId ?? null;
 }

@@ -5,6 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { removeToken } from "@/lib/auth";
 import { useUser } from "@/hooks/use-user";
+import { Icon, type IconName } from "@/components/icons";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { clsx } from "clsx";
 
 /* ── Navigation structure ── */
@@ -12,27 +14,28 @@ import { clsx } from "clsx";
 interface NavItem {
     href: string;
     label: string;
+    icon: IconName;
     badge?: string;
     color?: string;
 }
 
 const USER_NAV: NavItem[] = [
-    { href: "/dashboard/idpo", label: "Doc Extraction", badge: "Core", color: "brand" },
-    { href: "/dashboard/idpo/benchmark", label: "Benchmark Results", color: "cyan" },
-    { href: "/dashboard/idpo/presentation", label: "Run Walkthrough", color: "cyan" },
-    { href: "/dashboard/xai", label: "AI Q&A", color: "violet" },
-    { href: "/dashboard/guardrails", label: "Quality Checks", color: "emerald" },
-    { href: "/dashboard/hitl", label: "Expert Review", color: "amber" },
+    { href: "/dashboard", label: "Overview", icon: "home", color: "brand" },
+    { href: "/dashboard/idpo", label: "Doc Extraction", icon: "document", badge: "Core", color: "brand" },
+    { href: "/dashboard/idpo/benchmark", label: "Benchmark Results", icon: "chart", color: "cyan" },
+    { href: "/dashboard/idpo/presentation", label: "Run Walkthrough", icon: "play", color: "cyan" },
+    { href: "/dashboard/xai", label: "AI Q&A", icon: "chat", color: "violet" },
+    { href: "/dashboard/guardrails", label: "Quality Checks", icon: "shield", color: "emerald" },
+    { href: "/dashboard/hitl", label: "Expert Review", icon: "userCheck", color: "amber" },
 ];
 
 const ADMIN_NAV: NavItem[] = [
-    { href: "/dashboard", label: "Overview", color: "brand" },
-    { href: "/dashboard/submit", label: "Policy Check", color: "cyan" },
-    { href: "/dashboard/experiments", label: "Experiments", color: "emerald" },
-    { href: "/dashboard/rabi", label: "Cold Start", color: "cyan" },
-    { href: "/dashboard/daaf", label: "Drift Monitor", color: "violet" },
-    { href: "/dashboard/admin", label: "Users", color: "amber" },
-    { href: "/dashboard/database", label: "Database", color: "cyan" },
+    { href: "/dashboard/submit", label: "Policy Check", icon: "clipboard", color: "cyan" },
+    { href: "/dashboard/experiments", label: "Experiments", icon: "flask", color: "emerald" },
+    { href: "/dashboard/rabi", label: "Cold Start", icon: "seedling", color: "cyan" },
+    { href: "/dashboard/daaf", label: "Drift Detection", icon: "bolt", color: "violet" },
+    { href: "/dashboard/admin", label: "Users", icon: "users", color: "amber" },
+    { href: "/dashboard/database", label: "Database", icon: "database", color: "cyan" },
 ];
 
 const COLOR_MAP: Record<string, { activeBg: string; activeText: string; iconBg: string; iconBorder: string; hoverBg: string }> = {
@@ -73,18 +76,31 @@ const COLOR_MAP: Record<string, { activeBg: string; activeText: string; iconBg: 
     },
 };
 
-function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
-    const isActive =
-        item.href === "/dashboard"
-            ? pathname === "/dashboard"
-            : pathname.startsWith(item.href);
+function isNavItemActive(href: string, pathname: string, hrefs: string[]): boolean {
+    if (href === "/dashboard") {
+        return pathname === "/dashboard";
+    }
+    const matches = pathname === href || pathname.startsWith(`${href}/`);
+    if (!matches) {
+        return false;
+    }
+    return !hrefs.some(
+        (other) =>
+            other !== href &&
+            other.length > href.length &&
+            (other === pathname || pathname.startsWith(`${other}/`)),
+    );
+}
+
+function NavLink({ item, pathname, hrefs }: { item: NavItem; pathname: string; hrefs: string[] }) {
+    const isActive = isNavItemActive(item.href, pathname, hrefs);
     const colors = COLOR_MAP[item.color ?? "brand"];
 
     return (
         <Link
             href={item.href}
             className={clsx(
-                "group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] transition-all duration-200",
+                "group relative flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-[13px] transition-all duration-200",
                 isActive
                     ? `${colors.activeBg} ${colors.activeText} font-semibold shadow-sm`
                     : `text-slate-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white ${colors.hoverBg}`
@@ -95,6 +111,16 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
                 <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-gradient-to-b from-brand-400 to-cyan-500" />
             )}
 
+            <span
+                className={clsx(
+                    "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border transition-colors",
+                    isActive
+                        ? `${colors.iconBg} ${colors.iconBorder}`
+                        : "border-transparent text-slate-400 group-hover:text-slate-700 dark:text-gray-500 dark:group-hover:text-gray-200",
+                )}
+            >
+                <Icon name={item.icon} className="h-4 w-4" />
+            </span>
             <span className="flex-1 truncate">{item.label}</span>
 
             {item.badge && (
@@ -146,7 +172,8 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             <div className="relative px-5 py-5 border-b border-slate-100/80 dark:border-gray-800/50">
                 <div className="flex items-center gap-3">
                     <Link href="/dashboard" onClick={onClose} className="flex items-center gap-3 group flex-1 min-w-0">
-                        <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-brand-500/30 group-hover:shadow-brand-500/50 transition-all duration-300 group-hover:scale-105 flex-shrink-0">
+                        <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-cyan-500 flex items-center justify-center text-sm font-bold text-white shadow-lg shadow-brand-500/30 group-hover:shadow-brand-500/50 transition-all duration-300 group-hover:scale-105 flex-shrink-0">
+                            AI
                             <div className="absolute inset-0 rounded-xl bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -159,11 +186,12 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                     {/* Close button – mobile only */}
                     {onClose && (
                         <button
+                            type="button"
                             onClick={onClose}
                             aria-label="Close navigation"
-                            className="lg:hidden px-2 py-1.5 rounded-lg text-xs font-semibold text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800 transition-all flex-shrink-0"
+                            className="lg:hidden flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800 transition-all flex-shrink-0"
                         >
-                            Close
+                            <Icon name="close" className="h-4 w-4" />
                         </button>
                     )}
                 </div>
@@ -172,16 +200,12 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             {/* Quick Action — Primary CTA */}
             <div className="relative px-3 pt-4 pb-2">
                 <Link
-                    href="/dashboard/idpo"
-                    className={clsx(
-                        "group relative flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-300 w-full overflow-hidden",
-                        pathname.startsWith("/dashboard/idpo")
-                            ? "bg-gradient-to-r from-brand-500 to-cyan-500 text-white shadow-lg shadow-brand-500/30"
-                            : "bg-gradient-to-r from-brand-500 to-cyan-500 text-white shadow-lg shadow-brand-500/25 hover:shadow-xl hover:shadow-brand-500/40 hover:scale-[1.02] active:scale-[0.98]"
-                    )}
+                    href="/dashboard/idpo/jobs"
+                    className="group relative flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-300 w-full overflow-hidden bg-gradient-to-r from-brand-500 to-cyan-500 text-white shadow-lg shadow-brand-500/25 hover:shadow-xl hover:shadow-brand-500/40 hover:scale-[1.02] active:scale-[0.98]"
                 >
                     {/* Shimmer effect on hover */}
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out" />
+                    <Icon name="upload" className="relative z-10 h-4 w-4" />
                     <span className="relative z-10">Extract Documents</span>
                 </Link>
             </div>
@@ -197,7 +221,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                 </div>
                 <div className="space-y-0.5 mb-5">
                     {USER_NAV.map((item) => (
-                        <NavLink key={item.href} item={item} pathname={pathname} />
+                        <NavLink key={item.href} item={item} pathname={pathname} hrefs={USER_NAV.map((entry) => entry.href)} />
                     ))}
                 </div>
 
@@ -212,7 +236,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                         </div>
                         <div className="space-y-0.5">
                             {ADMIN_NAV.map((item) => (
-                                <NavLink key={item.href} item={item} pathname={pathname} />
+                                <NavLink key={item.href} item={item} pathname={pathname} hrefs={ADMIN_NAV.map((entry) => entry.href)} />
                             ))}
                         </div>
                     </>
@@ -247,13 +271,18 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                         </div>
                     </div>
                 )}
-                <button
-                    onClick={handleLogout}
-                    className="group flex items-center px-3 py-2.5 rounded-xl text-sm text-slate-400 dark:text-gray-500
-                     hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50/80 dark:hover:bg-red-500/10 border border-transparent hover:border-red-200/40 dark:hover:border-red-500/15 transition-all duration-200 w-full"
-                >
-                    Sign Out
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="group flex flex-1 items-center gap-2 px-3 py-2 rounded-xl text-sm text-slate-500 dark:text-gray-400
+                         hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50/80 dark:hover:bg-red-500/10 border border-transparent hover:border-red-200/40 dark:hover:border-red-500/15 transition-all duration-200"
+                    >
+                        <Icon name="logout" className="h-4 w-4" />
+                        Sign out
+                    </button>
+                    <ThemeToggle />
+                </div>
             </div>
         </aside>
     );

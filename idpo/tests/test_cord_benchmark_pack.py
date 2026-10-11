@@ -101,7 +101,7 @@ def test_build_benchmark_pack_writes_images_labels_and_pack(tmp_path: Path) -> N
     first_image = repo_root / first_case["path"]
     assert first_image.exists()
     assert first_image.suffix == ".png"
-    assert first_case["fields"]["total_amount"] == "Receipt total amount paid"
+    assert first_case["fields"]["total_amount"] == cord_pack.FIELD_DESCRIPTIONS["total_amount"]
 
     second_item = payload["manifest"]["items"][1]
     second_label = repo_root / second_item["label_path"]

@@ -334,6 +334,7 @@ Current branch alignment:
 - the selected-event summary now exposes compact event facts such as route, policy, model, issue count, recovery outcome, or escalation outcome when that event payload provides them
 - extracted field rows now surface lightweight evidence hints such as confidence, method, page, source, or model when the runtime already provides them
 - provenance timelines, raw bundles, and transparency JSON are no longer part of the main document-detail operator path
+- the review form pre-fills field states only from benchmark labels; without labels every state starts empty and `Save review` stays disabled until each field has one, so an unread form cannot send feedback to AHMN
 
 ## Design Rules
 

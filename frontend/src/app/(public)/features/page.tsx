@@ -2,89 +2,90 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { SignupLink } from "@/components/signup-link";
 
 const coreFeatures = [
     {
         color: "text-brand-500",
         bgColor: "bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/20",
-        title: "Explainable AI",
-        desc: "Understand exactly why the AI made each extraction decision. Every output includes confidence scores and clear, readable explanations. Build trust and meet compliance requirements with full transparency.",
+        title: "Adaptive Policy Routing",
+        desc: "Each document is profiled for type, scan quality, and layout, then a Thompson Sampling router chooses the processing policy most likely to succeed. Every outcome updates the router's posteriors.",
         bullets: [
-            "Visual explanation of key decisions",
-            "Word-level importance highlighting",
-            "Confidence scoring with calibration",
-            "Audit-ready explanation reports",
+            "Per-document policy selection",
+            "Specialist policies for receipts and correspondence",
+            "Learning within and across jobs",
+            "Static single-policy baseline for comparison",
         ],
     },
     {
         color: "text-violet-500",
         bgColor: "bg-violet-50 dark:bg-violet-500/10 border-violet-200 dark:border-violet-500/20",
-        title: "Intelligent Quality Checks",
-        desc: "Multi-layered validation ensures extracted data passes format, meaning, and business rule checks before reaching your systems. Catch errors before they propagate.",
+        title: "Grounded Validation",
+        desc: "Extracted values are checked against per-field format rules and must be traceable to the source text. Values that cannot be grounded are flagged instead of passed through.",
         bullets: [
-            "Format and structure validation",
-            "Meaning and consistency checks",
-            "Cross-field dependency validation",
-            "Configurable quality thresholds",
+            "Format checks for dates, amounts, and IDs",
+            "Source-text grounding check",
+            "Missing and malformed field detection",
+            "Per-field confidence scores",
         ],
     },
     {
         color: "text-amber-500",
         bgColor: "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20",
-        title: "Expert Review Workflow",
-        desc: "Automatically route uncertain extractions to domain experts. Every human correction feeds back into the AI, creating a cycle of continuous improvement.",
+        title: "Human-in-the-Loop Review",
+        desc: "Fields that fail validation or fall below the confidence threshold are queued for review. Reviewer corrections are carried into later runs in the same job.",
         bullets: [
-            "Smart routing based on confidence",
-            "Easy annotation and correction tools",
-            "Continuous learning from feedback",
-            "Quality metrics dashboard",
+            "Review queue per job",
+            "Side-by-side document preview",
+            "Corrections fed into later runs",
+            "Review results stored with the run",
         ],
     },
     {
         color: "text-emerald-500",
         bgColor: "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20",
-        title: "Adaptive Learning Engine",
-        desc: "Our AI maintains document context across multiple levels — from words to paragraphs to full documents — and adapts as your documents evolve over time.",
+        title: "Targeted Recovery",
+        desc: "When a field fails validation, the pipeline re-extracts only that field with a focused prompt rather than reprocessing the whole document.",
         bullets: [
-            "Multi-level document understanding",
-            "Smart context awareness",
-            "Automatic change detection",
-            "Continuous accuracy improvement",
+            "Field-level re-extraction",
+            "Per-field prompts for specialist policies",
+            "Escalation when recovery fails",
+            "Recovery outcomes recorded per run",
         ],
     },
     {
         color: "text-blue-500",
         bgColor: "bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20",
-        title: "Smart Model Selection",
-        desc: "The system automatically picks the best extraction approach for each document based on type, complexity, and past performance — no manual configuration needed.",
+        title: "Robust OCR",
+        desc: "Scanned PDFs are rasterised page by page, deskewed and denoised when the policy calls for it, then read with PaddleOCR, with Tesseract as a fallback.",
         bullets: [
-            "Automatic strategy selection",
-            "Performance-based optimization",
-            "Multi-strategy comparison",
-            "Per-document-type tuning",
+            "Scanned and image-only PDFs",
+            "Photos, faxes, and TIFF scans",
+            "Native text layer for digital PDFs",
+            "Policy-controlled preprocessing",
         ],
     },
     {
         color: "text-rose-500",
         bgColor: "bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/20",
-        title: "Layout-Aware Processing",
-        desc: "Our AI understands document layouts and adjusts its focus in real-time based on where the most important information lives, ensuring maximum precision.",
+        title: "Inspectable Runs",
+        desc: "Every run records the policy that was chosen, the operators that ran, validation issues, and the reward fed back to the router, so results can be audited.",
         bullets: [
-            "Layout-aware reading",
-            "Adaptive focus regions",
-            "Smart section detection",
-            "Real-time adjustment",
+            "Routing decision per document",
+            "Operator stack and latency",
+            "Validation and recovery trace",
+            "Excel and CSV exports",
         ],
     },
 ];
 
 const technicalSpecs = [
-    { label: "Processing", value: "Multiple formats" },
-    { label: "Throughput", value: "High throughput" },
-    { label: "Accuracy", value: "High accuracy" },
-    { label: "Languages", value: "Multi-language" },
-    { label: "Security", value: "Enterprise-grade" },
-    { label: "Speed", value: "Low latency" },
+    { label: "Inputs", value: "PDF, image, text" },
+    { label: "Extraction", value: "Zero-shot LLM" },
+    { label: "Inference", value: "Local (Ollama)" },
+    { label: "OCR", value: "PaddleOCR + Tesseract" },
+    { label: "Routing", value: "Thompson Sampling" },
+    { label: "Outputs", value: "JSON, Excel, CSV" },
 ];
 
 export default function FeaturesPage() {
@@ -108,9 +109,9 @@ export default function FeaturesPage() {
                         transition={{ duration: 0.5, delay: 0.1 }}
                         className="text-4xl lg:text-6xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-[1.1]"
                     >
-                        Features built for{" "}
+                        Built for{" "}
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-violet-500">
-                            enterprise AI
+                            adaptive extraction
                         </span>
                     </motion.h1>
                     <motion.p
@@ -119,8 +120,8 @@ export default function FeaturesPage() {
                         transition={{ duration: 0.5, delay: 0.2 }}
                         className="text-lg text-slate-600 dark:text-gray-400 mt-6 max-w-3xl mx-auto leading-relaxed"
                     >
-                        Every component of Modular Doc AI is designed for transparency, reliability, and continuous improvement.
-                        Explore the capabilities that power our document intelligence platform.
+                        Every stage of the pipeline is driven by a per-document policy and leaves an auditable trace.
+                        These are the capabilities in the current research prototype.
                     </motion.p>
                 </div>
             </section>
@@ -209,14 +210,14 @@ export default function FeaturesPage() {
                         Ready to see it in action?
                     </h2>
                     <p className="text-lg text-slate-600 dark:text-gray-400 mb-8">
-                        Start with our free tier and experience the full power of Modular Doc AI.
+                        Upload your own documents to the research demo and inspect every routing decision.
                     </p>
                     <div className="flex items-center justify-center gap-4 flex-wrap">
-                        <Link href="/signup" className="px-8 py-4 glass-button rounded-xl text-lg flex items-center gap-2">
-                            Get Started Free
-                        </Link>
-                        <Link href="/pricing" className="px-8 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-xl text-lg font-medium transition-all shadow-sm">
-                            View Pricing
+                        <SignupLink className="px-8 py-4 glass-button rounded-xl text-lg flex items-center gap-2">
+                            Try the Demo
+                        </SignupLink>
+                        <Link href="/docs" className="px-8 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-xl text-lg font-medium transition-all shadow-sm">
+                            Read the Docs
                         </Link>
                     </div>
                 </div>

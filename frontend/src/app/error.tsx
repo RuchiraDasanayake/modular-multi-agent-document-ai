@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect } from "react";
 
 export default function GlobalError({
@@ -36,7 +37,7 @@ export default function GlobalError({
                     Unexpected Error
                 </h1>
                 <p className="mb-8 text-sm text-gray-500 dark:text-gray-400">
-                    {error.message || "Something went wrong. Our team has been notified."}
+                    {error.message || "Something went wrong."}
                 </p>
                 <div className="flex items-center justify-center gap-3">
                     <button
@@ -46,12 +47,12 @@ export default function GlobalError({
                     >
                         Try again
                     </button>
-                    <a
+                    <Link
                         href="/"
                         className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                     >
                         Go home
-                    </a>
+                    </Link>
                 </div>
             </div>
         </div>

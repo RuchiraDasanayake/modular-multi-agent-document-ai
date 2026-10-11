@@ -5,41 +5,24 @@ const footerLinks = {
         title: "Product",
         links: [
             { label: "Features", href: "/features" },
-            { label: "Pricing", href: "/pricing" },
             { label: "Documentation", href: "/docs" },
         ],
     },
-    company: {
-        title: "Company",
+    project: {
+        title: "Project",
         links: [
             { label: "About", href: "/about" },
             { label: "Contact", href: "/contact" },
-            { label: "Careers", href: "#" },
-        ],
-    },
-    resources: {
-        title: "Resources",
-        links: [
-            { label: "Getting Started", href: "/docs" },
-            { label: "API Reference", href: "/docs" },
-            { label: "GitHub", href: "#" },
         ],
     },
 };
-
-const socialLinks = [
-    { href: "https://github.com", label: "GitHub" },
-    { href: "https://twitter.com", label: "Twitter" },
-    { href: "https://linkedin.com", label: "LinkedIn" },
-    { href: "mailto:hello@modulardocai.com", label: "Email" },
-];
 
 export function Footer() {
     return (
         <footer className="relative border-t border-slate-200/60 dark:border-white/10 bg-white/50 dark:bg-gray-950/50 backdrop-blur-lg">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 {/* Main Footer */}
-                <div className="py-12 sm:py-16 grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-8 sm:gap-12">
+                <div className="py-12 sm:py-16 grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-8 sm:gap-12">
                     {/* Brand */}
                     <div className="col-span-2 lg:col-span-2 space-y-4">
                         <div className="flex items-center gap-3">
@@ -53,20 +36,6 @@ export function Footer() {
                         <p className="text-sm text-slate-600 dark:text-gray-400 leading-relaxed max-w-sm">
                             Adaptive document extraction built on AHMN policy learning and IDPO runtime orchestration.
                         </p>
-                        <div className="flex items-center gap-3 pt-2">
-                            {socialLinks.map((social) => (
-                                <a
-                                    key={social.label}
-                                    href={social.href}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="px-3 h-9 rounded-lg flex items-center justify-center bg-slate-100 dark:bg-gray-800 text-xs font-semibold text-slate-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-500/10 transition-all"
-                                    aria-label={social.label}
-                                >
-                                    {social.label}
-                                </a>
-                            ))}
-                        </div>
                     </div>
 
                     {/* Link Columns */}
@@ -94,7 +63,7 @@ export function Footer() {
                 {/* Bottom Bar */}
                 <div className="py-6 border-t border-slate-200/60 dark:border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
                     <p className="text-sm text-slate-500 dark:text-gray-500">
-                        &copy; {new Date().getFullYear()} Modular Doc AI. All rights reserved.
+                        &copy; {new Date().getFullYear()} Modular Doc AI. Final-year research prototype.
                     </p>
                 </div>
             </div>

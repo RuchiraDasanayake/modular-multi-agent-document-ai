@@ -145,7 +145,7 @@ async def run_demo(
     """Legacy direct-run endpoint kept only for compatibility."""
     import asyncio
 
-    logger.warning("Legacy direct-run endpoint /idpo/run invoked; prefer the hosted job path via /api/runs/start")
+    logger.warning("Legacy direct-run endpoint /idpo/run invoked; prefer the frontend job path via POST /api/jobs/<job_id>/runs")
 
     inbox_dir = storage_inbox_dir()
     inbox_dir.mkdir(parents=True, exist_ok=True)

@@ -4,7 +4,8 @@ param(
   [string]$ApiOrigin = "http://localhost:8000",
   [string]$FrontendHost = "0.0.0.0",
   [string]$GatewayHost = "0.0.0.0",
-  [string]$ServiceHost = "127.0.0.1"
+  [string]$ServiceHost = "127.0.0.1",
+  [switch]$AllowSignup
 )
 
 $ErrorActionPreference = "Stop"
@@ -69,6 +70,7 @@ $frontendCors = @(
   "http://127.0.0.1:3000"
 ) | Where-Object { $_ } | Select-Object -Unique
 $corsValue = ($frontendCors -join ",")
+$signupEnabled = if ($AllowSignup -or $env:PUBLIC_SIGNUP_ENABLED -eq "true") { "true" } else { "false" }
 
 function Start-ServiceProcess {
   param(
@@ -111,7 +113,7 @@ $procs += Start-ServiceProcess -Name "idpo" -WorkDir $root -InnerCommand `
   "`$env:POSTGRES_URI='postgresql://user:password@localhost:5432/ahmn_db'; `$env:AHMN_SERVICE_URL='http://$ServiceHost:8001'; `$env:GUARDRAILS_SERVICE_URL='http://$ServiceHost:8002'; `$env:XAI_HITL_SERVICE_URL='http://$ServiceHost:8003'; & '$python' scripts/run_uvicorn_win.py --app idpo.ui.app:app --host $ServiceHost --port 8004"
 
 $procs += Start-ServiceProcess -Name "gateway" -WorkDir $root -InnerCommand `
-  "`$env:POSTGRES_URI='postgresql://user:password@localhost:5432/ahmn_db'; `$env:REDIS_URL='redis://:docai_redis_secret@localhost:6379/1'; `$env:AHMN_SERVICE_URL='http://$ServiceHost:8001'; `$env:GUARDRAILS_SERVICE_URL='http://$ServiceHost:8002'; `$env:XAI_HITL_SERVICE_URL='http://$ServiceHost:8003'; `$env:IDPO_SERVICE_URL='http://$ServiceHost:8004'; `$env:IDPO_PROXY_TIMEOUT='1200'; `$env:BACKEND_CORS_ORIGINS='$corsValue'; & '$python' scripts/run_uvicorn_win.py --app gateway.main:app --host $GatewayHost --port 8000"
+  "`$env:POSTGRES_URI='postgresql://user:password@localhost:5432/ahmn_db'; `$env:REDIS_URL='redis://:docai_redis_secret@localhost:6379/1'; `$env:AHMN_SERVICE_URL='http://$ServiceHost:8001'; `$env:GUARDRAILS_SERVICE_URL='http://$ServiceHost:8002'; `$env:XAI_HITL_SERVICE_URL='http://$ServiceHost:8003'; `$env:IDPO_SERVICE_URL='http://$ServiceHost:8004'; `$env:IDPO_PROXY_TIMEOUT='1200'; `$env:BACKEND_CORS_ORIGINS='$corsValue'; `$env:PUBLIC_SIGNUP_ENABLED='$signupEnabled'; & '$python' scripts/run_uvicorn_win.py --app gateway.main:app --host $GatewayHost --port 8000"
 
 $procs += Start-ServiceProcess -Name "frontend" -WorkDir (Join-Path $root "frontend") -InnerCommand `
   "`$env:NEXT_PUBLIC_API_URL='$ApiOrigin'; `$env:INTERNAL_API_URL='http://127.0.0.1:8000'; `$env:HOSTNAME='$FrontendHost'; npm run dev -- --hostname $FrontendHost --port 3000"

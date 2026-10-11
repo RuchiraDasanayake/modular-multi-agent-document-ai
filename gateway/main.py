@@ -141,6 +141,38 @@ async def _is_token_revoked(jti: str) -> bool:
     return await r.exists(f"{_REVOKED_PREFIX}{jti}") > 0
 
 # ---------------------------------------------------------------------------
+# First admin account
+# ---------------------------------------------------------------------------
+async def _ensure_admin_account(conn: AsyncConnection) -> None:
+    """Create the first admin from ADMIN_PASSWORD when no admin exists. Existing users are never changed."""
+    async with conn.cursor() as cur:
+        await cur.execute("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1")
+        if await cur.fetchone() is not None:
+            return
+        if not settings.ADMIN_PASSWORD:
+            logger.warning(
+                "No admin account exists. Set ADMIN_PASSWORD (and optionally ADMIN_USERNAME, "
+                "ADMIN_EMAIL) and restart the gateway to create one."
+            )
+            return
+        await cur.execute(
+            """INSERT INTO users (email, username, hashed_password, role)
+               VALUES (%s, %s, %s, 'admin')
+               ON CONFLICT DO NOTHING
+               RETURNING id""",
+            (settings.ADMIN_EMAIL, settings.ADMIN_USERNAME, hash_password(settings.ADMIN_PASSWORD)),
+        )
+        created = await cur.fetchone()
+    await conn.commit()
+    if created is None:
+        logger.warning(
+            "Could not create admin %r: that username or email is already taken.",
+            settings.ADMIN_USERNAME,
+        )
+    else:
+        logger.info("Created admin account %r from ADMIN_PASSWORD.", settings.ADMIN_USERNAME)
+
+# ---------------------------------------------------------------------------
 # Lifespan
 # ---------------------------------------------------------------------------
 @asynccontextmanager
@@ -158,7 +190,12 @@ async def lifespan(_app: FastAPI):
             max_keepalive_connections=20,
         ),
     )
-    await DatabasePool.get_pool()
+    pool = await DatabasePool.get_pool()
+    try:
+        async with pool.connection() as conn:
+            await _ensure_admin_account(conn)
+    except Exception as exc:
+        logger.warning("Skipped the admin account check: %s", exc)
     logger.info("Gateway started — DB pool + httpx client ready")
     yield
     await DatabasePool.close_pool()
@@ -343,6 +380,11 @@ async def refresh_token(body: RefreshRequest, db: AsyncConnection = Depends(get_
     new_refresh = create_refresh_token({"sub": user_id})
     return TokenResponse(access_token=new_access, refresh_token=new_refresh)
 
+@app.get("/api/auth/signup-status")
+async def signup_status():
+    """Whether public self-registration is open, so the frontend can offer or hide it."""
+    return {"enabled": settings.PUBLIC_SIGNUP_ENABLED}
+
 @app.post("/api/auth/signup", response_model=TokenResponse, status_code=201)
 @limiter.limit("5/minute")
 async def signup(
@@ -351,6 +393,11 @@ async def signup(
     db: AsyncConnection = Depends(get_db),
 ):
     """Public self-registration (always creates 'viewer' role)."""
+    if not settings.PUBLIC_SIGNUP_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Public sign-up is turned off. Ask an administrator for an account.",
+        )
     hashed = hash_password(body.password)
     try:
         async with db.cursor() as cur:

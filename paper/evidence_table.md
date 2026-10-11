@@ -1,4 +1,8 @@
 # IDPO Evidence Fact Table
+
+> **Superseded.** This table records earlier, unpaired adaptive-only runs. The paper's numbers come from the paired
+> static vs `adaptive_safe` runs in [`FINAL_EVIDENCE.md`](FINAL_EVIDENCE.md); do not cite figures from this file.
+
 > Permanent frontend job: `idpo_research_permanent_01`
 > This file tracks only evidence surfaces that are currently defensible for the paper.
 

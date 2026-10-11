@@ -13,6 +13,7 @@ ocr = [
   "pytesseract>=0.3.10",
   "pillow>=10.0.0",
   "pdf2image>=1.17.0",
+  "pymupdf>=1.24",
 ]
 pdf = [
   "pypdf>=4.0.0",
@@ -28,6 +29,10 @@ ui = [
 cloud = [
   "openai>=1.30.0",
   "anthropic>=0.28.0",
+]
+test = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
 ]
 
 [project.scripts]

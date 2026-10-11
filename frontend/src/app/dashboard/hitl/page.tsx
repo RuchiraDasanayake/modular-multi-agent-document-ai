@@ -1,25 +1,43 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/toast";
+import { Icon } from "@/components/icons";
 import type { XAIExplanation, FeedbackType, HITLFeedback } from "@/types";
+
+const VERDICTS: Array<{ value: FeedbackType; label: string; description: string }> = [
+    { value: "correct", label: "Correct", description: "The answer is right" },
+    { value: "partially_correct", label: "Partly correct", description: "Some of it is right" },
+    { value: "incorrect", label: "Wrong", description: "The answer is wrong" },
+    { value: "needs_more_context", label: "Needs more context", description: "The answer is incomplete" },
+];
+
+const VERDICT_LABELS: Record<FeedbackType, string> = Object.fromEntries(
+    VERDICTS.map((verdict) => [verdict.value, verdict.label]),
+) as Record<FeedbackType, string>;
+
+const CARD = "rounded-2xl border border-slate-200 bg-white/70 p-5 dark:border-gray-700 dark:bg-gray-800/40";
+const FIELD =
+    "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500";
+
+function readStored(key: string): string | null {
+    return sessionStorage.getItem(key) ?? localStorage.getItem(key);
+}
 
 export default function HITLPage() {
     const { addToast } = useToast();
+    const [loaded, setLoaded] = useState(false);
     const [explanation, setExplanation] = useState<XAIExplanation | null>(null);
     const [question, setQuestion] = useState("");
-    const [paragraph, setParagraph] = useState("");
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [submitted, setSubmitted] = useState(false);
-    const [feedbackId, setFeedbackId] = useState("");
-    const [showHistory, setShowHistory] = useState(false);
-    const [history, setHistory] = useState<HITLFeedback[]>([]);
     const [adviceId, setAdviceId] = useState("");
+    const [history, setHistory] = useState<HITLFeedback[]>([]);
+    const [showHistory, setShowHistory] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [feedbackId, setFeedbackId] = useState("");
 
-    // Form state
-    const [feedbackType, setFeedbackType] = useState<FeedbackType>("correct");
+    const [feedbackType, setFeedbackType] = useState<FeedbackType | null>(null);
     const [correctedAnswer, setCorrectedAnswer] = useState("");
     const [explanationQuality, setExplanationQuality] = useState(3);
     const [highlightAccuracy, setHighlightAccuracy] = useState(3);
@@ -28,58 +46,28 @@ export default function HITLPage() {
     const [knowledgeSuggestion, setKnowledgeSuggestion] = useState("");
 
     useEffect(() => {
-        // Load from sessionStorage first, fall back to localStorage for cross-tab/reload support
-        const storedExplanation = sessionStorage.getItem("xai_explanation") || localStorage.getItem("xai_explanation");
-        const storedQuestion = sessionStorage.getItem("xai_question") || localStorage.getItem("xai_question");
-        const storedParagraph = sessionStorage.getItem("xai_paragraph") || localStorage.getItem("xai_paragraph");
-        const storedAdviceId = sessionStorage.getItem("xai_advice_id") || localStorage.getItem("xai_advice_id") || "";
-
-        if (storedExplanation) {
-            try { setExplanation(JSON.parse(storedExplanation)); } catch { /* invalid data */ }
+        try {
+            const raw = readStored("xai_explanation");
+            setExplanation(raw ? (JSON.parse(raw) as XAIExplanation) : null);
+        } catch {
+            setExplanation(null);
         }
-        if (storedQuestion) setQuestion(storedQuestion);
-        if (storedParagraph) setParagraph(storedParagraph);
-        if (storedAdviceId) setAdviceId(storedAdviceId);
-
-        // Load history from localStorage
-        const storedHistory = localStorage.getItem("hitl_history");
-        if (storedHistory) {
-            try { setHistory(JSON.parse(storedHistory)); } catch { /* invalid data */ }
+        setQuestion(readStored("xai_question") ?? "");
+        setAdviceId(readStored("xai_advice_id") ?? "");
+        try {
+            const storedHistory = localStorage.getItem("hitl_history");
+            setHistory(storedHistory ? (JSON.parse(storedHistory) as HITLFeedback[]) : []);
+        } catch {
+            setHistory([]);
         }
+        setLoaded(true);
     }, []);
 
-    /** Build a local HITLFeedback record for the history list. */
-    const buildFeedback = (id: string): HITLFeedback => ({
-        feedback_id: id,
-        timestamp: new Date().toISOString(),
-        question,
-        original_answer: explanation!.answer,
-        feedback_type: feedbackType,
-        is_answer_correct: feedbackType === "correct",
-        corrected_answer: correctedAnswer || undefined,
-        ratings: {
-            explanation_quality: explanationQuality,
-            highlight_accuracy: highlightAccuracy,
-            xai_helpfulness: xaiHelpfulness,
-        },
-        additional_context: additionalComments || undefined,
-        knowledge_update: knowledgeSuggestion || undefined,
-        priority: "medium",
-        tags: [],
-    });
-
-    /** Persist a feedback entry to local history. */
-    const persistFeedback = (feedback: HITLFeedback) => {
-        const updated = [...history, feedback];
-        setHistory(updated);
-        localStorage.setItem("hitl_history", JSON.stringify(updated));
-    };
-
     const handleSubmit = async () => {
-        if (!explanation) return;
-
+        if (!explanation || !feedbackType) {
+            return;
+        }
         setIsSubmitting(true);
-
         try {
             const response = await api.submitFeedback({
                 question,
@@ -93,295 +81,288 @@ export default function HITLPage() {
                 knowledge_update: knowledgeSuggestion || undefined,
             });
 
-            setFeedbackId(response.feedback_id);
-
             if (adviceId) {
                 try {
                     const bridge = await api.forwardIDPOHITLCorrection(adviceId, feedbackType);
                     if (bridge.status !== "forwarded") {
-                        addToast({ type: "warning", title: "HITL bridge warning", message: bridge.error || "Feedback saved, but AHMN correction was not forwarded" });
+                        addToast({
+                            type: "warning",
+                            title: "Rating saved, AHMN not updated",
+                            message: bridge.error || "The rating was saved, but it could not be passed on to AHMN.",
+                        });
                     }
                 } catch (bridgeErr) {
                     addToast({
                         type: "warning",
-                        title: "HITL bridge warning",
-                        message: bridgeErr instanceof Error ? bridgeErr.message : "Feedback saved, but AHMN correction forwarding failed",
+                        title: "Rating saved, AHMN not updated",
+                        message: bridgeErr instanceof Error ? bridgeErr.message : "The rating could not be passed on to AHMN.",
                     });
                 }
-            } else {
-                addToast({ type: "warning", title: "No advice link", message: "Feedback saved, but no advice_id was available to update AHMN correction state" });
             }
 
-            setSubmitted(true);
-            persistFeedback(buildFeedback(response.feedback_id));
-            addToast({ type: "success", title: "Feedback submitted", message: "Thank you for helping improve the system" });
+            const entry: HITLFeedback = {
+                feedback_id: response.feedback_id,
+                timestamp: new Date().toISOString(),
+                question,
+                original_answer: explanation.answer,
+                feedback_type: feedbackType,
+                is_answer_correct: feedbackType === "correct",
+                corrected_answer: correctedAnswer || undefined,
+                ratings: {
+                    explanation_quality: explanationQuality,
+                    highlight_accuracy: highlightAccuracy,
+                    xai_helpfulness: xaiHelpfulness,
+                },
+                additional_context: additionalComments || undefined,
+                knowledge_update: knowledgeSuggestion || undefined,
+                priority: "medium",
+                tags: [],
+            };
+            const updated = [...history, entry];
+            setHistory(updated);
+            localStorage.setItem("hitl_history", JSON.stringify(updated));
+            setFeedbackId(response.feedback_id);
+            addToast({ type: "success", title: "Rating saved", message: "Thank you. The XAI service has your rating." });
         } catch (err) {
-            addToast({ type: "error", title: "Feedback failed", message: err instanceof Error ? err.message : "Could not submit feedback" });
+            addToast({
+                type: "error",
+                title: "Rating not saved",
+                message: err instanceof Error ? err.message : "The XAI service did not accept the rating.",
+            });
         } finally {
             setIsSubmitting(false);
         }
     };
 
+    if (!loaded) {
+        return <div className="max-w-4xl 3xl:max-w-5xl mx-auto h-64 rounded-2xl bg-slate-100 dark:bg-gray-800/50 animate-pulse" />;
+    }
+
     if (!explanation) {
         return (
-            <div className="max-w-4xl 3xl:max-w-5xl mx-auto">
-                <div className="bg-white/80 dark:bg-gray-800/50 border border-slate-200 dark:border-gray-700 rounded-2xl p-8 text-center">
-                    <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 flex items-center justify-center mb-4">
-                        <span className="text-3xl">👤</span>
-                    </div>
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">No Q&A to Review</h2>
-                    <p className="text-slate-500 dark:text-gray-400 mb-6">
-                        Please ask a question first to provide feedback.
+            <div className="max-w-4xl 3xl:max-w-5xl mx-auto space-y-6">
+                <div className={`${CARD} p-8 text-center`}>
+                    <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-200/60 bg-amber-50 text-amber-600 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+                        <Icon name="userCheck" className="h-6 w-6" />
+                    </span>
+                    <h1 className="text-xl font-bold text-slate-900 dark:text-white">No answer to review yet</h1>
+                    <p className="mt-2 mb-6 text-sm text-slate-600 dark:text-gray-300">
+                        Ask a question in AI Q&A, then come back here to rate the answer and its explanation.
                     </p>
                     <Link
                         href="/dashboard/xai"
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-brand-500 text-slate-900 dark:text-white font-medium rounded-lg hover:bg-brand-400 transition-colors"
+                        className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
                     >
-                        ← Go to Q&A
+                        Go to AI Q&A
                     </Link>
                 </div>
+                {history.length > 0 && <FeedbackHistory history={history} />}
             </div>
         );
     }
 
-    if (submitted) {
+    if (feedbackId) {
         return (
-            <div className="max-w-4xl 3xl:max-w-5xl mx-auto">
-                <div className="glass-panel rounded-2xl p-8 text-center border-green-500/20">
-                    <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center shadow-lg shadow-green-500/20">
-                        <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                    </div>
-                    <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white mb-2">Feedback Submitted!</h2>
-                    <p className="text-slate-500 dark:text-gray-400 mb-2">Thank you for helping improve the system.</p>
-                    <p className="text-slate-400 dark:text-gray-500 text-sm mb-6 font-mono">ID: {feedbackId}</p>
-
-                    <div className="flex gap-4 justify-center">
+            <div className="max-w-4xl 3xl:max-w-5xl mx-auto space-y-6">
+                <div className={`${CARD} p-8 text-center`}>
+                    <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600 text-white">
+                        <Icon name="check" className="h-7 w-7" />
+                    </span>
+                    <h1 className="text-xl font-bold text-slate-900 dark:text-white">Rating saved</h1>
+                    <p className="mt-2 text-sm text-slate-600 dark:text-gray-300">Thank you for reviewing this answer.</p>
+                    <p className="mt-1 mb-6 font-mono text-xs text-slate-500 dark:text-gray-400">Reference {feedbackId}</p>
+                    <div className="flex flex-wrap justify-center gap-3">
                         <Link
                             href="/dashboard/xai"
-                            className="px-6 py-3 bg-gradient-to-r from-brand-500 to-cyan-500 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-brand-500/25 transition-all duration-200"
+                            className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
                         >
-                            ← Back to Q&A
+                            Ask another question
                         </Link>
                         <button
-                            onClick={() => setShowHistory(true)}
-                            className="px-6 py-3 bg-white/80 dark:bg-gray-800/50 border border-slate-200 dark:border-gray-700 text-slate-600 dark:text-gray-300 font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-gray-700/50 transition-all duration-200"
+                            type="button"
+                            onClick={() => setShowHistory((value) => !value)}
+                            aria-expanded={showHistory}
+                            className="rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                         >
-                            View History
+                            {showHistory ? "Hide your ratings" : "Show your ratings"}
                         </button>
                     </div>
                 </div>
-
                 {showHistory && <FeedbackHistory history={history} />}
             </div>
         );
     }
 
+    const needsCorrection = feedbackType === "incorrect" || feedbackType === "partially_correct";
+
     return (
-        <div className="max-w-4xl 3xl:max-w-5xl mx-auto space-y-6">
-            {/* Header */}
+        <div className="max-w-4xl 3xl:max-w-5xl mx-auto space-y-5">
             <div className="relative overflow-hidden glass-panel rounded-2xl p-6">
                 <div className="absolute inset-0 bg-gradient-to-r from-amber-500/5 to-orange-500/5 dark:from-amber-500/[0.03] dark:to-orange-500/[0.03]" />
-                <div className="relative flex items-center justify-between">
-                    <div>
+                <div className="relative flex flex-wrap items-start justify-between gap-4">
+                    <div className="min-w-0">
                         <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/20">
-                                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                </svg>
-                            </div>
-                            Human Expert Review
+                            <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/20 text-white">
+                                <Icon name="userCheck" className="h-5 w-5" />
+                            </span>
+                            Expert review
                         </h1>
-                        <p className="text-slate-500 dark:text-gray-400 mt-1.5 text-sm">
-                            Provide feedback to improve the Q&A system
+                        <p className="mt-1.5 max-w-2xl text-sm text-slate-600 dark:text-gray-300">
+                            Rate the last AI Q&A answer and its explanation. Ratings are sent to the XAI service; the list
+                            of your ratings is kept in this browser.
                         </p>
                     </div>
                     <Link
-                        href="/dashboard/xai"
-                        className="px-4 py-2.5 bg-violet-50 dark:bg-violet-500/10 border border-violet-200/60 dark:border-violet-500/20 text-violet-700 dark:text-violet-300 rounded-xl hover:bg-violet-100 dark:hover:bg-violet-500/20 transition-all duration-200 text-sm font-semibold shadow-sm"
+                        href="/dashboard/xai/explanation"
+                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                     >
-                        ← Back to Q&A
+                        <Icon name="search" className="h-4 w-4" />
+                        See the explanation
                     </Link>
                 </div>
+            </div>
 
-                {/* Workflow Progress */}
-                <div className="flex items-center justify-center gap-2 mt-6 flex-wrap">
-                    {[
-                        { label: "Retrieval", done: true },
-                        { label: "Q&A", done: true },
-                        { label: "XAI Analysis", done: true },
-                        { label: "Expert Review", current: true },
-                        { label: "Knowledge Update", pending: true },
-                    ].map((step, idx) => (
-                        <div key={idx} className="flex items-center gap-2">
-                            <span
-                                className={`px-3 py-1 rounded-full text-xs font-medium ${step.current
-                                    ? "bg-brand-500 text-slate-900 dark:text-white"
-                                    : step.done
-                                        ? "bg-green-500/20 text-green-400"
-                                        : "bg-slate-200 dark:bg-gray-700 text-slate-500 dark:text-gray-500"
-                                    }`}
-                            >
-                                {step.label}
-                            </span>
-                            {idx < 4 && <span className="text-slate-600 dark:text-gray-600">→</span>}
-                        </div>
-                    ))}
+            <div className="grid gap-4 md:grid-cols-2">
+                <div className={CARD}>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-gray-400">Question</p>
+                    <p className="mt-2 font-medium text-slate-900 dark:text-white">{question || "—"}</p>
+                </div>
+                <div className={CARD}>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-gray-400">Answer</p>
+                    <p className="mt-2 text-sm text-slate-800 dark:text-gray-100">{explanation.answer || "—"}</p>
+                    {explanation.confidence_score >= 0 && (
+                        <span className="mt-2 inline-flex rounded-full border border-slate-200 px-2.5 py-0.5 text-xs text-slate-600 dark:border-gray-600 dark:text-gray-300">
+                            Confidence {(explanation.confidence_score * 100).toFixed(0)}%
+                        </span>
+                    )}
                 </div>
             </div>
 
-            {/* Context Cards */}
-            <div className="grid md:grid-cols-2 gap-4">
-                <div className="bg-white/60 dark:bg-gray-800/30 border border-l-4 border-l-brand-500 border-slate-200 dark:border-gray-700 rounded-xl p-5">
-                    <div className="text-xs font-semibold text-brand-400 uppercase tracking-wide mb-2">
-                        Question
-                    </div>
-                    <p className="text-slate-900 dark:text-white font-medium">{question}</p>
-                </div>
-
-                <div className="bg-white/60 dark:bg-gray-800/30 border border-l-4 border-l-green-500 border-slate-200 dark:border-gray-700 rounded-xl p-5">
-                    <div className="text-xs font-semibold text-green-400 uppercase tracking-wide mb-2">
-                        Model Answer
-                    </div>
-                    <p className="text-slate-700 dark:text-gray-200 text-sm">{explanation.answer}</p>
-                    <span className="inline-block mt-2 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">
-                        {(explanation.confidence_score * 100).toFixed(0)}% confidence
-                    </span>
-                </div>
-            </div>
-
-            {/* Feedback Form */}
-            <div className="bg-white/60 dark:bg-gray-800/30 border border-slate-200 dark:border-gray-700 rounded-xl p-6 space-y-6">
-                {/* Section 1: Answer Correctness */}
-                <div>
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 pb-2 border-b border-slate-200 dark:border-gray-700">
-                        1. Is the answer correct?
-                    </h3>
-                    <div className="grid sm:grid-cols-2 gap-3">
-                        {[
-                            { value: "correct" as FeedbackType, label: "Correct", desc: "The answer is accurate" },
-                            { value: "incorrect" as FeedbackType, label: "Incorrect", desc: "The answer is wrong" },
-                            { value: "partially_correct" as FeedbackType, label: "Partially Correct", desc: "Some parts are right" },
-                            { value: "needs_more_context" as FeedbackType, label: "Needs More Context", desc: "Answer is incomplete" },
-                        ].map((option) => (
-                            <button
-                                key={option.value}
-                                onClick={() => setFeedbackType(option.value)}
-                                className={`p-4 rounded-lg border text-left transition-all ${feedbackType === option.value
-                                    ? "border-brand-500 bg-brand-500/10"
-                                    : "border-slate-200 dark:border-gray-700 hover:border-gray-600"
+            <form
+                className={`${CARD} space-y-6`}
+                onSubmit={(event) => {
+                    event.preventDefault();
+                    void handleSubmit();
+                }}
+            >
+                <fieldset>
+                    <legend className="mb-3 text-base font-semibold text-slate-900 dark:text-white">1. Is the answer correct?</legend>
+                    <div role="radiogroup" aria-label="Is the answer correct?" className="grid gap-3 sm:grid-cols-2">
+                        {VERDICTS.map((option) => {
+                            const selected = feedbackType === option.value;
+                            return (
+                                <button
+                                    key={option.value}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={selected}
+                                    onClick={() => setFeedbackType(option.value)}
+                                    className={`rounded-lg border p-4 text-left transition-colors ${
+                                        selected
+                                            ? "border-brand-500 bg-brand-50 ring-1 ring-brand-500 dark:bg-brand-500/10"
+                                            : "border-slate-200 hover:border-slate-300 hover:bg-slate-50 dark:border-gray-700 dark:hover:border-gray-600 dark:hover:bg-gray-800"
                                     }`}
-                            >
-                                <div className="font-medium text-slate-900 dark:text-white">{option.label}</div>
-                                <div className="text-slate-500 dark:text-gray-400 text-sm">{option.desc}</div>
-                            </button>
-                        ))}
+                                >
+                                    <span className="block font-medium text-slate-900 dark:text-white">{option.label}</span>
+                                    <span className="block text-sm text-slate-600 dark:text-gray-400">{option.description}</span>
+                                </button>
+                            );
+                        })}
                     </div>
-
-                    {(feedbackType === "incorrect" || feedbackType === "partially_correct") && (
+                    {needsCorrection && (
                         <div className="mt-4">
-                            <label className="block text-sm font-medium text-slate-600 dark:text-gray-300 mb-2">
-                                Please provide the correct answer:
+                            <label htmlFor="hitl-correction" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-gray-200">
+                                What should the answer be?
                             </label>
                             <textarea
+                                id="hitl-correction"
                                 value={correctedAnswer}
-                                onChange={(e) => setCorrectedAnswer(e.target.value)}
-                                placeholder="Enter the correct or improved answer here..."
-                                className="w-full bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg px-4 py-3 text-slate-800 dark:text-gray-100 placeholder-slate-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+                                onChange={(event) => setCorrectedAnswer(event.target.value)}
+                                placeholder="The correct or more complete answer"
                                 rows={3}
+                                className={FIELD}
                             />
                         </div>
                     )}
-                </div>
+                </fieldset>
 
-                {/* Section 2: XAI Quality Ratings */}
-                <div>
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 pb-2 border-b border-slate-200 dark:border-gray-700">
-                        2. Rate the XAI Explanation Quality
-                    </h3>
-                    <div className="grid md:grid-cols-3 gap-6">
-                        <RatingSlider
-                            label="Explanation Clarity"
-                            value={explanationQuality}
-                            onChange={setExplanationQuality}
-                            lowLabel="Confusing"
-                            highLabel="Very Clear"
-                        />
-                        <RatingSlider
-                            label="Highlight Accuracy"
+                <fieldset>
+                    <legend className="mb-3 text-base font-semibold text-slate-900 dark:text-white">2. How good is the explanation?</legend>
+                    <div className="grid gap-4 md:grid-cols-3">
+                        <RatingScale label="Clarity" value={explanationQuality} onChange={setExplanationQuality} lowLabel="Confusing" highLabel="Very clear" />
+                        <RatingScale
+                            label="Highlighted words"
                             value={highlightAccuracy}
                             onChange={setHighlightAccuracy}
                             lowLabel="Irrelevant"
-                            highLabel="Spot On"
+                            highLabel="Spot on"
                         />
-                        <RatingSlider
-                            label="Overall Helpfulness"
-                            value={xaiHelpfulness}
-                            onChange={setXaiHelpfulness}
-                            lowLabel="Not Helpful"
-                            highLabel="Very Helpful"
+                        <RatingScale label="Helpfulness" value={xaiHelpfulness} onChange={setXaiHelpfulness} lowLabel="Not helpful" highLabel="Very helpful" />
+                    </div>
+                </fieldset>
+
+                <fieldset className="space-y-4">
+                    <legend className="mb-3 text-base font-semibold text-slate-900 dark:text-white">3. Anything else? (optional)</legend>
+                    <div>
+                        <label htmlFor="hitl-comments" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-gray-200">
+                            Comments
+                        </label>
+                        <textarea
+                            id="hitl-comments"
+                            value={additionalComments}
+                            onChange={(event) => setAdditionalComments(event.target.value)}
+                            placeholder="Anything that would help judge this answer"
+                            rows={3}
+                            className={FIELD}
                         />
                     </div>
+                    <div>
+                        <label htmlFor="hitl-knowledge" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-gray-200">
+                            Missing or wrong information
+                        </label>
+                        <textarea
+                            id="hitl-knowledge"
+                            value={knowledgeSuggestion}
+                            onChange={(event) => setKnowledgeSuggestion(event.target.value)}
+                            placeholder="Facts the answer should have used"
+                            rows={2}
+                            className={FIELD}
+                        />
+                    </div>
+                </fieldset>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5 dark:border-gray-700">
+                    {history.length > 0 ? (
+                        <button
+                            type="button"
+                            onClick={() => setShowHistory((value) => !value)}
+                            aria-expanded={showHistory}
+                            className="text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-gray-300 dark:hover:text-white"
+                        >
+                            {showHistory ? "Hide" : "Show"} your ratings ({history.length})
+                        </button>
+                    ) : (
+                        <span />
+                    )}
+                    <div className="flex items-center gap-3">
+                        {!feedbackType && <span className="text-sm text-slate-500 dark:text-gray-400">Choose whether the answer is correct first.</span>}
+                        <button
+                            type="submit"
+                            disabled={isSubmitting || !feedbackType}
+                            className="shrink-0 whitespace-nowrap rounded-lg bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            {isSubmitting ? "Saving…" : "Save rating"}
+                        </button>
+                    </div>
                 </div>
-
-                {/* Section 3: Additional Comments */}
-                <div>
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 pb-2 border-b border-slate-200 dark:border-gray-700">
-                        3. Additional Comments (Optional)
-                    </h3>
-                    <textarea
-                        value={additionalComments}
-                        onChange={(e) => setAdditionalComments(e.target.value)}
-                        placeholder="Share any additional thoughts or suggestions..."
-                        className="w-full bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg px-4 py-3 text-slate-800 dark:text-gray-100 placeholder-slate-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500/50 mb-4"
-                        rows={3}
-                    />
-
-                    <label className="block text-sm font-medium text-slate-600 dark:text-gray-300 mb-2">
-                        Suggest Knowledge Update (Optional):
-                    </label>
-                    <textarea
-                        value={knowledgeSuggestion}
-                        onChange={(e) => setKnowledgeSuggestion(e.target.value)}
-                        placeholder="If there's missing or incorrect information, suggest updates here..."
-                        className="w-full bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg px-4 py-3 text-slate-800 dark:text-gray-100 placeholder-slate-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
-                        rows={2}
-                    />
-                </div>
-            </div>
-
-            {/* Submit Button */}
-            <div className="text-center">
-                <button
-                    onClick={handleSubmit}
-                    disabled={isSubmitting}
-                    className="px-8 py-4 bg-gradient-to-r from-brand-500 to-brand-600 text-slate-900 dark:text-white font-semibold rounded-full hover:from-brand-400 hover:to-brand-500 transition-all shadow-lg shadow-brand-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    {isSubmitting ? "Submitting..." : "Submit Feedback"}
-                </button>
-            </div>
-
-            {/* View History Button */}
-            {history.length > 0 && (
-                <div className="text-center">
-                    <button
-                        onClick={() => setShowHistory(!showHistory)}
-                        className="text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:text-gray-200 text-sm"
-                    >
-                        {showHistory ? "Hide" : "View"} Feedback History ({history.length})
-                    </button>
-                </div>
-            )}
+            </form>
 
             {showHistory && <FeedbackHistory history={history} />}
         </div>
     );
 }
 
-// ── Sub-components ──
-
-function RatingSlider({
+function RatingScale({
     label,
     value,
     onChange,
@@ -390,28 +371,32 @@ function RatingSlider({
 }: {
     label: string;
     value: number;
-    onChange: (v: number) => void;
+    onChange: (value: number) => void;
     lowLabel: string;
     highLabel: string;
 }) {
     return (
-        <div className="bg-slate-50 dark:bg-gray-800/50 rounded-lg p-4">
-            <div className="font-medium text-slate-900 dark:text-white mb-3">{label}</div>
-            <div className="flex gap-2 mb-2">
+        <div className="rounded-lg bg-slate-50 p-4 dark:bg-gray-800/60">
+            <p className="mb-3 text-sm font-medium text-slate-900 dark:text-white">{label}</p>
+            <div role="radiogroup" aria-label={`${label}, 1 (${lowLabel}) to 5 (${highLabel})`} className="mb-2 flex gap-1.5">
                 {[1, 2, 3, 4, 5].map((n) => (
                     <button
                         key={n}
+                        type="button"
+                        role="radio"
+                        aria-checked={value === n}
                         onClick={() => onChange(n)}
-                        className={`flex-1 py-2 rounded-lg font-medium transition-all ${value === n
-                            ? "bg-brand-500 text-slate-900 dark:text-white"
-                            : "bg-slate-200 dark:bg-gray-700 text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-gray-600"
-                            }`}
+                        className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
+                            value === n
+                                ? "bg-brand-600 text-white"
+                                : "bg-white text-slate-600 hover:bg-slate-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                        }`}
                     >
                         {n}
                     </button>
                 ))}
             </div>
-            <div className="flex justify-between text-xs text-slate-500 dark:text-gray-500">
+            <div className="flex justify-between text-xs text-slate-500 dark:text-gray-400">
                 <span>{lowLabel}</span>
                 <span>{highLabel}</span>
             </div>
@@ -421,60 +406,58 @@ function RatingSlider({
 
 function FeedbackHistory({ history }: { history: HITLFeedback[] }) {
     const total = history.length;
-    const correct = history.filter((f) => f.is_answer_correct).length;
-    const accuracy = total > 0 ? (correct / total) * 100 : 0;
+    const correct = history.filter((entry) => entry.is_answer_correct).length;
 
     return (
-        <div className="mt-6 bg-white/60 dark:bg-gray-800/30 border border-slate-200 dark:border-gray-700 rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Feedback History</h3>
-
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="bg-slate-50 dark:bg-gray-800/50 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-slate-900 dark:text-white">{total}</div>
-                    <div className="text-slate-500 dark:text-gray-400 text-sm">Total Feedback</div>
+        <section className={CARD}>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Your ratings</h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">Kept in this browser.</p>
+            <dl className="mt-4 grid grid-cols-3 gap-3">
+                <div className="rounded-lg bg-slate-50 p-3 text-center dark:bg-gray-800/60">
+                    <dt className="text-xs text-slate-500 dark:text-gray-400">Ratings</dt>
+                    <dd className="mt-1 text-xl font-bold tabular-nums text-slate-900 dark:text-white">{total}</dd>
                 </div>
-                <div className="bg-slate-50 dark:bg-gray-800/50 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-green-400">{correct}</div>
-                    <div className="text-slate-500 dark:text-gray-400 text-sm">Correct Answers</div>
+                <div className="rounded-lg bg-slate-50 p-3 text-center dark:bg-gray-800/60">
+                    <dt className="text-xs text-slate-500 dark:text-gray-400">Answers rated correct</dt>
+                    <dd className="mt-1 text-xl font-bold tabular-nums text-slate-900 dark:text-white">{correct}</dd>
                 </div>
-                <div className="bg-slate-50 dark:bg-gray-800/50 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-brand-400">{accuracy.toFixed(1)}%</div>
-                    <div className="text-slate-500 dark:text-gray-400 text-sm">Accuracy Rate</div>
+                <div className="rounded-lg bg-slate-50 p-3 text-center dark:bg-gray-800/60">
+                    <dt className="text-xs text-slate-500 dark:text-gray-400">Share rated correct</dt>
+                    <dd className="mt-1 text-xl font-bold tabular-nums text-slate-900 dark:text-white">
+                        {total > 0 ? `${((correct / total) * 100).toFixed(0)}%` : "—"}
+                    </dd>
                 </div>
-            </div>
-
-            {/* List */}
-            <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                {[...history].reverse().map((feedback) => (
-                    <div
-                        key={feedback.feedback_id}
-                        className="bg-white/80 dark:bg-gray-800/50 border border-slate-200 dark:border-gray-700 rounded-lg p-4"
-                    >
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-mono text-slate-500 dark:text-gray-500">{feedback.feedback_id}</span>
+            </dl>
+            <ul className="mt-4 max-h-[400px] space-y-3 overflow-y-auto">
+                {[...history].reverse().map((entry) => (
+                    <li key={entry.feedback_id} className="rounded-lg border border-slate-200 p-4 dark:border-gray-700">
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-xs text-slate-500 dark:text-gray-400">
+                                {new Date(entry.timestamp).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+                            </span>
                             <span
-                                className={`px-2 py-0.5 rounded-full text-xs ${feedback.is_answer_correct
-                                    ? "bg-green-500/20 text-green-400"
-                                    : "bg-red-500/20 text-red-400"
-                                    }`}
+                                className={`rounded-full border px-2 py-0.5 text-xs font-medium ${
+                                    entry.is_answer_correct
+                                        ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+                                        : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
+                                }`}
                             >
-                                {feedback.feedback_type}
+                                {VERDICT_LABELS[entry.feedback_type] ?? entry.feedback_type}
                             </span>
                         </div>
-                        <p className="text-slate-600 dark:text-gray-300 text-sm mb-1">
-                            <strong>Q:</strong> {feedback.question}
+                        <p className="text-sm text-slate-700 dark:text-gray-200">
+                            <span className="font-semibold">Q:</span> {entry.question}
                         </p>
-                        <p className="text-slate-500 dark:text-gray-400 text-sm truncate">
-                            <strong>A:</strong> {feedback.original_answer}
+                        <p className="truncate text-sm text-slate-600 dark:text-gray-400">
+                            <span className="font-semibold">A:</span> {entry.original_answer}
                         </p>
-                        <div className="mt-2 text-xs text-slate-500 dark:text-gray-500">
-                            Ratings: {feedback.ratings.explanation_quality}/5 |{" "}
-                            {feedback.ratings.highlight_accuracy}/5 | {feedback.ratings.xai_helpfulness}/5
-                        </div>
-                    </div>
+                        <p className="mt-2 text-xs text-slate-500 dark:text-gray-400">
+                            Clarity {entry.ratings.explanation_quality}/5 · Highlighted words {entry.ratings.highlight_accuracy}/5 · Helpfulness{" "}
+                            {entry.ratings.xai_helpfulness}/5
+                        </p>
+                    </li>
                 ))}
-            </div>
-        </div>
+            </ul>
+        </section>
     );
 }

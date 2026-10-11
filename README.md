@@ -2,31 +2,30 @@
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg?logo=docker&logoColor=white)](docker-compose.yml)
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB.svg?logo=python&logoColor=white)](pyproject.toml)
+[![Python 3.10](https://img.shields.io/badge/Python-3.10-3776AB.svg?logo=python&logoColor=white)](SETUP.md)
 [![Next.js 15](https://img.shields.io/badge/Next.js-15-000000.svg?logo=next.js&logoColor=white)](frontend/package.json)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.114+-009485.svg?logo=fastapi&logoColor=white)](gateway/requirements.txt)
 
-A production-ready, microservices-based framework for intelligent document understanding and analysis. Four independently deployable services communicate through an integration pipeline that forms a continuous learning cycle.
+A microservices-based research system for adaptive document extraction. A document goes in; structured key-value fields come out. The IDPO pipeline (OCR, preprocessing, local-LLM extraction, validation, recovery) is governed by a policy that the AHMN layer selects per document with Thompson Sampling. Guardrails and XAI-HITL are separate services with their own dashboard pages.
+
+> **Research results and how to reproduce them:** see [`docs/REPRODUCING_RESULTS.md`](docs/REPRODUCING_RESULTS.md).
 
 ## Key Features
 
-- **13-Agent Document Pipeline** — Intake → OCR → Analysis → Categorization → Structuring → Validation → Recovery → Chunking → Retrieval → Answering → Escalation → Policy → Export
-- **Multi-Tier Entity Extraction** — Explicit regex → LLM (Ollama/OpenAI/Anthropic) → Smart heuristic patterns → Generic KV parsing, with aggressive noise filtering
-- **RABI Cold-Start Transfer** — Novel Bayesian algorithm that transfers prior knowledge across similar document contexts via softmax-weighted pseudocounts
-- **DAAF Drift Detection** — Adaptive forgetting rate $\gamma^* \approx \sqrt{\Delta^2 / \ln(t)}$ for non-stationary environments
-- **5-Layer Hallucination Detection** — Schema adherence, internal consistency, domain rules, PII detection (Presidio), and semantic faithfulness (MiniLM)
+- **Policy-driven document pipeline** — Intake → Document analysis → Policy selection → Preprocessing and OCR → Extraction → Validation → Recovery → Export, with each stage parameterised by the selected policy
+- **Local-first entity extraction** — Ollama (`qwen3.5:9b`) with JSON-schema-constrained output, a grounding check against the source text, and optional OpenAI cloud fallback
+- **Adaptive routing (AHMN)** — Beta-Bernoulli Thompson Sampling over the policies whose conditions match the document, with job-scoped posteriors updated from a label-free per-document reward
+- **RABI cold-start transfer and DAAF drift-aware forgetting** — AHMN service algorithms evaluated in simulation (`ahmn_core/experiments/`); they are not active in the document runtime
+- **5-Layer Hallucination Detection** — Schema adherence, internal consistency, domain rules, PII detection (Presidio), and semantic faithfulness (MiniLM); a separate service, not part of the measured extraction pipeline
 - **Explainable AI** — DistilBERT extractive Q&A with attention-based importance scoring and LIME local explanations (dynamic 30-80 perturbation samples with prediction caching)
 - **Human-in-the-Loop** — Structured feedback loop with 5 feedback types, 4 priority levels, and 3 rating dimensions
 - **Full Text Extraction** — OCR'd or digitally extracted text shown in-app with copy functionality
-- **Closed-Loop Learning** — Processing outcomes feed back into the bandit system so policies improve with every document
 
-## Performance Optimizations
-
-The system incorporates several performance optimizations for production-viable latency:
+## Performance Notes
 
 | Optimization           | Before                       | After                  | Impact                                                            |
 | ---------------------- | ---------------------------- | ---------------------- | ----------------------------------------------------------------- |
-| **Pipeline execution** | ~320s                        | <1s                    | 300x+ improvement via smart heuristic extraction                  |
+| **PaddleOCR memory**   | ~13 GB peak, 4 workers       | 2.5 GB peak            | One shared engine per language, recognition widths padded to 320 px buckets |
 | **LIME perturbations** | 500 fixed                    | 30-80 dynamic          | ~85% latency reduction with prediction caching                    |
 | **Sentence relevance** | Per-sentence QA forward pass | TF-IDF pre-filtering   | O(1) vs O(n) model calls                                          |
 | **Noise entities**     | 100+ spurious                | ~0                     | Aggressive filtering (special chars, short values, numeric keys)  |
@@ -103,26 +102,21 @@ The **IDPO pipeline is domain-agnostic** — it classifies documents by structur
          ───────────────┘
 ```
 
-### Integration Pipeline Cycle
+### Document Processing Path
 
-When a document is processed, it flows through all four services in a continuous learning cycle:
+Documents are processed by one canonical runtime path (see [`docs/SYSTEM_CONTRACT.md`](docs/SYSTEM_CONTRACT.md)):
 
 ```
-  ┌─────────────────────────────────────────────────────────────────┐
-  │                                                                 │
-  │   ①  IDPO → AHMN     Get policy advice before processing       │
-  │   ②  IDPO            Run 13-agent extraction pipeline           │
-  │   ③  IDPO → Guard    Validate output through 5-layer ensemble  │
-  │   ④  IDPO → XAI      Generate attention/LIME explanations       │
-  │   ⑤  IDPO → AHMN     Log metrics (F1, cost, latency) → learn  │
-  │                                                                 │
-  │        ⑤ feeds back into ① — the system improves with          │
-  │           every document processed (closed-loop learning)       │
-  │                                                                 │
-  └─────────────────────────────────────────────────────────────────┘
+  frontend /api/jobs ──► job runner ──► python -m idpo.cli process-inbox
+                                              │
+      ingest/inbox ──► orchestrator ──► executor ──► exports (IDPO_DATA_DIR/runs/<run_id>)
+                          │
+                          ├─ document analysis (quality bin, document type, vendor cluster)
+                          ├─ AHMN direct advisor: Thompson Sampling over matching policies
+                          └─ per-document outcome ──► job-scoped posterior update
 ```
 
-This is orchestrated by `idpo/integration.py` using HTTP calls with graceful degradation — if any service is unavailable, the pipeline continues with partial results.
+AHMN routing runs in-process (`ahmn_core/direct_advisor.py`), so no AHMN server is needed to process documents. Guardrails and XAI-HITL are not called during document processing; they are used from their own dashboard pages. `idpo/integration.py`, which chained all four services over HTTP, is a legacy path.
 
 > **Deep Dive**: See [`docs/SYSTEM_FLOW.md`](docs/SYSTEM_FLOW.md) for the complete system flow documentation including F1 score computation, AHMN learning loop, memory hierarchy, and background jobs.
 
@@ -166,8 +160,9 @@ This is orchestrated by `idpo/integration.py` using HTTP calls with graceful deg
 ### Prerequisites
 
 - **Docker** & **Docker Compose** v2+ (only requirement for production)
-- Python 3.11+ (for local development)
+- Python 3.10 (for local development; the document pipeline is tested on 3.10.10 with PaddlePaddle 2.6.2)
 - Node.js 18+ (for frontend development)
+- [Ollama](https://ollama.com) with `qwen3.5:9b` and Tesseract 5 (for document extraction; see [docs/REPRODUCING_RESULTS.md](docs/REPRODUCING_RESULTS.md))
 
 ### Run with Docker (Recommended)
 
@@ -178,9 +173,9 @@ cd modular-multi-agent-document-ai
 
 # 2. Configure environment
 cp .env.example .env
-# Edit .env to set JWT_SECRET_KEY to a random 32-char string
+# Edit .env: set JWT_SECRET_KEY to a random 32-char string and ADMIN_PASSWORD for the first admin account
 
-# 3. Build and start all 7 services
+# 3. Build and start all eight services (database, cache, four Python services, gateway, frontend)
 docker compose up --build
 
 # 4. Open the app
@@ -193,13 +188,21 @@ open http://localhost:3000
 | Gateway API | http://localhost:8000      |
 | API Docs    | http://localhost:8000/docs |
 
-**Default admin credentials:** `admin` / `admin123`
+**First login:** there is no default password. On startup, if no admin account exists, the gateway creates one from `ADMIN_USERNAME` (default `admin`) and `ADMIN_PASSWORD` in `.env`. Existing accounts are never changed.
 
 ### Local Development
 
+Run every Python command from the repository root inside the Python 3.10 virtual environment (see [SETUP.md](SETUP.md)).
+
 ```bash
-# Gateway
-cd gateway && pip install -r requirements.txt
+# Postgres (schema from scripts/init.sql) and Redis for sign-in, in Docker
+docker compose up -d db redis
+
+# Gateway. Outside Docker the database and Redis are on localhost; these values override a .env copied from
+# .env.example, which points at the Docker hosts db and redis. Set ADMIN_PASSWORD once to create the first admin.
+pip install -r gateway/requirements.txt
+export POSTGRES_URI=postgresql://user:password@localhost:5432/ahmn_db
+export REDIS_URL=redis://:docai_redis_secret@localhost:6379/1
 uvicorn gateway.main:app --reload --port 8000
 
 # AHMN Core
@@ -221,23 +224,27 @@ cd frontend && npm install && npm run dev
 ### Run Tests
 
 ```bash
+python -m pytest idpo/tests/ -v       # Document pipeline, routing and safety tests
 python -m pytest ahmn_core/tests/ -v   # Core algorithm tests
 python -m pytest guardrails/tests/ -v  # Guardrail ensemble tests
 python -m pytest xai_hitl/tests/ -v    # XAI & HITL tests
+python -m pytest gateway/tests/ -v     # Auth and proxy tests
+cd frontend && npx tsc --noEmit && npm run lint && npm run test:server
 ```
 
 ---
 
 ## API Endpoints
 
-All traffic flows through the gateway at `:8000`. JWT authentication is required for all `/api/*` routes (except `/api/auth/login` and `/api/auth/signup`).
+All traffic flows through the gateway at `:8000`. JWT authentication is required for all `/api/*` routes (except `/api/auth/login`, `/api/auth/signup` and `/api/auth/signup-status`).
 
 ### Authentication
 
 | Method | Path                         | Description           |
 | ------ | ---------------------------- | --------------------- |
 | POST   | `/api/auth/login`            | Login → JWT token     |
-| POST   | `/api/auth/signup`           | Self-registration     |
+| POST   | `/api/auth/signup`           | Self-registration (viewer accounts; 403 while `PUBLIC_SIGNUP_ENABLED` is false) |
+| GET    | `/api/auth/signup-status`    | Whether self-registration is open |
 | GET    | `/api/auth/me`               | Current user profile  |
 | POST   | `/api/auth/register`         | Admin: create user    |
 | GET    | `/api/auth/users`            | Admin: list all users |
@@ -275,6 +282,7 @@ All traffic flows through the gateway at `:8000`. JWT authentication is required
 | Method | Path                       | Description                          |
 | ------ | -------------------------- | ------------------------------------ |
 | POST   | `/api/xai/ask`             | Q&A with attention/LIME explanations |
+| POST   | `/api/xai/explain`         | Word weights and highlighted spans for an existing answer |
 | GET    | `/api/xai/explanation/:id` | Retrieve cached explanation          |
 | POST   | `/api/hitl/feedback`       | Submit human feedback                |
 | GET    | `/api/hitl/history`        | Recent feedback entries              |
@@ -302,8 +310,7 @@ All traffic flows through the gateway at `:8000`. JWT authentication is required
 | `/features` | Feature showcase    |
 | `/about`    | About the project   |
 | `/docs`     | Documentation       |
-| `/pricing`  | Plans overview      |
-| `/contact`  | Contact information |
+| `/contact`  | Contact form (needs `NEXT_PUBLIC_CONTACT_EMAIL`) |
 | `/login`    | User login          |
 | `/signup`   | User registration   |
 
@@ -312,17 +319,23 @@ All traffic flows through the gateway at `:8000`. JWT authentication is required
 | Path                      | Access | Description                           |
 | ------------------------- | ------ | ------------------------------------- |
 | `/dashboard`              | All    | Overview with health, stats, pipeline |
-| `/dashboard/xai`          | All    | XAI Q&A chat interface                |
-| `/dashboard/hitl`         | All    | HITL expert feedback & review         |
-| `/dashboard/guardrails`   | All    | Guardrails validation testing         |
-| `/dashboard/idpo`         | All    | Document processing with pipeline viz |
-| `/dashboard/submit`       | Admin  | Submit document data                  |
-| `/dashboard/experiments`  | Admin  | Experiment results & charts           |
-| `/dashboard/rabi`         | Admin  | RABI cold-start interactive demo      |
-| `/dashboard/daaf`         | Admin  | DAAF drift detection interactive demo |
-| `/dashboard/results`      | Admin  | Comparative analysis                  |
-| `/dashboard/architecture` | Admin  | System architecture visualization     |
+| `/dashboard/idpo`         | All    | Document jobs (redirects to `/dashboard/idpo/jobs`) |
+| `/dashboard/idpo/benchmark` | All  | Static versus adaptive benchmark runs |
+| `/dashboard/idpo/compare` | All    | Two runs side by side, document by document |
+| `/dashboard/idpo/presentation` | All | Step-by-step walkthrough of one run |
+| `/dashboard/xai`          | All    | AI Q&A over the OCR text of a processed document, or pasted text |
+| `/dashboard/xai/explanation` | All | How the last answer was found: highlights, SHAP, LIME, reasoning steps |
+| `/dashboard/hitl`         | All    | Expert review of the last AI Q&A answer |
+| `/dashboard/guardrails`   | All    | Quality checks against the Guardrails service |
+| `/dashboard/submit`       | Admin  | Policy check: ask the AHMN service which policy it would pick |
+| `/dashboard/experiments`  | Admin  | AHMN simulator results (Table V)      |
+| `/dashboard/rabi`         | Admin  | RABI cold-start simulation            |
+| `/dashboard/daaf`         | Admin  | DAAF drift detection simulation       |
+| `/dashboard/architecture` | Admin  | How the AHMN service answers and learns |
 | `/dashboard/admin`        | Admin  | User management                       |
+| `/dashboard/database`     | Admin  | Stored memory, users, quality-check log and ratings |
+
+`/dashboard/results` and `/dashboard/history` redirect to `/dashboard/experiments` and `/dashboard/idpo/jobs`.
 
 ---
 
@@ -348,13 +361,13 @@ All traffic flows through the gateway at `:8000`. JWT authentication is required
 │
 ├── xai_hitl/                   # Service 3: XAI + HITL (Pathirana M.M.)
 │   ├── main.py                 # FastAPI entry point (:8003)
-│   ├── engine/xai_engine.py    # DistilBERT-SQuAD + Attention Importance + LIME
+│   ├── engine/xai_engine.py    # BART (vblagoje/bart_lfqa) answers + attention importance + LIME
 │   ├── hitl/models.py          # Feedback types, HITLFeedback dataclass
 │   └── tests/
 │
 ├── idpo/                       # Service 4: IDPO (Nayanapriya S.A.T.)
 │   ├── cli.py                  # CLI entry point
-│   ├── integration.py          # ★ Cross-service integration layer
+│   ├── integration.py          # Legacy HTTP chain across services (not the runtime path)
 │   ├── agents/                 # 13 document processing agents
 │   ├── core/                   # Config, types, artifacts, provenance
 │   ├── pipeline/               # Orchestrator, executor, planning, export
@@ -379,8 +392,8 @@ All traffic flows through the gateway at `:8000`. JWT authentication is required
 │   ├── promote.py              # MTM → LTM promotion
 │   └── forgetting.py           # DAAF decay job
 ├── configs/                    # IDPO configuration files
-├── scripts/init.sql            # PostgreSQL schema + seeds
-├── docker-compose.yml          # 7 services orchestration
+├── scripts/init.sql            # PostgreSQL schema
+├── docker-compose.yml          # 8 services orchestration
 ├── CONTRIBUTING.md             # Developer guidelines
 └── LICENSE                     # MIT
 ```
@@ -557,7 +570,7 @@ docker compose ps
 # Test the API
 curl https://yourdomain.com/api/auth/login \
   -X POST -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
+  -d '{"username":"admin","password":"<your ADMIN_PASSWORD>"}'
 
 # View logs
 docker compose logs -f --tail=50
@@ -565,8 +578,9 @@ docker compose logs -f --tail=50
 
 ### 5. Production Hardening Checklist
 
-- [ ] Change the default admin password after first login
+- [ ] Set a strong `ADMIN_PASSWORD` before the first start; once the admin account exists the value is no longer read and can be removed from `.env`
 - [ ] Set strong, unique values for `JWT_SECRET_KEY`, `POSTGRES_PASSWORD`, and `REDIS_PASSWORD`
+- [ ] Leave public sign-up off (`docker-compose.prod.yml` sets `PUBLIC_SIGNUP_ENABLED=false` unless `.env` says `true`) and create accounts on the Admin page
 - [ ] Ensure PostgreSQL and Redis ports are bound to `127.0.0.1` (default in docker-compose)
 - [ ] Enable UFW firewall: `sudo ufw allow 80,443/tcp && sudo ufw enable`
 - [ ] Set up automated SSL renewal: `sudo certbot renew --dry-run`

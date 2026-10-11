@@ -55,6 +55,7 @@ export function suggestedReviewRowsFromDocumentPayload(payload: Record<string, u
   const requestedFields = Array.isArray(payload.requestedFields) ? payload.requestedFields : [];
   const fieldValues = asRecord(payload.fieldValues) ?? {};
   const expectedFieldValues = asRecord(payload.expectedFieldValues) ?? {};
+  const hasLabels = Object.keys(expectedFieldValues).length > 0;
   const savedRows = reviewRowsFromReviewArtifact(payload.review);
   const savedByKey = new Map(savedRows.map((row) => [normalizeFieldKey(row.fieldKey || row.fieldLabel), row] as const));
 
@@ -93,7 +94,8 @@ export function suggestedReviewRowsFromDocumentPayload(payload: Record<string, u
           ? String(expectedFieldValues[fieldLabel]).trim()
           : "";
 
-    let reviewState: DocumentReviewRow["reviewState"] = "correct";
+    // Without labels there is nothing to compare against, so the reviewer chooses every state.
+    let reviewState: DocumentReviewRow["reviewState"] = "";
     let correctedValue = "";
 
     if (expectedValue) {
@@ -105,10 +107,8 @@ export function suggestedReviewRowsFromDocumentPayload(payload: Record<string, u
       } else {
         reviewState = "wrong_value";
       }
-    } else if (extractedValue !== "N/A" && extractedValue !== "") {
-      reviewState = "hallucinated_field";
-    } else {
-      reviewState = "correctly_skipped";
+    } else if (hasLabels) {
+      reviewState = extractedValue !== "N/A" && extractedValue !== "" ? "hallucinated_field" : "correctly_skipped";
     }
 
     rows.push({

@@ -15,6 +15,14 @@ import {
   writeReviewArtifact,
 } from "./review";
 
+function repoPython(repoRoot: string): string {
+  const candidates = [
+    path.join(repoRoot, ".venv", "Scripts", "python.exe"),
+    path.join(repoRoot, ".venv", "bin", "python"),
+  ];
+  return candidates.find((candidate) => fs.existsSync(candidate)) ?? "python";
+}
+
 test("review flow updates job state, emits overlay, and next route consumes it", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "idpo-review-flow-"));
   const dataDir = path.join(tmpRoot, "idpo-data");
@@ -252,8 +260,9 @@ dae = DAEOutput(
 decision = router.route(dae, SystemConstraints(max_cost_units=5, max_latency_ms=2000))
 print(json.dumps({"policy_id": decision.policy.policy_id, "plan_source": decision.plan_source}))
 `;
-    const python = spawnSync("python", ["-c", pythonScript], {
-      cwd: path.resolve(process.cwd(), ".."),
+    const repoRoot = path.resolve(process.cwd(), "..");
+    const python = spawnSync(repoPython(repoRoot), ["-c", pythonScript], {
+      cwd: repoRoot,
       env: {
         ...process.env,
         IDPO_JOB_OVERLAY_PATH: overlay.path,

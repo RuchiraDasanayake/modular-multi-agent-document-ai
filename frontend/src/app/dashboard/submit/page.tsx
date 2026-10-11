@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
+import { Icon } from "@/components/icons";
 
 type PolicyCheckResponse = {
     policy_id: string;
@@ -9,6 +11,17 @@ type PolicyCheckResponse = {
     confidence: number;
     rabi_used: boolean;
 };
+
+const DOC_TYPES = [
+    { value: "invoice", label: "Invoice" },
+    { value: "receipt", label: "Receipt" },
+    { value: "contract", label: "Contract" },
+    { value: "form", label: "Form" },
+    { value: "report", label: "Report" },
+];
+
+const FIELD =
+    "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500";
 
 export default function PolicyCheckPage() {
     const [docType, setDocType] = useState("invoice");
@@ -21,7 +34,6 @@ export default function PolicyCheckPage() {
         e.preventDefault();
         setLoading(true);
         setError("");
-
         try {
             const data = await api.request<PolicyCheckResponse>("/api/advice", {
                 method: "POST",
@@ -32,108 +44,136 @@ export default function PolicyCheckPage() {
             });
             setPolicy(data);
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Unknown error");
+            setPolicy(null);
+            setError(err instanceof Error ? `The AHMN service did not answer: ${err.message}` : "The AHMN service did not answer.");
         } finally {
             setLoading(false);
         }
     };
 
+    const confidence = policy ? Math.max(0, Math.min(1, policy.confidence)) : 0;
+    const hasSettings = policy?.policy_data && Object.keys(policy.policy_data).length > 0;
+
     return (
-        <div className="max-w-2xl 3xl:max-w-3xl mx-auto space-y-8">
-            {/* Header */}
-            <div>
-                <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Policy Check</h1>
-                <p className="text-slate-500 dark:text-gray-500 mt-2">Check which policy AHMN recommends for your document</p>
+        <div className="max-w-2xl 3xl:max-w-3xl mx-auto space-y-6">
+            <div className="relative overflow-hidden glass-panel rounded-2xl p-6">
+                <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 to-sky-500/5 dark:from-cyan-500/[0.03] dark:to-sky-500/[0.03]" />
+                <div className="relative">
+                    <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white flex items-center gap-3">
+                        <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-sky-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 text-white">
+                            <Icon name="clipboard" className="h-5 w-5" />
+                        </span>
+                        Policy check
+                    </h1>
+                    <p className="text-slate-600 dark:text-gray-300 mt-1.5 text-sm">
+                        Ask the AHMN service which extraction policy it would pick for a document type and vendor.
+                    </p>
+                </div>
             </div>
 
-            {/* Policy Check Form */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-6 space-y-4">
+            <div className="glass-panel rounded-2xl p-6 space-y-5">
                 <form onSubmit={handleCheckPolicy} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-600 dark:text-gray-300 mb-2">Document Type</label>
-                        <select
-                            value={docType}
-                            onChange={(e) => setDocType(e.target.value)}
-                            className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                            <option value="invoice">Invoice</option>
-                            <option value="receipt">Receipt</option>
-                            <option value="contract">Contract</option>
-                            <option value="form">Form</option>
-                            <option value="report">Report</option>
-                        </select>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                            <label htmlFor="policy-doc-type" className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-gray-200">
+                                Document type
+                            </label>
+                            <select id="policy-doc-type" value={docType} onChange={(e) => setDocType(e.target.value)} className={FIELD}>
+                                {DOC_TYPES.map((type) => (
+                                    <option key={type.value} value={type.value}>
+                                        {type.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label htmlFor="policy-vendor" className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-gray-200">
+                                Vendor (optional)
+                            </label>
+                            <input
+                                id="policy-vendor"
+                                type="text"
+                                value={vendor}
+                                onChange={(e) => setVendor(e.target.value)}
+                                placeholder="For example acme_corp"
+                                className={FIELD}
+                            />
+                        </div>
                     </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-600 dark:text-gray-300 mb-2">Vendor Name (optional)</label>
-                        <input
-                            type="text"
-                            value={vendor}
-                            onChange={(e) => setVendor(e.target.value)}
-                            placeholder="e.g., acme_corp"
-                            className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                    </div>
-
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-gray-600 text-slate-900 dark:text-white rounded font-medium transition"
+                        className="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                        {loading ? "Checking..." : "Check Policy"}
+                        {loading ? "Asking AHMN…" : "Check policy"}
                     </button>
                 </form>
 
-                {error && <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded text-red-600 dark:text-red-300 text-sm">{error}</div>}
+                {error && (
+                    <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+                        {error}
+                    </div>
+                )}
 
                 {policy && (
-                    <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded space-y-3">
-                        <div>
-                            <p className="text-xs text-blue-600 dark:text-blue-400 uppercase font-semibold">Recommended Policy</p>
-                            <p className="text-2xl font-bold text-blue-900 dark:text-blue-100 mt-1">{policy.policy_id}</p>
-                        </div>
+                    <div className="rounded-xl border border-slate-200 p-5 dark:border-gray-700" aria-live="polite">
+                        <p className="text-xs font-semibold text-slate-500 dark:text-gray-400">Recommended policy</p>
+                        <p className="mt-1 font-mono text-xl font-bold text-slate-900 dark:text-white">{policy.policy_id}</p>
 
-                        <div className="grid grid-cols-2 gap-3 text-sm">
+                        <dl className="mt-4 grid gap-4 sm:grid-cols-2">
                             <div>
-                                <p className="text-blue-600 dark:text-blue-400 font-medium mb-1">Confidence</p>
-                                <div className="flex items-baseline gap-2">
-                                    <span className="text-xl font-bold text-blue-900 dark:text-blue-100">{(policy.confidence * 100).toFixed(0)}%</span>
-                                </div>
-                                <div className="mt-2 h-2 bg-blue-200 dark:bg-blue-800 rounded overflow-hidden">
-                                    <div 
-                                        className="h-full bg-blue-600 dark:bg-blue-400"
-                                        style={{ width: `${policy.confidence * 100}%` }}
-                                    />
-                                </div>
+                                <dt className="text-xs font-semibold text-slate-500 dark:text-gray-400">Confidence</dt>
+                                <dd className="mt-1">
+                                    <span className="text-lg font-bold tabular-nums text-slate-900 dark:text-white">{(confidence * 100).toFixed(0)}%</span>
+                                    <span className="mt-2 block h-2 overflow-hidden rounded bg-slate-100 dark:bg-gray-800">
+                                        <span className="block h-full bg-brand-600 dark:bg-brand-400" style={{ width: `${confidence * 100}%` }} />
+                                    </span>
+                                </dd>
                             </div>
                             <div>
-                                <p className="text-blue-600 dark:text-blue-400 font-medium mb-1">Smart Prior</p>
-                                <p className="text-lg font-semibold text-blue-900 dark:text-blue-100">
-                                    {policy.rabi_used ? "✓ Enabled" : "—"}
-                                </p>
+                                <dt className="text-xs font-semibold text-slate-500 dark:text-gray-400">Borrowed prior (RABI)</dt>
+                                <dd className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{policy.rabi_used ? "Used" : "Not used"}</dd>
                             </div>
-                        </div>
+                        </dl>
 
-                        {policy.policy_data && (
-                            <div className="pt-3 border-t border-blue-200 dark:border-blue-700 text-xs text-slate-600 dark:text-gray-400">
-                                <p className="font-mono break-all">{JSON.stringify(policy.policy_data)}</p>
-                            </div>
+                        {hasSettings && (
+                            <details className="mt-4 border-t border-slate-200 pt-3 dark:border-gray-700">
+                                <summary className="cursor-pointer text-xs font-semibold text-slate-600 hover:text-slate-900 dark:text-gray-300 dark:hover:text-white">
+                                    Policy settings
+                                </summary>
+                                <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-slate-50 p-3 text-xs text-slate-700 dark:bg-gray-900/60 dark:text-gray-300">
+                                    {JSON.stringify(policy.policy_data, null, 2)}
+                                </pre>
+                            </details>
                         )}
                     </div>
                 )}
             </div>
 
-            {/* Info Section */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">How It Works</h3>
-                <div className="text-sm text-slate-600 dark:text-gray-400 space-y-2">
-                    <p>Select a document type and optional vendor name, then AHMN will recommend the best policy for processing that document based on:</p>
-                    <ul className="list-disc list-inside space-y-1 ml-2">
-                        <li>Historical learning (LTM) from similar documents</li>
-                        <li>RABI smart prior transfer if available (faster cold-start)</li>
-                        <li>Thompson Sampling confidence scores</li>
-                    </ul>
+            <div className="glass-panel rounded-2xl p-6">
+                <h2 className="text-base font-semibold text-slate-900 dark:text-white mb-2">How it works</h2>
+                <div className="text-sm text-slate-600 dark:text-gray-300 space-y-2">
+                    <p>
+                        AHMN looks up the stored policies closest to this document type and vendor and picks one with
+                        Thompson sampling over their Beta posteriors. The draw is seeded from the request, so the same
+                        question gets the same answer until the stored evidence changes.
+                    </p>
+                    <p>
+                        When no stored context is close enough, it borrows a prior from the nearest neighbours (RABI)
+                        instead of starting flat.
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-gray-400">
+                        This asks the separate AHMN service. The document pipeline and the benchmark use their own
+                        in-process advisor, which does not use RABI.
+                    </p>
                 </div>
+                <Link
+                    href="/dashboard/architecture"
+                    className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:underline dark:text-brand-300"
+                >
+                    How the AHMN service learns
+                    <Icon name="arrowRight" className="h-3.5 w-3.5" />
+                </Link>
             </div>
         </div>
     );

@@ -40,6 +40,19 @@ function resolvePath(baseDir: string, value: string): string {
   return path.resolve(baseDir, value);
 }
 
+function resolveExecutable(baseDir: string, value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed || path.isAbsolute(trimmed)) {
+    return trimmed;
+  }
+  // Bare names such as "python" or "echo" stay on PATH. Relative paths do not:
+  // Windows CreateProcess does not expand ".." in the application name.
+  if (!trimmed.includes("/") && !trimmed.includes("\\")) {
+    return trimmed;
+  }
+  return path.resolve(baseDir, trimmed);
+}
+
 function resolveStorageRoot(workspaceRoot: string): string {
   const configured = process.env.IDPO_DATA_DIR?.trim();
   if (!configured) {
@@ -73,23 +86,28 @@ export function loadRunnerConfig(): RunnerConfig {
 
   const workspaceRoot = resolvePath(appRoot, raw.workspaceRoot ?? "..");
   const storageRoot = resolveStorageRoot(workspaceRoot);
+  // IDPO_DATA_DIR wins over the file so the frontend reads the same folders the Python CLI writes.
+  const dataDirFromEnv = Boolean(process.env.IDPO_DATA_DIR?.trim());
+  const storageDir = (configured: string | undefined, ...segments: string[]) =>
+    dataDirFromEnv || !configured ? path.join(storageRoot, ...segments) : resolvePath(appRoot, configured);
   const config: RunnerConfig = {
     workspaceRoot,
-    runsDir: resolvePath(appRoot, raw.runsDir ?? path.relative(appRoot, path.join(storageRoot, "runs"))),
-    uploadsDir: resolvePath(appRoot, raw.uploadsDir ?? path.relative(appRoot, path.join(storageRoot, "frontend", "uploads"))),
-    jobsDir: resolvePath(appRoot, raw.jobsDir ?? path.relative(appRoot, path.join(storageRoot, "frontend", "jobs"))),
+    runsDir: storageDir(raw.runsDir, "runs"),
+    uploadsDir: storageDir(raw.uploadsDir, "frontend", "uploads"),
+    jobsDir: storageDir(raw.jobsDir, "frontend", "jobs"),
     demoSampleRunsDir: resolvePath(appRoot, raw.demoSampleRunsDir ?? "./demo_sample_runs"),
     maxUploadMb: raw.maxUploadMb ?? 20,
-    allowedExtensions: (raw.allowedExtensions ?? [".pdf", ".png", ".jpg", ".jpeg", ".docx", ".txt", ".json"]).map((ext) =>
+    allowedExtensions: (raw.allowedExtensions ?? [".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".txt", ".json"]).map((ext) =>
       ext.toLowerCase(),
     ),
     defaultCommandId: raw.defaultCommandId,
     commands: raw.commands.map((cmd) => ({
       ...cmd,
+      program: resolveExecutable(appRoot, cmd.program),
       cwd: resolvePath(appRoot, cmd.cwd),
       env: cmd.env ?? {},
     })),
-    backendChecks:
+    backendChecks: (
       raw.backendChecks ?? [
         {
           id: "idpo-cli",
@@ -97,7 +115,11 @@ export function loadRunnerConfig(): RunnerConfig {
           command: "python",
           args: ["-m", "idpo.cli", "--help"],
         },
-      ],
+      ]
+    ).map((check) => ({
+      ...check,
+      command: check.command ? resolveExecutable(appRoot, check.command) : check.command,
+    })),
   };
 
   fs.mkdirSync(config.uploadsDir, { recursive: true });

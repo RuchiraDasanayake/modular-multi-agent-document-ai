@@ -139,6 +139,19 @@ test("benchmark payload treats fuzzy OCR text matches as correct", () => {
   assert.equal(rows[0]?.correctedValue, "January 31, 1997");
 });
 
+test("payload without labels leaves every review state to the reviewer", () => {
+  const rows = suggestedReviewRowsFromDocumentPayload({
+    requestedFields: [{ name: "total_amount" }, { name: "invoice_date" }],
+    fieldValues: { total_amount: "81,400" },
+  });
+
+  const byKey = new Map(rows.map((row) => [row.fieldKey, row] as const));
+  assert.equal(byKey.get("total_amount")?.reviewState, "");
+  assert.equal(byKey.get("total_amount")?.extractedValue, "81,400");
+  assert.equal(byKey.get("invoice_date")?.reviewState, "");
+  assert.equal(byKey.get("invoice_date")?.extractedValue, "N/A");
+});
+
 test("saved review rows override benchmark draft rows", () => {
   const rows = suggestedReviewRowsFromDocumentPayload({
     requestedFields: [{ name: "total_amount" }],

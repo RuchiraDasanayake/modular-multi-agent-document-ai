@@ -209,10 +209,6 @@ function titleCase(value: string): string {
   return value.replace(/[_-]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function arrayIfPresent(values: string[]): string[] | undefined {
-  return values.length > 0 ? values : undefined;
-}
-
 function asNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }

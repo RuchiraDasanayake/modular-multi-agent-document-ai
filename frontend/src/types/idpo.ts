@@ -101,6 +101,15 @@ export interface JobDocumentRecord {
   outcomes: JobDocumentRunOutcome[];
 }
 
+export interface JobDocumentText {
+  jobId: string;
+  fileId: string;
+  fileName: string;
+  runId: string | null;
+  text: string;
+  truncated: boolean;
+}
+
 export interface JobRunRecord {
   jobRunId: string;
   runId: string | null;
@@ -164,6 +173,7 @@ export interface JobStatus {
   uploadsPath?: string | null;
   reviewContext?: JobValidationContextArtifact | null;
   error?: string;
+  serverInstanceId?: string;
   [key: string]: unknown;
 }
 

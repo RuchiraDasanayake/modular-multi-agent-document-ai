@@ -1,0 +1,1231 @@
+{
+  "name": "cord_validation_holdout_50",
+  "description": "CORD v2 validation records in cord_validation_100_seed17 that cord_validation_50_seed17 does not use; untouched during tuning.",
+  "batch_mode": "single_run_per_condition",
+  "shared_fields": {
+    "total_amount": "Final total numeric amount on the receipt. Number only, no currency symbol. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+    "subtotal_amount": "Subtotal before tax. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+    "tax_amount": "Tax or service charge amount. Number only. May be labeled TAX, VAT, PB1, or other local tax codes. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+    "cash_amount": "Cash paid by customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text.",
+    "change_amount": "Change returned to customer. Number only. May use dot as thousands separator (e.g. 20.000 = 20,000). Extract the number as-is from the receipt text."
+  },
+  "field_mapping_version": "cord_totals_v1",
+  "cases": [
+    {
+      "case_id": "cord_holdout_0000",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0000.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "45,500",
+        "cash_amount": "50,000",
+        "change_amount": "4,500"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0002",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0002.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "20,000",
+        "cash_amount": "100,000",
+        "change_amount": "80,000",
+        "subtotal_amount": "18,181",
+        "tax_amount": "1,818"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0004",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0004.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "41,000",
+        "cash_amount": "50.000",
+        "change_amount": ":9,000",
+        "subtotal_amount": "41,000"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0005",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0005.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "8,000",
+        "cash_amount": "8,000",
+        "subtotal_amount": "7,273",
+        "tax_amount": "727"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0006",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0006.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label."
+      },
+      "expected": {
+        "total_amount": "123,000"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0011",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0011.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "89.100",
+        "change_amount": "0",
+        "subtotal_amount": "81.000",
+        "tax_amount": "8.100"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0012",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0012.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "change_amount": "The change amount returned to the customer. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "72.000",
+        "change_amount": "0"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0013",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0013.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "45,500",
+        "cash_amount": "50,000",
+        "change_amount": "-4,500",
+        "subtotal_amount": "41,364",
+        "tax_amount": "4,136"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0016",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0016.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "20,000",
+        "cash_amount": "100,000",
+        "change_amount": "80,000"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0018",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0018.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "25,000",
+        "cash_amount": "100,000",
+        "change_amount": "75,000"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0020",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0020.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "16,500",
+        "cash_amount": "20,000",
+        "change_amount": "3,500",
+        "subtotal_amount": "15,000",
+        "tax_amount": "1,500"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0024",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0024.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "80,500",
+        "cash_amount": "100,000",
+        "change_amount": "19,500"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0028",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0028.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "22,000",
+        "cash_amount": "22,000",
+        "change_amount": "0"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0029",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0029.png",
+      "fields": {
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number."
+      },
+      "expected": {
+        "cash_amount": "50000",
+        "change_amount": "20000",
+        "subtotal_amount": "30000"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0030",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0030.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "21,000",
+        "cash_amount": "50,000",
+        "change_amount": "29,000"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0033",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0033.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "57,500",
+        "cash_amount": "7,500",
+        "change_amount": "0"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0034",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0034.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "283,338",
+        "subtotal_amount": "243,000",
+        "tax_amount": "25,758"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0041",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0041.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "2,352,460",
+        "change_amount": "0",
+        "subtotal_amount": "2,000,000",
+        "tax_amount": "212,460"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0044",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0044.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "17,999",
+        "subtotal_amount": "16.363",
+        "tax_amount": "1,636"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0045",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0045.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "287,760",
+        "subtotal_amount": "240,000",
+        "tax_amount": "26,160"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0047",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0047.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "42,000",
+        "cash_amount": "50,000",
+        "change_amount": "8,000",
+        "subtotal_amount": "42,000"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0048",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0048.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "61,500",
+        "cash_amount": "70,000",
+        "change_amount": "8,500",
+        "subtotal_amount": "55,908",
+        "tax_amount": "5,592"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0050",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0050.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "26,000",
+        "cash_amount": "26,000",
+        "change_amount": "0"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0054",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0054.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "40.000",
+        "cash_amount": "50.000",
+        "change_amount": "10.000"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0055",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0055.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label."
+      },
+      "expected": {
+        "total_amount": "60.000"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0056",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0056.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "20.000",
+        "cash_amount": "20.000",
+        "change_amount": "0",
+        "subtotal_amount": "20.000"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0057",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0057.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "288,585",
+        "subtotal_amount": "247,500",
+        "tax_amount": "26,235"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0058",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0058.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "25.000",
+        "cash_amount": "25.000",
+        "change_amount": "0",
+        "subtotal_amount": "25.000"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0059",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0059.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "664,329",
+        "subtotal_amount": "561,800",
+        "tax_amount": "60,394"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0061",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0061.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "8,250",
+        "cash_amount": "10,000",
+        "change_amount": "1,800",
+        "subtotal_amount": "7,500",
+        "tax_amount": "750"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0062",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0062.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "62,000",
+        "cash_amount": "100,000",
+        "change_amount": "38,000",
+        "subtotal_amount": "56,364",
+        "tax_amount": "5,636"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0063",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0063.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "56,800",
+        "cash_amount": "110,000",
+        "change_amount": "53.200",
+        "subtotal_amount": "51,636",
+        "tax_amount": "5,164"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0067",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0067.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "76,000",
+        "subtotal_amount": "69,091",
+        "tax_amount": "6,909"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0073",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0073.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "20,000",
+        "cash_amount": "50,000",
+        "change_amount": "30,000"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0074",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0074.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "20.000",
+        "cash_amount": "20.000",
+        "change_amount": "0",
+        "subtotal_amount": "20.000"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0075",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0075.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "66,500",
+        "cash_amount": "100,000",
+        "change_amount": "33,500",
+        "subtotal_amount": "60,454",
+        "tax_amount": "6,046"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0076",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0076.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label."
+      },
+      "expected": {
+        "total_amount": "99.000"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0077",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0077.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "Rp 58000.00",
+        "cash_amount": "Rp 100000.00",
+        "change_amount": "Rp 42000.00",
+        "subtotal_amount": "Rp 58000.00",
+        "tax_amount": "Rp 5272.73"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0078",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0078.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "177.870",
+        "subtotal_amount": "154 000",
+        "tax_amount": "16 170"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0082",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0082.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "35.000",
+        "cash_amount": "100.000",
+        "change_amount": "65.000",
+        "subtotal_amount": "35.000"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0085",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0085.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "15,000",
+        "cash_amount": "20,000",
+        "change_amount": "5,000",
+        "subtotal_amount": "13,636",
+        "tax_amount": "1,364"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0086",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0086.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "26,000",
+        "change_amount": "0",
+        "subtotal_amount": "26,000"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0087",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0087.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "29,000",
+        "cash_amount": "30,000",
+        "change_amount": "1,000",
+        "subtotal_amount": "29,000",
+        "tax_amount": "0"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0088",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0088.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "170,000",
+        "subtotal_amount": "154,545",
+        "tax_amount": "15,455"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0089",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0089.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "29.000",
+        "cash_amount": "100.000",
+        "change_amount": "71.000"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0092",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0092.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "23,000",
+        "cash_amount": "25,000",
+        "change_amount": "2,000",
+        "subtotal_amount": "20,909",
+        "tax_amount": "2,091"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0094",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0094.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "80.100",
+        "change_amount": "0",
+        "subtotal_amount": "69.000"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0095",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0095.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "30,000",
+        "cash_amount": "50,000",
+        "change_amount": "20,000",
+        "subtotal_amount": "27,272",
+        "tax_amount": "2,700"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0096",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0096.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number.",
+        "tax_amount": "The tax amount on the receipt. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "12,750",
+        "cash_amount": "12,750",
+        "subtotal_amount": "13,636",
+        "tax_amount": "1,159"
+      }
+    },
+    {
+      "case_id": "cord_holdout_0099",
+      "tags": [
+        "cord",
+        "external",
+        "receipt",
+        "validation",
+        "cord_totals_v1",
+        "with_subtotal",
+        "with_cash",
+        "with_change"
+      ],
+      "path": "datasets/derived/cord_validation_100_seed17/images/cord_validation_0099.png",
+      "fields": {
+        "total_amount": "The final total numeric amount on the receipt. Extract only the number, not the label.",
+        "cash_amount": "The cash amount paid by the customer. Extract only the number.",
+        "change_amount": "The change amount returned to the customer. Extract only the number.",
+        "subtotal_amount": "The subtotal amount before the final total. Extract only the number."
+      },
+      "expected": {
+        "total_amount": "Rp. 39.000",
+        "cash_amount": "Rp. 50.000",
+        "change_amount": "Rp. 11.000",
+        "subtotal_amount": "Rp. 39.000"
+      }
+    }
+  ]
+}

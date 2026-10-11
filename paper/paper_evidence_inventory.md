@@ -47,7 +47,7 @@ Relevant docs:
 
 Canonical runtime path:
 
-`frontend upload -> /api/runs/start -> job runner -> idpo.cli process-inbox -> IDPO_DATA_DIR/runs/<run_id>`
+`frontend job (POST /api/jobs/<job_id>/documents, then POST /api/jobs/<job_id>/runs) -> job runner -> idpo.cli process-inbox -> IDPO_DATA_DIR/runs/<run_id>`
 
 Canonical internal path:
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { Icon, type IconName } from "@/components/icons";
 
 export type ToastType = "success" | "error" | "info" | "warning";
 
@@ -26,11 +27,11 @@ export function useToast() {
     return ctx;
 }
 
-const TOAST_ICONS: Record<ToastType, string> = {
-    success: "✓",
-    error: "✕",
-    info: "ℹ",
-    warning: "⚠",
+const TOAST_ICONS: Record<ToastType, IconName> = {
+    success: "check",
+    error: "close",
+    info: "info",
+    warning: "alert",
 };
 
 const TOAST_COLORS: Record<ToastType, { bg: string; border: string; icon: string; text: string }> = {
@@ -64,11 +65,11 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
     const colors = TOAST_COLORS[toast.type];
     return (
         <div
-            className={`flex items-start gap-3 px-4 py-3 rounded-xl border ${colors.bg} ${colors.border} backdrop-blur-xl shadow-lg animate-slide-in-right min-w-[320px] max-w-[420px]`}
-            role="alert"
+            className={`flex items-start gap-3 px-4 py-3 rounded-xl border ${colors.bg} ${colors.border} backdrop-blur-xl shadow-lg animate-slide-in-right w-full sm:w-auto sm:min-w-[320px] max-w-[420px]`}
+            role={toast.type === "error" || toast.type === "warning" ? "alert" : "status"}
         >
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${colors.icon}`}>
-                {TOAST_ICONS[toast.type]}
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${colors.icon}`}>
+                <Icon name={TOAST_ICONS[toast.type]} className="h-3.5 w-3.5" />
             </div>
             <div className="flex-1 min-w-0">
                 <p className={`text-sm font-semibold ${colors.text}`}>{toast.title}</p>
@@ -77,12 +78,12 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
                 )}
             </div>
             <button
+                type="button"
                 onClick={onDismiss}
-                className="text-slate-400 dark:text-gray-500 hover:text-slate-600 dark:hover:text-gray-300 transition-colors shrink-0 mt-0.5"
+                aria-label="Dismiss"
+                className="text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 transition-colors shrink-0 mt-0.5"
             >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <Icon name="close" className="h-4 w-4" />
             </button>
         </div>
     );
@@ -111,7 +112,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         <ToastContext.Provider value={{ toasts, addToast, removeToast }}>
             {children}
             {/* Toast container */}
-            <div className="fixed top-6 right-6 z-[9999] flex flex-col gap-2 pointer-events-none">
+            <div className="fixed top-4 left-4 right-4 sm:left-auto sm:top-6 sm:right-6 z-[9999] flex flex-col items-end gap-2 pointer-events-none">
                 {toasts.map((toast) => (
                     <div key={toast.id} className="pointer-events-auto">
                         <ToastItem toast={toast} onDismiss={() => removeToast(toast.id)} />

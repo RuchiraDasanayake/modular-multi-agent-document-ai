@@ -2,17 +2,105 @@
 
 from __future__ import annotations
 
+import math
 import os
 import re
 import shutil
+import threading
 import time
 import uuid
 from pathlib import Path
+from typing import Any
 
 from idpo.agents.base import Agent, AgentContext
 from idpo.agents.degarble import degarble, is_garbled
 from idpo.core.contracts import AgentMessage
+from idpo.core.preflight import find_tesseract_cmd
 from idpo.core.types import AgentResult, Document, Page, StageSignal
+
+# A PaddleOCR engine keeps working memory for every input shape it has run (about 0.5 GB per shape at the
+# default batch size), so the process shares one engine per language, serialises its calls, and pads
+# recognition crops up to a few fixed widths.
+_PADDLE_ENGINES: dict[str, Any] = {}
+_PADDLE_LOCK = threading.Lock()
+_PADDLE_REC_WIDTH_STEP_PX = 320
+_DENOISE_MIN_SHORT_SIDE_PX = 1600
+# Boxes whose vertical centres differ by less than this fraction of the shorter box height share a row.
+_ROW_CENTER_TOLERANCE = 0.5
+
+
+def _bucket_recognition_widths(engine: Any, step: int = _PADDLE_REC_WIDTH_STEP_PX) -> None:
+    """Pad each recognition batch up to a multiple of ``step`` pixels wide."""
+    recognizer = getattr(engine, "text_recognizer", None)
+    resize = getattr(recognizer, "resize_norm_img", None)
+    shape = getattr(recognizer, "rec_image_shape", None)
+    if resize is None or not shape or len(shape) < 2:
+        return
+    height = int(shape[1])
+
+    def bucketed(img: Any, max_wh_ratio: float) -> Any:
+        width = math.ceil(height * max_wh_ratio / step) * step
+        return resize(img, (width + 0.5) / height)
+
+    recognizer.resize_norm_img = bucketed
+
+
+def _paddle_engine(paddle_ocr_cls: Any, model_lang: str) -> Any:
+    """Return the shared engine for ``model_lang``; the caller must hold ``_PADDLE_LOCK``."""
+    engine = _PADDLE_ENGINES.get(model_lang)
+    if engine is None:
+        # Lower det_db_thresh catches more text in degraded/low-contrast scans.
+        # det_db_box_thresh set lower to avoid dropping partial characters.
+        # use_angle_cls handles rotated/skewed fax pages.
+        # Single-crop recognition batches keep the memory held per cached shape small.
+        # Paddle's default of 10 math threads oversubscribes consumer CPUs and runs slower than 4.
+        engine = paddle_ocr_cls(
+            use_angle_cls=True,
+            lang=model_lang,
+            show_log=False,
+            det_db_thresh=0.2,
+            det_db_box_thresh=0.4,
+            det_db_unclip_ratio=1.8,
+            rec_batch_num=1,
+            cpu_threads=min(4, os.cpu_count() or 4),
+        )
+        _bucket_recognition_widths(engine)
+        _PADDLE_ENGINES[model_lang] = engine
+    return engine
+
+
+def _box_extent(box: Any) -> tuple[float, float, float] | None:
+    """Return (top, bottom, left) of an OCR quadrilateral, or None when it carries no usable geometry."""
+    try:
+        xs = [float(point[0]) for point in box]
+        ys = [float(point[1]) for point in box]
+    except (TypeError, ValueError, IndexError):
+        return None
+    if not xs or max(ys) <= min(ys):
+        return None
+    return min(ys), max(ys), min(xs)
+
+
+def _join_boxes_into_rows(boxes: list[tuple[tuple[float, float, float] | None, str]]) -> list[str]:
+    """Rebuild visual lines from OCR boxes so a label and the value printed beside it stay on one line."""
+    located: list[tuple[float, float, float, str]] = []
+    for extent, text in boxes:
+        if extent is None:
+            return [text for _, text in boxes]
+        located.append((*extent, text))
+    rows: list[list[tuple[float, float, float, str]]] = []
+    for box in sorted(located, key=lambda b: (b[0] + b[1]) / 2):
+        center, height = (box[0] + box[1]) / 2, box[1] - box[0]
+        if rows:
+            row = rows[-1]
+            row_center = sum((b[0] + b[1]) / 2 for b in row) / len(row)
+            row_height = sum(b[1] - b[0] for b in row) / len(row)
+            if abs(center - row_center) <= _ROW_CENTER_TOLERANCE * min(height, row_height):
+                row.append(box)
+                continue
+        rows.append([box])
+    return ["  ".join(b[3] for b in sorted(row, key=lambda b: b[2])) for row in rows]
+
 
 def normalize_text(text: str) -> str:
     text = text.replace("\u0000", "")
@@ -27,6 +115,48 @@ def _save_processed_image(ctx: AgentContext, doc_id: str, page_number: int, stag
     image_path = image_root / f"{doc_id}_p{page_number}_{stage}_{uuid.uuid4().hex[:8]}.png"
     image.save(image_path, format="PNG")
     return str(image_path)
+
+
+def _render_pdf_page(pdf_path: str, page_index: int, dpi: int):
+    """Render one PDF page to a PIL image. PyMuPDF first (no system binary), then pdf2image/Poppler."""
+    try:
+        import fitz
+        from PIL import Image
+
+        with fitz.open(pdf_path) as pdf:
+            if 0 <= page_index < pdf.page_count:
+                pixmap = pdf[page_index].get_pixmap(dpi=dpi)
+                return Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
+    except Exception:
+        pass
+    try:
+        from pdf2image import convert_from_path
+
+        poppler_path = OcrAgent()._find_poppler_path()
+        images = convert_from_path(
+            pdf_path, first_page=page_index + 1, last_page=page_index + 1, poppler_path=poppler_path, dpi=dpi
+        )
+        if images:
+            return images[0]
+    except Exception:
+        pass
+    return None
+
+
+def rasterize_pdf_page(page: Page, doc_id: str, ctx: AgentContext, dpi: int = 300) -> Page:
+    """Replace a PDF page's image_path with a rendered PNG so image stages operate on one page."""
+    path = page.image_path or ""
+    if not path.lower().endswith(".pdf"):
+        return page
+    page_index = int(page.metadata.get("pdf_page_index", max(page.number - 1, 0)) or 0)
+    image = _render_pdf_page(path, page_index, dpi)
+    if image is None:
+        return page
+    metadata = dict(page.metadata or {})
+    metadata["pdf_source_path"] = path
+    metadata["pdf_rendered_dpi"] = dpi
+    rendered_path = _save_processed_image(ctx, doc_id, page.number, "pdf_render", image)
+    return Page(number=page.number, text=page.text, raw_text=page.raw_text, image_path=rendered_path, metadata=metadata)
 
 def mock_ocr(text: str, passes: int = 1) -> str:
     cleaned = text
@@ -98,6 +228,7 @@ class OcrAgent(Agent):
                         "ocr_engine_used": "native_text",
                     }
                 else:
+                    page = rasterize_pdf_page(page, doc.doc_id, ctx, dpi)
                     ocr_text, page_used, page_failure, ocr_meta = self._ocr_image(page, settings, engine_name=str(engine))
                 used_image_ocr = used_image_ocr or page_used
                 initial_conf = self._safe_confidence(ocr_meta.get("ocr_confidence"))
@@ -406,18 +537,8 @@ class OcrAgent(Agent):
         model_lang = self._paddle_lang(lang)
         enhanced_path = self._preprocess_for_paddle(path)
         try:
-            # Lower det_db_thresh catches more text in degraded/low-contrast scans.
-            # det_db_box_thresh set lower to avoid dropping partial characters.
-            # use_angle_cls handles rotated/skewed fax pages.
-            ocr = PaddleOCR(
-                use_angle_cls=True,
-                lang=model_lang,
-                show_log=False,
-                det_db_thresh=0.2,
-                det_db_box_thresh=0.4,
-                det_db_unclip_ratio=1.8,
-            )
-            result = ocr.ocr(enhanced_path, cls=True)
+            with _PADDLE_LOCK:
+                result = _paddle_engine(PaddleOCR, model_lang).ocr(enhanced_path, cls=True)
         except Exception as exc:
             return "", True, f"paddleocr_failed:{str(exc)[:80]}", {"ocr_variant": "paddle"}
         finally:
@@ -453,6 +574,7 @@ class OcrAgent(Agent):
         for page in result:
             if not isinstance(page, list):
                 continue
+            boxes: list[tuple[tuple[float, float, float] | None, str]] = []
             for item in page:
                 if not isinstance(item, (list, tuple)) or len(item) < 2:
                     continue
@@ -462,12 +584,13 @@ class OcrAgent(Agent):
                 text = str(payload[0] or "").strip()
                 if not text:
                     continue
-                lines.append(text)
+                boxes.append((_box_extent(item[0]), text))
                 if len(payload) > 1:
                     try:
                         confs.append(float(payload[1]) * 100.0)
                     except Exception:
                         continue
+            lines.extend(_join_boxes_into_rows(boxes))
 
         avg_conf = sum(confs) / len(confs) if confs else 0.0
         return "\n".join(lines), avg_conf
@@ -587,7 +710,7 @@ class OcrAgent(Agent):
     def _configure_tesseract(self, pytesseract) -> Path | None:
         if self._tessdata_configured:
             return self._cached_tessdata_dir
-        tess_cmd = shutil.which("tesseract")
+        tess_cmd = find_tesseract_cmd()
         if tess_cmd:
             pytesseract.pytesseract.tesseract_cmd = tess_cmd
             tessdata_dir = Path(tess_cmd).parent / "tessdata"
@@ -866,6 +989,8 @@ class DenoiseAgent(Agent):
         updated = []
         denoised_image_pages = 0
         for page in doc.pages:
+            if doc.source == "scanned":
+                page = rasterize_pdf_page(page, doc.doc_id, ctx, int(ctx.config.preprocessing.ocr_dpi))
             text = normalize_text(page.text)
             image_path = page.image_path
             metadata = dict(page.metadata or {})
@@ -937,6 +1062,9 @@ class DenoiseAgent(Agent):
         try:
             with Image.open(image_path) as img:
                 gray = ImageOps.grayscale(img)
+                # A 3px median erases 1-2px strokes on low-resolution scans, so filter at 2x instead.
+                if min(gray.size) < _DENOISE_MIN_SHORT_SIDE_PX:
+                    gray = gray.resize((gray.width * 2, gray.height * 2), Image.LANCZOS)
                 smooth = gray.filter(ImageFilter.MedianFilter(size=3))
                 enhanced = ImageOps.autocontrast(smooth)
                 return _save_processed_image(ctx, doc_id, page_number, "denoise", enhanced)

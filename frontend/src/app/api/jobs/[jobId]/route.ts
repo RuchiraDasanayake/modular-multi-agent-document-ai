@@ -20,10 +20,14 @@ export async function GET(_: Request, { params }: Params) {
   try {
     const { jobId } = await params;
     const baseJob = getJob(jobId);
-    const job =
-      baseJob && (baseJob.status === "queued" || baseJob.status === "running")
-        ? syncActiveJobProgress(jobId)
-        : baseJob;
+    let job = baseJob;
+    if (baseJob && (baseJob.status === "queued" || baseJob.status === "running")) {
+      try {
+        job = syncActiveJobProgress(jobId);
+      } catch (error) {
+        console.error(`Job ${jobId}: progress sync failed`, error);
+      }
+    }
     if (!job) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
@@ -105,7 +109,7 @@ export async function PATCH(request: Request, { params }: Params) {
   try {
     const { jobId } = await params;
     const payload = (await request.json()) as Record<string, unknown>;
-    let updated = mutateJob(jobId, (job) => {
+    const updated = mutateJob(jobId, (job) => {
       if (typeof payload.jobName === "string") {
         job.jobName = payload.jobName.trim();
       }

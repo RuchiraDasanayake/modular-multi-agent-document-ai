@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useParams } from "next/navigation";
 import { IdpoCard } from "@/components/idpo/card";
 import { StatusBadge } from "@/components/idpo/status-badge";
+import { Icon } from "@/components/icons";
 import { idpoApi } from "@/lib/idpo-api";
 import type {
   JobDocumentRecord,
@@ -17,20 +18,33 @@ import type {
 } from "@/types/idpo";
 
 const CONFIG_PATH = "configs/idpo_research_config.json";
-const SYSTEM_DEFAULT_LOCAL_MODEL = "phi3:mini";
+const SYSTEM_DEFAULT_LOCAL_MODEL = "qwen3.5:9b";
 const LOCAL_MODEL_OPTIONS = [
   { value: "", label: `System default (${SYSTEM_DEFAULT_LOCAL_MODEL})` },
-  { value: "phi3:mini", label: "phi3:mini" },
-  { value: "qwen3:8b", label: "qwen3:8b" },
+  { value: "phi3:mini", label: "phi3:mini (faster, lower accuracy)" },
 ];
+const MODE_OPTIONS: { value: JobExecutionMode; label: string }[] = [
+  { value: "adaptive", label: "Adaptive: AHMN picks the policy" },
+  { value: "strict", label: "Strict: default policy only" },
+  { value: "both", label: "Both: run each and compare" },
+];
+const ACCEPTED_FILE_TYPES = ".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.txt,.json";
+
+const secondaryButton =
+  "inline-flex items-center gap-2 rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800";
+const primaryButton =
+  "inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50";
+const linkStyle = "font-medium text-cyan-700 hover:text-cyan-800 dark:text-cyan-300 dark:hover:text-cyan-200";
+const inputStyle =
+  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-white";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
-function formatDate(value: string | undefined): string {
+function formatDate(value: string | undefined | null): string {
   if (!value) {
-    return "-";
+    return "—";
   }
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
@@ -44,6 +58,11 @@ function normalizeFieldKey(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, "_");
 }
 
+function formatFieldLabel(name: string): string {
+  const spaced = name.replace(/_/g, " ").trim();
+  return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : name;
+}
+
 function getOutcome(document: JobDocumentRecord, mode: JobRunMode): JobDocumentRunOutcome | null {
   const matches = document.outcomes.filter((outcome) => outcome.mode === mode);
   return matches.length > 0 ? matches[matches.length - 1] ?? null : null;
@@ -51,7 +70,7 @@ function getOutcome(document: JobDocumentRecord, mode: JobRunMode): JobDocumentR
 
 function formatDuration(ms: number | null): string {
   if (ms == null || !Number.isFinite(ms) || ms < 0) {
-    return "-";
+    return "—";
   }
   const totalSeconds = Math.floor(ms / 1000);
   const hours = Math.floor(totalSeconds / 3600);
@@ -74,34 +93,44 @@ function parseTimestamp(value: string | undefined | null): number | null {
   return Number.isNaN(time) ? null : time;
 }
 
-function getOutcomeFieldValue(outcome: JobDocumentRunOutcome | null, field: JobFieldConfig): string {
+function getOutcomeFieldValue(outcome: JobDocumentRunOutcome | null, fieldName: string): string {
   if (!outcome) {
-    return "NA";
+    return "—";
   }
-  const direct = outcome.fieldValues[field.name];
+  const direct = outcome.fieldValues[fieldName];
   if (typeof direct === "string" && direct.trim().length > 0) {
     return direct;
   }
-  const normalized = outcome.fieldValues[normalizeFieldKey(field.name)];
+  const normalized = outcome.fieldValues[normalizeFieldKey(fieldName)];
   if (typeof normalized === "string" && normalized.trim().length > 0) {
     return normalized;
   }
-  return "NA";
+  return "—";
 }
 
-function fileIdSummary(fileId: string): string {
-  return fileId.slice(0, 8);
+function shortId(value: string): string {
+  return value.slice(0, 8);
+}
+
+function displayError(message: string | null | undefined): string | null {
+  if (!message) {
+    return null;
+  }
+  if (/ENOENT/i.test(message)) {
+    return "Processing did not start because Python could not be found. Select the file and use Retry failed.";
+  }
+  return message.replace(/^Run failed:\s*/i, "");
 }
 
 function formatReviewState(reviewState: string | null | undefined): string {
   if (!reviewState) {
-    return "NA";
+    return "";
   }
-  return reviewState.replace(/\s*\|\s*/g, " | ");
+  return reviewState.replace(/\(s\)/g, "s").replace(/\b1 issues\b/g, "1 issue").replace(/\s*\|\s*/g, " · ");
 }
 
 function formatList(values: string[] | undefined): string {
-  return values && values.length > 0 ? values.join(", ") : "-";
+  return values && values.length > 0 ? values.join(", ") : "—";
 }
 
 function listToTextarea(value: string[] | undefined): string {
@@ -124,15 +153,27 @@ function hasActiveRun(job: JobStatus | null): boolean {
   );
 }
 
+function SummaryTile({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-950/40" title={hint}>
+      <div className="text-xs text-slate-500 dark:text-slate-400">{label}</div>
+      <div className="mt-1 text-base font-semibold text-slate-900 dark:text-white">{value}</div>
+    </div>
+  );
+}
+
 export function JobDetailPage() {
   const params = useParams<{ jobId: string }>();
   const jobId = decodeURIComponent(params.jobId);
   const uploadRef = useRef<HTMLInputElement>(null);
+  const hydratedJobIdRef = useRef<string | null>(null);
 
   const [job, setJob] = useState<JobStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [busyAction, setBusyAction] = useState<"upload" | "process" | "retry" | "review" | null>(null);
   const [error, setError] = useState("");
+  const [pollFailed, setPollFailed] = useState(false);
   const [jobName, setJobName] = useState("");
   const [mode, setMode] = useState<JobExecutionMode>("adaptive");
   const [fieldConfig, setFieldConfig] = useState<JobFieldConfig[]>([]);
@@ -144,30 +185,37 @@ export function JobDetailPage() {
   const [escalationEnabled, setEscalationEnabled] = useState(true);
   const [localModel, setLocalModel] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showRoutingDetails, setShowRoutingDetails] = useState(false);
   const [showReviewContext, setShowReviewContext] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
   const [reviewContextDraft, setReviewContextDraft] = useState({
     jobPurpose: "",
     knownVendors: "",
     fieldClarifications: "",
     validationNotes: "",
   });
-  const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
-  async function loadJob(activeJobId = jobId, preserveLoading = false) {
+  async function loadJob(activeJobId = jobId, background = false) {
     try {
-      if (!preserveLoading) {
+      if (!background) {
         setLoading(true);
       }
       const payload = await idpoApi.getJob(activeJobId);
       setJob(payload);
-      setLastRefreshedAt(new Date().toISOString());
-      setError("");
+      setPollFailed(false);
+      if (!background) {
+        setError("");
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load job");
+      // A failed background poll keeps the last good data on screen.
+      if (background) {
+        setPollFailed(true);
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to load job");
+      }
     } finally {
-      if (!preserveLoading) {
+      if (!background) {
         setLoading(false);
       }
     }
@@ -175,66 +223,61 @@ export function JobDetailPage() {
 
   useEffect(() => {
     void loadJob();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
 
+  // Form state comes from the first load only, so polling never overwrites what the user is editing.
   useEffect(() => {
-    if (!job) {
+    if (!job || hydratedJobIdRef.current === job.jobId) {
       return;
     }
-    setJobName((current) => (current ? current : job.jobName?.trim() || ""));
-    setMode((current) => current ?? (job.mode ?? "adaptive"));
-    setFieldConfig((current) => (current.length > 0 ? current : job.fieldConfigCurrent ?? []));
-    setSelectedFileIds((current) =>
-      current.length > 0 ? current : (job.documents ?? []).filter((document) => document.selected).map((document) => document.fileId),
-    );
-    setResultMode(resultModeForJob(job.mode ?? "adaptive"));
+    hydratedJobIdRef.current = job.jobId;
+    const jobMode = job.mode ?? "adaptive";
     const settings = asRecord(job.settings) ?? {};
-    setMaxCostPerDoc((current) =>
-      current
-        ? current
-        : typeof settings.maxCostPerDoc === "number" && Number.isFinite(settings.maxCostPerDoc)
-          ? String(settings.maxCostPerDoc)
-          : "",
+    setJobName(job.jobName?.trim() || "");
+    setMode(jobMode);
+    setResultMode(resultModeForJob(jobMode));
+    setFieldConfig(job.fieldConfigCurrent ?? []);
+    setSelectedFileIds((job.documents ?? []).filter((document) => document.selected).map((document) => document.fileId));
+    setMaxCostPerDoc(
+      typeof settings.maxCostPerDoc === "number" && Number.isFinite(settings.maxCostPerDoc) ? String(settings.maxCostPerDoc) : "",
     );
-    setEscalationEnabled((current) =>
-      current !== true ? current : typeof settings.escalationEnabled === "boolean" ? settings.escalationEnabled : true,
-    );
-    setLocalModel((current) =>
-      current || (typeof settings.llmLocalModel === "string" ? settings.llmLocalModel.trim() : ""),
-    );
+    setEscalationEnabled(typeof settings.escalationEnabled === "boolean" ? settings.escalationEnabled : true);
+    setLocalModel(typeof settings.llmLocalModel === "string" ? settings.llmLocalModel.trim() : "");
   }, [job]);
 
-  useEffect(() => {
-    const manual = job?.reviewContext?.manualInput ?? {};
-    setReviewContextDraft({
-      jobPurpose: manual.jobPurpose ?? "",
-      knownVendors: listToTextarea(manual.knownVendors),
-      fieldClarifications: listToTextarea(manual.fieldClarifications),
-      validationNotes: listToTextarea(manual.validationNotes),
-    });
-  }, [job?.reviewContext]);
+  const runActive = hasActiveRun(job);
 
   useEffect(() => {
-    if (!hasActiveRun(job)) {
+    if (!runActive) {
       return undefined;
     }
-    const timer = window.setInterval(() => {
-      setIsRefreshing(true);
-      void loadJob(jobId, true).finally(() => setIsRefreshing(false));
+    const pollTimer = window.setInterval(() => {
+      void loadJob(jobId, true);
     }, 2000);
-    return () => window.clearInterval(timer);
-  }, [job, jobId]);
+    const clockTimer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => {
+      window.clearInterval(pollTimer);
+      window.clearInterval(clockTimer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runActive, jobId]);
 
   useEffect(() => {
-    if (!hasActiveRun(job)) {
+    if (!showReviewContext) {
       return undefined;
     }
-    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [job]);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowReviewContext(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showReviewContext]);
 
-  const documents = job?.documents ?? [];
-  const runs = job?.runs ?? [];
+  const documents = useMemo(() => job?.documents ?? [], [job]);
+  const runs = useMemo(() => job?.runs ?? [], [job]);
   const orderedRuns = useMemo(
     () => [...runs].sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
     [runs],
@@ -268,6 +311,9 @@ export function JobDetailPage() {
     () => selectedDocuments.filter((document) => document.status === "failed"),
     [selectedDocuments],
   );
+  const allSelectableSelected =
+    selectableDocumentIds.length > 0 && selectableDocumentIds.every((fileId) => selectedFileIds.includes(fileId));
+  const someSelected = selectedFileIds.length > 0;
 
   async function patchJob(payload: {
     jobName?: string;
@@ -296,6 +342,7 @@ export function JobDetailPage() {
     }
     const selectedFiles = Array.from(files);
     setSaving(true);
+    setBusyAction("upload");
     try {
       const updated = await idpoApi.uploadJobDocuments(jobId, selectedFiles);
       setJob(updated);
@@ -318,6 +365,23 @@ export function JobDetailPage() {
       setError(err instanceof Error ? err.message : "Failed to upload documents");
     } finally {
       setSaving(false);
+      setBusyAction(null);
+    }
+  }
+
+  function handleDragOver(event: DragEvent<HTMLElement>) {
+    if (!Array.from(event.dataTransfer.types).includes("Files")) {
+      return;
+    }
+    event.preventDefault();
+    setDragActive(true);
+  }
+
+  function handleDrop(event: DragEvent<HTMLElement>) {
+    event.preventDefault();
+    setDragActive(false);
+    if (!saving) {
+      void handleUpload(event.dataTransfer.files);
     }
   }
 
@@ -330,10 +394,7 @@ export function JobDetailPage() {
   }
 
   async function handleToggleAll() {
-    const next =
-      selectedFileIds.length === selectableDocumentIds.length
-        ? []
-        : selectableDocumentIds;
+    const next = allSelectableSelected ? [] : selectableDocumentIds;
     setSelectedFileIds(next);
     await patchJob({ selectedFileIds: next });
   }
@@ -397,6 +458,7 @@ export function JobDetailPage() {
       return;
     }
     setSaving(true);
+    setBusyAction(retryFailedOnly ? "retry" : "process");
     try {
       const updated = await idpoApi.startJobRuns(jobId, {
         selectedFileIds: targetFileIds,
@@ -423,6 +485,7 @@ export function JobDetailPage() {
       setError(err instanceof Error ? err.message : "Failed to start job run");
     } finally {
       setSaving(false);
+      setBusyAction(null);
     }
   }
 
@@ -436,6 +499,7 @@ export function JobDetailPage() {
       return;
     }
     setSaving(true);
+    setBusyAction("review");
     try {
       const response = await idpoApi.validateJobDocuments(jobId, {
         selectedFileIds: selectedDocuments.map((document) => document.fileId),
@@ -447,7 +511,19 @@ export function JobDetailPage() {
       setError(err instanceof Error ? err.message : "Failed to auto review selected documents");
     } finally {
       setSaving(false);
+      setBusyAction(null);
     }
+  }
+
+  function openReviewContext() {
+    const manual = job?.reviewContext?.manualInput ?? {};
+    setReviewContextDraft({
+      jobPurpose: manual.jobPurpose ?? "",
+      knownVendors: listToTextarea(manual.knownVendors),
+      fieldClarifications: listToTextarea(manual.fieldClarifications),
+      validationNotes: listToTextarea(manual.validationNotes),
+    });
+    setShowReviewContext(true);
   }
 
   async function saveReviewContext() {
@@ -470,13 +546,23 @@ export function JobDetailPage() {
   }
 
   if (loading) {
-    return <div className="text-sm text-slate-600 dark:text-slate-300">Loading job workspace...</div>;
+    return (
+      <div className="mx-auto max-w-7xl space-y-4" aria-busy="true">
+        <div className="h-48 animate-pulse rounded-3xl bg-slate-200/70 dark:bg-slate-800/60" />
+        <div className="h-64 animate-pulse rounded-2xl bg-slate-200/70 dark:bg-slate-800/60" />
+      </div>
+    );
   }
 
   if (!job) {
     return (
-      <div className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-700/40 dark:bg-rose-900/20 dark:text-rose-300">
-        {error || "Job not found"}
+      <div className="mx-auto max-w-3xl space-y-3">
+        <Link href="/dashboard/idpo/jobs" className="text-xs text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white">
+          ← All jobs
+        </Link>
+        <div className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-700/40 dark:bg-rose-900/20 dark:text-rose-300">
+          {error && error !== "Job not found" ? error : "This job does not exist or was removed."}
+        </div>
       </div>
     );
   }
@@ -493,12 +579,8 @@ export function JobDetailPage() {
   );
   const totalDocuments = trackerDocuments.length;
   const completedDocuments = trackerSummaryCounts.processed + trackerSummaryCounts.failed;
-  const pendingDocuments = Math.max(0, totalDocuments - completedDocuments);
-  const reviewedDocuments = trackerDocuments.filter(
-    (document) => document.reviewStatus != null && document.reviewStatus !== "unreviewed",
-  ).length;
   const completionRatio = totalDocuments > 0 ? completedDocuments / totalDocuments : 0;
-  const progressBarWidth = totalDocuments > 0 ? Math.max(8, Math.round(completionRatio * 100)) : 0;
+  const progressBarWidth = totalDocuments > 0 ? Math.max(runActive ? 6 : 0, Math.round(completionRatio * 100)) : 0;
   const processingDocuments = trackerDocuments.filter((document) => document.status === "processing");
   const latestDocumentActivityMs = trackerDocuments.reduce<number | null>((latest, document) => {
     const updated = parseTimestamp(document.updatedAt);
@@ -513,70 +595,289 @@ export function JobDetailPage() {
       ? activeRunStartedMs
       : activeRunStartedMs == null
         ? latestDocumentActivityMs
-      : Math.max(latestDocumentActivityMs, activeRunStartedMs);
-  const runElapsedMs = activeRunStartedMs != null ? Math.max(0, nowMs - activeRunStartedMs) : null;
-  const activityAgeMs = hasActiveRun(job) && lastActivityMs != null ? Math.max(0, nowMs - lastActivityMs) : null;
+        : Math.max(latestDocumentActivityMs, activeRunStartedMs);
+  const latestRun = orderedRuns[0] ?? null;
+  const latestRunStartMs = parseTimestamp(latestRun?.startedAt ?? latestRun?.createdAt);
+  const latestRunEndMs = parseTimestamp(latestRun?.endedAt);
+  const lastRunDurationMs =
+    latestRunStartMs != null && latestRunEndMs != null ? Math.max(0, latestRunEndMs - latestRunStartMs) : null;
+  const runElapsedMs = runActive && activeRunStartedMs != null ? Math.max(0, nowMs - activeRunStartedMs) : null;
   const trackerSummary =
     totalDocuments === 0
       ? "No documents yet"
-      : hasActiveRun(job)
-        ? `${completedDocuments}/${totalDocuments} done, ${processingDocuments.length} processing`
-        : `${completedDocuments}/${totalDocuments} finished`;
+      : runActive
+        ? `${completedDocuments} of ${totalDocuments} done, ${processingDocuments.length} processing`
+        : `${completedDocuments} of ${totalDocuments} finished`;
   const trackerDetail =
     totalDocuments === 0
-      ? "Upload documents to start a run."
-      : hasActiveRun(job)
-        ? activityAgeMs != null
-          ? `Last update ${formatDuration(activityAgeMs)} ago.`
-          : "Waiting for the first processing update."
+      ? "Upload files below to get started."
+      : runActive
+        ? lastActivityMs != null
+          ? `Last update ${formatDuration(Math.max(0, nowMs - lastActivityMs))} ago.`
+          : "Waiting for the first update."
         : trackerSummaryCounts.failed > 0
-          ? `${trackerSummaryCounts.failed} document(s) failed in the last run.`
-          : "No active run right now.";
+          ? `${trackerSummaryCounts.failed} document${trackerSummaryCounts.failed === 1 ? "" : "s"} failed. Select ${trackerSummaryCounts.failed === 1 ? "it" : "them"} and use Retry failed.`
+          : queueSummary.loaded > 0
+            ? `${queueSummary.loaded} document${queueSummary.loaded === 1 ? " has" : "s have"} not been processed yet.`
+            : "Nothing is running.";
   const displayJobName = jobName.trim() || job.jobName?.trim() || "New job";
   const reviewContext = job.reviewContext ?? null;
+  const ahmn = job.ahmnSummary;
+  const resultFieldNames =
+    fieldConfig.length > 0
+      ? fieldConfig.map((field) => field.name)
+      : Array.from(
+          new Set(documents.flatMap((document) => Object.keys(getOutcome(document, activeResultMode)?.fieldValues ?? {}))),
+        );
+  const processLabel =
+    busyAction === "process" ? "Starting..." : `Process selected${selectedDocuments.length > 0 ? ` (${selectedDocuments.length})` : ""}`;
+  const canAutoReview =
+    selectedDocuments.length > 0 && selectedDocuments.every((document) => document.status === "processed");
+
+  const reviewContextForm = (
+    <div className="mt-4 grid gap-4">
+      <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
+        <span className="font-medium text-slate-900 dark:text-white">Job purpose</span>
+        <input
+          value={reviewContextDraft.jobPurpose}
+          onChange={(event) => setReviewContextDraft((current) => ({ ...current, jobPurpose: event.target.value }))}
+          className="rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+          placeholder="What are we trying to extract and validate in this job?"
+        />
+      </label>
+      <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
+        <span className="font-medium text-slate-900 dark:text-white">Known vendors</span>
+        <textarea
+          value={reviewContextDraft.knownVendors}
+          onChange={(event) => setReviewContextDraft((current) => ({ ...current, knownVendors: event.target.value }))}
+          rows={3}
+          className="rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+          placeholder="One per line. Example: acme"
+        />
+      </label>
+      <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
+        <span className="font-medium text-slate-900 dark:text-white">Field clarifications</span>
+        <textarea
+          value={reviewContextDraft.fieldClarifications}
+          onChange={(event) => setReviewContextDraft((current) => ({ ...current, fieldClarifications: event.target.value }))}
+          rows={4}
+          className="rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+          placeholder="One per line. Example: Approval code is usually stamped near the provider signature."
+        />
+      </label>
+      <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
+        <span className="font-medium text-slate-900 dark:text-white">Validation notes</span>
+        <textarea
+          value={reviewContextDraft.validationNotes}
+          onChange={(event) => setReviewContextDraft((current) => ({ ...current, validationNotes: event.target.value }))}
+          rows={4}
+          className="rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+          placeholder="One per line. Example: If total amount is blank, treat it as missing instead of zero."
+        />
+      </label>
+    </div>
+  );
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="space-y-4">
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-[16rem] flex-1">
+            <Link
+              href="/dashboard/idpo/jobs"
+              className="text-xs text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+            >
+              ← All jobs
+            </Link>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">{displayJobName}</h1>
+              <StatusBadge value={runActive ? "running" : job.status} />
+            </div>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+              Upload files, choose which ones to process, then open a finished document to check its fields.
+            </p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Job <span className="font-mono" title={job.jobId}>{shortId(job.jobId)}</span> · created {formatDate(job.createdAt)}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href={`/dashboard/idpo/jobs/${encodeURIComponent(job.jobId)}/policies`} className={secondaryButton}>
+              Policies
+            </Link>
+            <button type="button" onClick={openReviewContext} className={secondaryButton}>
+              Review context
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr),300px] lg:max-w-4xl">
+          <label className="text-sm">
+            <span className="mb-1 block text-slate-700 dark:text-slate-300">Job name</span>
+            <input
+              value={jobName}
+              onChange={(event) => setJobName(event.target.value)}
+              onBlur={() => void handleBlurJobName()}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.currentTarget.blur();
+                }
+              }}
+              placeholder="Give this job a clear name"
+              className={inputStyle}
+            />
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block text-slate-700 dark:text-slate-300">Mode for the next run</span>
+            <select
+              value={mode}
+              onChange={(event) => void handleChangeMode(event.target.value as JobExecutionMode)}
+              className={inputStyle}
+            >
+              {MODE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="min-w-[280px] flex-1">
-              <Link
-                href="/dashboard/idpo/jobs"
-                className="text-xs text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-              >
-                Back to jobs
-              </Link>
-              <div className="mt-3 flex flex-wrap items-center gap-3">
-                <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">{displayJobName}</h1>
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-mono text-slate-600 dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-300">
-                  {job.jobId}
-                </span>
-                <StatusBadge value={job.status} />
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                {runActive ? (
+                  <>
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" />
+                    <span className="capitalize">{activeRun?.mode ?? job.mode ?? "adaptive"} run in progress</span>
+                  </>
+                ) : (
+                  "Progress"
+                )}
+              </p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{trackerSummary}</p>
+              <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-300">{trackerDetail}</p>
+              {pollFailed ? (
+                <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">Lost contact with the server. Retrying...</p>
+              ) : null}
+            </div>
+            <dl className="grid grid-cols-2 gap-2 text-sm">
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
+                <dt className="text-xs text-slate-500 dark:text-slate-400">{runActive ? "Elapsed" : "Last run took"}</dt>
+                <dd className="mt-0.5 font-medium text-slate-900 dark:text-white">
+                  {formatDuration(runActive ? runElapsedMs : lastRunDurationMs)}
+                </dd>
               </div>
-              <p className="mt-2 max-w-4xl text-sm text-slate-600 dark:text-slate-300">
-                Queue-first job workspace. Select documents, run extraction, then review structured results.
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
+                <dt className="text-xs text-slate-500 dark:text-slate-400">{runActive ? "Started" : "Finished"}</dt>
+                <dd className="mt-0.5 font-medium text-slate-900 dark:text-white">
+                  {runActive
+                    ? activeRunStartedMs != null
+                      ? new Date(activeRunStartedMs).toLocaleTimeString()
+                      : "—"
+                    : latestRunEndMs != null
+                      ? new Date(latestRunEndMs).toLocaleString()
+                      : "—"}
+                </dd>
+              </div>
+            </dl>
+          </div>
+          <div
+            className="mt-4 h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={totalDocuments}
+            aria-valuenow={completedDocuments}
+            aria-label="Documents finished"
+          >
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-sky-500 to-emerald-500 transition-[width] duration-500"
+              style={{ width: `${progressBarWidth}%` }}
+            />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium">
+            <span className="rounded-full bg-white px-3 py-1 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700">
+              Not processed {queueSummary.loaded}
+            </span>
+            <span className="rounded-full bg-white px-3 py-1 text-amber-700 ring-1 ring-amber-200 dark:bg-slate-900 dark:text-amber-300 dark:ring-amber-700/40">
+              Processing {queueSummary.processing}
+            </span>
+            <span className="rounded-full bg-white px-3 py-1 text-emerald-700 ring-1 ring-emerald-200 dark:bg-slate-900 dark:text-emerald-300 dark:ring-emerald-700/40">
+              Processed {queueSummary.processed}
+            </span>
+            <span className="rounded-full bg-white px-3 py-1 text-rose-700 ring-1 ring-rose-200 dark:bg-slate-900 dark:text-rose-300 dark:ring-rose-700/40">
+              Failed {queueSummary.failed}
+            </span>
+          </div>
+          {processingDocuments.length > 0 ? (
+            <ul className="mt-4 space-y-2">
+              {processingDocuments.map((document, index) => (
+                <li
+                  key={document.fileId}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-sm dark:bg-slate-900"
+                >
+                  <span className="min-w-0 truncate font-medium text-slate-900 dark:text-white">
+                    {index + 1}. {document.fileName}
+                  </span>
+                  <span className="text-xs text-amber-700 dark:text-amber-300">
+                    Processing{document.updatedAt ? ` since ${new Date(document.updatedAt).toLocaleTimeString()}` : ""}
+                  </span>
+                </li>
+              ))}
+              <li className="text-xs text-slate-500 dark:text-slate-400">
+                The pipeline does not report individual stages, so only the queue position is shown.
+              </li>
+            </ul>
+          ) : null}
+        </div>
+      </section>
+
+      {error ? (
+        <div
+          role="alert"
+          className="flex items-start justify-between gap-3 rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-700/40 dark:bg-rose-900/20 dark:text-rose-300"
+        >
+          <span>{displayError(error)}</span>
+          <button
+            type="button"
+            onClick={() => setError("")}
+            aria-label="Dismiss message"
+            className="rounded p-0.5 hover:bg-rose-100 dark:hover:bg-rose-900/40"
+          >
+            <Icon name="close" className="h-4 w-4" />
+          </button>
+        </div>
+      ) : null}
+
+      {!error && job.status === "failed" && job.error ? (
+        <div className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-700/40 dark:bg-rose-900/20 dark:text-rose-300">
+          {displayError(job.error)}
+        </div>
+      ) : null}
+
+      <IdpoCard
+        className={dragActive ? "ring-2 ring-cyan-400 ring-offset-2 ring-offset-white dark:ring-offset-slate-950" : undefined}
+      >
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={() => setDragActive(false)}
+          onDrop={handleDrop}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Documents</h2>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                {documents.length === 0
+                  ? "Drop files here or use Upload files."
+                  : `${documents.length} file${documents.length === 1 ? "" : "s"}, ${selectedDocuments.length} selected. Drop more files here to add them.`}
               </p>
             </div>
-
-            <div className="flex flex-wrap items-center justify-start gap-2 xl:max-w-[44rem] xl:justify-end">
-              <Link
-                href={`/dashboard/idpo/jobs/${encodeURIComponent(job.jobId)}/policies`}
-                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-              >
-                Policy workspace
-              </Link>
-              <button
-                type="button"
-                onClick={() => setShowReviewContext(true)}
-                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-              >
-                Review context
-              </button>
+            <div className="flex flex-wrap items-center gap-2">
               <input
                 ref={uploadRef}
                 type="file"
                 multiple
+                accept={ACCEPTED_FILE_TYPES}
                 className="hidden"
                 onChange={(event) => void handleUpload(event.target.files)}
               />
@@ -584,451 +885,343 @@ export function JobDetailPage() {
                 type="button"
                 onClick={() => uploadRef.current?.click()}
                 disabled={saving}
-                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                className={secondaryButton}
               >
-                Upload files
+                <Icon name="upload" className="h-4 w-4" />
+                {busyAction === "upload" ? "Uploading..." : "Upload files"}
               </button>
-              <button
-                type="button"
-                onClick={() => void startRun(mode, false)}
-                disabled={saving || selectedDocuments.length === 0}
-                className="rounded-xl bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Process selected
-              </button>
-              <button
-                type="button"
-                onClick={() => void startRun(mode, true)}
-                disabled={saving || selectedFailedDocuments.length === 0}
-                className="rounded-xl border border-amber-300 px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-700/40 dark:text-amber-300 dark:hover:bg-amber-900/20"
-              >
-                Rerun selected failed
-              </button>
+              {queueSummary.failed > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => void startRun(mode, true)}
+                  disabled={saving || selectedFailedDocuments.length === 0}
+                  title={selectedFailedDocuments.length === 0 ? "Select failed documents to retry them" : undefined}
+                  className="inline-flex items-center gap-2 rounded-xl border border-amber-300 px-3.5 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-amber-700/40 dark:text-amber-300 dark:hover:bg-amber-900/20"
+                >
+                  {busyAction === "retry" ? "Starting..." : `Retry failed${selectedFailedDocuments.length > 0 ? ` (${selectedFailedDocuments.length})` : ""}`}
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => void validateSelectedWithAi()}
-                disabled={saving || selectedDocuments.length === 0 || selectedDocuments.some((document) => document.status !== "processed")}
-                className="rounded-xl border border-emerald-300 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-700/40 dark:text-emerald-300 dark:hover:bg-emerald-900/20"
+                disabled={saving || !canAutoReview}
+                title={canAutoReview ? "Ask the model to check the extracted fields" : "Select processed documents to auto review them"}
+                className={secondaryButton}
               >
-                Auto review
+                {busyAction === "review" ? "Reviewing..." : "Auto review"}
               </button>
               <button
                 type="button"
                 onClick={() => void startRun(mode, false)}
                 disabled={saving || selectedDocuments.length === 0}
-                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                className={primaryButton}
               >
-                Create new run
+                {processLabel}
               </button>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr),220px] lg:max-w-3xl">
-              <label className="text-sm">
-                <span className="mb-1 block text-slate-700 dark:text-slate-300">Job name</span>
-                <input
-                  value={jobName}
-                  onChange={(event) => setJobName(event.target.value)}
-                  onBlur={() => void handleBlurJobName()}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.currentTarget.blur();
-                    }
-                  }}
-                  placeholder="Give this job a clear name"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                />
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-slate-700 dark:text-slate-300">Mode</span>
-                <select
-                  value={mode}
-                  onChange={(event) => void handleChangeMode(event.target.value as JobExecutionMode)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 capitalize dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                >
-                  <option value="adaptive">adaptive</option>
-                  <option value="strict">strict</option>
-                  <option value="both">both</option>
-                </select>
-              </label>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-800 dark:bg-slate-950/40">
-              <div className="grid gap-4 lg:grid-cols-[1.2fr,1fr,1fr,1fr]">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Queue status</p>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <StatusBadge value={hasActiveRun(job) ? "running" : job.status} />
-                    <span className="text-sm text-slate-600 dark:text-slate-300">
-                      {isRefreshing ? "Refreshing..." : lastRefreshedAt ? `Updated ${formatDate(lastRefreshedAt)}` : "Awaiting refresh"}
-                    </span>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium">
-                    <span className="rounded-full bg-white px-3 py-1 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700">
-                      Loaded {queueSummary.loaded}
-                    </span>
-                    <span className="rounded-full bg-white px-3 py-1 text-amber-700 ring-1 ring-amber-200 dark:bg-slate-900 dark:text-amber-300 dark:ring-amber-700/40">
-                      Processing {queueSummary.processing}
-                    </span>
-                    <span className="rounded-full bg-white px-3 py-1 text-emerald-700 ring-1 ring-emerald-200 dark:bg-slate-900 dark:text-emerald-300 dark:ring-emerald-700/40">
-                      Processed {queueSummary.processed}
-                    </span>
-                    <span className="rounded-full bg-white px-3 py-1 text-rose-700 ring-1 ring-rose-200 dark:bg-slate-900 dark:text-rose-300 dark:ring-rose-700/40">
-                      Failed {queueSummary.failed}
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Current run</p>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <StatusBadge value={activeRun?.status ?? "idle"} />
-                    <span className="text-sm font-medium capitalize text-slate-900 dark:text-white">
-                      {activeRun ? `${activeRun.mode} run` : "No active run"}
-                    </span>
-                  </div>
-                  <dl className="mt-3 space-y-1 text-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <dt className="text-slate-500 dark:text-slate-400">Processed</dt>
-                      <dd className="text-slate-900 dark:text-white">{activeRun?.processedCount ?? 0}</dd>
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <dt className="text-slate-500 dark:text-slate-400">Failed</dt>
-                      <dd className="text-slate-900 dark:text-white">{activeRun?.failedCount ?? 0}</dd>
-                    </div>
-                  </dl>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Progress</p>
-                  <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">
-                    {completedDocuments}/{totalDocuments || 0}
-                  </p>
-                  <dl className="mt-3 space-y-1 text-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <dt className="text-slate-500 dark:text-slate-400">Pending</dt>
-                      <dd className="text-slate-900 dark:text-white">{pendingDocuments}</dd>
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <dt className="text-slate-500 dark:text-slate-400">Reviewed</dt>
-                      <dd className="text-slate-900 dark:text-white">{reviewedDocuments}</dd>
-                    </div>
-                  </dl>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Job snapshot</p>
-                  <dl className="mt-2 space-y-1 text-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <dt className="text-slate-500 dark:text-slate-400">Created</dt>
-                      <dd className="text-right text-slate-900 dark:text-white">{formatDate(job.createdAt)}</dd>
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <dt className="text-slate-500 dark:text-slate-400">Selected</dt>
-                      <dd className="text-slate-900 dark:text-white">
-                        {selectedDocuments.length}/{totalDocuments || 0}
-                      </dd>
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <dt className="text-slate-500 dark:text-slate-400">Fields</dt>
-                      <dd className="text-slate-900 dark:text-white">{fieldConfig.length}</dd>
-                    </div>
-                  </dl>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-white/80 p-4 dark:border-slate-800 dark:bg-slate-900/70">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Processing</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-3">
-                      <p className="text-lg font-semibold text-slate-900 dark:text-white">
-                        {trackerSummary}
-                      </p>
-                    </div>
-                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{trackerDetail}</p>
-                  </div>
-                  <div className="grid min-w-[240px] gap-2 text-sm sm:grid-cols-2">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/40">
-                      <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Elapsed</div>
-                      <div className="mt-1 font-medium text-slate-900 dark:text-white">{formatDuration(runElapsedMs)}</div>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/40">
-                      <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Last activity</div>
-                      <div className="mt-1 font-medium text-slate-900 dark:text-white">
-                        {lastActivityMs != null ? `${formatDuration(Math.max(0, nowMs - lastActivityMs))} ago` : "-"}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <div className="h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-sky-500 to-emerald-500 transition-[width] duration-500"
-                      style={{ width: `${progressBarWidth}%` }}
-                    />
-                  </div>
-                  <div className="mt-3 grid gap-2 text-xs text-slate-500 dark:text-slate-400 sm:grid-cols-4">
-                    <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-950/40">
-                      <span>Loaded</span>
-                      <span className="font-medium text-slate-700 dark:text-slate-200">{queueSummary.loaded}</span>
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg bg-amber-50 px-3 py-2 dark:bg-amber-900/10">
-                      <span>Processing</span>
-                      <span className="font-medium text-amber-700 dark:text-amber-300">{queueSummary.processing}</span>
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2 dark:bg-emerald-900/10">
-                      <span>Processed</span>
-                      <span className="font-medium text-emerald-700 dark:text-emerald-300">{queueSummary.processed}</span>
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg bg-rose-50 px-3 py-2 dark:bg-rose-900/10">
-                      <span>Failed</span>
-                      <span className="font-medium text-rose-700 dark:text-rose-300">{queueSummary.failed}</span>
-                    </div>
-                  </div>
-                  {processingDocuments.length > 0 ? (
-                    <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/40">
-                      <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Documents in progress</div>
-                      <div className="mt-2 space-y-2">
-                        {processingDocuments.map((document, index) => (
-                          <div
-                            key={document.fileId}
-                            className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-sm dark:bg-slate-900"
-                          >
-                            <div className="min-w-0">
-                              <p className="font-medium text-slate-900 dark:text-white">
-                                {index + 1}/{processingDocuments.length} document: {document.fileName}
-                              </p>
-                              <p className="text-xs text-slate-500 dark:text-slate-400">
-                                {document.updatedAt ? `Last update ${formatDate(document.updatedAt)}` : "Processing"}
-                              </p>
-                            </div>
-                            <span className="text-xs font-medium text-amber-700 dark:text-amber-300">Processing</span>
-                          </div>
-                        ))}
-                      </div>
-                      <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-                        Live stage names are not stored yet, so this view shows the real queue position only.
-                      </p>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          </div>
-          
-        </div>
-
-      </section>
-
-      {error ? (
-        <div className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-700/40 dark:bg-rose-900/20 dark:text-rose-300">
-          {error}
-        </div>
-      ) : null}
-
-      <IdpoCard>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Queue</h2>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              The queue is the primary operator surface. Keep statuses simple and open a document only when atomic detail
-              is needed.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void handleToggleAll()}
-            disabled={saving || selectableDocumentIds.length === 0}
-            className="text-sm font-medium text-cyan-700 hover:text-cyan-800 disabled:opacity-50 dark:text-cyan-300 dark:hover:text-cyan-200"
-          >
-            {selectedFileIds.length === selectableDocumentIds.length ? "Clear selection" : "Select all available"}
-          </button>
-        </div>
-
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[1280px] text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                <th className="px-2 py-2">Select</th>
-                <th className="px-2 py-2">File name</th>
-                <th className="px-2 py-2">File ID</th>
-                <th className="px-2 py-2">Status</th>
-                <th className="px-2 py-2">Mode</th>
-                <th className="px-2 py-2">Route</th>
-                <th className="px-2 py-2">Policy</th>
-                <th className="px-2 py-2">Review / Error</th>
-                <th className="px-2 py-2">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {documents.map((document) => {
-                const preferredOutcome = getOutcome(document, activeResultMode);
-                const routeValue = preferredOutcome?.route ?? document.latestRoute;
-                const policyValue = preferredOutcome?.policy ?? document.latestPolicy;
-                const actionRunId = preferredOutcome?.runId ?? document.latestRunId;
-                const docHref =
-                  actionRunId
-                    ? `/dashboard/idpo/jobs/${encodeURIComponent(job.jobId)}/docs/${encodeURIComponent(document.fileId)}?mode=${encodeURIComponent(activeResultMode)}&runId=${encodeURIComponent(actionRunId)}`
-                    : null;
-                const policyHref = policyValue
-                  ? `/dashboard/idpo/jobs/${encodeURIComponent(job.jobId)}/policies/${encodeURIComponent(policyValue)}`
-                  : null;
-                return (
-                  <tr key={document.fileId} className="border-b border-slate-100 dark:border-slate-800">
-                    <td className="px-2 py-2">
+          {documents.length === 0 ? (
+            <button
+              type="button"
+              onClick={() => uploadRef.current?.click()}
+              disabled={saving}
+              className="mt-4 flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 px-6 py-10 text-sm text-slate-500 hover:border-cyan-400 hover:text-cyan-700 dark:border-slate-700 dark:text-slate-400 dark:hover:border-cyan-500 dark:hover:text-cyan-300"
+            >
+              <Icon name="upload" className="h-6 w-6" />
+              <span className="font-medium">Drop files here or click to upload</span>
+              <span className="text-xs">PDF, PNG, JPG, TIFF, BMP, TXT or JSON, up to 50 MB each</span>
+            </button>
+          ) : (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                    <th className="w-10 px-2 py-2">
                       <input
                         type="checkbox"
-                        checked={selectedFileIds.includes(document.fileId)}
-                        onChange={() => void handleToggleSelection(document.fileId)}
-                        disabled={saving || document.status === "processing"}
+                        aria-label="Select all documents"
+                        checked={allSelectableSelected}
+                        ref={(element) => {
+                          if (element) {
+                            element.indeterminate = someSelected && !allSelectableSelected;
+                          }
+                        }}
+                        onChange={() => void handleToggleAll()}
+                        disabled={saving || selectableDocumentIds.length === 0}
                       />
-                    </td>
-                    <td className="px-2 py-2 font-medium text-slate-900 dark:text-slate-100">{document.fileName}</td>
-                    <td className="px-2 py-2 font-mono text-xs text-slate-600 dark:text-slate-300">
-                      {fileIdSummary(document.fileId)}
-                    </td>
-                    <td className="px-2 py-2">
-                      <StatusBadge value={document.status} />
-                    </td>
-                    <td className="px-2 py-2 capitalize text-slate-600 dark:text-slate-300">
-                      {preferredOutcome?.mode ?? activeRun?.mode ?? job.mode ?? mode}
-                    </td>
-                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">
-                      {routeValue ?? "NA"}
-                    </td>
-                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">
-                      {policyHref ? (
-                        <Link
-                          href={policyHref}
-                          className="text-xs font-medium text-cyan-700 hover:text-cyan-800 dark:text-cyan-300 dark:hover:text-cyan-200"
-                        >
-                          {policyValue}
-                        </Link>
-                      ) : (
-                        "NA"
-                      )}
-                    </td>
-                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <StatusBadge value={document.reviewStatus ?? "unreviewed"} />
-                        {preferredOutcome?.exactF1 != null ? (
-                          <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
-                            F1 {preferredOutcome.exactF1.toFixed(2)}
-                          </span>
-                        ) : null}
-                      </div>
-                      {document.errorSummary ? (
-                        <div className="mt-1 text-xs text-rose-700 dark:text-rose-300">{document.errorSummary}</div>
-                      ) : (
-                        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          {formatReviewState(document.reviewState)}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-2 py-2">
-                      {docHref ? (
-                        <Link
-                          href={docHref}
-                          className="text-xs font-medium text-cyan-700 hover:text-cyan-800 dark:text-cyan-300 dark:hover:text-cyan-200"
-                        >
-                          Open detail
-                        </Link>
-                      ) : document.status === "processing" ? (
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                          {activeRun ? `Processing in ${activeRun.mode}` : "Processing"}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-slate-500 dark:text-slate-400">Waiting</span>
-                      )}
-                    </td>
+                    </th>
+                    <th className="px-2 py-2">File</th>
+                    <th className="px-2 py-2">Status</th>
+                    <th className="px-2 py-2">Policy</th>
+                    <th className="px-2 py-2">Review</th>
+                    <th className="px-2 py-2 text-right">Result</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {documents.length === 0 ? (
-            <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">No documents in this job yet.</p>
-          ) : null}
+                </thead>
+                <tbody>
+                  {documents.map((document) => {
+                    const preferredOutcome = getOutcome(document, activeResultMode);
+                    const routeValue = preferredOutcome?.route ?? document.latestRoute;
+                    const policyValue = preferredOutcome?.policy ?? document.latestPolicy;
+                    const actionRunId = preferredOutcome?.runId ?? document.latestRunId;
+                    const hasExtractedDocument = Boolean(preferredOutcome?.docId || document.latestDocId);
+                    const docHref =
+                      hasExtractedDocument && actionRunId
+                        ? `/dashboard/idpo/jobs/${encodeURIComponent(job.jobId)}/docs/${encodeURIComponent(document.fileId)}?mode=${encodeURIComponent(activeResultMode)}&runId=${encodeURIComponent(actionRunId)}`
+                        : null;
+                    const policyHref = policyValue
+                      ? `/dashboard/idpo/jobs/${encodeURIComponent(job.jobId)}/policies/${encodeURIComponent(policyValue)}`
+                      : null;
+                    const reviewDetail = formatReviewState(document.reviewState);
+                    return (
+                      <tr key={document.fileId} className="border-b border-slate-100 align-top dark:border-slate-800">
+                        <td className="px-2 py-3">
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${document.fileName}`}
+                            checked={selectedFileIds.includes(document.fileId)}
+                            onChange={() => void handleToggleSelection(document.fileId)}
+                            disabled={saving || document.status === "processing"}
+                          />
+                        </td>
+                        <td className="max-w-[22rem] px-2 py-3">
+                          <div className="truncate font-medium text-slate-900 dark:text-slate-100" title={`${document.fileName} (file ${shortId(document.fileId)})`}>
+                            {document.fileName}
+                          </div>
+                          {document.errorSummary ? (
+                            <div className="mt-1 text-xs text-rose-700 dark:text-rose-300">{displayError(document.errorSummary)}</div>
+                          ) : null}
+                        </td>
+                        <td className="px-2 py-3">
+                          <StatusBadge value={document.status} />
+                        </td>
+                        <td className="px-2 py-3 text-slate-600 dark:text-slate-300">
+                          {policyHref ? (
+                            <Link href={policyHref} className={linkStyle}>
+                              {policyValue}
+                            </Link>
+                          ) : (
+                            "—"
+                          )}
+                          {routeValue ? (
+                            <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{routeValue} route</div>
+                          ) : null}
+                        </td>
+                        <td className="px-2 py-3 text-slate-600 dark:text-slate-300">
+                          {document.status === "processed" ? (
+                            <>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <StatusBadge value={document.reviewStatus ?? "unreviewed"} />
+                                {preferredOutcome?.exactF1 != null ? (
+                                  <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                                    F1 {preferredOutcome.exactF1.toFixed(2)}
+                                  </span>
+                                ) : null}
+                              </div>
+                              {reviewDetail ? (
+                                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{reviewDetail}</div>
+                              ) : null}
+                            </>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className="px-2 py-3 text-right">
+                          {docHref ? (
+                            <Link
+                              href={docHref}
+                              className="inline-flex items-center gap-1 rounded-lg border border-cyan-200 px-2.5 py-1 text-xs font-semibold text-cyan-700 hover:bg-cyan-50 dark:border-cyan-800/60 dark:text-cyan-300 dark:hover:bg-cyan-950/40"
+                            >
+                              Open
+                              <Icon name="arrowRight" className="h-3 w-3" />
+                            </Link>
+                          ) : (
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                              {document.status === "processing"
+                                ? "Processing..."
+                                : document.status === "failed"
+                                  ? "Failed"
+                                  : "Not processed yet"}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </IdpoCard>
 
       <IdpoCard>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Field configuration</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Extracted values</h2>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              These fields are snapshotted per run. Edit them here before starting the next run.
+              {resultFieldNames.length === 0
+                ? "Values appear here after a document is processed."
+                : fieldConfig.length > 0
+                  ? "The fields configured for this job, one row per document."
+                  : "The fields each document's policy extracted, one row per document."}
+            </p>
+          </div>
+          {job.mode === "both" ? (
+            <div className="inline-flex rounded-lg border border-slate-300 p-0.5 dark:border-slate-700" role="group" aria-label="Result mode">
+              {(["adaptive", "strict"] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setResultMode(value)}
+                  aria-pressed={resultMode === value}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium capitalize ${
+                    resultMode === value
+                      ? "bg-cyan-600 text-white"
+                      : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  {value}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        {resultFieldNames.length > 0 ? (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                  <th className="px-2 py-2">File</th>
+                  {resultFieldNames.map((name) => (
+                    <th key={name} className="px-2 py-2" title={name}>
+                      {formatFieldLabel(name)}
+                    </th>
+                  ))}
+                  <th className="px-2 py-2 text-right">Detail</th>
+                </tr>
+              </thead>
+              <tbody>
+                {documents.map((document) => {
+                  const outcome = getOutcome(document, activeResultMode);
+                  return (
+                    <tr key={document.fileId} className="border-b border-slate-100 dark:border-slate-800">
+                      <td className="max-w-[18rem] truncate px-2 py-2 font-medium text-slate-900 dark:text-slate-100" title={document.fileName}>
+                        {document.fileName}
+                      </td>
+                      {resultFieldNames.map((name) => (
+                        <td key={`${document.fileId}-${name}`} className="px-2 py-2 text-slate-700 dark:text-slate-300">
+                          {document.status === "processed" ? getOutcomeFieldValue(outcome, name) : "—"}
+                        </td>
+                      ))}
+                      <td className="px-2 py-2 text-right text-xs text-slate-500 dark:text-slate-400">
+                        {outcome?.docId && outcome.runId ? (
+                          <Link
+                            href={`/dashboard/idpo/jobs/${encodeURIComponent(job.jobId)}/docs/${encodeURIComponent(document.fileId)}?mode=${encodeURIComponent(activeResultMode)}&runId=${encodeURIComponent(outcome.runId)}`}
+                            className={linkStyle}
+                          >
+                            Open
+                          </Link>
+                        ) : document.status === "failed" ? (
+                          "Failed"
+                        ) : document.status === "processing" ? (
+                          "Processing..."
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </IdpoCard>
+
+      <IdpoCard>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Fields to extract</h2>
+            <p className="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-300">
+              Leave this empty and the policy chosen for each document decides which fields to extract. Add a field to ask for a specific value, such as an invoice total.
             </p>
           </div>
           <button
             type="button"
             onClick={() => setShowAdvanced((current) => !current)}
-            className="text-sm font-medium text-cyan-700 hover:text-cyan-800 dark:text-cyan-300 dark:hover:text-cyan-200"
+            aria-expanded={showAdvanced}
+            className={`text-sm ${linkStyle}`}
           >
-            {showAdvanced ? "Hide advanced settings" : "Show advanced settings"}
+            {showAdvanced ? "Hide advanced settings" : "Advanced settings"}
           </button>
         </div>
 
-        <div className="mt-4 grid gap-3 md:grid-cols-[1fr,1fr,auto]">
-          <input
-            value={newFieldName}
-            onChange={(event) => setNewFieldName(event.target.value)}
-            placeholder="Field name"
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-          />
-          <input
-            value={newFieldDescription}
-            onChange={(event) => setNewFieldDescription(event.target.value)}
-            placeholder="Short description"
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-          />
+        <form
+          className="mt-4 grid gap-3 md:grid-cols-[1fr,1fr,auto]"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleAddField();
+          }}
+        >
+          <label>
+            <span className="sr-only">Field name</span>
+            <input
+              value={newFieldName}
+              onChange={(event) => setNewFieldName(event.target.value)}
+              placeholder="Field name, e.g. total_amount"
+              className={inputStyle}
+            />
+          </label>
+          <label>
+            <span className="sr-only">Field description</span>
+            <input
+              value={newFieldDescription}
+              onChange={(event) => setNewFieldDescription(event.target.value)}
+              placeholder="What the value looks like (optional)"
+              className={inputStyle}
+            />
+          </label>
           <button
-            type="button"
-            onClick={() => void handleAddField()}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            type="submit"
+            disabled={saving || !newFieldName.trim()}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
           >
             Add field
           </button>
-        </div>
+        </form>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {fieldConfig.map((field, index) => (
-            <div
-              key={`${field.name}-${index}`}
-              className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm dark:border-slate-800 dark:bg-slate-950/40"
-            >
-              <span className="text-slate-900 dark:text-white">{field.name}</span>
-              {field.description ? <span className="text-xs text-slate-500 dark:text-slate-400">({field.description})</span> : null}
-              <button
-                type="button"
-                onClick={() => void handleRemoveField(index)}
-                className="text-xs font-medium text-rose-700 hover:text-rose-800 dark:text-rose-300 dark:hover:text-rose-200"
+        {fieldConfig.length > 0 ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {fieldConfig.map((field, index) => (
+              <div
+                key={`${field.name}-${index}`}
+                className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 py-1 pl-3 pr-1.5 text-sm dark:border-slate-800 dark:bg-slate-950/40"
               >
-                x
-              </button>
-            </div>
-          ))}
-          {fieldConfig.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400">No fields configured yet.</p>
-          ) : null}
-        </div>
+                <span className="text-slate-900 dark:text-white">{field.name}</span>
+                {field.description ? <span className="text-xs text-slate-500 dark:text-slate-400">{field.description}</span> : null}
+                <button
+                  type="button"
+                  onClick={() => void handleRemoveField(index)}
+                  aria-label={`Remove field ${field.name}`}
+                  className="rounded-full p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-900/30 dark:hover:text-rose-300"
+                >
+                  <Icon name="close" className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         {showAdvanced ? (
           <div className="mt-4 grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2 dark:border-slate-800 dark:bg-slate-950/40">
-            <label className="text-sm">
-              <span className="mb-1 block text-slate-700 dark:text-slate-300">Max cost per document</span>
-              <input
-                value={maxCostPerDoc}
-                onChange={(event) => setMaxCostPerDoc(event.target.value)}
-                placeholder="Optional"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-              />
-            </label>
             <label className="text-sm">
               <span className="mb-1 block text-slate-700 dark:text-slate-300">Local extraction model</span>
               <select
                 value={localModel}
                 onChange={(event) => void handleChangeLocalModel(event.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                className={inputStyle}
               >
                 {LOCAL_MODEL_OPTIONS.map((option) => (
                   <option key={option.label} value={option.value}>
@@ -1037,8 +1230,19 @@ export function JobDetailPage() {
                 ))}
               </select>
               <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
-                Applies to future runs for this job. Choosing a specific model enables automatic Ollama pull if it is missing.
+                Applies to future runs of this job. A model that is not installed is pulled through Ollama first.
               </span>
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-slate-700 dark:text-slate-300">Max cost per document</span>
+              <input
+                value={maxCostPerDoc}
+                onChange={(event) => setMaxCostPerDoc(event.target.value)}
+                inputMode="decimal"
+                placeholder="No limit"
+                className={inputStyle}
+              />
+              <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">Only matters when escalation can call a paid model.</span>
             </label>
             <label className="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">
               <input
@@ -1046,250 +1250,166 @@ export function JobDetailPage() {
                 checked={escalationEnabled}
                 onChange={(event) => setEscalationEnabled(event.target.checked)}
               />
-              Allow escalation
+              Allow escalation to the fallback model when local extraction is not good enough
             </label>
           </div>
         ) : null}
       </IdpoCard>
 
       <IdpoCard>
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">AHMN job summary</h2>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Adaptive routing</h2>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+              How AHMN advice was used for this job and what was sent back to it.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowRoutingDetails((current) => !current)}
+            aria-expanded={showRoutingDetails}
+            className={`text-sm ${linkStyle}`}
+          >
+            {showRoutingDetails ? "Hide details" : "Show details"}
+          </button>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <SummaryTile label="Documents with advice" value={ahmn?.documentsWithAdvice ?? 0} />
+          <SummaryTile
+            label="Advice accepted"
+            value={ahmn?.adviceInfluencedCount ?? 0}
+            hint="Documents where the advice was accepted or changed the policy"
+          />
+          <SummaryTile label="Outcomes sent to AHMN" value={ahmn?.documentsLoggedBack ?? 0} />
+          <SummaryTile
+            label="Reviewed"
+            value={
+              typeof ahmn?.reviewedHumanCount === "number" && typeof ahmn?.reviewedAiCount === "number"
+                ? `${ahmn.reviewedDocumentCount} (${ahmn.reviewedHumanCount} human, ${ahmn.reviewedAiCount} auto)`
+                : ahmn?.reviewedDocumentCount ?? 0
+            }
+          />
+        </div>
+        {showRoutingDetails ? (
+          <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm md:grid-cols-2">
+            <div className="flex justify-between gap-3 border-b border-slate-100 py-1.5 dark:border-slate-800">
+              <dt className="text-slate-500 dark:text-slate-400">Document profile</dt>
+              <dd className="text-slate-900 dark:text-white">{ahmn?.jobProfile && ahmn.jobProfile !== "awaiting_run" ? ahmn.jobProfile : "—"}</dd>
+            </div>
+            <div className="flex justify-between gap-3 border-b border-slate-100 py-1.5 dark:border-slate-800">
+              <dt className="text-slate-500 dark:text-slate-400">Matched earlier memory</dt>
+              <dd className="text-slate-900 dark:text-white">{ahmn?.memoryMatched ? "Yes" : "No"}</dd>
+            </div>
+            <div className="flex justify-between gap-3 border-b border-slate-100 py-1.5 dark:border-slate-800">
+              <dt className="text-slate-500 dark:text-slate-400">Review feedback sent</dt>
+              <dd className="text-slate-900 dark:text-white">
+                {ahmn?.reviewedFeedbackLoggedCount ?? 0}
+                {typeof ahmn?.reviewedFeedbackPendingCount === "number" && ahmn.reviewedFeedbackPendingCount > 0
+                  ? ` (${ahmn.reviewedFeedbackPendingCount} pending)`
+                  : ""}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3 border-b border-slate-100 py-1.5 dark:border-slate-800">
+              <dt className="text-slate-500 dark:text-slate-400">Job-specific policy overlay</dt>
+              <dd className="text-slate-900 dark:text-white">
+                {ahmn?.jobOverlayReady
+                  ? `Ready (${ahmn.jobOverlayPolicies} polic${ahmn.jobOverlayPolicies === 1 ? "y" : "ies"})`
+                  : "Not ready yet"}
+              </dd>
+            </div>
+          </dl>
+        ) : null}
+      </IdpoCard>
+
+      <IdpoCard>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Run history</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-          Visible but restrained. This is the job-level adaptive memory view, not a second dashboard.
+          Every run of this job. In Both mode the adaptive and strict runs are listed separately.
         </p>
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[680px] text-sm">
-            <tbody>
-              <tr className="border-b border-slate-100 dark:border-slate-800">
-                <td className="px-2 py-3 font-medium text-slate-900 dark:text-slate-100">Job nature / profile</td>
-                <td className="px-2 py-3 text-slate-600 dark:text-slate-300">{job.ahmnSummary?.jobProfile ?? "awaiting_run"}</td>
-              </tr>
-              <tr className="border-b border-slate-100 dark:border-slate-800">
-                <td className="px-2 py-3 font-medium text-slate-900 dark:text-slate-100">Memory matched</td>
-                <td className="px-2 py-3 text-slate-600 dark:text-slate-300">
-                  {job.ahmnSummary?.memoryMatched ? "yes" : "no"}
-                </td>
-              </tr>
-              <tr className="border-b border-slate-100 dark:border-slate-800">
-                <td className="px-2 py-3 font-medium text-slate-900 dark:text-slate-100">Advice influenced routing</td>
-                <td className="px-2 py-3 text-slate-600 dark:text-slate-300">
-                  {job.ahmnSummary?.adviceInfluencedCount ?? 0} document(s)
-                </td>
-              </tr>
-              <tr className="border-b border-slate-100 dark:border-slate-800">
-                <td className="px-2 py-3 font-medium text-slate-900 dark:text-slate-100">Documents with advice</td>
-                <td className="px-2 py-3 text-slate-600 dark:text-slate-300">
-                  {job.ahmnSummary?.documentsWithAdvice ?? 0}
-                </td>
-              </tr>
-              <tr className="border-b border-slate-100 dark:border-slate-800">
-                <td className="px-2 py-3 font-medium text-slate-900 dark:text-slate-100">Documents logged back</td>
-                <td className="px-2 py-3 text-slate-600 dark:text-slate-300">
-                  {job.ahmnSummary?.documentsLoggedBack ?? 0}
-                </td>
-              </tr>
-              <tr className="border-b border-slate-100 dark:border-slate-800">
-                <td className="px-2 py-3 font-medium text-slate-900 dark:text-slate-100">Reviewed documents</td>
-                <td className="px-2 py-3 text-slate-600 dark:text-slate-300">
-                  {job.ahmnSummary?.reviewedDocumentCount ?? 0}
-                  {typeof job.ahmnSummary?.reviewedHumanCount === "number" && typeof job.ahmnSummary?.reviewedAiCount === "number"
-                    ? ` (${job.ahmnSummary.reviewedHumanCount} human, ${job.ahmnSummary.reviewedAiCount} AI)`
-                    : ""}
-                </td>
-              </tr>
-              <tr className="border-b border-slate-100 dark:border-slate-800">
-                <td className="px-2 py-3 font-medium text-slate-900 dark:text-slate-100">Reviewed learning logged</td>
-                <td className="px-2 py-3 text-slate-600 dark:text-slate-300">
-                  {job.ahmnSummary?.reviewedFeedbackLoggedCount ?? 0}
-                  {typeof job.ahmnSummary?.reviewedFeedbackPendingCount === "number"
-                    ? ` (${job.ahmnSummary.reviewedFeedbackPendingCount} pending)`
-                    : ""}
-                </td>
-              </tr>
-              <tr className="border-b border-slate-100 dark:border-slate-800">
-                <td className="px-2 py-3 font-medium text-slate-900 dark:text-slate-100">Job overlay</td>
-                <td className="px-2 py-3 text-slate-600 dark:text-slate-300">
-                  {job.ahmnSummary?.jobOverlayReady
-                    ? `ready (${job.ahmnSummary?.jobOverlayPolicies ?? 0} policy bucket${(job.ahmnSummary?.jobOverlayPolicies ?? 0) === 1 ? "" : "s"})`
-                    : "not ready"}
-                </td>
-              </tr>
-              <tr>
-                <td className="px-2 py-3 font-medium text-slate-900 dark:text-slate-100">Adaptation summary</td>
-                <td className="px-2 py-3 text-slate-600 dark:text-slate-300">
-                  {job.ahmnSummary?.adaptationSummary ?? "No completed runs yet."}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </IdpoCard>
-
-      <IdpoCard>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Structured results</h2>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Results stay field-oriented. Loaded and processing rows remain <code>NA</code> until that run mode completes.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {hasActiveRun(job) ? (
-              <span className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-medium text-cyan-800 dark:border-cyan-800/50 dark:bg-cyan-950/30 dark:text-cyan-200">
-                Live updates active
-              </span>
-            ) : null}
-            {job.mode === "both" ? (
-              <>
-              <button
-                type="button"
-                onClick={() => setResultMode("adaptive")}
-                className={`rounded-lg px-3 py-2 text-sm font-medium ${
-                  resultMode === "adaptive"
-                    ? "bg-cyan-600 text-white"
-                    : "border border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                }`}
-              >
-                Adaptive
-              </button>
-              <button
-                type="button"
-                onClick={() => setResultMode("strict")}
-                className={`rounded-lg px-3 py-2 text-sm font-medium ${
-                  resultMode === "strict"
-                    ? "bg-cyan-600 text-white"
-                    : "border border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                }`}
-              >
-                Strict
-              </button>
-              </>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[980px] text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                <th className="px-2 py-2">File name</th>
-                <th className="px-2 py-2">File ID</th>
-                <th className="px-2 py-2">Status</th>
-                {fieldConfig.map((field) => (
-                  <th key={field.name} className="px-2 py-2">
-                    {field.name}
-                  </th>
-                ))}
-                <th className="px-2 py-2">Next</th>
-              </tr>
-            </thead>
-            <tbody>
-              {documents.map((document) => {
-                const outcome = getOutcome(document, activeResultMode);
-                return (
-                  <tr key={document.fileId} className="border-b border-slate-100 dark:border-slate-800">
-                    <td className="px-2 py-2 font-medium text-slate-900 dark:text-slate-100">{document.fileName}</td>
-                    <td className="px-2 py-2 font-mono text-xs text-slate-600 dark:text-slate-300">{document.fileId}</td>
-                    <td className="px-2 py-2">
-                      <StatusBadge value={document.status} />
-                    </td>
-                    {fieldConfig.map((field) => (
-                      <td key={`${document.fileId}-${field.name}`} className="px-2 py-2 text-slate-600 dark:text-slate-300">
-                        {document.status === "processed" ? getOutcomeFieldValue(outcome, field) : "NA"}
-                      </td>
-                    ))}
-                    <td className="px-2 py-2 text-slate-600 dark:text-slate-300">
-                      {outcome?.runId ? (
-                        <Link
-                          href={`/dashboard/idpo/jobs/${encodeURIComponent(job.jobId)}/docs/${encodeURIComponent(document.fileId)}?mode=${encodeURIComponent(activeResultMode)}&runId=${encodeURIComponent(outcome.runId)}`}
-                          className="text-xs font-medium text-cyan-700 hover:text-cyan-800 dark:text-cyan-300 dark:hover:text-cyan-200"
-                        >
-                          Open detail
-                        </Link>
-                      ) : document.status === "failed" ? (
-                        document.errorSummary || "Failed"
-                      ) : document.status === "processing" ? (
-                        "Wait"
-                      ) : (
-                        "NA"
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </IdpoCard>
-
-      <IdpoCard>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Prior runs</h2>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Explicit run history under this job. When mode is <code>both</code>, the adaptive and strict runs remain separate.
-            </p>
-          </div>
-        </div>
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[920px] text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                <th className="px-2 py-2">Run</th>
-                <th className="px-2 py-2">Mode</th>
-                <th className="px-2 py-2">Status</th>
-                <th className="px-2 py-2">Created</th>
-                <th className="px-2 py-2">Processed</th>
-                <th className="px-2 py-2">Failed</th>
-                <th className="px-2 py-2">Open</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orderedRuns.map((run) => (
-                <tr key={run.jobRunId} className="border-b border-slate-100 dark:border-slate-800">
-                  <td className="px-2 py-2 font-mono text-xs text-slate-600 dark:text-slate-300">
-                    {run.runId ?? run.jobRunId}
-                  </td>
-                  <td className="px-2 py-2 capitalize text-slate-600 dark:text-slate-300">{run.mode}</td>
-                  <td className="px-2 py-2">
-                    <StatusBadge value={run.status} />
-                  </td>
-                  <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{formatDate(run.createdAt)}</td>
-                  <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{run.processedCount ?? 0}</td>
-                  <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{run.failedCount ?? 0}</td>
-                  <td className="px-2 py-2">
-                    {run.runId ? (
-                      <span className="text-xs font-mono text-slate-500 dark:text-slate-400">{run.runId.slice(0, 8)}</span>
-                    ) : (
-                      <span className="text-xs text-slate-500 dark:text-slate-400">Pending</span>
-                    )}
-                  </td>
+        {orderedRuns.length === 0 ? (
+          <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">No runs yet. Select documents and use Process selected.</p>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                  <th className="px-2 py-2">Run</th>
+                  <th className="px-2 py-2">Mode</th>
+                  <th className="px-2 py-2">Status</th>
+                  <th className="px-2 py-2">Started</th>
+                  <th className="px-2 py-2">Duration</th>
+                  <th className="px-2 py-2">Processed</th>
+                  <th className="px-2 py-2">Failed</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {orderedRuns.length === 0 ? (
-            <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">No runs yet for this job.</p>
-          ) : null}
-        </div>
+              </thead>
+              <tbody>
+                {orderedRuns.map((run) => {
+                  const startMs = parseTimestamp(run.startedAt ?? run.createdAt);
+                  const endMs = parseTimestamp(run.endedAt);
+                  const runningNow = run.status === "running" || run.status === "queued";
+                  const durationMs =
+                    startMs != null ? (endMs != null ? endMs - startMs : runningNow ? nowMs - startMs : null) : null;
+                  const runId = run.runId ?? run.jobRunId;
+                  return (
+                    <tr key={run.jobRunId} className="border-b border-slate-100 align-top dark:border-slate-800">
+                      <td className="px-2 py-2 font-mono text-xs text-slate-600 dark:text-slate-300">
+                        {run.runId && run.status === "success" ? (
+                          <Link href={`/dashboard/idpo/runs/${encodeURIComponent(run.runId)}`} className={linkStyle} title={run.runId}>
+                            {shortId(runId)}
+                          </Link>
+                        ) : (
+                          <span title={runId}>{shortId(runId)}</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 capitalize text-slate-600 dark:text-slate-300">{run.mode}</td>
+                      <td className="px-2 py-2">
+                        <StatusBadge value={run.status} />
+                        {run.status === "failed" && run.error ? (
+                          <div className="mt-1 max-w-xs text-xs text-rose-700 dark:text-rose-300">{displayError(run.error)}</div>
+                        ) : null}
+                      </td>
+                      <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{formatDate(run.startedAt ?? run.createdAt)}</td>
+                      <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{formatDuration(durationMs)}</td>
+                      <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{run.processedCount ?? 0}</td>
+                      <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{run.failedCount ?? 0}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </IdpoCard>
 
       {showReviewContext ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/60 px-4 py-8">
-          <div className="max-h-[88vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setShowReviewContext(false);
+            }
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="review-context-title"
+            className="max-h-[88vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+          >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Review context</h2>
+                <h2 id="review-context-title" className="text-lg font-semibold text-slate-900 dark:text-white">Review context</h2>
                 <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                  Structured job context used to guide auto review and enrich extraction field prompts.
+                  Notes about this job that guide auto review and are added to the extraction prompts.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowReviewContext(false)}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                aria-label="Close review context"
+                className="rounded-lg border border-slate-300 p-2 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               >
-                Close
+                <Icon name="close" className="h-4 w-4" />
               </button>
             </div>
 
@@ -1305,7 +1425,7 @@ export function JobDetailPage() {
                   <IdpoCard className="p-4">
                     <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Current version</div>
                     <div className="mt-2 text-sm font-medium text-slate-900 dark:text-white">
-                      v{reviewContext.current.versionNumber} updated {formatDate(reviewContext.current.updatedAt)}
+                      v{reviewContext.current.versionNumber}, updated {formatDate(reviewContext.current.updatedAt)}
                     </div>
                     <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                       Trigger: {reviewContext.current.source.replace(/_/g, " ")}
@@ -1317,61 +1437,21 @@ export function JobDetailPage() {
                   <IdpoCard className="p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Operator knowledge</h3>
+                        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Your notes</h3>
                         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                          Add stable job knowledge here. Reviewed failures and corrections stay automatic.
+                          Add stable knowledge about the job. Failures and corrections from reviews are added automatically.
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={() => void saveReviewContext()}
                         disabled={saving}
-                        className="rounded-xl bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        className={primaryButton}
                       >
-                        Save context
+                        Save
                       </button>
                     </div>
-                    <div className="mt-4 grid gap-4">
-                      <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
-                        <span className="font-medium text-slate-900 dark:text-white">Job purpose</span>
-                        <input
-                          value={reviewContextDraft.jobPurpose}
-                          onChange={(event) => setReviewContextDraft((current) => ({ ...current, jobPurpose: event.target.value }))}
-                          className="rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                          placeholder="What are we trying to extract and validate in this job?"
-                        />
-                      </label>
-                      <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
-                        <span className="font-medium text-slate-900 dark:text-white">Known vendors</span>
-                        <textarea
-                          value={reviewContextDraft.knownVendors}
-                          onChange={(event) => setReviewContextDraft((current) => ({ ...current, knownVendors: event.target.value }))}
-                          rows={3}
-                          className="rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                          placeholder="One per line. Example: acme"
-                        />
-                      </label>
-                      <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
-                        <span className="font-medium text-slate-900 dark:text-white">Field clarifications</span>
-                        <textarea
-                          value={reviewContextDraft.fieldClarifications}
-                          onChange={(event) => setReviewContextDraft((current) => ({ ...current, fieldClarifications: event.target.value }))}
-                          rows={4}
-                          className="rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                          placeholder="One per line. Example: Approval code is usually stamped near the provider signature."
-                        />
-                      </label>
-                      <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
-                        <span className="font-medium text-slate-900 dark:text-white">Validation notes</span>
-                        <textarea
-                          value={reviewContextDraft.validationNotes}
-                          onChange={(event) => setReviewContextDraft((current) => ({ ...current, validationNotes: event.target.value }))}
-                          rows={4}
-                          className="rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                          placeholder="One per line. Example: If total amount is blank, treat it as missing instead of zero."
-                        />
-                      </label>
-                    </div>
+                    {reviewContextForm}
                   </IdpoCard>
 
                   <IdpoCard className="p-4">
@@ -1402,7 +1482,7 @@ export function JobDetailPage() {
 
                   <div className="space-y-4 lg:col-span-2">
                     <IdpoCard className="p-4">
-                      <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Auto-review prompt preview</h3>
+                      <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Auto review prompt preview</h3>
                       <pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-200">
                         {reviewContext.current.promptPreview.autoReview}
                       </pre>
@@ -1442,64 +1522,24 @@ export function JobDetailPage() {
                 <IdpoCard className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Operator knowledge</h3>
+                      <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Your notes</h3>
                       <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                        You can seed job knowledge before the first review lands.
+                        You can add notes before the first review is saved.
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => void saveReviewContext()}
                       disabled={saving}
-                      className="rounded-xl bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      className={primaryButton}
                     >
-                      Save context
+                      Save
                     </button>
                   </div>
-                  <div className="mt-4 grid gap-4">
-                    <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span className="font-medium text-slate-900 dark:text-white">Job purpose</span>
-                      <input
-                        value={reviewContextDraft.jobPurpose}
-                        onChange={(event) => setReviewContextDraft((current) => ({ ...current, jobPurpose: event.target.value }))}
-                        className="rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                        placeholder="What are we trying to extract and validate in this job?"
-                      />
-                    </label>
-                    <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span className="font-medium text-slate-900 dark:text-white">Known vendors</span>
-                      <textarea
-                        value={reviewContextDraft.knownVendors}
-                        onChange={(event) => setReviewContextDraft((current) => ({ ...current, knownVendors: event.target.value }))}
-                        rows={3}
-                        className="rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                        placeholder="One per line. Example: acme"
-                      />
-                    </label>
-                    <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span className="font-medium text-slate-900 dark:text-white">Field clarifications</span>
-                      <textarea
-                        value={reviewContextDraft.fieldClarifications}
-                        onChange={(event) => setReviewContextDraft((current) => ({ ...current, fieldClarifications: event.target.value }))}
-                        rows={4}
-                        className="rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                        placeholder="One per line."
-                      />
-                    </label>
-                    <label className="grid gap-2 text-sm text-slate-700 dark:text-slate-300">
-                      <span className="font-medium text-slate-900 dark:text-white">Validation notes</span>
-                      <textarea
-                        value={reviewContextDraft.validationNotes}
-                        onChange={(event) => setReviewContextDraft((current) => ({ ...current, validationNotes: event.target.value }))}
-                        rows={4}
-                        className="rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                        placeholder="One per line."
-                      />
-                    </label>
-                  </div>
+                  {reviewContextForm}
                 </IdpoCard>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300">
-                  No review context yet. It appears after auto review or human review writes the first reviewed result.
+                  The context summary and prompt previews appear after the first auto review or human review is saved.
                 </div>
               </div>
             )}

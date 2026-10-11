@@ -139,14 +139,7 @@ CREATE INDEX IF NOT EXISTS idx_experiment_method ON experiment_runs (method, sce
 CREATE INDEX IF NOT EXISTS idx_events_type ON system_events (event_type, created_at DESC);
 
 -- ═══════════════════════════════════════════════════════════════
--- SEED DEFAULT ADMIN
--- Default password: admin — CHANGE IMMEDIATELY in production
--- bcrypt hash of 'admin'
+-- ADMIN ACCOUNT
+-- No account is seeded here. The gateway creates the first admin at
+-- startup from ADMIN_PASSWORD (see .env.example) while none exists.
 -- ═══════════════════════════════════════════════════════════════
-INSERT INTO users (email, username, hashed_password, role)
-VALUES (
-    'admin@ahmn.dev',
-    'admin',
-    '$2b$12$U.rbNQW6aV/XyTzuBwSUf.noZ/hsmXJsJPLi/v8iL9pG6I1xtElZK',
-    'admin'
-) ON CONFLICT (username) DO UPDATE SET hashed_password = EXCLUDED.hashed_password;

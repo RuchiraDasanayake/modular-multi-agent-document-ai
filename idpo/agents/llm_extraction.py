@@ -486,7 +486,7 @@ class LLMExtractionAgent(Agent):
         diagnostics["per_field_extraction"] = per_field_extraction
         diagnostics["use_thinking"] = use_thinking
         if per_field_extraction and explicit_keys:
-            local_entities = self._llm_extract_per_field(
+            local_entities, local_meta = self._llm_extract_per_field(
                 doc,
                 explicit_keys,
                 model_name,
@@ -495,7 +495,6 @@ class LLMExtractionAgent(Agent):
                 extraction_context=extraction_context,
                 use_thinking=use_thinking,
             )
-            local_meta: dict[str, object] = {"per_field": True, "field_count": len(explicit_keys)}
         else:
             local_raw, local_meta = self._unpack_extraction_call(
                 self._llm_extract(
@@ -944,11 +943,19 @@ class LLMExtractionAgent(Agent):
         field_descriptions: dict[str, str] | None = None,
         extraction_context: str = "",
         use_thinking: bool = False,
-    ) -> list[Entity]:
+    ) -> tuple[list[Entity], dict[str, object]]:
         """Run one LLM call per field to eliminate cross-field assignment errors."""
+        started = time.time()
+        meta: dict[str, object] = {
+            "provider": "ollama",
+            "model": model_name,
+            "per_field": True,
+            "field_count": len(explicit_keys),
+        }
         text, _ = build_extraction_input(doc, explicit_keys, field_descriptions or {}, ctx)
         if not text.strip():
-            return []
+            meta["error"] = "empty_document"
+            return [], meta
         llm_cfg = ctx.config.llm
         use_chat = self._uses_chat_endpoint(model_name) or bool(getattr(llm_cfg, "local_use_chat_api", False))
         format_json = bool(getattr(llm_cfg, "local_format_json", True))
@@ -965,30 +972,54 @@ class LLMExtractionAgent(Agent):
         }
         no_think = model_name.lower().startswith("qwen") and not use_thinking
         descs = field_descriptions or {}
+        siblings = {name: descs.get(name, "") for name in explicit_keys}
         collected: list[Entity] = []
+        field_errors: dict[str, str] = {}
+        prompt_tokens = completion_tokens = 0
         for key in explicit_keys:
             desc = descs.get(key, "Extract this field value")
             if use_chat:
                 messages = build_single_field_messages(
-                    text, key, desc, no_think=no_think, extraction_context=extraction_context
+                    text, key, desc, no_think=no_think, extraction_context=extraction_context,
+                    sibling_fields=siblings,
                 )
-                response, _ = ollama_chat_detailed(
+                response, call_meta = ollama_chat_detailed(
                     llm_cfg.base_url, messages, model_name,
                     timeout_s=llm_cfg.timeout_s, options=options,
                     format_json=format_json, disable_think=no_think,
                 )
             else:
-                prompt = build_single_field_prompt(text, key, desc, extraction_context=extraction_context)
+                prompt = build_single_field_prompt(
+                    text, key, desc, extraction_context=extraction_context, sibling_fields=siblings
+                )
                 payload: dict[str, object] = {
                     "model": model_name, "prompt": prompt, "stream": False, "options": options,
                 }
                 if format_json:
                     payload["format"] = "json"
-                response, _ = ollama_generate_detailed(llm_cfg.base_url, payload, llm_cfg.timeout_s)
+                response, call_meta = ollama_generate_detailed(llm_cfg.base_url, payload, llm_cfg.timeout_s)
+            prompt_tokens += int(call_meta.get("prompt_tokens", 0) or 0)
+            completion_tokens += int(call_meta.get("completion_tokens", 0) or 0)
+            if call_meta.get("error"):
+                field_errors[key] = str(call_meta["error"])
             if response:
                 entities = self._parse_entities_response(response, model_name, source="llm_local_per_field")
                 collected.extend(entities)
-        return self._canonicalize_entities(collected, explicit_keys, descs)
+        entities = self._canonicalize_entities(collected, explicit_keys, descs)
+        meta.update({
+            "endpoint": "ollama.chat" if use_chat else "ollama.generate",
+            "latency_ms": round((time.time() - started) * 1000, 2),
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": prompt_tokens + completion_tokens,
+            "success": bool(entities),
+            "entity_count": len(entities),
+        })
+        if field_errors:
+            meta["field_errors"] = field_errors
+            if len(field_errors) == len(explicit_keys):
+                meta["error"] = next(iter(field_errors.values()))
+        return entities, meta
 
     def _llm_extract(
         self,

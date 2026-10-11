@@ -8,13 +8,15 @@
 
 **IDPO** (Intelligent Document Processing Orchestrator) is a research prototype for adaptive document extraction. A document image goes in; structured key-value pairs come out. The pipeline is modular — OCR, preprocessing, LLM extraction, validation, recovery — and each stage is governed by a **policy** selected at runtime.
 
-**AHMN** (Adaptive Hierarchical Multi-agent Network) is the routing layer. It uses Thompson Sampling (Beta-Bernoulli posteriors) to select which policy to apply to each document. The core claim: adaptive routing (AHMN) produces better operational results than static single-policy processing.
+**AHMN** (Adaptive Hierarchical Multi-agent Network) is the routing layer. It uses Thompson Sampling (Beta-Bernoulli posteriors) to select which policy to apply to each document, behind an `adaptive_safe` gate that falls back to `default` when a candidate regresses.
 
-This is a **conference paper project**. The research claim is narrow:
-> `adaptive_safe` mode (AHMN-driven routing) vs `static` mode (fixed default policy) on labeled external datasets (CORD receipts + FUNSD correspondence).
+This is a **conference paper project**. The research question is narrow:
+> Does `adaptive_safe` mode (AHMN-driven routing) improve extraction over `static` mode (fixed default policy) on labeled external datasets (CORD receipts, FUNSD forms) and a hard-document stress pack?
 
-**Branch:** `feature/IDPO`  
-**Primary author:** Thimuth N  
+The answer, frozen in `paper/FINAL_EVIDENCE.md`, is **no**: accuracy was tied or slightly lower, and latency was higher on receipts. The paper (`paper/ieee/main.tex`) reports this as a negative result and explains why.
+
+**Branch:** `main`
+**Primary author:** Thimuth N
 **Guardrails component author:** Wijetunga W.L.A.T.
 
 ---
@@ -24,21 +26,21 @@ This is a **conference paper project**. The research claim is narrow:
 | Dependency | Version | Status |
 |---|---|---|
 | Python | 3.10.10 | `.venv/Scripts/python` |
-| PaddleOCR | paddle 2.6.2 | Installed, working |
-| pytesseract | - | Installed; Tesseract 5.4.0 on PATH |
+| PaddleOCR | 2.9.1 on PaddlePaddle 2.6.2 (CPU) | Installed, working |
+| pytesseract | - | Installed; Tesseract 5.4.0 on PATH (fallback engine) |
 | OpenCV (cv2) | 4.11.0 | Installed |
 | PIL / Pillow | - | Installed |
 | NumPy | 1.26.4 | Installed |
-| Ollama | local | `http://localhost:11434` |
+| Ollama | 0.35.1 | `http://localhost:11434` |
 | qwen3.5:9b | 6.6 GB | Primary LLM — **use this** |
 | phi3:mini | 2.2 GB | Backup only |
 | openai SDK | - | Installed |
 | anthropic SDK | - | **Not installed** |
 
-**Always use `.venv/Scripts/python` for all commands, never system Python.**
+**Always use `.venv/Scripts/python` for all commands, never system Python.** Setup: `SETUP.md`. Reproducing the paper: `docs/REPRODUCING_RESULTS.md`.
 
 ```bash
-# Run a benchmark
+# Run a benchmark (both conditions)
 .venv/Scripts/python scripts/run_idpo_benchmark.py --pack datasets/probe_3.json --config configs/idpo_research_config.json
 
 # Diagnose last benchmark
@@ -54,197 +56,126 @@ This is a **conference paper project**. The research claim is narrow:
 
 ```
 idpo/
-  pipeline/
-    executor.py       — Stage orchestrator. Runs OCR → extract → validate → recover.
-    planning.py       — Policy selection + operator spec building. BUG HERE (see below).
-    orchestrator.py   — Top-level run coordinator. Calls DocumentAnalysisAgent then planner.
-    policy_advisor.py — Builds AHMN payload from DAEOutput, calls direct_advisor.
-  agents/
-    doc_analysis.py   — Computes quality_bin, doc_type, vendor_cluster. Runs BEFORE routing.
-    preprocess.py     — OCR (PaddleOCR + Tesseract). PSM and engine are policy-driven.
-    llm_extraction.py — LLM extraction. Per-field mode + thinking mode now implemented.
-    extraction_prompts.py — Prompt builders. N/A rule added.
-    extraction_providers.py — Ollama/OpenAI wrappers. JSON schema enforcement added.
-    validation.py     — Field validation + grounding check.
-    recovery.py       — Re-extracts failed fields.
+ pipeline/
+ executor.py — Stage orchestrator. Runs OCR → extract → validate → recover.
+ planning.py — Policy selection + operator spec building. Policy-explicit deskew/denoise overrides the quality heuristic.
+ orchestrator.py — Top-level run coordinator. Calls DocumentAnalysisAgent then planner.
+ policy_advisor.py — Builds AHMN payload from DAEOutput, calls direct_advisor.
+ policy_safety.py — Rollback monitor behind the adaptive_safe gate (absolute and baseline-relative limits).
+ agents/
+ doc_analysis.py — Computes quality_bin, doc_type, vendor_cluster, semantic_doc_type (from OCR text, after routing).
+ preprocess.py — OCR (PaddleOCR + Tesseract). PSM and engine are policy-driven.
+ llm_extraction.py — LLM extraction. Per-field mode and thinking mode are policy options.
+ extraction_prompts.py — Prompt builders. Omit-if-absent rule.
+ extraction_providers.py — Ollama/OpenAI wrappers. JSON schema enforcement.
+ validation.py — Field validation + grounding check.
+ recovery.py — Re-extracts failed fields.
 
 ahmn_core/
-  direct_advisor.py   — Thompson Sampling core. Specialist exclusivity fix added.
+ direct_advisor.py — Thompson Sampling core used by the runtime. Specialist exclusivity.
+ experiments/ — RABI/DAAF simulator behind the paper's Table V (simulation only; not in the runtime).
 
-guardrails/           — 6-layer validation ensemble (built by W.L.A.T.). NOT YET WIRED IN.
-  core/ensemble.py    — Orchestrates 6 checks: schema, relevance, consistency, domain, PII, faithfulness
-  core/validation.py  — Relevance (hallucination) + faithfulness checks
-  models.py           — Document type schemas (Receipt, Invoice, etc.)
+guardrails/ — 6-layer validation ensemble (built by W.L.A.T.). A separate service; not called by the measured pipeline.
 
 configs/
-  idpo_research_config.json    — Active research config
-  policy_store_research.json   — Research policies (specialist + generic)
-  policy_store_baseline.json   — Static baseline (default policy only)
+ idpo_research_config.json — Research config used for the paper (includes the rollback guard limits)
+ policy_store_research.json — Research policies (16: 2 specialists, 13 generic, default)
+ policy_store_baseline.json — Static baseline (default policy only)
 
 datasets/
-  mixed_20.json       — 20-doc benchmark (10 CORD + 10 FUNSD)
-  probe_3.json        — 3-doc quick probe
-  FUNSD/              — 50 FUNSD test images + annotations
-  derived/            — CORD derived packs (100-seed)
-  external/cord-v2/   — Raw CORD parquet
+ cord_pack_50.json — CORD-dev (50 validation receipts, seed 17)
+ cord_holdout_50.json — CORD-holdout (the other 50 validation receipts)
+ funsd_pack_20.json — FUNSD-20 (test-split forms)
+ hard_docs_13.json — HARD-13 (6 synthetic hard documents + 4 CORD + 3 FUNSD)
+ probe_3.json — 3-doc quick probe
 
 scripts/
-  run_idpo_benchmark.py  — Main benchmark runner (static vs adaptive_safe)
-  bench_diag.py          — Per-doc result inspector
+ run_idpo_benchmark.py — Main benchmark runner (static vs adaptive_safe)
+ aggregate_benchmark_evidence.py — Paper tables and paired bootstrap differences (--rescore)
+ analyze_benchmark_errors.py — Per-field errors and label-free reward vs exact F1
+ build_cord_benchmark_pack.py, build_cord_holdout_pack.py, build_funsd_pack.py, build_hard_docs_pack.py — Pack builders
+ bench_diag.py — Per-doc result inspector
+
+paper/
+ ieee/main.tex, ieee/main.pdf — The paper (IEEEtran, six pages)
+ FINAL_EVIDENCE.md — Frozen results, run folders and regeneration commands
 ```
 
 ---
 
-## What's Been Implemented on This Branch
+## Current State
 
-All changes are on `feature/IDPO`. See git log for specifics.
+Phase: **evidence frozen; publication preparation** (`docs/PROJECT_DIRECTION.md`).
 
-### Done ✓
-1. **Static baseline policy store** (`policy_store_baseline.json`) — static condition now uses only `default` policy (no specialist routing). True dumb baseline.
-2. **JSON schema enforcement** — Ollama `/api/chat` receives full entity-list JSON schema. Prevents hallucinated field names and malformed JSON.
-3. **Anti-hallucination prompt** — Per-field `[omit if not present]` + "do NOT guess or infer". Rule 6 now returns `"N/A"` with confidence 0.0 for absent fields (parsing already filters these).
-4. **Grounding check in validation** — Post-extraction: value tokens (>3 chars) must appear in source document text. Ungrounded values flagged as `ungrounded_value` (severity: high).
-5. **Fixed `_looks_like_amount`** — Was rejecting all comma-formatted amounts (`70,000`, `379,500`). Now strips separators then checks `isdigit()`.
-6. **Vendor_cluster bug fix** — FUNSD filenames (e.g. `82092117.png`) yielded wrong `vendor_cluster`. Benchmark now renames temp files to `case_id + suffix`, so `funsd_82092117.png` → vendor_cluster="funsd".
-7. **Per-field extraction mode** — `per_field_extraction: true` in policy extraction config runs one LLM call per field instead of bulk. Fixes field assignment confusion. Enabled for `receipt_specialist` and `correspondence_specialist`.
-8. **Thinking mode per policy** — `use_thinking: true` in policy extraction config enables Qwen3's reasoning chain for complex docs. Enabled for `correspondence_specialist`.
-9. **Specialist exclusivity in AHMN** — When a vendor-cluster specialist is a candidate, quality-based generic policies (`noisy_ocr_rescue`, `noisy_ocr_precision_local`, `scanned_text`) are excluded from the TS draw. Specialist always wins when it matches.
-10. **AHMN state cleared** — All old TS posteriors deleted. Clean slate for new runs.
+### Final results (`paper/FINAL_EVIDENCE.md`)
 
-### Last Benchmark Results (reference, do not delete these folders)
-- `idpo-data/runs/benchmarks/benchmark_1777096266` — static baseline fix, no prompt improvements
-- `idpo-data/runs/benchmarks/benchmark_1777097171` — all improvements; F1=0.455 both conditions, validation pass 0.80
+Paired differences, adaptive minus static, with 95% bootstrap intervals (10,000 resamples, seed 17):
 
----
+| Pack | Δ doc F1 | Δ latency (s) |
+|---|---|---|
+| CORD-dev (50) | +0.001 [−0.028, +0.031] | +5.20 [+3.69, +6.63] |
+| CORD-holdout (50) | −0.023 [−0.068, +0.003] | +2.61 [+1.16, +4.12] |
+| CORD-100 (pooled) | −0.011 [−0.038, +0.011] | +3.91 [+2.84, +4.95] |
+| FUNSD-20 | 0 (tied on every document) | +0.54 [−1.38, +2.22] |
+| HARD-13 | 0 (tied on every document) | −2.09 [−6.99, +0.81] |
 
-## Known Issues / What Is NOT Working
+The static pipeline reaches micro F1 0.898 (CORD-dev), 0.871 (CORD-holdout), 0.788 (FUNSD-20) and 0.960 (HARD-13).
 
-### P0 — Critical gaps
+Why routing did not help:
+- The label-free reward `r = 2TP/(2TP+FP+FN)` measures coverage, not correctness. On CORD its Pearson correlation with exact document F1 was 0.07 (adaptive).
+- Only the two specialists change the extraction call, so the effective action space is four behaviours, not sixteen policies.
+- Per-field extraction recovered more change amounts but also returned values for fields the receipt does not contain; no net gain.
 
-**1. Policy preprocess is overridden by quality heuristics (`planning.py:330-336`)**
-```python
-# Current — policy denoise only runs if quality heuristic agrees:
-if preprocess.get("denoise", {}).get("enabled", True) and (
-    dae_output.route_bin == "heavy" or dae_output.quality_bin in {"B", "C"}
-):
-```
-If a specialist says `denoise: aggressive` but quality_bin is "A", denoise is skipped. The policy's intent is silently ignored. **Fix: policy explicit config must override heuristic defaults.**
+### Changes made while building the evidence
+1. Static baseline store (`policy_store_baseline.json`, `default` only).
+2. JSON schema enforcement, omit-if-absent prompt, grounding check in validation, and a fix to the amount check for comma-formatted values.
+3. `vendor_cluster` from the case-id prefix of the file name (benchmark temp files are renamed to `case_id + suffix`).
+4. Per-field extraction for `receipt_specialist` and `correspondence_specialist`. Thinking mode was tried and reverted: `use_thinking` is `false` for both.
+5. Specialist exclusivity in the Thompson sampling draw.
+6. Policy-explicit deskew/denoise overrides the quality heuristic (`planning.py`).
+7. Baseline-relative rollback guard (`policy_safety.py`, `rollback` block of the research config). The first runs used absolute limits (2.5 s p95 latency, 0.25 validation failure rate), which blocked every non-default policy after five observations, because the default itself takes 9–14 s. The final runs use limits relative to `default` (L = 60 s, F = 0.5, ρ = 0.25, δv = 0.10, δq = 0.08, W = 10, m = 5). The paper reports both rounds.
+8. Scorer fixes: date fields also match the same calendar date, and repeated dot-thousands separators (`2.000.000`) are read as numbers. Every saved run was rescored (`aggregate_benchmark_evidence.py --rescore`); no paired comparison changed sign or significance.
+9. The frontend job API and dashboard pages need a gateway-verified session (`frontend/src/middleware.ts`); the first admin comes from `ADMIN_PASSWORD`.
+10. The AHMN simulator seeds NumPy as well as Python's `random`, so the paper's Table V regenerates exactly.
 
-**2. Guardrails component is completely disconnected**
-`guardrails/` is a full 6-layer validation ensemble (schema adherence, relevance/hallucination detection, consistency, domain rules, PII, faithfulness). It is **never imported or called** from the IDPO pipeline. The hallucination detection (semantic relevance of extracted values vs source text) in `guardrails/core/validation.py:check_relevance()` is exactly what we need. Zero effort to wire in.
-
-**3. `doc_type` is too coarse for routing**
-`DocumentAnalysisAgent` returns `"scanned_document"`, `"text_document"`, `"form_document"` — generic structural categories. It never identifies "receipt" or "correspondence". Only `vendor_cluster` (filename prefix) provides document identity. If a document arrives without a known prefix, AHMN routes blind.
-
-**4. F1 delta between static and adaptive is 0.0**
-Per-field extraction and thinking mode are implemented but **only fire when the specialist is selected**. With specialist exclusivity now in place and AHMN state cleared, the next benchmark should show a real delta for docs that route to specialists. This needs to be verified.
-
-**5. No job-level field tracking**
-Field extraction success/failure rates are computed per-document and discarded. There is no accumulation of "in this job, `change_amount` fails 70% of the time" to inform future routing or recovery. The job overlay mechanism (`IDPO_JOB_OVERLAY_PATH`) exists but must be manually populated — it is not auto-written.
-
-### P1 — Important but not blocking
-
-**6. `avg_schema_grounding_coverage` is always 0.0**
-Every benchmark shows this metric as 0.0. Either the metric is never populated or the signal is always empty. Needs investigation.
-
-**7. FUNSD OCR quality is the hard ceiling**
-"Jy" for "July", "Amst" for "August" — PaddleOCR struggles with degraded fax/scan artifacts in FUNSD documents. Tesseract 5.4.0 is installed and pytesseract is available. Tesseract handles degraded English text better. OCR engine should be a policy-selectable option (infrastructure partially exists — `preprocess.ocr.engine` param is supported in planning.py).
-
-**8. `cord_probe_0020` field swap not yet confirmed fixed**
-Per-field extraction was implemented and specialist exclusivity added, but we haven't run the probe after both fixes are active and AHMN state is clean. This is the primary verification needed.
-
----
-
-## Immediate Next Steps (in order)
-
-### Step 1: Fix policy preprocess override (`planning.py`)
-In `_default_operator_specs()` (~line 330), change the deskew/denoise conditions so that if the policy **explicitly** sets `enabled: true`, the stage runs regardless of quality_bin. Quality heuristic is a fallback only when the policy has no opinion.
-
-```python
-# Target behaviour:
-policy_wants_denoise = preprocess.get("denoise", {}).get("enabled") is True  # explicit True
-quality_suggests_denoise = dae_output.route_bin == "heavy" or dae_output.quality_bin in {"B", "C"}
-if is_image_pipeline and (policy_wants_denoise or quality_suggests_denoise):
-    specs.append({"operator": "preprocess.denoise"})
-```
-
-### Step 2: Add fine-grained doc_type fingerprinting (`doc_analysis.py`)
-After initial text extraction, run a fast heuristic classifier on OCR text to detect:
-- `"receipt"` — currency symbols, "total", "tax", "cash", amount patterns
-- `"correspondence"` — "Dear", "Sincerely", "From:", "To:", salutation patterns
-- `"legal_form"` — "COURT", "CASE", "PLAINTIFF", "FILED", "JUDGMENT"
-- `"structured_form"` — high label:value line density without financial amounts
-- `"unknown"` — fallback
-
-Store as a separate field `semantic_doc_type` (not replacing `doc_type`) on DAEOutput.
-
-### Step 3: Update AHMN policy conditions to use `semantic_doc_type`
-Add `semantic_doc_type` conditions to specialist policies so they match even when vendor_cluster is unknown:
-```json
-"conditions": {
-  "vendor_cluster": ["cord"],
-  "semantic_doc_type": ["receipt"]  // either condition matches
-}
-```
-Update `_matches_conditions` to support OR logic across multiple condition keys (current logic is AND).
-
-### Step 4: Add Tesseract as policy-selectable OCR engine
-`pytesseract` is installed, Tesseract 5.4.0 is on PATH. `preprocess.py` already accepts an `engine` parameter from policy. Add a `_tesseract_ocr()` method alongside `_paddleocr()`. Enable in `correspondence_specialist` and `noisy_ocr_rescue` policies for English degraded documents.
-
-### Step 5: Wire guardrails relevance check into validation pipeline
-In `idpo/agents/validation.py`, after per-field validation, call `guardrails.core.validation.check_relevance()` with the extracted entities and source document text. Add the resulting score to the field confidence adjustment. This catches hallucinated values that pass pattern/grounding checks but are semantically unrelated to the source.
-
-### Step 6: Auto-accumulate job-level field context
-After each document completes, append to a job-scoped context file:
-```json
-{"policy_id": "receipt_specialist", "doc_type": "receipt", "vendor_cluster": "cord",
- "field_results": {"total_amount": {"extracted": true, "confidence": 0.92},
-                   "change_amount": {"extracted": false, "confidence": 0.0}}}
-```
-Load this at the start of each document's routing as an additional signal for AHMN. After N documents, the system knows which fields are reliably extracted in this job and can bias policy selection accordingly.
-
-### Step 7: Run 5-record test and observe
-After Steps 1-3 are complete, run:
-```bash
-.venv/Scripts/python scripts/run_idpo_benchmark.py \
-  --pack datasets/probe_5.json \
-  --config configs/idpo_research_config.json
-```
-Build `probe_5.json` with:
-1. `cord_validation_0020` — hard receipt (subtotal/tax swap — verify per-field fixes it)
-2. `cord_validation_0006` — receipt that worked before (regression check)
-3. `funsd_82573104` — correspondence with decent OCR (test thinking mode)
-4. `funsd_82491256` — legal form (test semantic_doc_type routes it away from correspondence_specialist)
-5. `cord_validation_0025` — unseen CORD receipt (cold-start routing test)
-
-**Success criteria for Step 7:**
-- Docs 1-2 route to `receipt_specialist` (per-field fires)
-- Doc 3 routes to `correspondence_specialist` (thinking fires)
-- Doc 4 routes to `default` or `unknown_vendor_safe`, NOT correspondence_specialist
-- Doc 5 routes to `receipt_specialist` based on semantic_doc_type="receipt" alone
-- F1 for adaptive condition is higher than static on at least 1 receipt doc
+### Limitations (stated in the paper)
+- Specialist eligibility relies on the file-name prefix (`vendor_cluster`), which reveals the dataset. `semantic_doc_type` is computed from OCR text after routing, so it is `unknown` at routing time.
+- Prompts, normalisers and specialist context were written while inspecting CORD-dev and FUNSD-20. CORD-holdout is the only clean holdout.
+- The runtime sampler is unseeded and four documents run concurrently, so adaptive results vary between runs. Each adaptive configuration ran once.
+- RABI and DAAF exist only in the simulator. Guardrails is a separate service.
+- FUNSD OCR quality ("Jy" for "July") is the ceiling for forms.
 
 ---
 
 ## Paper Claim (do not widen this)
 
-> `adaptive_safe` correctly identifies document type, routes to specialist policies that use context-appropriate extraction strategies (per-field LLM calls for receipts, reasoning-enabled calls for correspondence), and produces measurably better extraction accuracy and lower latency than a fixed static baseline. The AHMN routing layer learns from per-document outcomes via Thompson Sampling, accumulates job-level context, and improves routing decisions over time within a job.
+> In paired runs with a holdout split, Thompson-sampling routing with a safety gate did not improve the accuracy of a local, template-free OCR–LLM extractor on receipts, forms or hard documents, and it added latency on receipts. A label-free coverage reward cannot teach a router to prefer correct policies over merely complete ones, and safety limits must be calibrated against the baseline, or they silently switch adaptation off.
 
-**Evidence needed:**
-1. Policy distribution differs (static=all default, adaptive=diverse specialists) ✓ already shown
-2. F1 delta > 0 on documents that route to specialists — **needs Step 7 to verify**
-3. Latency delta statistically significant (95% CI excludes 0) ✓ shown in brf6jk18z
-4. Validation pass rate improves with guardrails wired in — **needs Step 5**
+Every number in the paper must trace to `paper/FINAL_EVIDENCE.md`.
+
+---
+
+## Next Steps
+
+1. Choose the venue and adapt `paper/ieee/main.tex` to its template, page limit and review policy.
+2. Archive the run folders listed in `paper/FINAL_EVIDENCE.md` with the repository release.
+3. For double-blind review, point the paper's release sentence at an anonymised copy of the repository; add the author block for camera-ready.
+4. If a runtime change can alter benchmark outcomes, rerun the benchmarks and update the paper and `paper/FINAL_EVIDENCE.md` together.
+
+The run folders `idpo-data/runs/benchmarks/benchmark_1777096266` and `benchmark_1777097171` are earlier reference runs; do not delete them either.
 
 ---
 
 ## What NOT to Do
 
 - Do not change `policy_store_baseline.json` — it must stay as dumb default-only
+- Do not edit numbers in the paper without regenerating them with the commands in `paper/FINAL_EVIDENCE.md`
+- Do not re-tune prompts, normalisers or the scorer against the benchmark packs
 - Do not overfit field descriptions to CORD/FUNSD specifically — keep descriptions general and logical
 - Do not add `per_field_extraction: true` to default or generic policies — only specialists
 - Do not enable `use_thinking: true` for receipt extraction — it adds 30-60s latency with no benefit for numeric extraction
-- Do not widen the paper claim beyond the narrow routing + specialist extraction story
+- Do not wire Guardrails, RABI or DAAF into the measured pipeline without new runs and a revised claim
+- Do not widen the paper claim
 - Do not use `python` directly — always use `.venv/Scripts/python`
 
 ---
@@ -254,12 +185,11 @@ Build `probe_5.json` with:
 ```bash
 # Unit tests
 .venv/Scripts/python -m pytest idpo/tests/ -x -q
+.venv/Scripts/python -m pytest ahmn_core/tests/ gateway/tests/ guardrails/tests/ xai_hitl/tests/ -q
+cd frontend; npx tsc --noEmit; npm run lint; npm run test:server
 
 # Quick 3-doc probe
 .venv/Scripts/python scripts/run_idpo_benchmark.py --pack datasets/probe_3.json
-
-# Full 20-doc benchmark
-.venv/Scripts/python scripts/run_idpo_benchmark.py --pack datasets/mixed_20.json
 
 # Inspect results
 .venv/Scripts/python scripts/bench_diag.py
@@ -269,3 +199,4 @@ Key test files:
 - `idpo/tests/test_extraction_enhancements.py`
 - `idpo/tests/test_pipeline_tuning_upgrades.py`
 - `idpo/tests/test_research_features.py`
+- `ahmn_core/tests/test_algorithms.py`

@@ -9,9 +9,8 @@ Reads experiment_results.json and produces:
   5. Per-round regret curves with 95% confidence bands (saved as PNGs)
   6. Failure mode catalog from robustness sweeps
 
-Usage:
-    cd ahmn_core
-    python -m experiments.analysis
+Usage (from the repository root):
+    python -m ahmn_core.experiments.analysis
 """
 
 import json
@@ -388,7 +387,7 @@ def print_failure_mode_catalog(robustness: dict | None):
 
     if not robustness:
         print("  [SKIP] No robustness_results.json found.")
-        print("  Run first:  python -m experiments.robustness_study")
+        print("  Run first:  python -m ahmn_core.experiments.robustness_study")
         return
 
     sweeps = robustness.get("sweeps", {})
@@ -447,7 +446,7 @@ def main():
     
     if data is None:
         print("ERROR: No experiment_results.json found. Run experiments first:")
-        print("  python -m experiments.run_experiments")
+        print("  python -m ahmn_core.experiments.run_experiments")
         sys.exit(1)
     
     results = data["main_results"]

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { SignupLink } from "@/components/signup-link";
 
 const sections = [
     { id: "quickstart", label: "Getting Started" },
@@ -14,14 +15,26 @@ const sections = [
 const apiEndpoints = [
     {
         method: "POST",
-        path: "/api/runs/start",
-        desc: "Create an IDPO processing job from uploaded files",
+        path: "/api/jobs",
+        desc: "Create a job with the fields to extract",
+        color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
+    },
+    {
+        method: "POST",
+        path: "/api/jobs/{job_id}/documents",
+        desc: "Upload documents to a job (multipart field files)",
+        color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
+    },
+    {
+        method: "POST",
+        path: "/api/jobs/{job_id}/runs",
+        desc: "Process the selected documents",
         color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
     },
     {
         method: "GET",
         path: "/api/jobs/{job_id}",
-        desc: "Poll queued or running IDPO job status",
+        desc: "Poll job status and per-document results",
         color: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10",
     },
     {
@@ -173,7 +186,8 @@ docker compose up --build -d
                                 <CodeBlock
                                     language="text"
                                     code={`Open http://localhost:3000 in your browser.
-Sign up for an account or log in with default admin credentials.
+Sign up for an account, or sign in with the admin account
+created from ADMIN_PASSWORD in .env on first start.
 Navigate to Document Extraction to start processing.`}
                                 />
                             </div>
@@ -181,9 +195,21 @@ Navigate to Document Extraction to start processing.`}
                                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">3. Start a processing job</h3>
                                 <CodeBlock
                                     language="bash"
-                                    code={`curl -X POST http://localhost:3000/api/runs/start \\
-  -F "files=@invoice.pdf" \\
-  -F 'settings={"configPath":"configs/config.json","customFields":[{"key":"total_amount","description":"Total due"}]}'`}
+                                    code={`# Sign in once; job endpoints need the token
+TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \\
+  -H "Content-Type: application/json" \\
+  -d '{"username":"admin","password":"your_password"}' | jq -r .access_token)
+AUTH="Authorization: Bearer $TOKEN"
+
+# Create a job, upload a document, then process it
+JOB=$(curl -s -X POST http://localhost:3000/api/jobs -H "$AUTH" \\
+  -H "Content-Type: application/json" \\
+  -d '{"jobName":"invoices","fieldConfigCurrent":[{"name":"total_amount","description":"Total due"}]}' | jq -r .jobId)
+FILE=$(curl -s -X POST http://localhost:3000/api/jobs/$JOB/documents -H "$AUTH" \\
+  -F "files=@invoice.pdf" | jq -r '.documents[0].fileId')
+curl -X POST http://localhost:3000/api/jobs/$JOB/runs -H "$AUTH" \\
+  -H "Content-Type: application/json" \\
+  -d "{\\"selectedFileIds\\":[\\"$FILE\\"],\\"mode\\":\\"adaptive\\"}"`}
                                 />
                             </div>
                             <div>
@@ -213,7 +239,8 @@ Navigate to Document Extraction to start processing.`}
                             Integration Guide
                         </h2>
                         <p className="text-slate-600 dark:text-gray-400 mb-8 text-lg leading-relaxed max-w-3xl">
-                            RESTful API with JSON request and response bodies. All endpoints require API key authentication.
+                            RESTful API with JSON request and response bodies. Job endpoints require a signed-in session: send the
+                            token from <code>/api/auth/login</code> as a Bearer header. The dashboard uses its session cookie.
                         </p>
 
                         <div className="space-y-4">
@@ -275,13 +302,13 @@ curl http://localhost:8000/api/dashboard/stats \\
                                     <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Processing Pipeline</h3>
                                     <div className="space-y-3">
                                         {[
-                                            "Upload your document via dashboard or API",
-                                            "AI identifies the document type and layout",
-                                            "Intelligent extraction pulls key data fields",
-                                            "Quality checks validate all extracted data",
-                                            "AI generates explanations for each decision",
-                                            "Uncertain items are sent for expert review",
-                                            "Final validated results delivered to you",
+                                            "Upload documents to a job via the dashboard or API",
+                                            "Each document is profiled for quality, layout and type",
+                                            "AHMN picks a processing policy for each document",
+                                            "OCR and an LLM extract the job's fields",
+                                            "Validation checks each value's format and that it appears in the source text",
+                                            "Operators review and correct values; reviews are fed back to AHMN",
+                                            "Results and run artifacts are exported per job",
                                         ].map((step, j) => (
                                             <div key={j} className="flex items-start gap-3 text-sm text-slate-600 dark:text-gray-400">
                                                 <span className="text-xs font-bold text-brand-500 bg-brand-50 dark:bg-brand-500/10 px-2 py-0.5 rounded-md mt-0.5 shrink-0">
@@ -361,9 +388,9 @@ curl http://localhost:8000/api/dashboard/stats \\
                         Our team is here to help you integrate Modular Doc AI into your workflow.
                     </p>
                     <div className="flex items-center justify-center gap-4 flex-wrap">
-                        <Link href="/signup" className="px-8 py-4 glass-button rounded-xl text-lg flex items-center gap-2">
+                        <SignupLink className="px-8 py-4 glass-button rounded-xl text-lg flex items-center gap-2">
                             Start Building
-                        </Link>
+                        </SignupLink>
                         <Link href="/contact" className="px-8 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-xl text-lg font-medium transition-all shadow-sm">
                             Contact Support
                         </Link>

@@ -27,8 +27,9 @@ imgaug==0.4.0
 albumentations==1.4.10
 python-docx==1.2.0
 
-# PDF
+# PDF (PyMuPDF renders scanned PDF pages for OCR without a Poppler install)
 pypdf==6.10.2
+pymupdf==1.26.7
 
 # Frontend API server
 fastapi==0.136.0
@@ -43,3 +44,8 @@ openai==2.32.0
 
 # Optional extras
 openpyxl==3.1.5
+
+# Benchmark pack builders and tests
+pyarrow==25.0.1
+python-dateutil==2.9.0.post0
+pytest-asyncio==1.4.0

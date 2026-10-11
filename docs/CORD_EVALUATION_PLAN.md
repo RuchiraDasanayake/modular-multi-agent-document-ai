@@ -65,7 +65,7 @@ Do not use `CORD v2` to claim:
 
 Use the canonical runtime only:
 
-`frontend upload -> /api/runs/start -> frontend job runner -> idpo.cli process-inbox -> IDPO_DATA_DIR/runs/<run_id>`
+`frontend job (POST /api/jobs/<job_id>/documents, then POST /api/jobs/<job_id>/runs) -> frontend job runner -> idpo.cli process-inbox -> IDPO_DATA_DIR/runs/<run_id>`
 
 For batch evaluation work, the acceptable non-UI execution path is still:
 

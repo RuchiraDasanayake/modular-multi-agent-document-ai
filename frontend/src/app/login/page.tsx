@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { setToken } from "@/lib/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useSignupOpen } from "@/components/signup-link";
 
 export default function LoginPage() {
     const router = useRouter();
+    const signupOpen = useSignupOpen();
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
@@ -101,12 +103,18 @@ export default function LoginPage() {
                         </Link>
                     </div>
 
-                    <p className="text-sm text-slate-500 dark:text-gray-400 text-center">
-                        Don&apos;t have an account?{" "}
-                        <Link href="/signup" className="text-brand-600 dark:text-brand-400 hover:text-brand-500 dark:hover:text-brand-300 font-medium transition-colors">
-                            Sign up
-                        </Link>
-                    </p>
+                    {signupOpen ? (
+                        <p className="text-sm text-slate-500 dark:text-gray-400 text-center">
+                            Don&apos;t have an account?{" "}
+                            <Link href="/signup" className="text-brand-600 dark:text-brand-400 hover:text-brand-500 dark:hover:text-brand-300 font-medium transition-colors">
+                                Sign up
+                            </Link>
+                        </p>
+                    ) : (
+                        <p className="text-sm text-slate-500 dark:text-gray-400 text-center">
+                            Need an account? Ask an administrator to create one.
+                        </p>
+                    )}
                 </form>
             </div>
         </div>

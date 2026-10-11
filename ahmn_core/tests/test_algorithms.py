@@ -164,3 +164,22 @@ class TestDAAF:
             bandit.update("arm1", 0.3)
         stats = bandit.get_arm_stats("arm1")
         assert stats["last_gamma"] > 0.05
+
+
+class TestSimulationReproducibility:
+
+    def test_seed_fixes_the_run_regardless_of_global_random_state(self):
+        """Published regret tables must not depend on what ran earlier in the process."""
+        from ahmn_core.experiments.run_experiments import AHMNFullRunner, run_single
+        from ahmn_core.experiments.synthetic_data import create_drift_scenario
+
+        scenario = create_drift_scenario(n_rounds=300)
+        np.random.seed(1)
+        random.seed(1)
+        first = run_single(AHMNFullRunner(scenario.policy_ids), scenario, seed=3)
+        np.random.seed(2)
+        random.seed(2)
+        second = run_single(AHMNFullRunner(scenario.policy_ids), scenario, seed=3)
+
+        assert second.selected_policies == first.selected_policies
+        assert second.total_regret == first.total_regret
