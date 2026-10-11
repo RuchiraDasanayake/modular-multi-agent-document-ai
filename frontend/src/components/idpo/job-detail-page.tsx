@@ -713,6 +713,9 @@ export function JobDetailPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Link href={`/dashboard/idpo/jobs/${encodeURIComponent(job.jobId)}/auto`} className={secondaryButton}>
+              Automatic schema extraction
+            </Link>
             <Link href={`/dashboard/idpo/jobs/${encodeURIComponent(job.jobId)}/policies`} className={secondaryButton}>
               Policies
             </Link>

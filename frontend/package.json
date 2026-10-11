@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test:server": "node --import tsx --test src/server/config.test.ts src/server/review-flow.test.ts src/server/policies.test.ts src/server/review-contract.test.ts src/server/jobs.test.ts src/server/runner.test.ts src/server/middleware.test.ts src/server/access.test.ts src/components/idpo/job-document-review.test.ts"
+    "test:server": "node --import tsx --test src/server/config.test.ts src/server/review-flow.test.ts src/server/policies.test.ts src/server/review-contract.test.ts src/server/jobs.test.ts src/server/runner.test.ts src/server/middleware.test.ts src/server/access.test.ts src/server/product-auto.test.ts src/components/idpo/job-document-review.test.ts"
   },
   "dependencies": {
     "clsx": "^2.1.0",

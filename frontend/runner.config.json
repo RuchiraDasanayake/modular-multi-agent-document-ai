@@ -39,6 +39,24 @@
       "env": {
         "PYTHONUTF8": "1"
       }
+    },
+    {
+      "id": "idpo_process_auto",
+      "description": "Run opt-in schema discovery and evidence-backed extraction",
+      "program": "../.venv/Scripts/python.exe",
+      "args": [
+        "-m",
+        "idpo.cli",
+        "process-auto",
+        "--input",
+        "{input_dir}",
+        "--run-id",
+        "{run_id}"
+      ],
+      "cwd": "..",
+      "env": {
+        "PYTHONUTF8": "1"
+      }
     }
   ],
   "backendChecks": [

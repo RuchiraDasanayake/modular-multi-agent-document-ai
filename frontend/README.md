@@ -66,6 +66,14 @@ Open:
 6. Inspect structured results in the job detail page.
 7. Open atomic document detail when deeper inspection is needed.
 
+### Opt-in automatic schema extraction
+
+Open a job and select **Automatic schema extraction**. Select uploaded files, run extraction, then open each result to compare the original beside proposed fields, values, document status, and exact text evidence. The preview uses the existing owner-scoped source endpoint. Human decisions and corrections are saved separately from machine candidates. Every save adds an audit event with the reviewer ID, timestamp, machine value, and correction. Review saves require the current revision; a concurrent edit returns 409 and must be reloaded before saving again.
+
+The single-host runner invokes `python -m idpo.cli process-auto`. Without a model it uses the local deterministic baseline. To enable model proposals, configure `IDPO_AUTO_MODEL`, `IDPO_AUTO_API_BASE_URL`, and `ICORE_API_KEY` in the **server** environment. The key is never sent to the browser or stored in job artifacts. Model-backed runs require an admin account until quotas and cost controls exist. The Docker frontend config does not include this command because that image has no Python runtime.
+
+This is a local vertical slice. Its in-process launcher does not provide a durable distributed queue, and extraction accuracy and cost still require the distinct-document evaluation gate in `docs/PRODUCTIZATION_PLAN.md`.
+
 ## 5) API Endpoints (Runner + Artifacts)
 
 - `GET /api/health`
@@ -74,6 +82,8 @@ Open:
 - `GET /api/jobs/:jobId`, `PATCH /api/jobs/:jobId`
 - `POST /api/jobs/:jobId/documents` (multipart upload into the job queue)
 - `POST /api/jobs/:jobId/runs` (process selected documents: `{ selectedFileIds, mode, settings }`)
+- `GET /api/jobs/:jobId/auto`, `POST /api/jobs/:jobId/auto` (opt-in automatic extraction with server-selected model)
+- `GET /api/jobs/:jobId/auto/:runId/docs/:docId`, `POST /api/jobs/:jobId/auto/:runId/docs/:docId` (candidate and append-only human review)
 - `GET /api/jobs/:jobId/docs/:docId`, `POST /api/jobs/:jobId/docs/:docId` (document detail and review)
 - `GET /api/jobs/:jobId/docs/:docId/content`
 - `GET /api/jobs/:jobId/docs/:docId/text` (OCR text of the document's latest run, first 20,000 characters; used by AI Q&A)

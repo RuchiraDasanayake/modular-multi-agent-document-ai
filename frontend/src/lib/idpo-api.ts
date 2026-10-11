@@ -7,6 +7,7 @@ import type {
   BenchmarkRunSummary,
   BenchmarkEvidencePayload,
 } from "@/types/idpo";
+import type { ProductAutoDocumentDetail, ProductAutoReview, ProductAutoReviewField, ProductAutoRun, ProductAutoSourceDocument } from "@/types/product-auto";
 
 async function localRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
@@ -27,6 +28,30 @@ async function localRequest<T>(path: string, options: RequestInit = {}): Promise
 }
 
 export const idpoApi = {
+  listProductAutoRuns(jobId: string): Promise<{ available: boolean; modelConfigured: boolean; sourceFiles: ProductAutoSourceDocument[]; runs: ProductAutoRun[] }> {
+    return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto`);
+  },
+
+  startProductAutoRun(jobId: string, selectedFileIds: string[]): Promise<ProductAutoRun> {
+    return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ selectedFileIds }),
+    });
+  },
+
+  getProductAutoDocument(jobId: string, runId: string, docId: string): Promise<ProductAutoDocumentDetail> {
+    return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(runId)}/docs/${encodeURIComponent(docId)}`);
+  },
+
+  saveProductAutoReview(jobId: string, runId: string, docId: string, expectedRevision: number, fields: ProductAutoReviewField[]): Promise<{ review: ProductAutoReview }> {
+    return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(runId)}/docs/${encodeURIComponent(docId)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expected_revision: expectedRevision, fields }),
+    });
+  },
+
   listJobs(): Promise<{ jobs: JobStatus[] }> {
     return localRequest("/api/jobs");
   },
