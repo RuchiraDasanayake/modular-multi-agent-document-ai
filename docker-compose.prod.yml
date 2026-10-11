@@ -1,5 +1,5 @@
 # Production VPS Deployment with Docker Compose
-# Use with: docker-compose -f docker-compose.prod.yml up -d
+# Use with: docker compose --env-file .env.production -f docker-compose.prod.yml up -d
 
 services:
   # ── Database ──
@@ -9,7 +9,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for production}
       POSTGRES_DB: ${POSTGRES_DB:-ahmn_db}
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"  # Keep internal only
@@ -39,13 +39,13 @@ services:
     image: redis:alpine
     container_name: docai_redis
     restart: always
-    command: redis-server --requirepass ${REDIS_PASSWORD:-docai_redis_secret} --appendonly yes
+    command: redis-server --requirepass ${REDIS_PASSWORD:?Set REDIS_PASSWORD for production} --appendonly yes
     ports:
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"  # Keep internal only
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-docai_redis_secret}", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?Set REDIS_PASSWORD for production}", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -74,9 +74,9 @@ services:
       - path: .env
         required: false
     environment:
-      POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-ahmn_db}
+      POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for production}@db:5432/${POSTGRES_DB:-ahmn_db}
       REDIS_HOST: redis
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-docai_redis_secret}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD for production}
     depends_on:
       db:
         condition: service_healthy
@@ -115,7 +115,7 @@ services:
       - path: .env
         required: false
     environment:
-      POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-ahmn_db}
+      POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for production}@db:5432/${POSTGRES_DB:-ahmn_db}
     depends_on:
       db:
         condition: service_healthy
@@ -150,7 +150,7 @@ services:
       - path: .env
         required: false
     environment:
-      POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-ahmn_db}
+      POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for production}@db:5432/${POSTGRES_DB:-ahmn_db}
     depends_on:
       db:
         condition: service_healthy
@@ -229,8 +229,14 @@ services:
       - path: .env
         required: false
     environment:
-      POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-ahmn_db}
-      REDIS_URL: redis://:${REDIS_PASSWORD:-docai_redis_secret}@redis:6379/1
+      POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for production}@db:5432/${POSTGRES_DB:-ahmn_db}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD for production}@redis:6379/1
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY for production}
+      REQUIRE_EXPLICIT_SECRETS: "true"
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@localhost}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD for initial admin}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:?Set BACKEND_CORS_ORIGINS for production}
       AHMN_SERVICE_URL: http://ahmn:8001
       GUARDRAILS_SERVICE_URL: http://guardrails:8002
       XAI_HITL_SERVICE_URL: http://xai-hitl:8003

@@ -1,4 +1,8 @@
-# VPS Deployment Guide - Document AI
+# Legacy VPS deployment guide
+
+This guide describes an older service topology. Use the
+[current single-host deployment path](DEPLOYMENT_CURRENT.md). Its live container
+smoke and extraction-quality release gates remain outstanding.
 
 This guide walks you through deploying the Document AI system on a Linux VPS using Docker Compose.
 

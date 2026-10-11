@@ -25,6 +25,7 @@ class Settings(BaseSettings):
 
     # ── JWT ──
     JWT_SECRET_KEY: str = "change-me-in-production"
+    REQUIRE_EXPLICIT_SECRETS: bool = False
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 h
 
@@ -47,7 +48,12 @@ class Settings(BaseSettings):
         2. Previously generated secret persisted in ``/app/.jwt_secret``.
         3. Generate a new random secret, persist it, and reuse next time.
         """
-        if self.JWT_SECRET_KEY != "change-me-in-production":
+        explicit_secret = self.JWT_SECRET_KEY.strip()
+        if self.REQUIRE_EXPLICIT_SECRETS:
+            if len(explicit_secret) < 32 or explicit_secret.startswith("change-me"):
+                raise ValueError("Production requires an explicit JWT secret of at least 32 characters")
+            return
+        if explicit_secret and not explicit_secret.startswith("change-me"):
             return  # explicitly set — nothing to do
 
         secret_file = Path("/app/.jwt_secret")

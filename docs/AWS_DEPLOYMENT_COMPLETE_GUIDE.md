@@ -1,4 +1,9 @@
-# 🚀 AWS FREE TIER DEPLOYMENT - COMPLETE GUIDE
+# Legacy AWS deployment guide
+
+The instance and zero-cost claims below have not been validated for the current
+five-service product stack. Use the
+[current single-host deployment path](DEPLOYMENT_CURRENT.md) and obtain a
+current provider quote before provisioning.
 
 Your Document AI application is ready for production deployment on AWS. **Total cost: $0 for 12 months.**
 

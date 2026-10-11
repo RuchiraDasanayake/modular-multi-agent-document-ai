@@ -1,4 +1,9 @@
-# AWS FREE TIER QUICK REFERENCE
+# Legacy AWS quick reference
+
+The instance and zero-cost claims below have not been validated for the current
+five-service product stack. Use the
+[current single-host deployment path](docs/DEPLOYMENT_CURRENT.md) and obtain a
+current provider quote before provisioning.
 
 ## 🎯 5-Minute AWS Setup (No Coding Required!)
 

@@ -519,6 +519,11 @@ cp .env.example .env
 
 ## Legacy Docker Service Deployment
 
+For the current five-service product stack, start with
+[Current single-host deployment path](docs/DEPLOYMENT_CURRENT.md). The
+instructions below describe an older topology and are retained for research
+context.
+
 The steps below describe the legacy service/UI stack plus the product extraction worker.
 The worker boundary has passed Compose parsing and focused tests but has not passed a live container smoke on this host.
 Its current single-run limit and lack of a durable queue make it a pilot rather than a production deployment.

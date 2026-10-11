@@ -305,6 +305,24 @@ def test_jwt_secret_not_default():
 
     assert settings.JWT_SECRET_KEY != "change-me-in-production"
 
+
+@pytest.mark.parametrize("secret", ["", "short", "change-me-in-production-use-a-32-char-random-string"])
+def test_production_rejects_missing_or_example_jwt_secret(secret):
+    from gateway.config import Settings
+
+    config = Settings(_env_file=None, JWT_SECRET_KEY=secret, REQUIRE_EXPLICIT_SECRETS=True)
+    with pytest.raises(ValueError, match="explicit JWT secret"):
+        config.validate_jwt_secret()
+
+
+def test_production_keeps_a_stable_explicit_jwt_secret():
+    from gateway.config import Settings
+
+    secret = "independent-test-secret-32-characters-long"
+    config = Settings(_env_file=None, JWT_SECRET_KEY=secret, REQUIRE_EXPLICIT_SECRETS=True)
+    config.validate_jwt_secret()
+    assert config.JWT_SECRET_KEY == secret
+
 # ═══════════════════════════════════════════════════════════════
 # Schemas
 # ═══════════════════════════════════════════════════════════════
