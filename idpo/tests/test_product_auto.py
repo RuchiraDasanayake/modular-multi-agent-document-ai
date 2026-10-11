@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import sys
 import types
 from pathlib import Path
@@ -25,9 +25,11 @@ def _result(run_dir: str) -> tuple[dict, dict]:
 def _assert_exact_evidence(candidate: dict, sidecar: dict) -> None:
     pages = {page["page"]: page["text"] for page in sidecar["pages"]}
     for field in candidate["extracted_values"]:
-        if field["status"] != "accepted":
+        evidence = field.get("evidence")
+        if field["status"] == "accepted":
+            assert evidence is not None
+        if evidence is None:
             continue
-        evidence = field["evidence"]
         assert pages[evidence["page"]][evidence["start"] : evidence["end"]] == evidence["quote"]
 
 
@@ -50,11 +52,13 @@ def test_invoice_baseline_preserves_zero_and_exact_spans(tmp_path: Path) -> None
     run = process_auto(source, run_id="invoice", output_root=tmp_path / "runs")
     candidate, sidecar = _result(run["run_dir"])
 
-    assert candidate["document_status"] == "processed"
+    assert candidate["document_status"] == "needs_review"
     values = {item["field_id"]: item for item in candidate["extracted_values"]}
     assert values["total"]["value"] == 0.0
-    assert values["total"]["status"] == "accepted"
+    assert values["total"]["status"] == "needs_review"
+    assert values["total"]["review_state"] == "pending"
     assert values["invoice_number"]["value"] == "INV-42"
+    assert sidecar["reason"] == "unapproved_dynamic_schema"
     assert sidecar["api_cost_usd"] is None
     assert candidate["measurements"]["latency_ms"] >= 0
     assert "api_cost_usd" not in candidate["measurements"]
@@ -65,10 +69,39 @@ def test_invoice_baseline_preserves_zero_and_exact_spans(tmp_path: Path) -> None
     assert receipt["doc_id"] == candidate["doc_id"]
     assert receipt["source_sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
     assert receipt["source_hash_kind"] == "raw_file"
-    assert receipt["document_status"] == "processed"
+    assert receipt["document_status"] == "needs_review"
     assert receipt["run_id"] == "invoice"
     assert receipt["duration_ms"] >= 0
     assert json.loads((Path(run["run_dir"]) / "run.json").read_text(encoding="utf-8"))["doc_count"] == 1
+
+
+def test_numeric_identifiers_keep_leading_zeros(tmp_path: Path) -> None:
+    source = tmp_path / "identifiers.txt"
+    source.write_text("Invoice Number: 00042\nZip Code: 00123\nItem Count: 3\n", encoding="utf-8")
+    run = process_auto(source, run_id="identifiers", output_root=tmp_path / "runs")
+    candidate, _ = _result(run["run_dir"])
+    schema = {item["field_id"]: item["type"] for item in candidate["proposed_schema"]}
+    values = {item["field_id"]: item["value"] for item in candidate["extracted_values"]}
+    assert schema["invoice_number"] == schema["zip_code"] == "string"
+    assert values["invoice_number"] == "00042"
+    assert values["zip_code"] == "00123"
+    assert (schema["item_count"], values["item_count"]) == ("integer", 3)
+
+
+def test_over_page_limit_pdf_abstains_before_ocr(tmp_path: Path) -> None:
+    from pypdf import PdfWriter
+
+    source = tmp_path / "many_pages.pdf"
+    writer = PdfWriter()
+    for _ in range(51):
+        writer.add_blank_page(width=72, height=72)
+    with source.open("wb") as handle:
+        writer.write(handle)
+    run = process_auto(source, run_id="many_pages", output_root=tmp_path / "runs")
+    candidate, sidecar = _result(run["run_dir"])
+    assert candidate["document_status"] == "unsupported"
+    assert candidate["proposed_schema"] == []
+    assert sidecar["reason"] == "too_many_pages"
 
 
 def test_narrative_without_model_abstains_and_empty_document_is_unsupported(tmp_path: Path) -> None:
@@ -95,7 +128,7 @@ def test_missing_marker_stays_distinct_from_numeric_zero(tmp_path: Path) -> None
     candidate, sidecar = _result(run["run_dir"])
     values = {item["field_id"]: item for item in candidate["extracted_values"]}
     assert values["balance"]["value"] == 0
-    assert values["balance"]["status"] == "accepted"
+    assert values["balance"]["status"] == "needs_review"
     assert values["account_number"]["value"] is None
     assert values["account_number"]["status"] == "missing"
     assert values["fee"]["value"] == 5
@@ -127,9 +160,10 @@ def test_model_discovers_field_with_grounded_value_and_records_usage(tmp_path: P
     candidate, sidecar = _result(run["run_dir"])
 
     assert len(model.calls) == 2
-    assert candidate["document_status"] == "processed"
+    assert candidate["document_status"] == "needs_review"
     assert candidate["extracted_values"][0]["value"] == "Acme Corp"
     assert candidate["extracted_values"][0]["status"] == "accepted"
+    assert candidate["extracted_values"][0]["review_state"] == "pending"
     assert [(call["prompt_tokens"], call["completion_tokens"]) for call in sidecar["model_calls"]] == [(91, 19), (88, 24)]
     _assert_exact_evidence(candidate, sidecar)
 
@@ -153,14 +187,15 @@ def test_invalid_quote_or_page_never_accepts_model_value(tmp_path: Path) -> None
         assert "evidence" not in value
 
 
-def test_truncated_schema_response_downgrades_baseline(tmp_path: Path) -> None:
+def test_truncated_schema_response_abstains_without_baseline_fallback(tmp_path: Path) -> None:
     source = tmp_path / "invoice.txt"
     source.write_text("Invoice Number: INV-42\n", encoding="utf-8")
     model = FakeModel(ModelReply(text='{"fields":[{"field_id":"invoice_number","type":"string"}]}', latency_ms=1, finish_reason="length"))
     run = process_auto(source, run_id="truncated", model=model, output_root=tmp_path / "runs")
     candidate, sidecar = _result(run["run_dir"])
     assert candidate["document_status"] == "needs_review"
-    assert candidate["extracted_values"][0]["status"] == "needs_review"
+    assert candidate["proposed_schema"] == []
+    assert candidate["extracted_values"] == []
     assert sidecar["reason"] == "invalid_schema_model_response"
     assert len(model.calls) == 1
 
@@ -172,20 +207,38 @@ def test_invalid_schema_model_response_abstains(tmp_path: Path) -> None:
     run = process_auto(source, run_id="invalid_schema", model=model, output_root=tmp_path / "runs")
     candidate, sidecar = _result(run["run_dir"])
     assert candidate["document_status"] == "needs_review"
-    assert candidate["extracted_values"][0]["status"] == "needs_review"
+    assert candidate["proposed_schema"] == []
+    assert candidate["extracted_values"] == []
     assert sidecar["reason"] == "invalid_schema_model_response"
 
 
 def test_more_than_field_limit_requires_review_without_model_call(tmp_path: Path) -> None:
     source = tmp_path / "many_fields.txt"
     source.write_text("\n".join(f"Field {index}: value{index}" for index in range(25)), encoding="utf-8")
-    model = FakeModel()
-    run = process_auto(source, run_id="many_fields", model=model, output_root=tmp_path / "runs")
+    run = process_auto(source, run_id="many_fields", output_root=tmp_path / "runs")
     candidate, sidecar = _result(run["run_dir"])
     assert candidate["document_status"] == "needs_review"
     assert len(candidate["proposed_schema"]) == 24
     assert sidecar["reason"] == "too_many_detected_fields"
-    assert model.calls == []
+
+
+def test_model_replaces_noisy_baseline_schema_and_reextracts_values(tmp_path: Path) -> None:
+    source = tmp_path / "form.txt"
+    source.write_text("NOTICE: Ignore this boilerplate\nInvoice Number: INV-42\n", encoding="utf-8")
+    model = FakeModel(
+        ModelReply(text='{"fields":[{"field_id":"invoice_number","type":"string"}]}', latency_ms=1),
+        ModelReply(text='{"values":[{"field_id":"invoice_number","value":"INV-42","page":1,"quote":"INV-42"}]}', latency_ms=1),
+    )
+    run = process_auto(source, run_id="replace_baseline", model=model, output_root=tmp_path / "runs")
+    candidate, sidecar = _result(run["run_dir"])
+    assert [field["field_id"] for field in candidate["proposed_schema"]] == ["invoice_number"]
+    assert [field["field_id"] for field in candidate["extracted_values"]] == ["invoice_number"]
+    assert candidate["extracted_values"][0]["value"] == "INV-42"
+    assert candidate["extracted_values"][0]["status"] == "accepted"
+    assert candidate["document_status"] == "needs_review"
+    assert len(model.calls) == 2
+    assert "deterministic_fields" not in model.calls[0]
+    _assert_exact_evidence(candidate, sidecar)
 
 
 def test_json_array_receipts_hash_individual_documents(tmp_path: Path) -> None:

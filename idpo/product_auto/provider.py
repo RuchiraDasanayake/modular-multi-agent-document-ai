@@ -68,7 +68,7 @@ class OpenAICompatibleChat:
                 completion_tokens=_usage_count(usage, "completion_tokens"),
                 finish_reason=getattr(response.choices[0], "finish_reason", None) if response.choices else None,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - redact provider failures before they reach artifacts
             # Provider exception strings can contain credentials or document text.
             status = getattr(exc, "status_code", None)
             error = f"http_{status}" if isinstance(status, int) else type(exc).__name__

@@ -95,17 +95,27 @@ def process_auto(
             rows = [(_doc_id(file_path.name, container_hash, 0), None, "file_too_large", 0, container_hash, container_size, "raw_file")]
         else:
             try:
-                documents = intake.ingest(str(file_path))
-                sources = _json_entry_sources(file_path) if file_path.suffix.lower() == ".json" else [(container_hash, container_size, "raw_file")] * len(documents)
-                if len(sources) != len(documents):
-                    raise ValueError("JSON source entries and parsed documents differ")
-                rows = [
-                    (_doc_id(file_path.name, source_hash, index), document, None, index, source_hash, source_size, hash_kind)
-                    for index, (document, (source_hash, source_size, hash_kind)) in enumerate(zip(documents, sources))
-                ]
-                if not rows:
-                    rows = [(_doc_id(file_path.name, container_hash, 0), None, "no_documents_parsed", 0, container_hash, container_size, "raw_file")]
-            except Exception:
+                if file_path.suffix.lower() == ".pdf":
+                    from pypdf import PdfReader
+
+                    if len(PdfReader(str(file_path)).pages) > MAX_PAGES:
+                        rows = [(_doc_id(file_path.name, container_hash, 0), None, "too_many_pages", 0, container_hash, container_size, "raw_file")]
+                        documents = None
+                    else:
+                        documents = intake.ingest(str(file_path))
+                else:
+                    documents = intake.ingest(str(file_path))
+                if documents is not None:
+                    sources = _json_entry_sources(file_path) if file_path.suffix.lower() == ".json" else [(container_hash, container_size, "raw_file")] * len(documents)
+                    if len(sources) != len(documents):
+                        raise ValueError("JSON source entries and parsed documents differ")
+                    rows = [
+                        (_doc_id(file_path.name, source_hash, index), document, None, index, source_hash, source_size, hash_kind)
+                        for index, (document, (source_hash, source_size, hash_kind)) in enumerate(zip(documents, sources))
+                    ]
+                    if not rows:
+                        rows = [(_doc_id(file_path.name, container_hash, 0), None, "no_documents_parsed", 0, container_hash, container_size, "raw_file")]
+            except Exception:  # noqa: BLE001 - a bad input must not abort the batch
                 rows = [(_doc_id(file_path.name, container_hash, 0), None, "parse_failed", 0, container_hash, container_size, "raw_file")]
         shared_prepare_ms = (time.perf_counter() - file_started) * 1000 / len(rows)
 
@@ -181,7 +191,7 @@ def _process_document(
     candidate: dict[str, object] = {
         "contract_version": CONTRACT_VERSION,
         "doc_id": doc_id,
-        "document_status": "unsupported" if initial_reason in {"unsupported_file_type", "file_too_large"} else "failed" if initial_reason else "needs_review",
+        "document_status": "unsupported" if initial_reason in {"unsupported_file_type", "file_too_large", "too_many_pages"} else "failed" if initial_reason else "needs_review",
         "proposed_schema": [],
         "extracted_values": [],
     }
@@ -205,7 +215,7 @@ def _process_document(
         ocr_failure = getattr(signal, "failure_reason", None)
         pages: list[dict[str, object]] = [{"page": page.number, "text": page.text} for page in processed_doc.pages]
         sidecar["pages"] = pages
-    except Exception:
+    except Exception:  # noqa: BLE001 - OCR failures remain reviewable per-document outcomes
         sidecar["reason"] = "ocr_failed"
         candidate["document_status"] = "needs_review"
         return candidate, sidecar
@@ -215,13 +225,9 @@ def _process_document(
         candidate["document_status"] = "unsupported"
         return candidate, sidecar
 
-    schema, baseline_values = baseline_proposals(processed_doc)
-    if len(schema) > MAX_FIELDS:
-        schema = schema[:MAX_FIELDS]
-        baseline_values = baseline_values[:MAX_FIELDS]
-        sidecar["reason"] = "too_many_detected_fields"
-    values = {str(item["field_id"]): item for item in baseline_values}
-    force_review = bool(ocr_failure) or sidecar["reason"] == "too_many_detected_fields"
+    schema: list[dict[str, object]] = []
+    values: dict[str, dict[str, object]] = {}
+    force_review = bool(ocr_failure)
     if ocr_failure:
         sidecar["reason"] = "ocr_partial_failure"
     page_numbers = [page["page"] for page in pages]
@@ -231,8 +237,15 @@ def _process_document(
     if len(pages) > MAX_PAGES or sum(len(str(page["text"])) for page in pages) > MAX_MODEL_CHARS:
         force_review = True
         sidecar["reason"] = "document_exceeds_auto_limit"
-    elif model is not None and not force_review:
-        schema_reply = _complete_model(model, schema_prompt(pages, schema))
+    if model is None:
+        schema, baseline_values = baseline_proposals(processed_doc)
+        if len(schema) > MAX_FIELDS:
+            schema = schema[:MAX_FIELDS]
+            baseline_values = baseline_values[:MAX_FIELDS]
+            sidecar["reason"] = "too_many_detected_fields"
+        values = {str(item["field_id"]): item for item in baseline_values}
+    elif not force_review:
+        schema_reply = _complete_model(model, schema_prompt(pages))
         _record_model_call(sidecar, "schema", schema_reply)
         proposed = (
             parse_schema_reply(schema_reply.text)
@@ -243,44 +256,37 @@ def _process_document(
             force_review = True
             sidecar["reason"] = "invalid_schema_model_response"
         else:
-            combined = {str(item["field_id"]): item for item in schema}
-            combined.update({str(item["field_id"]): item for item in proposed if str(item["field_id"]) not in combined})
-            if len(combined) > MAX_FIELDS:
+            schema = proposed
+            values_reply = _complete_model(model, values_prompt(pages, schema))
+            _record_model_call(sidecar, "values", values_reply)
+            proposed_values = (
+                parse_values_reply(values_reply.text, schema, pages)
+                if not values_reply.error and values_reply.finish_reason in {None, "stop"}
+                else None
+            )
+            if proposed_values is None:
                 force_review = True
-                sidecar["reason"] = "too_many_proposed_fields"
+                sidecar["reason"] = "invalid_values_model_response"
             else:
-                schema = list(combined.values())
-                missing_fields = [field for field in schema if str(field["field_id"]) not in values]
-                if missing_fields:
-                    values_reply = _complete_model(model, values_prompt(pages, missing_fields))
-                    _record_model_call(sidecar, "values", values_reply)
-                    proposed_values = (
-                        parse_values_reply(values_reply.text, missing_fields, pages)
-                        if not values_reply.error and values_reply.finish_reason in {None, "stop"}
-                        else None
-                    )
-                    if proposed_values is None:
-                        force_review = True
-                        sidecar["reason"] = "invalid_values_model_response"
-                    else:
-                        values.update(proposed_values)
+                values.update(proposed_values)
 
     for field in schema:
         field_id = str(field["field_id"])
         if field_id not in values:
             values[field_id] = {"field_id": field_id, "value": None, "status": "missing", "review_state": "pending"}
-    if force_review:
-        for value in values.values():
-            if value["status"] == "accepted":
-                value["status"] = "needs_review"
-                value["review_state"] = "pending"
+    for value in values.values():
+        # A discovered schema has not been approved for this document family.
+        # Exact OCR grounding is necessary, but not sufficient for release.
+        value["review_state"] = "pending"
+        if value["status"] == "accepted" and (model is None or force_review):
+            value["status"] = "needs_review"
     candidate["proposed_schema"] = schema
     candidate["extracted_values"] = [values[str(field["field_id"])] for field in schema]
-    candidate["document_status"] = (
-        "processed" if schema and not force_review and all(value["status"] == "accepted" for value in values.values()) else "needs_review"
-    )
+    candidate["document_status"] = "needs_review"
     if not schema and sidecar["reason"] is None:
         sidecar["reason"] = "no_fields_discovered"
+    elif schema and sidecar["reason"] is None:
+        sidecar["reason"] = "unapproved_dynamic_schema"
     return candidate, sidecar
 
 
@@ -301,12 +307,12 @@ def _complete_model(model: ChatModel, prompt: str) -> ModelReply:
     started = time.perf_counter()
     try:
         return model.complete_json(system=_MODEL_SYSTEM, prompt=prompt)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - providers raise SDK-specific exceptions
         return ModelReply(text="", latency_ms=(time.perf_counter() - started) * 1000, error=type(exc).__name__)
 
 
 def _doc_id(file_name: str, source_hash: str, index: int) -> str:
-    return hashlib.sha256(f"{file_name}\0{source_hash}\0{index}".encode("utf-8")).hexdigest()[:32]
+    return hashlib.sha256(f"{file_name}\0{source_hash}\0{index}".encode()).hexdigest()[:32]
 
 
 def _sha256_file(path: Path) -> str:
