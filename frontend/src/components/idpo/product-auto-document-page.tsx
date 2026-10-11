@@ -57,6 +57,7 @@ export function ProductAutoDocumentPage() {
   const [linkedDraft, setLinkedDraft] = useState<Record<string, ProductAutoLinkedCorrectionRow[]>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [reportedActiveMinutes, setReportedActiveMinutes] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -75,6 +76,7 @@ export function ProductAutoDocumentPage() {
         .map((field) => [field.field_id, linkedCorrectionRows(reviews.get(field.field_id)?.corrected_value,
           machine.get(field.field_id))])));
       setAddedDraft(addedDrafts(data));
+      setReportedActiveMinutes("");
     }).catch((cause) => {
       if (current) setError(cause instanceof Error ? cause.message : "Failed to load extraction result.");
     }).finally(() => { if (current) setLoading(false); });
@@ -162,10 +164,12 @@ export function ProductAutoDocumentPage() {
         ? { field_id: field.field_id, type: field.type, group: field.group, value: field.value, note: field.note }
         : { field_id: field.field_id, type: field.type, value: field.value, evidence: field.evidence,
           note: field.note });
-      const result = await idpoApi.saveProductAutoReview(jobId, runId, docId, detail.review?.revision ?? 0, fields, addedFields);
+      const result = await idpoApi.saveProductAutoReview(jobId, runId, docId, detail.review?.revision ?? 0,
+        fields, addedFields, reportedActiveMinutes);
       const refreshed = await idpoApi.getProductAutoDocument(jobId, runId, docId);
       setDetail(refreshed);
       setAddedDraft(addedDrafts(refreshed));
+      setReportedActiveMinutes("");
       setMessage(result.review.status === "completed" ? "Human review completed." : "Partial human review saved.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Failed to save review.");
@@ -468,6 +472,12 @@ export function ProductAutoDocumentPage() {
             className="rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50">{saving ? "Saving…" : "Save human review"}</button>
           <span className="text-xs text-slate-500 dark:text-slate-400">A review is complete when every proposed field has a decision and added fields have source-backed values. Linked columns need at least two aligned values per row before a reusable recipe can be approved.</span>
         </div>
+        <label className="mt-4 block max-w-xs text-sm text-slate-700 dark:text-slate-200">Active minutes spent on this save (optional, self-reported)
+          <input type="number" min="0.1" max="240" step="0.1" inputMode="decimal"
+            value={reportedActiveMinutes} onChange={(event) => setReportedActiveMinutes(event.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950" />
+          <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">Count only your active work since the previous save. Exclude breaks; leave blank if unknown.</span>
+        </label>
       </IdpoCard>
       </div>
 
@@ -485,7 +495,9 @@ export function ProductAutoDocumentPage() {
             {detail.auditTrail.map((event) => (
               <li key={event.audit_event_id} className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700">
                 <div className="font-medium text-slate-900 dark:text-white">Revision {event.revision} · {new Date(event.created_at).toLocaleString()}</div>
-                <div className="text-xs text-slate-500 dark:text-slate-400">Reviewer {event.reviewer_user_id}</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">Reviewer {event.reviewer_user_id}
+                  {event.reported_active_review_seconds === undefined ? " · no effort reported" :
+                    ` · self-reported active work for this save: ${event.reported_active_review_seconds} seconds`}</div>
                 <ul className="mt-2 space-y-1 text-slate-700 dark:text-slate-200">
                   {event.review_fields.map((field) => {
                     const machine = event.machine_fields.find((item) => item.field_id === field.field_id);

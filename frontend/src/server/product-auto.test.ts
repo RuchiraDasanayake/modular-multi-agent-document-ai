@@ -8,6 +8,7 @@ import test from "node:test";
 import { GET as listAutoRoute, POST as startAutoRoute } from "@/app/api/jobs/[jobId]/auto/route";
 import { GET as getAutoDocRoute, POST as reviewAutoDocRoute } from "@/app/api/jobs/[jobId]/auto/[runId]/docs/[docId]/route";
 import { GET as getOriginalContentRoute } from "@/app/api/jobs/[jobId]/docs/[docId]/content/route";
+import { idpoApi, parseReportedActiveMinutes } from "@/lib/idpo-api";
 import { resetConfigCacheForTests } from "./config";
 import { addDocumentsToJob, createWorkspaceJob } from "./jobs";
 import { deriveProductAutoCorrectedResult, productAutoAvailability, recoverProductAutoRuns } from "./product-auto";
@@ -127,13 +128,19 @@ test("automatic extraction keeps source access private and rejects conflicting r
   assert.equal(JSON.parse(detailBody).correctedResult.fields[0].status, "needs_review");
   assert.equal(JSON.parse(detailBody).correctedResult.fields[0].provenance, "machine");
 
-  const post = (token: string, expectedRevision: number, fields: unknown, addedFields?: unknown) => reviewAutoDocRoute(request(docUrl, token, {
+  const post = (token: string, expectedRevision: number, fields: unknown, addedFields?: unknown,
+    reportedSeconds?: unknown) => reviewAutoDocRoute(request(docUrl, token, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: expectedRevision, fields,
-      ...(addedFields === undefined ? {} : { added_fields: addedFields }) }),
+      ...(addedFields === undefined ? {} : { added_fields: addedFields }),
+      ...(reportedSeconds === undefined ? {} : { reported_active_review_seconds: reportedSeconds }) }),
   }), detailParams);
   assert.equal((await post("bob", 0, [{ field_id: "total", decision: "correct" }])).status, 404);
+  assert.equal((await post("bob", 0, [{ field_id: "total", decision: "correct" }], [], 90)).status, 404);
   assert.equal((await post("alice", 0, [{ field_id: "other", decision: "correct" }])).status, 400);
   assert.equal((await post("alice", 0, [{ field_id: "total", decision: "correct", corrected_value: "999" }])).status, 400);
+  for (const invalid of [null, 0, -1, 1.5, 14_401, "60"]) {
+    assert.equal((await post("alice", 0, [{ field_id: "total", decision: "correct" }], [], invalid)).status, 400);
+  }
   const [first, second] = await Promise.all([
     post("alice", 0, [{ field_id: "total", decision: "corrected", corrected_value: "101" }]),
     post("alice", 0, [{ field_id: "total", decision: "corrected", corrected_value: "102" }]),
@@ -147,7 +154,7 @@ test("automatic extraction keeps source access private and rejects conflicting r
   const firstEvent = fs.readdirSync(auditDir)[0];
   const firstBytes = fs.readFileSync(path.join(auditDir, firstEvent));
   assert.equal((await post("alice", 0, [{ field_id: "total", decision: "corrected", corrected_value: "999" }])).status, 409);
-  const corrected = await post("alice", 1, [{ field_id: "total", decision: "corrected", corrected_value: "103" }]);
+  const corrected = await post("alice", 1, [{ field_id: "total", decision: "corrected", corrected_value: "103" }], [], 125);
   assert.equal(corrected.status, 200);
   assert.equal(fs.readdirSync(auditDir).length, 2);
   assert.deepEqual(fs.readFileSync(path.join(auditDir, firstEvent)), firstBytes);
@@ -157,6 +164,9 @@ test("automatic extraction keeps source access private and rejects conflicting r
   assert.equal(reviewedBody.auditTrail[1].machine_fields[0].value, "100");
   assert.equal(reviewedBody.auditTrail[1].review_fields[0].corrected_value, "103");
   assert.equal(reviewedBody.auditTrail[1].reviewer_user_id, "alice-id");
+  assert.equal(reviewedBody.auditTrail[0].reported_active_review_seconds, undefined);
+  assert.equal(reviewedBody.auditTrail[1].reported_active_review_seconds, 125);
+  assert.equal(reviewedBody.auditTrail[1].review_snapshot.reported_active_review_seconds, undefined);
   assert.equal(reviewedBody.auditTrail[1].previous_event_id, reviewedBody.auditTrail[0].audit_event_id);
   assert.equal(reviewedBody.correctedResult.fields[0].value, "103");
   assert.equal(reviewedBody.correctedResult.fields[0].provenance, "human_correction");
@@ -615,3 +625,25 @@ test("only exact loopback HTTP model endpoints can run without a server API key"
   }), { params: Promise.resolve({ jobId: job.jobId }) });
   assert.equal(response.status, 403);
 }));
+
+test("review client submits only an explicit self-reported active duration", async () => {
+  assert.equal(parseReportedActiveMinutes(""), undefined);
+  assert.equal(parseReportedActiveMinutes("2.5"), 150);
+  for (const invalid of ["0", "0.01", "241", "n/a", "Infinity"]) {
+    assert.throws(() => parseReportedActiveMinutes(invalid));
+  }
+  const originalFetch = globalThis.fetch;
+  const bodies: Array<Record<string, unknown>> = [];
+  globalThis.fetch = async (_input, init) => {
+    bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+    return Response.json({ review: {}, correctedResult: {} });
+  };
+  try {
+    await idpoApi.saveProductAutoReview("job", "run", "doc", 0, [], [], "2.5");
+    await idpoApi.saveProductAutoReview("job", "run", "doc", 1, [], [], "");
+    assert.equal(bodies[0].reported_active_review_seconds, 150);
+    assert.equal(Object.hasOwn(bodies[1], "reported_active_review_seconds"), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

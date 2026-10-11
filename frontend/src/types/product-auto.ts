@@ -119,6 +119,8 @@ export interface ProductAutoAuditEvent {
   previous_event_id?: string | null;
   created_at: string;
   reviewer_user_id: string;
+  // Optional reviewer estimate for work on this save; never inferred from timestamps.
+  reported_active_review_seconds?: number;
   review_snapshot: ProductAutoReview;
   machine_fields: Array<{
     field_id: string;

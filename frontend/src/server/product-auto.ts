@@ -976,16 +976,23 @@ function verifiedReviewSourceHash(jobId: string, runId: string, fileId: string):
 export function saveProductAutoReview(
   jobId: string, runId: string, docId: string, reviewerUserId: string, expectedRevision: unknown, fields: unknown,
   addedFields: unknown = [],
+  reportedActiveReviewSeconds: unknown = undefined,
 ): ProductAutoReview {
   if (!Number.isSafeInteger(expectedRevision) || typeof expectedRevision !== "number" || expectedRevision < 0) {
     throw new AccessError("A valid expected review revision is required.", 400);
   }
-  return saveProductAutoReviewWithRevision(jobId, runId, docId, reviewerUserId, expectedRevision, fields, addedFields);
+  if (reportedActiveReviewSeconds !== undefined && (!Number.isSafeInteger(reportedActiveReviewSeconds) ||
+    typeof reportedActiveReviewSeconds !== "number" || reportedActiveReviewSeconds < 1 ||
+    reportedActiveReviewSeconds > 14_400)) {
+    throw new AccessError("Reported active review seconds must be an integer from 1 to 14400.", 400);
+  }
+  return saveProductAutoReviewWithRevision(jobId, runId, docId, reviewerUserId, expectedRevision, fields, addedFields,
+    reportedActiveReviewSeconds);
 }
 
 function saveProductAutoReviewWithRevision(
   jobId: string, runId: string, docId: string, reviewerUserId: string, expectedRevision: number, fields: unknown,
-  addedFields: unknown,
+  addedFields: unknown, reportedActiveReviewSeconds: number | undefined,
 ): ProductAutoReview {
   const detail = getProductAutoDocument(jobId, runId, docId);
   if ((detail.review?.revision ?? 0) !== expectedRevision) {
@@ -1053,6 +1060,7 @@ function saveProductAutoReviewWithRevision(
   const machineValues = new Map(detail.candidate.extracted_values.map((item) => [item.field_id, item]));
   const event: ProductAutoAuditEvent = {
     audit_event_id: eventId, revision, created_at: createdAt, reviewer_user_id: reviewerUserId,
+    ...(reportedActiveReviewSeconds === undefined ? {} : { reported_active_review_seconds: reportedActiveReviewSeconds }),
     previous_event_id: previous?.audit_event_id ?? null,
     review_snapshot: review,
     machine_fields: parsed.map((field) => {

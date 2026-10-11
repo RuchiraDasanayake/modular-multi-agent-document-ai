@@ -36,7 +36,10 @@ export async function POST(request: Request, { params }: Params) {
       ? (body as Record<string, unknown>).added_fields ?? [] : [];
     const expectedRevision = body && typeof body === "object" && !Array.isArray(body)
       ? (body as Record<string, unknown>).expected_revision : null;
-    const review = saveProductAutoReview(jobId, runId, docId, user.id, expectedRevision, fields, addedFields);
+    const reportedActiveReviewSeconds = body && typeof body === "object" && !Array.isArray(body)
+      ? (body as Record<string, unknown>).reported_active_review_seconds : undefined;
+    const review = saveProductAutoReview(jobId, runId, docId, user.id, expectedRevision, fields, addedFields,
+      reportedActiveReviewSeconds);
     const candidate = getProductAutoDocument(jobId, runId, docId).candidate;
     return NextResponse.json({ review, correctedResult: deriveProductAutoCorrectedResult(candidate, review) }, { headers: noStore });
   } catch (error) {
