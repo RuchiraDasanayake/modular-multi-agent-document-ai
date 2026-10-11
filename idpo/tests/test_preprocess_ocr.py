@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import sys
+import threading
+import time
+import types
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from PIL import Image
 
+from idpo.agents import preprocess
 from idpo.agents.base import AgentContext
-from idpo.agents.preprocess import OcrAgent
+from idpo.agents.preprocess import DenoiseAgent, OcrAgent, rasterize_pdf_page
 from idpo.core.artifacts import ArtifactStore
 from idpo.core.config import PipelineConfig
 from idpo.core.provenance import ProvenanceRecorder
@@ -156,3 +161,144 @@ def test_ocr_image_falls_back_to_tesseract_when_paddle_returns_no_text(tmp_path:
     assert failure is None
     assert text == "Total Amount: 42.00"
     assert meta["ocr_engine_used"] == "tesseract"
+
+
+def test_rasterize_pdf_page_renders_the_requested_page_of_an_image_only_pdf(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "scan.pdf"
+    first = Image.new("RGB", (400, 300), "white")
+    second = Image.new("RGB", (300, 500), "white")
+    first.save(pdf_path, "PDF", resolution=100, save_all=True, append_images=[second])
+
+    page = Page(number=2, text="", image_path=str(pdf_path), metadata={"file_type": ".pdf", "pdf_page_index": 1})
+    rendered = rasterize_pdf_page(page, "scan", _ctx(tmp_path), dpi=100)
+
+    assert rendered.image_path is not None and rendered.image_path.endswith(".png")
+    assert rendered.metadata["pdf_source_path"] == str(pdf_path)
+    with Image.open(rendered.image_path) as img:
+        assert img.size == (300, 500)
+
+
+def test_rasterize_pdf_page_leaves_image_pages_untouched(tmp_path: Path) -> None:
+    page = Page(number=1, text="", image_path=str(tmp_path / "receipt.png"))
+    assert rasterize_pdf_page(page, "receipt", _ctx(tmp_path)) is page
+
+
+def test_denoise_keeps_thin_strokes_on_low_resolution_scans(tmp_path: Path) -> None:
+    source = tmp_path / "fax.png"
+    img = Image.new("L", (754, 1000), 255)
+    for x in range(100, 600):
+        img.putpixel((x, 500), 0)
+    img.save(source)
+
+    denoised = DenoiseAgent()._denoise_image(str(source), 1, "fax", _ctx(tmp_path))
+
+    assert denoised is not None
+    with Image.open(denoised) as out:
+        assert out.size == (1508, 2000)
+        assert min(out.getpixel((700, y)) for y in range(996, 1006)) < 128
+
+
+def test_denoise_keeps_size_of_high_resolution_scans(tmp_path: Path) -> None:
+    source = tmp_path / "scan.png"
+    Image.new("L", (1700, 2200), 255).save(source)
+
+    denoised = DenoiseAgent()._denoise_image(str(source), 1, "scan", _ctx(tmp_path))
+
+    assert denoised is not None
+    with Image.open(denoised) as out:
+        assert out.size == (1700, 2200)
+
+
+def _paddle_item(left: float, top: float, right: float, bottom: float, text: str) -> list[object]:
+    return [[[left, top], [right, top], [right, bottom], [left, bottom]], (text, 0.98)]
+
+
+def test_paddle_text_keeps_labels_and_values_on_the_same_row() -> None:
+    # Right-column amounts sit a few pixels above their labels, as on photographed receipts.
+    result = [[
+        _paddle_item(300, 98, 380, 118, "23.000"),
+        _paddle_item(20, 100, 90, 120, "Total"),
+        _paddle_item(300, 137, 380, 157, "50.000"),
+        _paddle_item(20, 140, 90, 160, "Tunai"),
+        _paddle_item(300, 158, 380, 178, "27.000"),
+        _paddle_item(20, 162, 100, 182, "Kembali"),
+    ]]
+
+    text, confidence = OcrAgent()._extract_paddle_text(result)  # noqa: SLF001
+
+    assert text.splitlines() == ["Total  23.000", "Tunai  50.000", "Kembali  27.000"]
+    assert round(confidence) == 98
+
+
+def test_paddle_text_keeps_detector_order_when_boxes_have_no_geometry() -> None:
+    result = [[[None, ("first", 0.9)], [None, ("second", 0.9)]]]
+
+    text, _ = OcrAgent()._extract_paddle_text(result)  # noqa: SLF001
+
+    assert text.splitlines() == ["first", "second"]
+
+
+def test_recognition_widths_are_padded_up_to_fixed_buckets() -> None:
+    widths: list[int] = []
+
+    class StubRecognizer:
+        rec_image_shape = [3, 48, 320]
+
+        def resize_norm_img(self, img, max_wh_ratio):  # noqa: ANN001, ARG002
+            widths.append(int(48 * max_wh_ratio))
+            return img
+
+    engine = types.SimpleNamespace(text_recognizer=StubRecognizer())
+    preprocess._bucket_recognition_widths(engine)  # noqa: SLF001
+
+    for raw_width in (320, 330, 640, 641, 2399):
+        engine.text_recognizer.resize_norm_img("crop", raw_width / 48)
+
+    assert widths == [320, 640, 640, 960, 2560]
+
+
+def test_paddle_engine_is_shared_across_threads_and_never_runs_concurrently(tmp_path: Path, monkeypatch) -> None:
+    created: list[dict[str, object]] = []
+    state = {"active": 0, "peak": 0}
+    guard = threading.Lock()
+
+    class StubPaddleOCR:
+        def __init__(self, **kwargs) -> None:  # noqa: ANN003
+            created.append(kwargs)
+
+        def ocr(self, path, cls):  # noqa: ANN001, ARG002
+            with guard:
+                state["active"] += 1
+                state["peak"] = max(state["peak"], state["active"])
+            time.sleep(0.02)
+            with guard:
+                state["active"] -= 1
+            return [[_paddle_item(20, 100, 90, 120, "Total"), _paddle_item(300, 100, 380, 120, "23.000")]]
+
+    monkeypatch.setitem(sys.modules, "paddleocr", types.SimpleNamespace(PaddleOCR=StubPaddleOCR))
+    monkeypatch.setattr(preprocess, "_PADDLE_ENGINES", {})
+    images = []
+    for index in range(4):
+        image_path = tmp_path / f"receipt_{index}.png"
+        Image.new("RGB", (40, 40), color="white").save(image_path)
+        images.append(str(image_path))
+    agent = OcrAgent()
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(lambda path: agent._ocr_image_paddle(path, "eng"), images))  # noqa: SLF001
+
+    assert [text for text, _, _, _ in results] == ["Total  23.000"] * 4
+    assert len(created) == 1
+    assert created[0]["rec_batch_num"] == 1
+    assert state["peak"] == 1
+
+
+def test_paddle_text_does_not_merge_tightly_spaced_lines() -> None:
+    result = [[
+        _paddle_item(20, 100, 200, 114, "Dear Dr. Smith,"),
+        _paddle_item(20, 116, 260, 130, "Thank you for the report."),
+    ]]
+
+    text, _ = OcrAgent()._extract_paddle_text(result)  # noqa: SLF001
+
+    assert text.splitlines() == ["Dear Dr. Smith,", "Thank you for the report."]

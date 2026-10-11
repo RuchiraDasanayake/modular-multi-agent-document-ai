@@ -1,4 +1,6 @@
+import { removeToken } from "./auth";
 import type {
+  JobDocumentText,
   JobStatus,
   RunOverview,
   RunSummary,
@@ -11,6 +13,11 @@ async function localRequest<T>(path: string, options: RequestInit = {}): Promise
     cache: "no-store",
     ...options,
   });
+
+  if (res.status === 401 && typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+    removeToken();
+    window.location.href = "/login";
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -46,13 +53,17 @@ export const idpoApi = {
     );
   },
 
+  getJobDocumentText(jobId: string, docId: string): Promise<JobDocumentText> {
+    return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/docs/${encodeURIComponent(docId)}/text`);
+  },
+
   saveJobDocumentReview(
     jobId: string,
     docId: string,
     data: Record<string, unknown>,
   ): Promise<{ review: unknown }> {
     return localRequest(
-      `/api/jobs/${encodeURIComponent(jobId)}/docs/${encodeURIComponent(docId)}/review`,
+      `/api/jobs/${encodeURIComponent(jobId)}/docs/${encodeURIComponent(docId)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -110,7 +121,7 @@ export const idpoApi = {
   },
 
   runOverview(runId: string): Promise<RunOverview> {
-    return localRequest(`/api/runs/${encodeURIComponent(runId)}/overview`);
+    return localRequest(`/api/runs/${encodeURIComponent(runId)}/summary`);
   },
 
   listRuns(): Promise<{ runs: RunSummary[] }> {
@@ -122,8 +133,6 @@ export const idpoApi = {
   },
 
   benchmarkEvidence(benchmarkRunId: string): Promise<BenchmarkEvidencePayload> {
-    return localRequest(
-      `/api/benchmarks/${encodeURIComponent(benchmarkRunId)}/evidence`,
-    );
+    return localRequest(`/api/benchmarks/${encodeURIComponent(benchmarkRunId)}`);
   },
 };

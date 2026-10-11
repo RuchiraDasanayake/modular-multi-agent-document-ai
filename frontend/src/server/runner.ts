@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { loadRunnerConfig, getCommandConfig } from "@/server/config";
 import type { DocumentSummary, JobDocumentRecord, JobExecutionMode, JobFieldConfig, JobRunMode, JobStatus } from "@/types/idpo";
@@ -10,12 +10,9 @@ import {
   createWorkspaceJob,
   getJobOrThrow,
   mutateJob,
-  setJobFailed,
-  setJobRunning,
-  setJobSuccess,
   updateJob,
 } from "@/server/jobs";
-import { findNewestRunIdAfter, getRunDocument, getRunOverview } from "@/server/artifacts";
+import { getRunDocument, getRunOverview } from "@/server/artifacts";
 import { ensurePathInside, resolvePathForDisplay, resolvePrimaryRunPath, resolveRunRoot } from "@/server/paths";
 import { ensureJobEffectivePolicyStore } from "@/server/policies";
 import { readJobValidationContext } from "@/server/review-context";
@@ -70,48 +67,8 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-function validateUpload(file: File, allowedExtensions: string[], maxUploadMb: number): void {
-  const ext = path.extname(file.name).toLowerCase();
-  if (!allowedExtensions.includes(ext)) {
-    throw new Error(`Unsupported file extension: ${ext || "(none)"}`);
-  }
-
-  const maxBytes = maxUploadMb * 1024 * 1024;
-  if (file.size > maxBytes) {
-    throw new Error(`File '${file.name}' exceeds ${maxUploadMb} MB limit`);
-  }
-}
-
 function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_");
-}
-
-async function saveUploads(files: File[]): Promise<{ uploadDir: string; manifestFiles: UploadManifestFile[] }> {
-  const config = loadRunnerConfig();
-  const now = new Date();
-  const folderName = `${now.toISOString().replace(/[:.]/g, "-")}_${Math.random().toString(36).slice(2, 8)}`;
-  const uploadDir = path.join(config.uploadsDir, folderName);
-  fs.mkdirSync(uploadDir, { recursive: true });
-
-  const manifestFiles: UploadManifestFile[] = [];
-
-  for (const file of files) {
-    validateUpload(file, config.allowedExtensions, config.maxUploadMb);
-    const safeName = sanitizeFilename(file.name);
-    const finalName = `${Math.random().toString(36).slice(2, 8)}_${safeName}`;
-    const target = path.join(uploadDir, finalName);
-
-    const arrayBuffer = await file.arrayBuffer();
-    fs.writeFileSync(target, Buffer.from(arrayBuffer));
-
-    manifestFiles.push({
-      name: file.name,
-      size: file.size,
-      storedAs: finalName,
-    });
-  }
-
-  return { uploadDir, manifestFiles };
 }
 
 function listInputArtifacts(inputDir: string): string[] {
@@ -344,41 +301,65 @@ function redactSettings(settings: StartRunRequest["settings"]): Record<string, u
   return redacted;
 }
 
-function maybeInstallLocalModel(jobId: string, settings: StartRunRequest["settings"]): void {
+function readOllamaBaseUrl(runtimeConfigPath: string): string {
+  try {
+    const config = JSON.parse(fs.readFileSync(runtimeConfigPath, "utf-8")) as { llm?: { base_url?: unknown } };
+    const baseUrl = typeof config.llm?.base_url === "string" ? config.llm.base_url.trim() : "";
+    return (baseUrl || "http://localhost:11434").replace(/\/+$/, "");
+  } catch {
+    return "http://localhost:11434";
+  }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export async function maybeInstallLocalModel(
+  jobId: string,
+  settings: StartRunRequest["settings"],
+  runtimeConfigPath: string,
+): Promise<void> {
   if (!settings.autoInstallLocalModel || !settings.llmLocalModel?.trim()) {
     return;
   }
   const model = settings.llmLocalModel.trim();
+  const baseUrl = readOllamaBaseUrl(runtimeConfigPath);
   appendJobLog(jobId, `[runner] checking local model '${model}'`);
 
-  const listResult = spawnSync("ollama", ["list"], {
-    encoding: "utf-8",
-    timeout: 15000,
-    windowsHide: true,
-  });
-
-  if (listResult.error) {
-    appendJobLog(jobId, `[runner] ollama not available: ${listResult.error.message}`);
+  let installed: string[];
+  try {
+    const response = await fetch(`${baseUrl}/api/tags`, { signal: AbortSignal.timeout(15_000) });
+    const payload = (await response.json()) as { models?: Array<{ name?: string; model?: string }> };
+    installed = (payload.models ?? []).map((entry) => String(entry.name ?? entry.model ?? "").toLowerCase());
+  } catch (error) {
+    appendJobLog(jobId, `[runner] ollama not available at ${baseUrl}: ${errorMessage(error)}`);
     return;
   }
-
-  const listOutput = `${listResult.stdout ?? ""}\n${listResult.stderr ?? ""}`;
-  if (listOutput.toLowerCase().includes(model.toLowerCase())) {
+  const wanted = model.toLowerCase();
+  if (installed.some((name) => name === wanted || name === `${wanted}:latest`)) {
     appendJobLog(jobId, `[runner] local model already present: ${model}`);
     return;
   }
 
   appendJobLog(jobId, `[runner] pulling local model: ${model}`);
-  const pull = spawnSync("ollama", ["pull", model], {
-    encoding: "utf-8",
-    timeout: 20 * 60 * 1000,
-    windowsHide: true,
-  });
-  const pullOut = `${pull.stdout ?? ""}\n${pull.stderr ?? ""}`.trim();
-  if (pull.status === 0) {
-    appendJobLog(jobId, `[runner] model pull complete: ${model}`);
-  } else {
-    appendJobLog(jobId, `[runner] model pull failed (${pull.status ?? "unknown"}): ${pullOut.slice(0, 300)}`);
+  try {
+    // Streamed so progress lines keep the connection alive; a non-streamed pull sends nothing until it ends.
+    const response = await fetch(`${baseUrl}/api/pull`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, stream: true }),
+      signal: AbortSignal.timeout(20 * 60 * 1000),
+    });
+    const lines = (await response.text()).split("\n").filter((line) => line.trim());
+    const last = lines.length ? (JSON.parse(lines[lines.length - 1]) as { status?: string; error?: string }) : {};
+    if (response.ok && last.status === "success") {
+      appendJobLog(jobId, `[runner] model pull complete: ${model}`);
+    } else {
+      appendJobLog(jobId, `[runner] model pull failed (${response.status}): ${String(last.error ?? last.status ?? "").slice(0, 300)}`);
+    }
+  } catch (error) {
+    appendJobLog(jobId, `[runner] model pull failed: ${errorMessage(error)}`);
   }
 }
 
@@ -531,6 +512,17 @@ function matchesJobDocument(summary: DocumentSummary, document: JobDocumentRecor
   );
 }
 
+function describeRunnerError(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return "The document run failed.";
+  }
+  const code = "code" in error ? String((error as NodeJS.ErrnoException).code ?? "") : "";
+  if (code === "ENOENT" || /ENOENT/.test(error.message)) {
+    return "Processing did not start because the Python environment could not be found.";
+  }
+  return error.message;
+}
+
 function createExecutionUploadDir(): string {
   const config = loadRunnerConfig();
   const folderName = `jobrun_${new Date().toISOString().replace(/[:.]/g, "-")}_${Math.random().toString(36).slice(2, 8)}`;
@@ -567,34 +559,31 @@ async function executeRunnerCommand(
   commandId: string | undefined,
   settings: StartRunRequest["settings"],
   uploadDir: string,
+  assignedRunId: string,
 ): Promise<{ runId: string | null; runPath: string | null }> {
   const commandConfig = getCommandConfig(commandId);
-  const startedAtMs = Date.now();
   const baseConfigPath = resolveConfigPathFromSettings(settings);
   const runtimeConfigPath = prepareRuntimeConfig(baseConfigPath, jobId, settings);
+  const placeholders = {
+    input_dir: uploadDir,
+    config_path: runtimeConfigPath,
+    workspace_root: loadRunnerConfig().workspaceRoot,
+    run_id: assignedRunId,
+  };
+  const args = buildCommandArgs(commandConfig.args, placeholders);
 
   updateJob(jobId, {
     commandId: commandConfig.id,
     logs: [
       `Input directory: ${resolvePathForDisplay(uploadDir)}`,
       `Runtime config: ${resolvePathForDisplay(runtimeConfigPath)}`,
-      `Executing: ${commandConfig.program} ${buildCommandArgs(commandConfig.args, {
-        input_dir: uploadDir,
-        config_path: runtimeConfigPath,
-        workspace_root: loadRunnerConfig().workspaceRoot,
-      }).join(" ")}`,
+      `Executing: ${commandConfig.program} ${args.join(" ")}`,
       ...getJobOrThrow(jobId).logs,
     ],
   });
 
-  maybeInstallLocalModel(jobId, settings);
+  await maybeInstallLocalModel(jobId, settings, runtimeConfigPath);
 
-  const placeholders = {
-    input_dir: uploadDir,
-    config_path: runtimeConfigPath,
-    workspace_root: loadRunnerConfig().workspaceRoot,
-  };
-  const args = buildCommandArgs(commandConfig.args, placeholders);
   const overlayPath = writeJobOverlayIfEligible(
     jobId,
     (settings.customFields ?? []).map((field) => ({
@@ -602,6 +591,12 @@ async function executeRunnerCommand(
       description: field.description,
     })),
   );
+
+  if (path.isAbsolute(commandConfig.program) && !fs.existsSync(commandConfig.program)) {
+    return Promise.reject(
+      new Error(`Processing did not start because Python was not found at ${commandConfig.program}.`),
+    );
+  }
 
   return new Promise((resolve, reject) => {
     const child = spawn(commandConfig.program, args, {
@@ -656,10 +651,8 @@ async function executeRunnerCommand(
         return;
       }
 
-      let resolvedRunId = discoveredRunId;
-      if (!resolvedRunId) {
-        resolvedRunId = findNewestRunIdAfter(startedAtMs);
-      }
+      const assignedRunPath = path.join(loadRunnerConfig().runsDir, assignedRunId);
+      const resolvedRunId = discoveredRunId ?? (fs.existsSync(assignedRunPath) ? assignedRunId : null);
       const resolvedRunPath = discoveredRunPath ?? (resolvedRunId ? path.join(loadRunnerConfig().runsDir, resolvedRunId) : null);
       appendJobLog(jobId, `[runner] completed successfully`);
       if (resolvedRunId) {
@@ -739,21 +732,10 @@ function outcomeMatches(
 }
 
 function resolveActiveRunId(run: NonNullable<JobStatus["runs"]>[number]): { runId: string | null; runPath: string | null } {
-  if (run.runId) {
-    return { runId: run.runId, runPath: run.runPath ?? resolvePathForDisplay(path.join(loadRunnerConfig().runsDir, run.runId)) };
-  }
-  const startedAtMs = Date.parse(run.startedAt ?? run.createdAt ?? "");
-  if (Number.isNaN(startedAtMs)) {
+  if (!run.runId) {
     return { runId: null, runPath: null };
   }
-  const discoveredRunId = findNewestRunIdAfter(startedAtMs);
-  if (!discoveredRunId) {
-    return { runId: null, runPath: null };
-  }
-  return {
-    runId: discoveredRunId,
-    runPath: resolvePathForDisplay(path.join(loadRunnerConfig().runsDir, discoveredRunId)),
-  };
+  return { runId: run.runId, runPath: run.runPath ?? resolvePathForDisplay(path.join(loadRunnerConfig().runsDir, run.runId)) };
 }
 
 function expectedRunDocId(document: JobDocumentRecord): string {
@@ -761,8 +743,14 @@ function expectedRunDocId(document: JobDocumentRecord): string {
 }
 
 function hasCompletedRunArtifacts(runId: string, docId: string): boolean {
-  const resolved = resolveRunRoot(runId);
-  const primaryPath = resolvePrimaryRunPath(resolved.rootPath);
+  let rootPath: string;
+  try {
+    rootPath = resolveRunRoot(runId).rootPath;
+  } catch {
+    // The run id is assigned before the pipeline creates its folder.
+    return false;
+  }
+  const primaryPath = resolvePrimaryRunPath(rootPath);
   const docDir = path.join(primaryPath, "docs", docId);
   if (!fs.existsSync(docDir)) {
     return false;
@@ -1087,6 +1075,7 @@ async function runSingleJobMode(
     throw new Error("No selected job documents found");
   }
 
+  const assignedRunId = randomUUID().replace(/-/g, "");
   mutateJob(jobId, (current) => {
     current.status = "running";
     current.error = undefined;
@@ -1094,6 +1083,8 @@ async function runSingleJobMode(
     if (runRecord) {
       runRecord.status = "running";
       runRecord.startedAt = nowIso();
+      runRecord.runId = assignedRunId;
+      runRecord.runPath = resolvePathForDisplay(path.join(loadRunnerConfig().runsDir, assignedRunId));
     }
     return current;
   });
@@ -1108,9 +1099,9 @@ async function runSingleJobMode(
   };
 
   try {
-    const { runId, runPath } = await executeRunnerCommand(jobId, commandId ?? job.commandId, runSettings, uploadDir);
+    const { runId, runPath } = await executeRunnerCommand(jobId, commandId ?? job.commandId, runSettings, uploadDir, assignedRunId);
     if (!runId) {
-      throw new Error("Run completed without a run id");
+      throw new Error("The runner command finished but wrote no run output. Check the command in runner.config.json.");
     }
     await foldRunIntoJob(
       jobId,
@@ -1123,7 +1114,7 @@ async function runSingleJobMode(
     );
     return runId;
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Job run failed";
+    const message = describeRunnerError(error);
     markRunFailed(jobId, jobRunId, selectedFileIds, runMode, message, remainingModesAfterCurrent);
     return null;
   }
@@ -1218,9 +1209,12 @@ export async function startJobRuns(payload: StartJobRunsRequest): Promise<JobSta
         },
         { anyFailed: false, anyProcessed: false },
       );
+      const runError = (job.runs ?? []).find(
+        (run) => queuedRuns.some((queued) => queued.jobRunId === run.jobRunId) && run.status === "failed" && run.error,
+      )?.error;
       job.status = counts.anyFailed ? "failed" : "success";
       job.endedAt = nowIso();
-      job.error = counts.anyFailed ? "One or more documents failed." : undefined;
+      job.error = counts.anyFailed ? (runError ? `Run failed: ${runError}` : "One or more documents failed.") : undefined;
       return job;
     });
   })();

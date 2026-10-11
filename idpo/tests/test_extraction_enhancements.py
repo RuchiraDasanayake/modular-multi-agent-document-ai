@@ -4,8 +4,9 @@ import types
 from pathlib import Path
 
 from idpo.agents.base import AgentContext
-from idpo.agents.extraction_prompts import build_extraction_input, build_prompt
+from idpo.agents.extraction_prompts import build_extraction_input, build_prompt, build_single_field_prompt
 from idpo.agents.extraction_providers import sanitize_provider_error
+from idpo.agents.extraction_rules import regex_fallback, tokenize
 from idpo.agents.llm_extraction import LLMExtractionAgent
 from idpo.core.artifacts import ArtifactStore
 from idpo.core.config import PipelineConfig
@@ -27,6 +28,31 @@ def _doc(text: str) -> Document:
         path="doc.txt",
         pages=[Page(number=1, text=text, raw_text=text)],
     )
+
+
+def test_single_field_prompt_lists_sibling_fields_to_avoid() -> None:
+    prompt = build_single_field_prompt(
+        "TOTAL 23.000\nCASH 50.000\nCHANGE 27.000",
+        "total_amount",
+        "Final amount payable",
+        sibling_fields={
+            "total_amount": "Final amount payable",
+            "cash_amount": "Amount tendered by the customer",
+            "change_amount": "Amount returned to the customer",
+        },
+    )
+
+    assert 'which printed label belongs to "total_amount"' in prompt
+    assert "two fields may still have the same value" in prompt
+    assert "- cash_amount: Amount tendered by the customer" in prompt
+    assert "- change_amount: Amount returned to the customer" in prompt
+    assert "- total_amount:" not in prompt
+
+
+def test_single_field_prompt_without_siblings_has_no_sibling_block() -> None:
+    prompt = build_single_field_prompt("TOTAL 23.000", "total_amount", "Final amount payable")
+
+    assert "OTHER FIELDS" not in prompt
 
 
 def test_messy_document_maps_to_requested_structured_fields(tmp_path: Path) -> None:
@@ -451,6 +477,56 @@ def test_local_mode_does_not_call_cloud_when_cloud_fallback_is_disabled(tmp_path
     assert diagnostics["cloud_failure_reason"] == "cloud_fallback_disabled"
 
 
+def _run_per_field(tmp_path: Path, monkeypatch, fake_chat) -> dict[str, object]:  # noqa: ANN001
+    config = PipelineConfig()
+    config.llm.use_extraction = True
+    config.llm.allow_cloud_fallback = False
+    config.llm.local_use_chat_api = True
+    monkeypatch.setattr("idpo.agents.llm_extraction.ollama_chat_detailed", fake_chat)
+    result = LLMExtractionAgent().run(
+        {
+            "document": _doc("Receipt\nTOTAL 23.000\nCASH 50.000"),
+            "model": ModelDecision(mode="local", model_name="qwen3.5:9b", reason="test"),
+            "explicit_entities": ["total_amount", "cash_amount"],
+            "per_field_extraction": True,
+        },
+        _ctx(tmp_path, config),
+    )
+    return result.artifacts["llm_diagnostics"]
+
+
+def test_per_field_extraction_reports_an_unreachable_llm(tmp_path: Path, monkeypatch) -> None:
+    refused = "unreachable:[WinError 10061] No connection could be made"
+    diagnostics = _run_per_field(
+        tmp_path,
+        monkeypatch,
+        lambda *_args, **_kwargs: (None, {"endpoint": "ollama.chat", "error": refused}),
+    )
+
+    local_call = diagnostics["local_call"]
+    assert diagnostics["local_succeeded"] is False
+    assert local_call["per_field"] is True
+    assert local_call["error"] == refused
+    assert local_call["field_errors"] == {"total_amount": refused, "cash_amount": refused}
+
+
+def test_per_field_extraction_sums_token_usage_across_field_calls(tmp_path: Path, monkeypatch) -> None:
+    def fake_chat(_base_url, messages, _model, **_kwargs):  # noqa: ANN001
+        key = "cash_amount" if '"cash_amount"' in messages[-1]["content"].split("OTHER FIELDS")[0] else "total_amount"
+        value = "50.000" if key == "cash_amount" else "23.000"
+        body = '{"entities": [{"key": "%s", "value": "%s", "confidence": 0.95}]}' % (key, value)
+        return body, {"endpoint": "ollama.chat", "prompt_tokens": 100, "completion_tokens": 10}
+
+    diagnostics = _run_per_field(tmp_path, monkeypatch, fake_chat)
+
+    local_call = diagnostics["local_call"]
+    assert diagnostics["local_succeeded"] is True
+    assert local_call["success"] is True
+    assert local_call["entity_count"] == 2
+    assert local_call["total_tokens"] == 220
+    assert "error" not in local_call and "field_errors" not in local_call
+
+
 def test_explicit_field_jobs_suppress_generic_spillover(tmp_path: Path) -> None:
     config = PipelineConfig()
     config.llm.use_extraction = False
@@ -473,3 +549,28 @@ def test_explicit_field_jobs_suppress_generic_spillover(tmp_path: Path) -> None:
     assert "invoice_number" in keys
     assert "vendor_name" not in keys
     assert "department" not in keys
+
+
+_RECEIPT_TEXT = "LEMONADE 16OZ\n20,000\nSUB TOTAL\n20,000\nGRAND TOTAL\n20,000\nCASH IDR\n100,000\nCHANGE DUE\n80,000"
+
+
+def _fallback_value(key: str, text: str = _RECEIPT_TEXT) -> str | None:
+    entity = regex_fallback(key, tokenize(key), text)
+    return entity.value if entity else None
+
+
+def test_regex_fallback_reads_the_value_after_the_fields_own_label() -> None:
+    assert _fallback_value("total_amount") == "20,000"
+    assert _fallback_value("subtotal_amount") == "20,000"
+    assert _fallback_value("cash_amount") == "100,000"
+    assert _fallback_value("change_amount") == "80,000"
+
+
+def test_regex_fallback_does_not_copy_the_total_into_an_absent_field() -> None:
+    assert _fallback_value("tax_amount") is None
+    assert _fallback_value("cash_amount", "SUBTOTAL 4,800.00\nTOTAL 5,280.00") is None
+
+
+def test_regex_fallback_uses_field_specific_words_for_unlisted_amounts() -> None:
+    text = "Policy Number: POL-1\nClaim Amount (LKR) 145,750.00\nTotal paid to date 2,000.00"
+    assert _fallback_value("claim_amount", text) == "145,750.00"

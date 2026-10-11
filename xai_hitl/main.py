@@ -251,30 +251,35 @@ def _demo_explanation(
         ],
     )
 
+_HIGHLIGHT_MAP = {
+    "answer_span": "answer",
+    "high_importance": "positive",
+    "medium_importance": "medium",
+    "low_importance": "negative",
+    "positive": "positive",
+    "negative": "negative",
+}
+
+def _spans_to_schema(spans: list[Any]) -> list[HighlightSpan]:
+    """Convert the engine's TextSpan objects to API schema."""
+    return [
+        HighlightSpan(
+            start=s.start,
+            end=s.end,
+            text=s.text,
+            type=_HIGHLIGHT_MAP.get(s.highlight_type.value, "medium"),
+            shap_score=s.shap_score,
+            lime_score=s.lime_score,
+        )
+        for s in spans
+    ]
+
 def _engine_explanation_to_schema(exp: Any) -> XAIExplanation:
     """Convert the engine's dataclass-based explanation to API schema."""
-    _HIGHLIGHT_MAP = {
-        "answer_span": "answer",
-        "high_importance": "positive",
-        "medium_importance": "medium",
-        "low_importance": "negative",
-        "positive": "positive",
-        "negative": "negative",
-    }
     return XAIExplanation(
         answer=exp.answer,
         confidence_score=exp.confidence_score,
-        highlighted_spans=[
-            HighlightSpan(
-                start=s.start,
-                end=s.end,
-                text=s.text,
-                type=_HIGHLIGHT_MAP.get(s.highlight_type.value, "medium"),
-                shap_score=s.shap_score,
-                lime_score=s.lime_score,
-            )
-            for s in exp.highlighted_spans
-        ],
+        highlighted_spans=_spans_to_schema(exp.highlighted_spans),
         shap_explanation=SHAPExplanation(
             shap_values=exp.shap_explanation.shap_values,
             base_value=exp.shap_explanation.base_value,
@@ -540,6 +545,7 @@ class XAIOnlyResponse(BaseModel):
     """Response containing only XAI explanations (for lazy loading)."""
     shap_explanation: SHAPExplanation
     lime_explanation: LIMEExplanation
+    highlighted_spans: list[HighlightSpan] = Field(default_factory=list)
 
 
 @app.post("/xai/explain", response_model=XAIOnlyResponse)
@@ -558,6 +564,7 @@ async def generate_xai_only(body: XAIRequest):
     Returns:
         shap_explanation: Cross-attention token importance scores
         lime_explanation: LIME word weights and prediction probability
+        highlighted_spans: Paragraph words with a combined SHAP/LIME score of at least 0.1
     """
     if not _engine_available:
         # Return empty explanations if engine unavailable
@@ -578,6 +585,7 @@ async def generate_xai_only(body: XAIRequest):
             ),
             timeout=300.0
         )
+        spans = engine.highlighted_spans_for_answer(body.paragraph, shap_exp, lime_exp)
         return XAIOnlyResponse(
             shap_explanation=SHAPExplanation(
                 shap_values=shap_exp.shap_values,
@@ -587,6 +595,7 @@ async def generate_xai_only(body: XAIRequest):
                 word_weights=lime_exp.word_weights,
                 prediction_proba=lime_exp.prediction_proba,
             ),
+            highlighted_spans=_spans_to_schema(spans),
         )
     except asyncio.TimeoutError:
         logger.warning("XAI generation timed out after 300s")

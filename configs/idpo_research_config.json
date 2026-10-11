@@ -106,8 +106,8 @@
   "rollback": {
     "enabled": true,
     "window_size": 10,
-    "latency_p95_ms": 2500.0,
-    "validation_failure_rate": 0.25,
+    "latency_p95_ms": 60000.0,
+    "validation_failure_rate": 0.5,
     "quality_drop_threshold": 0.08,
     "max_latency_regression_pct": 0.25,
     "min_validation_pass_delta": 0.1

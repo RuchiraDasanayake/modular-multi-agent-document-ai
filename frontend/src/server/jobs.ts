@@ -15,6 +15,15 @@ import { loadRunnerConfig } from "@/server/config";
 
 const inMemoryJobs = new Map<string, JobStatus>();
 const JOB_FILE_PATTERN = /^[a-f0-9]{32}\.json$/i;
+const JOB_ID_PATTERN = /^[a-f0-9]{32}$/i;
+const INTERRUPTED_JOB_ERROR = "Interrupted: the server restarted while this job was running. Run it again.";
+
+// Kept on globalThis so dev-mode module reloads in the same process keep the same id.
+const SERVER_INSTANCE_ID: string = (() => {
+  const holder = globalThis as typeof globalThis & { __idpoServerInstanceId?: string };
+  holder.__idpoServerInstanceId ??= randomUUID();
+  return holder.__idpoServerInstanceId;
+})();
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -100,6 +109,29 @@ function normalizeFieldConfig(value: unknown): JobFieldConfig[] {
     });
   }
   return fields;
+}
+
+function failInterruptedJob(job: JobStatus, documents: JobDocumentRecord[], runs: JobRunRecord[]): void {
+  if (job.status !== "running" || job.serverInstanceId === SERVER_INSTANCE_ID) {
+    return;
+  }
+  const endedAt = nowIso();
+  job.status = "failed";
+  job.error = INTERRUPTED_JOB_ERROR;
+  job.endedAt = job.endedAt ?? endedAt;
+  for (const run of runs) {
+    if (run.status === "running" || run.status === "queued") {
+      run.status = "failed";
+      run.error = INTERRUPTED_JOB_ERROR;
+      run.endedAt = run.endedAt ?? endedAt;
+    }
+  }
+  for (const document of documents) {
+    if (document.status === "processing") {
+      document.status = "failed";
+      document.errorSummary = INTERRUPTED_JOB_ERROR;
+    }
+  }
 }
 
 function repairCompletedRuns(job: JobStatus, documents: JobDocumentRecord[], runs: JobRunRecord[]): void {
@@ -297,6 +329,7 @@ function normalizeJob(job: JobStatus): JobStatus {
   const startedAt = typeof job.startedAt === "string" ? job.startedAt : createdAt;
   const documents = normalizeDocuments(job.documents);
   const runs = normalizeRuns(job.runs);
+  failInterruptedJob(job, documents, runs);
   repairCompletedRuns(job, documents, runs);
   const counts = computeCounts(documents);
   const uploadsPath = typeof job.uploadsPath === "string" && job.uploadsPath.trim()
@@ -340,8 +373,12 @@ function normalizeJob(job: JobStatus): JobStatus {
   return normalized;
 }
 
+function claimIfRunning(job: JobStatus): JobStatus {
+  return job.status === "running" ? { ...job, serverInstanceId: SERVER_INSTANCE_ID } : job;
+}
+
 function persistJob(job: JobStatus): void {
-  const normalized = normalizeJob(job);
+  const normalized = normalizeJob(claimIfRunning(job));
   const filePath = getJobFile(normalized.jobId);
   fs.writeFileSync(filePath, JSON.stringify(normalized, null, 2), "utf-8");
   inMemoryJobs.set(normalized.jobId, normalized);
@@ -408,6 +445,8 @@ export async function addDocumentsToJob(jobId: string, files: File[]): Promise<J
 
   for (const file of files) {
     validateUpload(file, config.allowedExtensions, config.maxUploadMb);
+  }
+  for (const file of files) {
     const fileId = randomUUID().replace(/-/g, "");
     const safeName = sanitizeFilename(file.name);
     const storedName = `${fileId}__${safeName}`;
@@ -449,7 +488,7 @@ export function getJobOrThrow(jobId: string): JobStatus {
 export function mutateJob(jobId: string, mutator: (job: JobStatus) => JobStatus | void): JobStatus {
   const current = getJobOrThrow(jobId);
   const candidate = mutator(structuredClone(current));
-  const next = normalizeJob((candidate ?? current) as JobStatus);
+  const next = normalizeJob(claimIfRunning((candidate ?? current) as JobStatus));
   persistJob(next);
   return next;
 }
@@ -470,12 +509,12 @@ export function appendJobLog(jobId: string, line: string): JobStatus {
 
 export function updateJob(jobId: string, patch: Partial<JobStatus>): JobStatus {
   const current = getJobOrThrow(jobId);
-  const next: JobStatus = normalizeJob({
+  const next: JobStatus = normalizeJob(claimIfRunning({
     ...current,
     ...patch,
     logs: patch.logs ?? current.logs,
     settings: patch.settings ?? current.settings,
-  });
+  }));
   persistJob(next);
   return next;
 }
@@ -503,8 +542,9 @@ export function setJobFailed(jobId: string, error: string): JobStatus {
 }
 
 export function getJob(jobId: string): JobStatus | null {
-  const filePath = getJobFile(jobId);
-  if (fs.existsSync(filePath)) {
+  // Route params arrive URL-decoded, so an unchecked id could point the file lookup outside the jobs folder.
+  const filePath = JOB_ID_PATTERN.test(jobId) ? getJobFile(jobId) : null;
+  if (filePath && fs.existsSync(filePath)) {
     try {
       const job = normalizeJob(JSON.parse(fs.readFileSync(filePath, "utf-8")) as JobStatus);
       inMemoryJobs.set(jobId, job);

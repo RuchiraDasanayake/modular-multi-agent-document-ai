@@ -116,7 +116,7 @@ AHMN does not operate on arbitrary policy choices. The deployed system filters p
 
 The canonical operational path is:
 
-`frontend upload -> /api/runs/start -> frontend job runner -> idpo.cli process-inbox -> IDPO_DATA_DIR/runs/<run_id>`
+`frontend job (POST /api/jobs/<job_id>/documents, then POST /api/jobs/<job_id>/runs) -> frontend job runner -> idpo.cli process-inbox -> IDPO_DATA_DIR/runs/<run_id>`
 
 Within IDPO, the processing path remains:
 

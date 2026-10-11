@@ -29,10 +29,6 @@ function getJobValidationContextPath(jobId: string): string {
   return path.join(loadRunnerConfig().jobsDir, `${jobId}_validation_context.json`);
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
-}
-
 function readJsonFile<T>(filePath: string): T | null {
   if (!fs.existsSync(filePath)) {
     return null;

@@ -94,6 +94,36 @@ def _text_similarity(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, a, b).ratio()
 
 
+def _parse_complete_date(value: object):
+    """Return the calendar date only when year, month and day are all written.
+
+    Validation may rewrite "January 11, 1999" as "1999-01-11", so dates are compared by value. Partial dates such as
+    "November 1999" return None and therefore never match a full date.
+    """
+    import re as _re
+
+    from dateutil import parser as date_parser
+
+    text = _re.sub(r"'(\d{2})\b", r"\1", str(value or "").strip().lower())
+    text = _re.sub(r"\s*([/\-])\s*", r"\1", text)
+    text = " ".join(text.replace(",", " ").split())
+    if not any(char.isdigit() for char in text):
+        return None
+    try:
+        first = date_parser.parse(text, default=datetime(1900, 1, 1))
+        second = date_parser.parse(text, default=datetime(1904, 2, 2))
+    except (ValueError, OverflowError):
+        return None
+    return first.date() if first == second else None
+
+
+def _same_complete_date(key: str, got: object, expected: object) -> bool:
+    if "date" not in key:
+        return False
+    got_date = _parse_complete_date(got)
+    return got_date is not None and got_date == _parse_complete_date(expected)
+
+
 _CURRENCY_PREFIX_RE = None
 
 
@@ -105,13 +135,23 @@ def _strip_currency_prefix(text: str) -> str:
     return stripped if stripped else text
 
 
+_ABSENT_VALUE_PLACEHOLDERS = {"n/a", "na", "none", "null", "-", "--"}
+
+
 def _normalize_exact_value(key: str, value: object) -> str:
+    import re
+
     normalized = _norm(value)
+    if normalized in _ABSENT_VALUE_PLACEHOLDERS:
+        return ""
     lowered_key = str(key or "").strip().lower()
     if any(hint in lowered_key for hint in _NUMERIC_FIELD_HINTS):
         # Strip currency prefix before processing (e.g. "Rp 39.600" → "39.600")
         normalized = _strip_currency_prefix(normalized)
         compact = normalized.replace(" ", "").replace(",", "")
+        if re.fullmatch(r"-?\d{1,3}(\.\d{3}){2,}", compact):
+            # Repeated dot groups of three digits are thousands separators ("2.000.000").
+            compact = compact.replace(".", "")
         if compact.count(".") == 1:
             integer_part, frac_part = compact.split(".")
             if len(frac_part) == 3:
@@ -144,7 +184,7 @@ def _case_metrics(expected: dict[str, str], extracted: dict[str, object]) -> tup
         elif not is_numeric and got_norm:
             # For text fields, accept fuzzy match to handle OCR noise on names/dates
             sim = _text_similarity(_norm_text(extracted.get(key, "")), _norm_text(expected_value))
-            if sim >= _FUZZY_MATCH_THRESHOLD:
+            if sim >= _FUZZY_MATCH_THRESHOLD or _same_complete_date(lowered_key, extracted.get(key, ""), expected_value):
                 tp += 1
             else:
                 fp += 1
@@ -715,12 +755,8 @@ def _shared_extraction_fields(pack: dict[str, Any], cases: list[dict[str, Any]])
     return [{"name": key, "description": value} for key, value in merged.items()]
 
 
-def _case_doc_keys(case_id: str, source_path: Path, doc: dict[str, Any]) -> set[str]:
-    keys = {
-        case_id.strip().lower(),
-        source_path.stem.strip().lower(),
-        source_path.name.strip().lower(),
-    }
+def _doc_identity_keys(doc: dict[str, Any]) -> set[str]:
+    keys: set[str] = set()
     doc_id = str(doc.get("doc_id", "")).strip().lower()
     filename = str(doc.get("filename", "") or doc.get("file_name", "")).strip().lower()
     if doc_id:
@@ -779,9 +815,16 @@ def _run_condition_batch(
         tags = [str(tag).strip() for tag in (case.get("tags", []) or []) if str(tag).strip()]
         expected = {str(k): str(v) for k, v in (case.get("expected", {}) or {}).items()}
         match_index = None
-        target_keys = {case_id.strip().lower(), source_path.stem.strip().lower(), source_path.name.strip().lower()}
+        staged_name = f"{_sanitize_filename(case_id)}{source_path.suffix}".lower()
+        target_keys = {
+            case_id.strip().lower(),
+            staged_name,
+            Path(staged_name).stem,
+            source_path.stem.strip().lower(),
+            source_path.name.strip().lower(),
+        }
         for idx, doc in enumerate(unmatched_docs):
-            if target_keys & _case_doc_keys(case_id, source_path, doc):
+            if target_keys & _doc_identity_keys(doc):
                 match_index = idx
                 break
         if match_index is None:
@@ -809,6 +852,17 @@ def _run_condition_batch(
             }
         )
     return results
+
+
+_LLM_TRANSPORT_ERROR_PREFIXES = ("unreachable", "timeout", "http_")
+
+
+def _llm_unavailable(doc: dict[str, Any]) -> bool:
+    """True when the document's local LLM call failed in transport (server down, timeout, HTTP error)."""
+    diagnostics = doc.get("llm_diagnostics")
+    call = diagnostics.get("local_call") if isinstance(diagnostics, dict) else None
+    error = str(call.get("error") or "") if isinstance(call, dict) else ""
+    return error.startswith(_LLM_TRANSPORT_ERROR_PREFIXES)
 
 
 def _condition_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
@@ -937,6 +991,7 @@ def _condition_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "policy_changed_count": policy_changed_count,
         "exact_scored_doc_count": exact_scored_doc_count,
         "exact_field_metrics": exact_metrics,
+        "llm_unavailable_count": sum(1 for item in results if _llm_unavailable(item["doc"])),
     }
     return summary
 
@@ -1226,7 +1281,14 @@ def _claim_checks(
     validation_delta = float(comparison_table["validation_pass_rate"][ADAPTIVE_LABEL] or 0.0) - float(comparison_table["validation_pass_rate"]["static"] or 0.0)
     latency_delta = float(comparison_table["avg_latency_ms"]["static"] or 0.0) - float(comparison_table["avg_latency_ms"][ADAPTIVE_LABEL] or 0.0)
 
+    static_unavailable = int(static_summary.get("llm_unavailable_count", 0) or 0)
+    adaptive_unavailable = int(adaptive_summary.get("llm_unavailable_count", 0) or 0)
+
     checks = {
+        "llm_reachable_for_every_document": {
+            "pass": static_unavailable + adaptive_unavailable == 0,
+            "detail": f"llm_unavailable static={static_unavailable}, {ADAPTIVE_LABEL}={adaptive_unavailable}",
+        },
         "adaptive_safe_runtime_real": {
             "pass": accepted_count + rejected_count + no_advice_count > 0,
             "detail": f"accepted={accepted_count}, rejected={rejected_count}, no_advice={no_advice_count}",
@@ -1630,6 +1692,9 @@ def main() -> int:
     )
     print(json.dumps(evidence["comparison"]["table"], indent=2))
     print(f"report_path={benchmark_reports_dir() / evidence['experiment']['benchmark_run_id'] / 'paper_evidence.json'}")
+    llm_check = evidence["comparison"]["claim_checks"]["llm_reachable_for_every_document"]
+    if not llm_check["pass"]:
+        print(f"WARNING: the local LLM was unreachable for some documents; results are not valid evidence ({llm_check['detail']})", file=sys.stderr)
     if "frontend_job" in evidence:
         fj = evidence["frontend_job"]
         print(f"frontend_job_id={fj.get('job_id')} doc_count={fj.get('doc_count')} added={fj.get('added_count')}")

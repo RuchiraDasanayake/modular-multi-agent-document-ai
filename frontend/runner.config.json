@@ -10,6 +10,9 @@
     ".png",
     ".jpg",
     ".jpeg",
+    ".tif",
+    ".tiff",
+    ".bmp",
     ".txt",
     ".json"
   ],
@@ -28,7 +31,9 @@
         "--config",
         "{config_path}",
         "--input-dir",
-        "{input_dir}"
+        "{input_dir}",
+        "--run-id",
+        "{run_id}"
       ],
       "cwd": "..",
       "env": {

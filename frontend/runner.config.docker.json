@@ -10,6 +10,9 @@
     ".png",
     ".jpg",
     ".jpeg",
+    ".tif",
+    ".tiff",
+    ".bmp",
     ".txt",
     ".json"
   ],
@@ -17,7 +20,7 @@
   "commands": [
     {
       "id": "idpo_process_inbox",
-      "description": "Run IDPO inbox pipeline over uploaded files",
+      "description": "Placeholder: the Docker frontend image cannot run the IDPO pipeline. Use the single-host runner (see docs/PUBLIC_DEMO_DEPLOYMENT.md).",
       "program": "echo",
       "args": ["delegated to IDPO microservice"],
       "cwd": ".",

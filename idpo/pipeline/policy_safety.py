@@ -61,30 +61,40 @@ class PolicyRollbackMonitor:
     def _block_reason(self, policy_id: str, baseline_policy_id: str) -> str | None:
         if policy_id == baseline_policy_id:
             return None
+        rollback = self.config.rollback
+        min_observations = min(5, rollback.window_size)
         items = self.history.get(policy_id, [])
-        if len(items) < min(5, self.config.rollback.window_size):
+        if len(items) < min_observations:
             return None
-        latencies = [item.get("latency_ms", 0.0) for item in items]
-        failures = [item.get("validation_failure", 0.0) for item in items]
-        qualities = [item.get("quality_proxy", 0.0) for item in items]
-
-        latency_p95 = _percentile(latencies, 95)
-        failure_rate = sum(1.0 for flag in failures if flag) / len(failures)
-        candidate_quality = sum(qualities) / len(qualities) if qualities else 0.0
-
         baseline_items = self.history.get(baseline_policy_id, [])
-        baseline_quality = None
-        if baseline_items:
-            base_qualities = [item.get("quality_proxy", 0.0) for item in baseline_items]
-            baseline_quality = sum(base_qualities) / len(base_qualities)
 
-        if latency_p95 > self.config.rollback.latency_p95_ms:
+        latency_limit = rollback.latency_p95_ms
+        failure_limit = rollback.validation_failure_rate
+        # Documents that are slow or hard for every policy must not block a candidate, so once the baseline has
+        # enough history the absolute limits only apply when the candidate is also worse than the baseline.
+        if len(baseline_items) >= min_observations:
+            latency_limit = max(latency_limit, _latency_p95(baseline_items) * (1.0 + rollback.max_latency_regression_pct))
+            failure_limit = max(failure_limit, _failure_rate(baseline_items) + rollback.min_validation_pass_delta)
+
+        if _latency_p95(items) > latency_limit:
             return "latency_p95_limit"
-        if failure_rate > self.config.rollback.validation_failure_rate:
+        if _failure_rate(items) > failure_limit:
             return "validation_failure_rate"
-        if baseline_quality is not None and (baseline_quality - candidate_quality) > self.config.rollback.quality_drop_threshold:
+        if baseline_items and (_mean_quality(baseline_items) - _mean_quality(items)) > rollback.quality_drop_threshold:
             return "quality_drop"
         return None
+
+
+def _latency_p95(items: list[dict[str, float]]) -> float:
+    return _percentile([item.get("latency_ms", 0.0) for item in items], 95)
+
+
+def _failure_rate(items: list[dict[str, float]]) -> float:
+    return sum(1.0 for item in items if item.get("validation_failure", 0.0)) / len(items) if items else 0.0
+
+
+def _mean_quality(items: list[dict[str, float]]) -> float:
+    return sum(item.get("quality_proxy", 0.0) for item in items) / len(items) if items else 0.0
 
 
 def _percentile(values: list[float], percentile: int) -> float:

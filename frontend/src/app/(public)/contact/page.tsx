@@ -3,11 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 
-const socialLinks = [
-    { href: "https://github.com", label: "GitHub" },
-    { href: "https://twitter.com", label: "Twitter" },
-    { href: "https://linkedin.com", label: "LinkedIn" },
-];
+const contactEmail = (process.env.NEXT_PUBLIC_CONTACT_EMAIL || "").trim();
 
 export default function ContactPage() {
     const [submitted, setSubmitted] = useState(false);
@@ -15,8 +11,8 @@ export default function ContactPage() {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        // Build mailto link with form data
-        const mailtoUrl = `mailto:modulardocai@university.edu?subject=${encodeURIComponent(form.subject)}&body=${encodeURIComponent(`From: ${form.name} (${form.email})\n\n${form.message}`)}`;
+        if (!contactEmail) return;
+        const mailtoUrl = `mailto:${contactEmail}?subject=${encodeURIComponent(form.subject)}&body=${encodeURIComponent(`From: ${form.name} (${form.email})\n\n${form.message}`)}`;
         window.open(mailtoUrl, '_blank');
         setSubmitted(true);
         setTimeout(() => setSubmitted(false), 5000);
@@ -46,7 +42,7 @@ export default function ContactPage() {
                         transition={{ duration: 0.5, delay: 0.1 }}
                         className="text-lg text-slate-600 dark:text-gray-400 mt-6 max-w-2xl mx-auto"
                     >
-                        Have a question about our platform? Want to discuss enterprise solutions?
+                        Questions about the research, the system design, or the evaluation?
                         We&apos;d love to hear from you.
                     </motion.p>
                 </div>
@@ -62,7 +58,11 @@ export default function ContactPage() {
                     >
                         <div className="glass-panel rounded-3xl p-8 lg:p-10">
                             <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Send us a message</h2>
-                            <p className="text-slate-600 dark:text-gray-400 mb-8">Fill out the form and we&apos;ll get back to you within 24 hours.</p>
+                            <p className="text-slate-600 dark:text-gray-400 mb-8">
+                                {contactEmail
+                                    ? "Submitting opens your email app with this message addressed to the research team."
+                                    : "A contact address has not been configured for this deployment."}
+                            </p>
 
                             {submitted && (
                                 <motion.div
@@ -71,7 +71,7 @@ export default function ContactPage() {
                                     className="mb-6 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 flex items-center gap-3"
                                 >
                                     <p className="text-sm text-emerald-700 dark:text-emerald-300 font-medium">
-                                        Message sent successfully! We&apos;ll get back to you soon.
+                                        Your email app should now be open with this message. Send it from there.
                                     </p>
                                 </motion.div>
                             )}
@@ -133,29 +133,12 @@ export default function ContactPage() {
                                 </div>
                                 <button
                                     type="submit"
-                                    className="w-full py-3.5 glass-button rounded-xl text-sm font-medium flex items-center justify-center gap-2"
+                                    disabled={!contactEmail}
+                                    className="w-full py-3.5 glass-button rounded-xl text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-
-                                    Send Message
+                                    Compose Email
                                 </button>
                             </form>
-                        </div>
-
-                        {/* Social Links */}
-                        <div className="flex items-center justify-center gap-4 mt-8">
-                            <span className="text-sm text-slate-500 dark:text-gray-400">Follow us:</span>
-                            {socialLinks.map((social, i) => (
-                                <a
-                                    key={i}
-                                    href={social.href}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="w-10 h-10 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-gray-800 text-slate-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-500/10 border border-slate-200 dark:border-gray-700 transition-all"
-                                    aria-label={social.label}
-                                >
-
-                                </a>
-                            ))}
                         </div>
                     </motion.div>
                 </div>

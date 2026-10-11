@@ -718,9 +718,9 @@ IDPO maps its internal doc types to Guardrails-recognized types:
     "Analyze the extraction quality and explain whether the results
      for this invoice document are reliable."
 
-[3] XAI-HITL processes with DistilBERT:
-    • Extractive QA to find relevant answer span
-    • LIME generates feature attributions (word importance)
+[3] XAI-HITL processes with BART (vblagoje/bart_lfqa):
+    • Generative QA writes the answer from the paragraph
+    • Attention importance and LIME give word attributions
 
 [4] Returns:
     { answer: "...", confidence: 0.87, explanation: { lime_weights, ... } }
@@ -728,7 +728,7 @@ IDPO maps its internal doc types to Guardrails-recognized types:
 
 ### Performance Note
 
-XAI runs on CPU (no GPU required) with DistilBERT, which is lightweight but still needs up to **90 seconds** per document. The system uses a longer timeout (`_XAI_TIMEOUT = 90.0`) to accommodate this.
+XAI runs on CPU (no GPU required) with BART. The first request after the service starts also loads the model, which can take about 40 seconds on a cold disk. The legacy HTTP chain in `idpo/integration.py` uses `_XAI_TIMEOUT = 90.0`; the dashboard reaches the service through the gateway (`PROXY_TIMEOUT`, 300 s) and the Next.js rewrite (`experimental.proxyTimeout`, 300 s).
 
 ---
 
@@ -742,11 +742,14 @@ XAI runs on CPU (no GPU required) with DistilBERT, which is lightweight but stil
 | **DAAF Demo** | `/dashboard/daaf` | Interactive drift detection simulation | Controls: pre/post drift mean, noise std, drift round, window size. Charts: reward stream, drift magnitude + gamma, drift type classification |
 | **RABI Demo** | `/dashboard/rabi` | Interactive cold-start simulation | Controls: temperature τ, similarity threshold, k neighbors. Charts: Beta distribution (flat vs RABI prior), neighbor similarity weights |
 | **Experiments** | `/dashboard/experiments` | Pre-computed experiment results | 30 seeds × 7 methods × 4 scenarios = 840 runs. Live TS vs DAAF+RABI comparison chart |
-| **Architecture** | `/dashboard/architecture` | System design visualization | 9-step request lifecycle, 3 algorithm detail cards with formulas, tech stack grid |
-| **XAI Q&A** | `/dashboard/xai` | Chat interface for document QA | Supports default demo paragraph, extracted docs from IDPO, or custom text. Shows highlighted spans, SHAP/LIME explanations, derivation steps |
-| **HITL Review** | `/dashboard/hitl` | Expert feedback form | Feedback types (correct/incorrect/partially_correct/needs_more_context), 3 rating sliders, corrected answer input, knowledge suggestions |
+| **Architecture** | `/dashboard/architecture` | How the separate AHMN service answers and learns | Request steps (`POST /advice`), learning steps (outcome log, expert feedback, 30-minute promotion, 6-hour DAAF forgetting), formulas, stack. States that the pipeline and benchmark use the in-process advisor without RABI or DAAF. Linked from Policy check |
+| **AI Q&A** | `/dashboard/xai` | Questions about a document's text | Picks a processed job document and loads its OCR text (`GET /api/jobs/:jobId/docs/:docId/text`), or takes pasted text. `/dashboard/xai/explanation` shows the highlighted spans, SHAP and LIME weights and reasoning steps for the last answer; AI Q&A asks without the explanation, so this page loads the weights and highlights from `POST /xai/explain` |
+| **Expert Review** | `/dashboard/hitl` | Rating form for the last AI Q&A answer | Verdict (correct/partially_correct/incorrect/needs_more_context) must be chosen before saving, three 1–5 ratings, corrected answer, missing information |
 | **Database** | `/dashboard/database` | Raw data explorer | 6 tabs: LTM Policies (α/β/confidence), MTM Outcomes (f1/human_corrected), STM Cache (TTL), Users, Guardrail Audit, HITL Feedback |
-| **IDPO** | `/dashboard/idpo` | Document upload and processing | Multi-file upload, field configuration, pipeline toggle options (Guardrails/XAI/AHMN), result display |
+| **Doc Extraction** | `/dashboard/idpo` → `/dashboard/idpo/jobs` | Document jobs | Create a job, upload files, process them in static, adaptive or both modes, then review each document's fields. Without labels, every review state starts empty and must be chosen before saving |
+| **Benchmark Results** | `/dashboard/idpo/benchmark` | Static versus adaptive runs | Paired differences with 95% bootstrap intervals from the saved run reports; the eight paper runs are marked |
+| **Compare** | `/dashboard/idpo/compare` | Two runs side by side | Run summary and per-document policy, score, time and safety-gate outcome |
+| **Run Walkthrough** | `/dashboard/idpo/presentation` | Demo guide | Upload, process both ways, inspect one decision, then show the benchmark |
 | **Guardrails** | `/dashboard/guardrails` | Validation testing | Direct guardrail validation testing interface |
 | **Admin** | `/dashboard/admin` | User management | Create/toggle/view users, role management |
 
@@ -754,7 +757,7 @@ XAI runs on CPU (no GPU required) with DistilBERT, which is lightweight but stil
 
 1. **RABI Demo** (`/dashboard/rabi`): Shows cold-start → warm-start transition visually
 2. **DAAF Demo** (`/dashboard/daaf`): Shows real-time drift detection and adaptive forgetting
-3. **Experiments** (`/dashboard/experiments`): Shows statistical superiority of DAAF+RABI
+3. **Experiments** (`/dashboard/experiments`): Shows the simulator comparison behind Table V of the paper (synthetic rewards, not documents)
 4. **Database → LTM tab** (`/dashboard/database`): Shows live α/β/confidence for all learned policies
 
 ---
@@ -808,11 +811,13 @@ XAI runs on CPU (no GPU required) with DistilBERT, which is lightweight but stil
 | `POST /advice`              | AHMN         | Get policy recommendation  |
 | `POST /advice/log`          | AHMN         | Log outcome metrics (F1)   |
 | `POST /advice/feedback`     | AHMN         | Forward human correction   |
-| `GET /advice/stats`         | AHMN         | Get bandit statistics      |
+| `POST /advice/review`       | AHMN         | Record a saved field review |
+| `GET /dashboard/stats`      | AHMN         | Get bandit statistics      |
 | `POST /guardrails/validate` | Guardrails   | Validate extraction output |
-| `POST /xai/ask`             | XAI-HITL     | Get explanation            |
-| `POST /hitl/submit`         | XAI-HITL     | Submit human review        |
-| `POST /api/idpo/process`    | Gateway→IDPO | Process documents          |
+| `POST /xai/ask`             | XAI-HITL     | Answer a question (explanation optional) |
+| `POST /xai/explain`         | XAI-HITL     | Word weights and highlights for an existing answer |
+| `POST /hitl/feedback`       | XAI-HITL     | Submit human review        |
+| `POST /api/jobs`            | Frontend server | Create and run an extraction job |
 | `GET /health`               | All          | Health check               |
 
 ---

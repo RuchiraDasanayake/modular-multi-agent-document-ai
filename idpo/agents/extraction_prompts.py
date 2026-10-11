@@ -104,13 +104,24 @@ def build_single_field_prompt(
     description: str,
     *,
     extraction_context: str = "",
+    sibling_fields: dict[str, str] | None = None,
 ) -> str:
     """Prompt for extracting exactly one field. Used by per-field extraction mode."""
     context_block = f"{extraction_context.strip()}\n\n" if extraction_context.strip() else ""
+    siblings = {name: desc for name, desc in (sibling_fields or {}).items() if name != key}
+    sibling_block = ""
+    if siblings:
+        lines = "\n".join(f"- {name}: {desc or 'separate field'}" for name, desc in siblings.items())
+        sibling_block = (
+            "OTHER FIELDS (extracted separately). Use them only to tell which printed label belongs to "
+            f'"{key}"; two fields may still have the same value:\n'
+            f"{lines}\n\n"
+        )
     return (
         f"{context_block}"
         f'Extract the field "{key}" from the document text.\n\n'
         f"FIELD DESCRIPTION: {description or 'Extract this field value'}\n\n"
+        f"{sibling_block}"
         "RULES:\n"
         "1. Return ONLY a JSON object: "
         '{"entities": [{"key": "<field_name>", "value": "<exact_value>", "confidence": <0.0-1.0>}]}\n'
@@ -132,8 +143,11 @@ def build_single_field_messages(
     *,
     no_think: bool = True,
     extraction_context: str = "",
+    sibling_fields: dict[str, str] | None = None,
 ) -> list[dict[str, str]]:
-    user_content = build_single_field_prompt(text, key, description, extraction_context=extraction_context)
+    user_content = build_single_field_prompt(
+        text, key, description, extraction_context=extraction_context, sibling_fields=sibling_fields
+    )
     if no_think:
         user_content = "/no_think\n" + user_content
     return [

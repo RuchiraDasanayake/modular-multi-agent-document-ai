@@ -23,6 +23,7 @@ from idpo.pipeline.inbox import process_inbox
 import idpo.pipeline.inbox as inbox_module
 import idpo.pipeline.feedback as feedback_module
 import scripts.run_idpo_benchmark as benchmark_module
+import scripts.analyze_benchmark_errors as error_analysis_module
 from idpo.pipeline.feedback import log_ahmn_feedback
 from idpo.pipeline.policy_safety import PolicySafetyMonitor
 from idpo.pipeline.planning import PlanRouter, build_plan
@@ -740,7 +741,7 @@ def test_pipeline_emits_reward_and_trace_fields(tmp_path: Path) -> None:
         pages=[Page(number=1, text="Invoice Number: INV-55\nTotal Amount: 10.00\nDate: 01/01/2026\n")],
     )
     result = pipeline.process_documents([doc])[0]
-    assert result.reward_type == "canonical_union"
+    assert result.reward_type == "canonical_fallback"
     assert isinstance(result.reward_details, dict)
     assert result.recovery_log is not None
     assert result.escalation_status in {"not_needed", "attempted", "budget_blocked", "quota_blocked", "model_unavailable"}
@@ -907,7 +908,7 @@ def test_process_inbox_writes_decision_chain_and_reward_artifacts(tmp_path: Path
         ],
     )
     doc = result["doc_records"][0]
-    assert doc["reward_type"] == "canonical_union"
+    assert doc["reward_type"] == "policy_declared"
     assert Path(doc["decision_chain_path"]).exists()
     assert Path(doc["reward_path"]).exists()
     assert Path(doc["recovery_trace_path"]).exists()
@@ -1236,7 +1237,8 @@ def test_benchmark_batch_mode_runs_one_process_inbox_call_per_condition(tmp_path
         calls.append({"adaptive": adaptive, "files": files, "run_id": run_id, "job_id": job_id})
         values = {"receipt_a": "1000", "receipt_b": "2000"}
         docs = []
-        for stem, value in values.items():
+        # Emit docs in the opposite order to the pack so scoring must match by id, not position.
+        for stem, value in reversed(list(values.items())):
             docs.append(
                 {
                     "doc_id": stem,
@@ -1304,6 +1306,14 @@ def test_case_metrics_treats_numeric_formatting_as_equal() -> None:
     assert (tp, fp, fn) == (2, 0, 0)
 
 
+def test_case_metrics_counts_absent_placeholder_as_missing_not_wrong() -> None:
+    tp, fp, fn = benchmark_module._case_metrics(  # noqa: SLF001
+        {"total_amount": "53,000", "change_amount": "0"},
+        {"total_amount": "53,000", "change_amount": "N/A", "tax_amount": "N/A"},
+    )
+    assert (tp, fp, fn) == (1, 0, 1)
+
+
 def test_case_metrics_handles_currency_prefixes_and_three_digit_grouping() -> None:
     tp, fp, fn = benchmark_module._case_metrics(  # noqa: SLF001
         {
@@ -1320,6 +1330,61 @@ def test_case_metrics_handles_currency_prefixes_and_three_digit_grouping() -> No
         },
     )
     assert (tp, fp, fn) == (4, 0, 0)
+
+
+def test_case_metrics_reads_repeated_dot_groups_as_thousands_separators() -> None:
+    tp, fp, fn = benchmark_module._case_metrics(  # noqa: SLF001
+        {"subtotal_amount": "2,000,000", "total_amount": "1.234.56"},
+        {"subtotal_amount": "2.000.000", "total_amount": "123456"},
+    )
+    assert (tp, fp, fn) == (1, 1, 1)
+
+
+def test_case_metrics_matches_the_same_date_written_differently() -> None:
+    tp, fp, fn = benchmark_module._case_metrics(  # noqa: SLF001
+        {"date": "January 11, 1999", "invoice_date": "12 /10 /98"},
+        {"date": "1999-01-11", "invoice_date": "Dec 10 '98"},
+    )
+    assert (tp, fp, fn) == (2, 0, 0)
+
+
+def test_case_metrics_does_not_match_partial_or_different_dates() -> None:
+    tp, fp, fn = benchmark_module._case_metrics(  # noqa: SLF001
+        {"date": "November 1999", "order_date": "1/24/97", "sender": "1999-01-11"},
+        {"date": "1999-11-12", "order_date": "1997-01-25", "sender": "January 11, 1999"},
+    )
+    assert (tp, fp, fn) == (0, 3, 3)
+
+
+def test_error_breakdown_separates_wrong_missing_and_unlabelled_values() -> None:
+    docs = [
+        {
+            "case_id": "receipt_a",
+            "expected": {"total_amount": "18,000", "tax_amount": "1,800", "change_amount": "0"},
+            "static": {
+                "doc": {
+                    "reward": 1.0,
+                    "structured_fields": {"total_amount": "18.000", "tax_amount": "1,900", "subtotal_amount": "16,200"},
+                }
+            },
+        },
+        {
+            "case_id": "receipt_b",
+            "expected": {"total_amount": "5,000"},
+            "static": {"doc": {"reward": 0.0, "structured_fields": {}}},
+        },
+    ]
+
+    result = error_analysis_module.condition_breakdown(docs, "static")
+
+    assert result["fields"]["total_amount"] == {"labelled": 2, "correct": 1, "missed": 1}
+    assert result["fields"]["tax_amount"] == {"labelled": 1, "wrong": 1}
+    assert result["fields"]["change_amount"] == {"labelled": 1, "missed": 1}
+    assert result["fields"]["subtotal_amount"] == {"unlabelled_value": 1}
+    assert result["mean_doc_f1"] == pytest.approx((1 / 3) / 2)
+    assert result["reward_successes"] == 1
+    assert result["labelled_error_successes"] == 1
+    assert result["reward_f1_pearson"] == pytest.approx(1.0)
 
 
 def test_exact_scoring_field_values_prefers_validation_normalized(tmp_path: Path) -> None:
@@ -1664,6 +1729,51 @@ def test_rollback_triggers_when_metrics_regress(tmp_path: Path) -> None:
         last = monitor.update("candidate", {"latency_ms": 600.0, "validation_failure": 0.6, "quality_proxy": 0.4})
     assert last is not None
     assert last.triggered is True
+    assert monitor.is_blocked("candidate") is True
+
+
+def _llm_rollback_config() -> RollbackConfig:
+    return RollbackConfig(
+        enabled=True,
+        window_size=10,
+        latency_p95_ms=2500.0,
+        validation_failure_rate=0.25,
+        quality_drop_threshold=0.08,
+        max_latency_regression_pct=0.25,
+        min_validation_pass_delta=0.1,
+    )
+
+
+def test_rollback_does_not_block_a_candidate_that_is_as_slow_and_failing_as_the_baseline(tmp_path: Path) -> None:
+    monitor = PolicySafetyMonitor(tmp_path, _llm_rollback_config(), baseline_policy_id="default")
+    for index in range(6):
+        monitor.update("default", {"latency_ms": 9000.0, "validation_failure": float(index % 3 == 0), "quality_proxy": 0.9})
+    decisions = [
+        monitor.update("candidate", {"latency_ms": 10000.0, "validation_failure": float(index % 3 == 0), "quality_proxy": 0.9})
+        for index in range(6)
+    ]
+
+    assert not any(decision.triggered for decision in decisions)
+    assert monitor.is_blocked("candidate") is False
+
+
+def test_rollback_blocks_a_candidate_that_regresses_against_the_baseline(tmp_path: Path) -> None:
+    monitor = PolicySafetyMonitor(tmp_path, _llm_rollback_config(), baseline_policy_id="default")
+    for _ in range(6):
+        monitor.update("default", {"latency_ms": 9000.0, "validation_failure": 0.0, "quality_proxy": 0.9})
+    slow = [monitor.update("slow", {"latency_ms": 20000.0, "validation_failure": 0.0, "quality_proxy": 0.9}) for _ in range(5)]
+    failing = [monitor.update("failing", {"latency_ms": 9000.0, "validation_failure": 1.0, "quality_proxy": 0.9}) for _ in range(5)]
+
+    assert slow[-1].reason == "latency_p95_limit"
+    assert failing[-1].reason == "validation_failure_rate"
+    assert monitor.is_blocked("slow") and monitor.is_blocked("failing")
+
+
+def test_rollback_applies_absolute_limits_until_the_baseline_has_history(tmp_path: Path) -> None:
+    monitor = PolicySafetyMonitor(tmp_path, _llm_rollback_config(), baseline_policy_id="default")
+    decisions = [monitor.update("candidate", {"latency_ms": 3000.0, "validation_failure": 0.0, "quality_proxy": 0.9}) for _ in range(5)]
+
+    assert decisions[-1].reason == "latency_p95_limit"
     assert monitor.is_blocked("candidate") is True
 
 

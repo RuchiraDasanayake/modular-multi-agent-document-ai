@@ -3,38 +3,39 @@
 import Link from "next/link";
 import { motion, useMotionValue, useTransform, useSpring } from "framer-motion";
 import { useEffect, useState } from "react";
+import { SignupLink } from "@/components/signup-link";
 
 const stats = [
-    { value: "13", label: "Extraction Agents" },
-    { value: "5", label: "Validation Layers" },
-    { value: "8", label: "Microservices" },
-    { value: "3", label: "Research Algorithms" },
+    { value: "Zero-shot", label: "No per-template training" },
+    { value: "Per document", label: "Policy selection" },
+    { value: "Local", label: "OCR and LLM inference" },
+    { value: "Open", label: "Research prototype" },
 ];
 
 const features = [
     {
-        title: "Transparent Results",
-        desc: "Every extraction comes with SHAP/LIME explanations and confidence scores — full explainability for every decision.",
+        title: "Adaptive Policy Routing",
+        desc: "Thompson Sampling selects a processing policy for each document from its layout, quality, and content signals, and updates from every outcome.",
     },
     {
-        title: "5-Layer Validation",
-        desc: "Guardrails ensemble validates coherence, hallucination, PII, format, and semantics across all extracted entities.",
+        title: "Grounded Validation",
+        desc: "Extracted values are checked against field rules and must appear in the source text; ungrounded or malformed values are flagged.",
     },
     {
-        title: "Human-in-the-Loop",
-        desc: "Uncertain results are flagged for expert review with ranked priority queues and annotation tools.",
+        title: "Human-in-the-Loop Review",
+        desc: "Low-confidence fields are flagged for review, and reviewer corrections are fed back into later runs in the same job.",
     },
     {
-        title: "Adaptive Learning",
-        desc: "Thompson Sampling bandits with RABI cold-start and DAAF drift detection continuously improve policy selection.",
+        title: "Targeted Recovery",
+        desc: "Fields that fail validation are re-extracted with a focused prompt instead of re-running the whole document.",
     },
     {
-        title: "Multi-Format Support",
-        desc: "Process PDFs, scanned images, invoices, contracts, and more — all through a unified extraction pipeline.",
+        title: "Scans, Photos, and PDFs",
+        desc: "PaddleOCR with Tesseract fallback handles scanned and photographed pages; digital PDFs use their native text layer.",
     },
     {
-        title: "Modular Architecture",
-        desc: "8 Docker microservices with independent scaling, health monitoring, and graceful fault isolation.",
+        title: "Inspectable Runs",
+        desc: "Every run records the chosen policy, operator stack, validation issues, and per-field confidence for audit.",
     },
 ];
 
@@ -42,22 +43,22 @@ const steps = [
     {
         step: "01",
         title: "Upload Documents",
-        desc: "Drag-and-drop your files. Supports PDFs, images, text files, and structured data formats.",
+        desc: "Add PDFs, scans, photos, or text files to a job and name the fields you want extracted.",
     },
     {
         step: "02",
-        title: "AI Extraction",
-        desc: "13 specialized agents analyze your document, extracting entities with confidence scoring.",
+        title: "Adaptive Extraction",
+        desc: "The router picks a policy per document; OCR, preprocessing, and LLM extraction follow that policy.",
     },
     {
         step: "03",
-        title: "Validation & Explain",
-        desc: "5-layer guardrails validate results. XAI provides SHAP/LIME explanations for every extraction.",
+        title: "Validate & Review",
+        desc: "Values are validated against the source, failed fields are recovered, and uncertain ones are sent for review.",
     },
     {
         step: "04",
         title: "Learn & Export",
-        desc: "AHMN learns from outcomes via bandit feedback. Export clean, structured data in Excel format.",
+        desc: "Outcomes update the routing posteriors. Results export as Excel or CSV.",
     },
 ];
 
@@ -124,12 +125,9 @@ export default function HomePage() {
                             transition={{ duration: 0.5, delay: 0.3 }}
                             className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 sm:gap-4 pt-4"
                         >
-                            <Link
-                                href="/signup"
-                                className="w-full sm:w-auto px-8 py-4 glass-button rounded-xl text-lg flex items-center justify-center gap-2"
-                            >
+                            <SignupLink className="w-full sm:w-auto px-8 py-4 glass-button rounded-xl text-lg flex items-center justify-center gap-2">
                                 Start Extracting
-                            </Link>
+                            </SignupLink>
                             <Link
                                 href="/features"
                                 className="w-full sm:w-auto px-8 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-xl text-lg font-medium transition-all shadow-sm text-center"
@@ -220,7 +218,7 @@ export default function HomePage() {
                             transition={{ delay: 0.1 }}
                             className="text-lg text-slate-600 dark:text-gray-400 mt-4 max-w-2xl mx-auto"
                         >
-                            A powerful, enterprise-ready platform that combines smart AI with human expertise.
+                            A research prototype that combines adaptive routing, grounded validation, and human review.
                         </motion.p>
                     </div>
 
@@ -306,27 +304,19 @@ export default function HomePage() {
                             </span>
                         </h2>
                         <p className="text-lg text-slate-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto">
-                            Join thousands of teams already using Modular Doc AI to transform
-                            their document workflows with intelligent, explainable extraction.
+                            Upload your own documents to the research demo and see which policy the
+                            router chose, what was extracted, and how each value was validated.
                         </p>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 flex-wrap">
+                            <SignupLink className="w-full sm:w-auto px-8 py-4 glass-button rounded-xl text-lg flex items-center justify-center gap-2">
+                                Try the Demo
+                            </SignupLink>
                             <Link
-                                href="/signup"
-                                className="w-full sm:w-auto px-8 py-4 glass-button rounded-xl text-lg flex items-center justify-center gap-2"
-                            >
-                                Get Started Free
-                            </Link>
-                            <Link
-                                href="/contact"
+                                href="/docs"
                                 className="w-full sm:w-auto px-8 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-xl text-lg font-medium transition-all shadow-sm text-center"
                             >
-                                Talk to Sales
+                                Read the Docs
                             </Link>
-                        </div>
-                        <div className="mt-8 flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-sm text-slate-500 dark:text-gray-500">
-                            <span className="flex items-center gap-1.5"> Free tier available</span>
-                            <span className="flex items-center gap-1.5"> No credit card required</span>
-                            <span className="flex items-center gap-1.5"> Setup in 5 minutes</span>
                         </div>
                     </motion.div>
                 </div>

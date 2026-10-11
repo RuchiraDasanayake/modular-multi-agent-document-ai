@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { SignupLink } from "@/components/signup-link";
 
 const values = [
     {
@@ -23,17 +24,17 @@ const values = [
 ];
 
 const techStack = [
-    { category: "Backend", items: ["Python 3.13", "FastAPI", "PostgreSQL + pgvector", "Redis"] },
-    { category: "Intelligence", items: ["Thompson Sampling", "RABI Cold Start", "DAAF Drift Detection", "DistilBERT XAI"] },
+    { category: "Pipeline", items: ["Python 3.10", "PaddleOCR + Tesseract", "Ollama (local LLM)", "PyMuPDF"] },
+    { category: "Intelligence", items: ["Thompson Sampling", "RABI Cold Start", "DAAF Drift Detection", "Grounded Validation"] },
     { category: "Frontend", items: ["Next.js 15", "React 19", "Tailwind CSS", "Framer Motion"] },
-    { category: "Infrastructure", items: ["Docker Compose", "8 Microservices", "REST APIs", "JWT Auth"] },
+    { category: "Services", items: ["FastAPI Gateway", "JWT Auth", "PostgreSQL", "Docker Compose"] },
 ];
 
 const milestones = [
-    { year: "2025 Sep", title: "Research Foundation", desc: "Core AHMN architecture designed with Thompson Sampling, RABI cold-start, and DAAF drift detection on real-world document datasets." },
-    { year: "2025 Oct", title: "Platform Development", desc: "Multi-agent extraction pipeline with 13 specialized agents, guardrails validation ensemble, and XAI explainability engine built." },
-    { year: "2025 Nov", title: "Integration & Testing", desc: "Full-cycle pipeline integration with adaptive learning, human-in-the-loop workflow, and Docker microservices orchestration." },
-    { year: "2025 Dec", title: "Production Launch", desc: "Complete platform with web dashboard, 8 Docker services, real-time processing, and end-to-end document intelligence." },
+    { year: "2025 Sep", title: "Research Foundation", desc: "AHMN routing designed around Thompson Sampling, with RABI cold-start and DAAF drift detection evaluated in controlled bandit simulations." },
+    { year: "2025 Oct", title: "Pipeline Development", desc: "Policy-driven extraction pipeline built: document analysis, OCR, LLM extraction, validation, and field-level recovery." },
+    { year: "2025 Nov", title: "Integration & Testing", desc: "Adaptive routing wired into the pipeline, with human-in-the-loop review and benchmarking on CORD and FUNSD." },
+    { year: "2025 Dec", title: "Research Demo", desc: "Web dashboard for uploading jobs, inspecting per-document routing decisions, reviewing fields, and exporting results." },
 ];
 
 export default function AboutPage() {
@@ -70,9 +71,9 @@ export default function AboutPage() {
                             className="text-lg text-slate-600 dark:text-gray-400 leading-relaxed"
                         >
                             Modular Doc AI is a 4th-year undergraduate research project that explores how multi-agent AI systems
-                            can extract, validate, and learn from complex documents. Built as a modular microservices platform,
-                            it combines adaptive Bayesian learning (AHMN), explainable AI, and human-in-the-loop feedback
-                            to deliver transparent and continuously improving document intelligence.
+                            can extract, validate, and learn from complex documents without per-template training. It combines
+                            adaptive Bayesian policy routing (AHMN), source-grounded validation, and human-in-the-loop feedback
+                            so that every extraction decision can be inspected.
                         </motion.p>
                     </div>
                 </div>
@@ -93,9 +94,9 @@ export default function AboutPage() {
                             <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">Research Objective</h2>
                             <p className="text-slate-600 dark:text-gray-400 leading-relaxed text-lg">
                                 To investigate and demonstrate how modular multi-agent architectures combined with
-                                adaptive Bayesian learning can achieve accurate, explainable, and self-improving
-                                document extraction. Our system learns from every interaction through Thompson Sampling,
-                                handles cold-start with RABI, and adapts to format drift with DAAF.
+                                adaptive Bayesian learning can improve zero-shot document extraction over a fixed
+                                processing policy. The router learns from every document outcome through Thompson
+                                Sampling; RABI cold-start and DAAF drift handling are studied in simulation.
                             </p>
                         </motion.div>
                         <motion.div
@@ -110,8 +111,8 @@ export default function AboutPage() {
                             <p className="text-slate-600 dark:text-gray-400 leading-relaxed text-lg">
                                 This research contributes a novel Adaptive Hierarchical Memory Network (AHMN)
                                 that combines short-term, medium-term, and long-term memory tiers with a
-                                multi-armed bandit framework. The system demonstrates that modular, transparent
-                                AI can match or exceed opaque systems while maintaining full explainability.
+                                multi-armed bandit framework, and evaluates adaptive routing against a static
+                                single-policy baseline on public receipt and form datasets.
                             </p>
                         </motion.div>
                     </div>
@@ -206,7 +207,7 @@ export default function AboutPage() {
                             viewport={{ once: true }}
                             className="text-3xl lg:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight"
                         >
-                            Built with proven technology
+                            Technology stack
                         </motion.h2>
                         <motion.p
                             initial={{ opacity: 0, y: 20 }}
@@ -215,7 +216,7 @@ export default function AboutPage() {
                             transition={{ delay: 0.1 }}
                             className="text-lg text-slate-600 dark:text-gray-400 mt-4"
                         >
-                            A reliable, scalable platform you can depend on.
+                            Open-source components, running locally on a single host.
                         </motion.p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -258,11 +259,11 @@ export default function AboutPage() {
                         Interested in the system architecture, algorithms, or contributing to the project? We welcome collaboration.
                     </p>
                     <div className="flex items-center justify-center gap-4 flex-wrap">
-                        <Link href="/signup" className="px-8 py-4 glass-button rounded-xl text-lg flex items-center gap-2">
+                        <SignupLink className="px-8 py-4 glass-button rounded-xl text-lg flex items-center gap-2">
                             Try the Demo
-                        </Link>
+                        </SignupLink>
                         <Link href="/docs" className="px-8 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-xl text-lg font-medium transition-all shadow-sm">
-                            Read the Paper
+                            Read the Docs
                         </Link>
                     </div>
                 </div>

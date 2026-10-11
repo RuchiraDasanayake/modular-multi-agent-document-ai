@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { setToken } from "@/lib/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useSignupOpen } from "@/components/signup-link";
 
 export default function SignupPage() {
     const router = useRouter();
+    const signupOpen = useSignupOpen();
     const [email, setEmail] = useState("");
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
@@ -59,85 +61,97 @@ export default function SignupPage() {
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white dark:bg-gray-900 border border-brand-500/20 dark:border-brand-500/30 mb-4 text-brand-600 dark:text-brand-300 text-lg font-bold shadow-xl shadow-slate-200/50 dark:shadow-brand-500/10 backdrop-blur-md">
                         AI
                     </div>
-                    <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Create Account</h1>
+                    <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
+                        {signupOpen ? "Create Account" : "Sign-up is closed"}
+                    </h1>
                     <p className="text-slate-500 dark:text-gray-400 mt-2 font-medium">Modular Document AI Platform</p>
                 </div>
 
-                {/* Form */}
-                <form onSubmit={handleSubmit} className="glass-panel rounded-2xl p-8 space-y-6">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">Email</label>
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="w-full px-4 py-3 glass-input rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-gray-500"
-                            placeholder="you@example.com"
-                            required
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">Username</label>
-                        <input
-                            type="text"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            className="w-full px-4 py-3 glass-input rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-gray-500"
-                            placeholder="johndoe"
-                            minLength={3}
-                            maxLength={32}
-                            required
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">Password</label>
-                        <input
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="w-full px-4 py-3 glass-input rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-gray-500"
-                            placeholder="••••••••"
-                            minLength={6}
-                            required
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">Confirm Password</label>
-                        <input
-                            type="password"
-                            value={confirm}
-                            onChange={(e) => setConfirm(e.target.value)}
-                            className="w-full px-4 py-3 glass-input rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-gray-500"
-                            placeholder="••••••••"
-                            minLength={6}
-                            required
-                        />
-                    </div>
-
-                    {error && (
-                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50 backdrop-blur-md rounded-xl px-4 py-3 text-red-600 dark:text-red-400 text-sm shadow-sm">
-                            {error}
+                {signupOpen ? (
+                    <form onSubmit={handleSubmit} className="glass-panel rounded-2xl p-8 space-y-6">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">Email</label>
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="w-full px-4 py-3 glass-input rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-gray-500"
+                                placeholder="you@example.com"
+                                required
+                            />
                         </div>
-                    )}
 
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full py-3 glass-button rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {loading ? "Creating account..." : "Create Account"}
-                    </button>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">Username</label>
+                            <input
+                                type="text"
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                className="w-full px-4 py-3 glass-input rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-gray-500"
+                                placeholder="johndoe"
+                                minLength={3}
+                                maxLength={32}
+                                required
+                            />
+                        </div>
 
-                    <p className="text-sm text-slate-500 dark:text-gray-400 text-center pt-2">
-                        Already have an account?{" "}
-                        <Link href="/login" className="text-brand-600 dark:text-brand-400 hover:text-brand-500 dark:hover:text-brand-300 font-medium transition-colors">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">Password</label>
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full px-4 py-3 glass-input rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-gray-500"
+                                placeholder="••••••••"
+                                minLength={6}
+                                required
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">Confirm Password</label>
+                            <input
+                                type="password"
+                                value={confirm}
+                                onChange={(e) => setConfirm(e.target.value)}
+                                className="w-full px-4 py-3 glass-input rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-gray-500"
+                                placeholder="••••••••"
+                                minLength={6}
+                                required
+                            />
+                        </div>
+
+                        {error && (
+                            <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50 backdrop-blur-md rounded-xl px-4 py-3 text-red-600 dark:text-red-400 text-sm shadow-sm">
+                                {error}
+                            </div>
+                        )}
+
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full py-3 glass-button rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {loading ? "Creating account..." : "Create Account"}
+                        </button>
+
+                        <p className="text-sm text-slate-500 dark:text-gray-400 text-center pt-2">
+                            Already have an account?{" "}
+                            <Link href="/login" className="text-brand-600 dark:text-brand-400 hover:text-brand-500 dark:hover:text-brand-300 font-medium transition-colors">
+                                Sign in
+                            </Link>
+                        </p>
+                    </form>
+                ) : (
+                    <div className="glass-panel rounded-2xl p-8 space-y-6 text-center">
+                        <p className="text-sm text-slate-600 dark:text-gray-300">
+                            Accounts on this site are created by an administrator. If you were given one, sign in.
+                        </p>
+                        <Link href="/login" className="block w-full py-3 glass-button rounded-xl">
                             Sign in
                         </Link>
-                    </p>
-                </form>
+                    </div>
+                )}
             </div>
         </div>
     );

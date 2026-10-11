@@ -20,9 +20,8 @@ Metrics collected per run:
   - Policy selection accuracy (% of rounds choosing the oracle-best policy)
   - Final average reward over last 100 rounds
 
-Usage:
-    cd ahmn_core
-    python -m experiments.run_experiments
+Usage (from the repository root):
+    python -m ahmn_core.experiments.run_experiments
 """
 
 import sys
@@ -33,8 +32,7 @@ import numpy as np
 
 from dataclasses import dataclass, field, asdict
 
-# Add parent to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from ahmn_core.services.selection_strategies import (
     BanditArm, ThompsonSamplingStrategy, UCB1Strategy,
@@ -432,9 +430,11 @@ def run_single(
     5. Record regret = oracle_reward - actual_reward
     """
     rng = np.random.RandomState(seed)
-    # Also seed Python's random for Thompson Sampling which uses random.betavariate
+    # The methods draw from both global generators: Thompson sampling, RABI and DAAF use np.random.beta, and the random
+    # and epsilon-greedy baselines use Python's random. Seed both so every run is reproducible.
     import random as py_random
     py_random.seed(seed)
+    np.random.seed(seed)
     
     method.reset()
     
@@ -586,15 +586,9 @@ def run_experiment(
 
 def run_ablation_rabi_temperature(n_seeds: int = 30, verbose: bool = True) -> dict:
     """Ablation: vary RABI temperature τ ∈ {0.1, 0.3, 0.5, 0.7, 1.0, 2.0}."""
+    # Unmodified embeddings: up to five stored vendors pass the similarity threshold here. With a wider spread at most
+    # one passes, its softmax weight is always 1, and the temperature cannot change the result.
     scenario = create_cold_start_scenario()
-    # Widen embedding spread so neighbor similarities vary (0.5-0.95 range)
-    # This makes temperature meaningfully affect weight distribution
-    cluster_map = {}  # vendor_id -> (cluster, within_id)
-    for i, v in enumerate(scenario.vendors):
-        cid = 1 if "inv" in v.vendor_id else 2
-        wid = sum(1 for v2 in scenario.vendors[:i]
-                  if (1 if "inv" in v2.vendor_id else 2) == cid)
-        v.embedding = _make_cluster_embedding(cid, wid, spread=0.4)
     temperatures = [0.1, 0.3, 0.5, 0.7, 1.0, 2.0]
     results = {}
     

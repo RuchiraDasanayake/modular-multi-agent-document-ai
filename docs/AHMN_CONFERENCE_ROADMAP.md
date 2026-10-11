@@ -57,12 +57,12 @@ If an AHMN change is not an obvious win, do not do it.
 
 Keep exactly one path as canonical:
 
-- `frontend -> /api/runs/start -> frontend job runner -> idpo.cli process-inbox -> idpo.pipeline.inbox -> idpo.pipeline.orchestrator`
+- `frontend job (POST /api/jobs/<job_id>/documents, then POST /api/jobs/<job_id>/runs) -> frontend job runner -> idpo.cli process-inbox -> idpo.pipeline.inbox -> idpo.pipeline.orchestrator`
 
 Files:
 
 - `frontend/src/server/runner.ts`
-- `frontend/src/app/api/runs/start/route.ts`
+- `frontend/src/app/api/jobs/[jobId]/runs/route.ts`
 - `frontend/src/app/dashboard/idpo/page.tsx`
 - `frontend/src/lib/api.ts`
 - `idpo/cli.py`

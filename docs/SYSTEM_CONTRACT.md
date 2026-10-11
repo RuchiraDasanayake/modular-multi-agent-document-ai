@@ -29,13 +29,34 @@ If they conflict, update the stale document instead of letting the mismatch pers
 
 The canonical operational path is:
 
-`frontend upload -> /api/runs/start -> job runner -> idpo.cli process-inbox -> IDPO_DATA_DIR/runs/<run_id>`
+`frontend job (POST /api/jobs/<job_id>/documents, then POST /api/jobs/<job_id>/runs) -> job runner -> idpo.cli process-inbox -> IDPO_DATA_DIR/runs/<run_id>`
 
 Inside IDPO, the canonical runtime path is:
 
 `ingest/inbox -> orchestrator -> executor -> exports`
 
 That is the path cleanup work should protect.
+
+Policy routing runs in-process through `ahmn_core/direct_advisor.py` (Thompson Sampling over the policies whose conditions match, with job-scoped posteriors). The runtime does not call the Guardrails or XAI-HITL services, and RABI and DAAF are not active in it; those are separate services and simulation experiments.
+
+## Policy Actions Honoured By The Runtime
+
+A policy's `actions` block is recorded in `plan/primary.json`, but only some of it changes what the pipeline does:
+
+| Action | Effect in the current runtime |
+| --- | --- |
+| `preprocess.ocr.engine`, `lang` | Selects PaddleOCR or Tesseract and the OCR language |
+| `preprocess.ocr.psm`, `alt_psm`, `passes`, `oem` | Used only when Tesseract runs (as the engine or as the fallback) |
+| `preprocess.deskew.enabled`, `preprocess.denoise.enabled` | For image documents, `true` forces the stage on and `false` turns it off; when unset, quality heuristics decide |
+| `extraction.per_field_extraction`, `extraction_context`, `use_thinking`, `model_tier` | Applied to the LLM extraction call |
+| `extraction.explicit_entities`, `field_descriptions` | Used only when the job does not define its own fields |
+| `execution_mode`, `escalation.tier` | Select which stages run and the escalation tier |
+| `preprocess.denoise.strength` | Recorded only; every denoise uses the same median filter |
+| `recovery.strategy` | Recorded only; recovery always re-extracts failing fields with the LLM |
+| `preprocess.table_extract`, `chunking` | Write table and chunk artifacts that extraction does not read |
+| `retrieval`, `token_budget` | Recorded only; question answering uses the global retrieval config |
+
+With PaddleOCR and job-defined fields, the generic research policies therefore behave like `default`; the specialist policies differ through per-field extraction and their extraction context.
 
 ## Core Runtime Responsibilities
 
@@ -127,6 +148,18 @@ The job-first routes should be treated as the main operator path for runtime out
 
 The run-centric routes still exist as supporting drilldowns and compatibility views.
 
+Supporting pages, outside the operator path:
+
+- research evidence: `/dashboard/idpo/benchmark` (paired differences from the saved run reports), `/dashboard/idpo/compare`
+  (two runs side by side) and `/dashboard/idpo/presentation` (demo walkthrough)
+- separate services: `/dashboard/xai` and `/dashboard/xai/explanation` (XAI-HITL Q&A over a processed document's OCR text,
+  read through `GET /api/jobs/<job_id>/docs/<doc_id>/text`), `/dashboard/hitl` (rating the last answer),
+  `/dashboard/guardrails` and `/dashboard/submit` (a policy request to the AHMN service, explained on
+  `/dashboard/architecture`)
+- simulator only: `/dashboard/experiments`, `/dashboard/rabi` and `/dashboard/daaf`
+
+`/dashboard/results` redirects to `/dashboard/experiments` and `/dashboard/history` to `/dashboard/idpo/jobs`.
+
 The primary UI requirement is:
 
 - an operator should be able to see what adaptive path was taken
@@ -144,6 +177,30 @@ That model is job-first:
 - `document`
 
 The current runtime remains run-centric underneath, but the frontend now treats `job -> run -> document` as the primary operator model instead of adding more run-dashboard complexity.
+
+## Access Control
+
+The job API and the dashboard pages are served by the frontend server, so the gateway never sees those requests.
+`frontend/src/middleware.ts` checks them instead:
+
+- Public without a session: `/`, `/features`, `/about`, `/docs`, `/contact`, `/login`, `/signup`, `/forgot-password`,
+  `/reset-password`, static assets, and the `/api/*` routes that are proxied to the gateway, which checks them itself.
+- Session required: the local job API (`/api/jobs`, `/api/runs`, `/api/benchmarks`) and every other page, including
+  `/dashboard/*`.
+- A session is the bearer token in the `Authorization` header or the `ahmn_token` cookie. It must be an unexpired JWT
+  that the gateway accepts at `GET /api/auth/me`; accepted tokens are cached for 60 seconds.
+- Without a valid session the job API answers 401 and pages redirect to `/login`, deleting a rejected cookie. When the
+  gateway cannot be reached, both answer 503.
+- The middleware reaches the gateway at `INTERNAL_API_URL`, then `NEXT_PUBLIC_API_URL`, then `http://localhost:8000`.
+
+The gateway creates the first admin account at startup from `ADMIN_PASSWORD` (with `ADMIN_USERNAME` and `ADMIN_EMAIL`)
+when no admin exists, and never changes existing users.
+
+Any signed-in account, viewer or admin, can use the job API. Public sign-up (`POST /api/auth/signup`) always creates a
+viewer and follows the gateway's `PUBLIC_SIGNUP_ENABLED` setting: on by default, off in `docker-compose.prod.yml` and
+`scripts/start_public_demo_stack.ps1` unless set to `true`. While it is off, sign-up answers 403, admins create
+accounts on `/dashboard/admin`, and the frontend reads `GET /api/auth/signup-status` to replace its sign-up links with
+sign-in.
 
 ## Supported Demo Deployment
 

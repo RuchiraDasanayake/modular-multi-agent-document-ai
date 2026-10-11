@@ -9,6 +9,16 @@ $root = Split-Path -Parent $PSScriptRoot
 $localEnvPath = Join-Path $root ".local\public-demo.env.ps1"
 $python = Join-Path $root ".venv\Scripts\python.exe"
 $runnerConfig = Join-Path $root "frontend\runner.config.json"
+$runtimeConfigRel = "configs/idpo_research_config.json"
+$localModel = "qwen3.5:9b"
+try {
+  $runtimeConfig = Get-Content -Raw (Join-Path $root $runtimeConfigRel) | ConvertFrom-Json
+  if ($runtimeConfig.llm.local_model) {
+    $localModel = [string]$runtimeConfig.llm.local_model
+  }
+} catch {
+  # Fall back to the default model name; the preflight below reports a broken config.
+}
 
 $failures = New-Object System.Collections.Generic.List[string]
 $warnings = New-Object System.Collections.Generic.List[string]
@@ -79,10 +89,10 @@ if (Test-Path $runnerConfig) {
 if (Test-CommandAvailable "ollama") {
   Add-Pass "Ollama command found"
   $ollamaList = & ollama list 2>$null | Out-String
-  if ($ollamaList -match "(?im)phi3:mini") {
-    Add-Pass "Ollama model phi3:mini is available"
+  if ($ollamaList -match "(?im)$([regex]::Escape($localModel))") {
+    Add-Pass "Ollama model $localModel is available"
   } else {
-    Add-Fail "Ollama model phi3:mini is missing (run: ollama pull phi3:mini)"
+    Add-Fail "Ollama model $localModel is missing (run: ollama pull $localModel)"
   }
 } else {
   Add-Fail "Ollama command not found"
@@ -131,7 +141,7 @@ sys.path.insert(0, r"$rootPy")
 warnings.filterwarnings("ignore")
 from idpo.core.config import load_config
 from idpo.core.preflight import run_preflight
-cfg = load_config("configs/config.json")
+cfg = load_config("$runtimeConfigRel")
 print("\n".join(run_preflight(cfg)))
 "@
   $scriptPath = Join-Path ([System.IO.Path]::GetTempPath()) ("idpo_preflight_" + [System.Guid]::NewGuid().ToString("N") + ".py")
@@ -179,7 +189,7 @@ print("\n".join(run_preflight(cfg)))
         } else {
           Add-Warn $normalizedLine
         }
-      } elseif ($normalizedLine -match "phi3:mini") {
+      } elseif ($normalizedLine -match [regex]::Escape($localModel)) {
         Add-Fail $normalizedLine
       } elseif ($normalizedLine -match "paddleocr") {
         Add-Fail $normalizedLine

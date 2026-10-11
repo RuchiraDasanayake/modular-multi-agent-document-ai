@@ -222,7 +222,7 @@ Expected outcome:
 
 Progress on current branch:
 
-- consolidated the page onto the existing shared component module at `frontend/src/components/idpo/operator-page.tsx`
+- consolidated the page onto the existing shared component module at `frontend/src/components/idpo/operator-page.tsx` (since removed: the job pages in `job-detail-page.tsx` replaced it and nothing imported it)
 - reduced `frontend/src/app/dashboard/idpo/page.tsx` to a stateful container for data flow and event handlers
 - reused existing frontend primitives such as `IdpoCard` and `StatusBadge` instead of adding another UI pattern
 - kept the simplified operator workflow unchanged while moving section rendering out of the page file

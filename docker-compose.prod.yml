@@ -233,6 +233,7 @@ services:
       GUARDRAILS_SERVICE_URL: http://guardrails:8002
       XAI_HITL_SERVICE_URL: http://xai-hitl:8003
       IDPO_SERVICE_URL: http://idpo:8004
+      PUBLIC_SIGNUP_ENABLED: ${PUBLIC_SIGNUP_ENABLED:-false}
     ports:
       - "0.0.0.0:${GATEWAY_PORT:-8000}:8000"  # Exposed to external
     depends_on:

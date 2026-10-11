@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
+import { Icon } from "@/components/icons";
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     BarChart, Bar, Cell,
@@ -156,14 +157,16 @@ export default function ExperimentsPage() {
             <div className="relative overflow-hidden glass-panel rounded-2xl p-6">
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-cyan-500/5 dark:from-blue-500/[0.03] dark:to-cyan-500/[0.03]" />
                 <div className="relative">
-                    <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-cyan-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                            <span className="text-white text-lg">📊</span>
-                        </div>
-                        AHMN Experiment Suite
+                    <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white flex flex-wrap items-center gap-3">
+                        <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-cyan-600 flex items-center justify-center shadow-lg shadow-blue-500/20 text-white">
+                            <Icon name="flask" className="h-5 w-5" />
+                        </span>
+                        AHMN experiments
+                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-500/20">Simulated</span>
                     </h1>
-                    <p className="text-slate-500 dark:text-gray-400 mt-1.5 text-sm">
-                        Empirical evaluation: 7 bandit strategies × 4 scenarios × 30 seeds = 840 runs
+                    <p className="text-slate-600 dark:text-gray-300 mt-1.5 max-w-3xl text-sm">
+                        A simulation study of bandit strategies with synthetic rewards, not documents: 7 strategies, 4
+                        scenarios and 30 seeds each. Table V of the paper comes from this simulator.
                     </p>
                 </div>
             </div>
@@ -222,29 +225,25 @@ export default function ExperimentsPage() {
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
-
-                    <div className="glass-panel rounded-xl p-4 text-sm text-slate-600 dark:text-gray-400">
-                        The page now shows a compact summary and core comparison charts only.
-                        Full ablation details remain available from backend experiment artifacts.
-                    </div>
                 </>
             ) : null}
 
             {/* Interactive Comparison */}
             <div className="glass-panel rounded-2xl p-6">
                 <div className="flex items-center gap-3 mb-1">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-400 to-emerald-500 flex items-center justify-center">
-                        <span className="text-white text-sm">⚡</span>
-                    </div>
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">Live: Thompson Sampling vs Adaptive Forgetting</h2>
+                    <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-cyan-600 flex items-center justify-center text-white">
+                        <Icon name="activity" />
+                    </span>
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">Try it: Thompson sampling with and without adaptive forgetting</h2>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-gray-500 mb-4 ml-11">Run a real-time comparison with custom drift parameters</p>
+                <p className="text-xs text-slate-500 dark:text-gray-400 mb-4 ml-11">Runs the simulator with your drift settings. Lower regret is better.</p>
 
                 <div className="flex flex-wrap items-end gap-6 mb-6">
                     <div>
-                        <label className="text-xs text-slate-500 dark:text-gray-500 block mb-1 font-medium">Drift Magnitude</label>
+                        <label htmlFor="exp-drift" className="text-xs text-slate-600 dark:text-gray-300 block mb-1 font-medium">Drift magnitude</label>
                         <div className="flex items-center gap-2">
                             <input
+                                id="exp-drift"
                                 type="range" min={0.05} max={0.35} step={0.05} value={driftMag}
                                 onChange={(e) => setDriftMag(parseFloat(e.target.value))}
                                 className="accent-brand-500 w-32"
@@ -253,9 +252,10 @@ export default function ExperimentsPage() {
                         </div>
                     </div>
                     <div>
-                        <label className="text-xs text-slate-500 dark:text-gray-500 block mb-1 font-medium">Seeds</label>
+                        <label htmlFor="exp-seeds" className="text-xs text-slate-600 dark:text-gray-300 block mb-1 font-medium">Seeds</label>
                         <div className="flex items-center gap-2">
                             <input
+                                id="exp-seeds"
                                 type="range" min={5} max={30} step={5} value={seeds}
                                 onChange={(e) => setSeeds(parseInt(e.target.value))}
                                 className="accent-brand-500 w-32"
@@ -274,7 +274,10 @@ export default function ExperimentsPage() {
                                 Running...
                             </>
                         ) : (
-                            <>▶ Run Comparison</>
+                            <>
+                                <Icon name="play" />
+                                Run comparison
+                            </>
                         )}
                     </button>
                 </div>
@@ -283,18 +286,21 @@ export default function ExperimentsPage() {
                     <>
                         <div className="grid grid-cols-3 gap-4 mb-6">
                             <div className="bg-slate-50 dark:bg-gray-800/50 rounded-xl p-4 text-center border border-slate-200/60 dark:border-gray-700">
-                                <p className="text-xs text-slate-500 dark:text-gray-500 uppercase tracking-wider font-semibold">TS Regret</p>
-                                <p className="text-2xl font-black text-emerald-500 mt-1">{comparison.total_ts_regret.toFixed(1)}</p>
+                                <p className="text-xs text-slate-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Without forgetting</p>
+                                <p className="text-2xl font-black tabular-nums text-slate-900 dark:text-white mt-1">{comparison.total_ts_regret.toFixed(1)}</p>
+                                <p className="text-[11px] text-slate-500 dark:text-gray-400">regret</p>
                             </div>
                             <div className="bg-slate-50 dark:bg-gray-800/50 rounded-xl p-4 text-center border border-slate-200/60 dark:border-gray-700">
-                                <p className="text-xs text-slate-500 dark:text-gray-500 uppercase tracking-wider font-semibold">Adaptive Regret</p>
-                                <p className="text-2xl font-black text-red-500 mt-1">{comparison.total_daaf_regret.toFixed(1)}</p>
+                                <p className="text-xs text-slate-500 dark:text-gray-400 uppercase tracking-wider font-semibold">With adaptive forgetting</p>
+                                <p className="text-2xl font-black tabular-nums text-slate-900 dark:text-white mt-1">{comparison.total_daaf_regret.toFixed(1)}</p>
+                                <p className="text-[11px] text-slate-500 dark:text-gray-400">regret</p>
                             </div>
                             <div className="bg-slate-50 dark:bg-gray-800/50 rounded-xl p-4 text-center border border-slate-200/60 dark:border-gray-700">
-                                <p className="text-xs text-slate-500 dark:text-gray-500 uppercase tracking-wider font-semibold">DAAF Improvement</p>
-                                <p className={`text-2xl font-black mt-1 ${comparison.improvement_pct > 0 ? "text-blue-500" : "text-amber-500"}`}>
+                                <p className="text-xs text-slate-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Regret reduction</p>
+                                <p className={`text-2xl font-black tabular-nums mt-1 ${comparison.improvement_pct > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
                                     {comparison.improvement_pct > 0 ? "+" : ""}{comparison.improvement_pct.toFixed(1)}%
                                 </p>
+                                <p className="text-[11px] text-slate-500 dark:text-gray-400">from forgetting</p>
                             </div>
                         </div>
 

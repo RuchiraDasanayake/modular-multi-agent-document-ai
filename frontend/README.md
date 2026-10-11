@@ -68,24 +68,19 @@ Open:
 
 ## 5) API Endpoints (Runner + Artifacts)
 
+- `GET /api/health`
 - `GET /api/system/status`
-- `GET /api/runs`
-- `POST /api/runs/start`
-- `GET /api/jobs`
-- `POST /api/jobs`
-- `GET /api/jobs/:jobId`
-- `PATCH /api/jobs/:jobId`
-- `POST /api/jobs/:jobId/documents`
-- `POST /api/jobs/:jobId/runs`
-- `GET /api/jobs/:jobId/docs/:docId`
-- `GET /api/runs/:runId/summary`
-- `GET /api/runs/:runId/files`
-- `GET /api/runs/:runId/file?path=...`
-- `GET /api/runs/:runId/docs`
-- `GET /api/runs/:runId/docs/:docId`
-- `GET /api/runs/:runId/provenance`
-- `GET /api/runs/:runId/metrics`
-- `GET /api/runs/:runId/shadow`
+- `GET /api/jobs`, `POST /api/jobs` (create a job)
+- `GET /api/jobs/:jobId`, `PATCH /api/jobs/:jobId`
+- `POST /api/jobs/:jobId/documents` (multipart upload into the job queue)
+- `POST /api/jobs/:jobId/runs` (process selected documents: `{ selectedFileIds, mode, settings }`)
+- `GET /api/jobs/:jobId/docs/:docId`, `POST /api/jobs/:jobId/docs/:docId` (document detail and review)
+- `GET /api/jobs/:jobId/docs/:docId/content`
+- `GET /api/jobs/:jobId/docs/:docId/text` (OCR text of the document's latest run, first 20,000 characters; used by AI Q&A)
+- `GET /api/jobs/:jobId/policies`, `POST /api/jobs/:jobId/policies`, `PATCH /api/jobs/:jobId/policies`
+- `POST /api/jobs/:jobId/validate`
+- `GET /api/runs`, `GET /api/runs/:runId/summary`
+- `GET /api/benchmarks`, `GET /api/benchmarks/:benchmarkRunId`
 
 `/api/system/status` now reports both:
 - local runner CLI readiness

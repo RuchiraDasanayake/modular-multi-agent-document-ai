@@ -109,33 +109,60 @@ def best_generic_match(tokens: list[str], generic_by_key: dict[str, list[Entity]
     return None
 
 
+_AMOUNT_LABEL_PATTERNS = {
+    "subtotal": r"sub\s*-?\s*total",
+    "total": r"(?<!sub)(?<!sub\s)(?<!sub-)total",
+    "tax": r"(?:tax|vat|gst)",
+    "cash": r"(?:cash|tendered)",
+    "change": r"change",
+    "balance": r"balance",
+    "due": r"(?<!change\s)due",
+    "discount": r"discount",
+}
+_GENERIC_AMOUNT_TOKENS = {"amount", "value", "price", "cost", "sum", "figure", "number", "num", "amt"}
+_GENERIC_AMOUNT_LABELS = r"(?:total|amount|balance|due|subtotal|tax|invoice\s+total)"
+# Allow newlines between label and value; match Korean dot-thousands (e.g. 100.000)
+# and Western comma-thousands (e.g. 100,000) plus optional 2-digit cents.
+_AMOUNT_NUMBER = r"(?:\$|usd\s*)?(?:\d{1,3}(?:[.,]\d{3})+(?:\.\d{2})?|\d{1,3}(?:,\d{3})*(?:\.\d{2})?)"
+
+
+def _amount_to_float(value: str) -> float:
+    s = value.replace("$", "").replace("usd", "").strip()
+    # Korean/Indonesian dot-thousands: "100.000" → 100000
+    if re.fullmatch(r"\d{1,3}(?:\.\d{3})+", s):
+        s = s.replace(".", "")
+    return float(s.replace(",", "").replace(".", "") or 0)
+
+
+def _amount_label_pattern(key: str) -> tuple[str, bool]:
+    """Return (label regex, pick_largest) for an amount field, based on the field's own name."""
+    key_tokens = tokenize(key)
+    specific = [_AMOUNT_LABEL_PATTERNS[token] for token in key_tokens if token in _AMOUNT_LABEL_PATTERNS]
+    if not specific:
+        specific = [re.escape(token) for token in key_tokens if token not in _GENERIC_AMOUNT_TOKENS and len(token) > 2]
+    if not specific:
+        return _GENERIC_AMOUNT_LABELS, True
+    pick_largest = any(token in {"total", "due", "balance"} for token in key_tokens)
+    return "(?:" + "|".join(specific) + ")", pick_largest
+
+
 def regex_fallback(key: str, tokens: list[str], text: str) -> Entity | None:
     lowered = " ".join(tokens)
     if any(token in lowered for token in ["amount", "total", "balance", "due", "price", "cost"]):
-        # Allow newlines between label and value; match Korean dot-thousands (e.g. 100.000)
-        # and Western comma-thousands (e.g. 100,000) plus optional 2-digit cents.
-        _num = r"(?:\$|usd\s*)?(?:\d{1,3}(?:[.,]\d{3})+(?:\.\d{2})?|\d{1,3}(?:,\d{3})*(?:\.\d{2})?)"
-        candidates = re.findall(
-            r"(?:total|amount|balance|due|subtotal|tax|invoice\s+total)[^\d]{0,30}" + f"({_num})",
-            text,
-            re.IGNORECASE,
-        )
+        label_pattern, pick_largest = _amount_label_pattern(key)
+        candidates = re.findall(label_pattern + r"[^\d]{0,30}" + f"({_AMOUNT_NUMBER})", text, re.IGNORECASE)
         # Discard zero-only matches produced by partial digit runs (e.g. ".000" boundary)
         candidates = [c for c in candidates if not re.fullmatch(r"0+(?:[.,]0+)?", c.strip())]
         if candidates:
-            def _to_float(s: str) -> float:
-                s = s.replace("$", "").replace("usd", "").strip()
-                # Korean/Indonesian dot-thousands: "100.000" → 100000
-                if re.fullmatch(r"\d{1,3}(?:\.\d{3})+", s):
-                    s = s.replace(".", "")
-                return float(s.replace(",", "").replace(".", "") or 0)
-            best = max(candidates, key=_to_float)
+            best = max(candidates, key=_amount_to_float) if pick_largest else candidates[0]
             return Entity(
                 key=key,
                 value=best.strip(),
                 confidence=0.45,
                 metadata={"explicit": True, "source": "schema_regex", "rule": "amount"},
             )
+        if label_pattern != _GENERIC_AMOUNT_LABELS:
+            return None
         currency = re.findall(r"(?:\$|usd\s*)\d{1,3}(?:,\d{3})*(?:\.\d{2})?", text, re.IGNORECASE)
         if currency:
             best = max(

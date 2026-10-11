@@ -1,6 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  // The default bottom-left badge covers the sidebar's sign-out control in development.
+  devIndicators: { position: "bottom-right" },
+  experimental: {
+    // Matches the gateway's PROXY_TIMEOUT. The 30 s default cuts off the XAI service's first answer while it loads its model.
+    proxyTimeout: 300_000,
+  },
   async rewrites() {
     // Server-side rewrites: inside Docker the gateway is reachable at
     // http://gateway:8000, but the client bundle uses NEXT_PUBLIC_API_URL

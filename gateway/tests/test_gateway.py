@@ -17,11 +17,21 @@ from psycopg_pool import PoolTimeout
 # Fixtures
 # ---------------------------------------------------------------------------
 
+def _admin_check_connection(*fetch_results):
+    cursor = AsyncMock()
+    cursor.fetchone = AsyncMock(side_effect=list(fetch_results))
+    cursor_cm = AsyncMock()
+    cursor_cm.__aenter__ = AsyncMock(return_value=cursor)
+    cursor_cm.__aexit__ = AsyncMock(return_value=False)
+    conn = AsyncMock()
+    conn.cursor = MagicMock(return_value=cursor_cm)
+    return conn, cursor
+
 @pytest.fixture(autouse=True)
 def _mock_dependencies(monkeypatch):
     """Patch heavy dependencies so tests run without Postgres / Redis."""
-    # Mock pool with proper async context manager for connection()
-    mock_conn = AsyncMock()
+    # Mock pool with proper async context manager for connection(); the startup check finds an existing admin
+    mock_conn, _ = _admin_check_connection((1,))
     mock_pool = MagicMock()
     _cm = AsyncMock()
     _cm.__aenter__ = AsyncMock(return_value=mock_conn)
@@ -161,6 +171,25 @@ def test_signup_missing_fields(client):
     resp = client.post("/api/auth/signup", json={})
     assert resp.status_code == 422
 
+def test_signup_status_follows_setting(client, monkeypatch):
+    from gateway.config import settings
+
+    monkeypatch.setattr(settings, "PUBLIC_SIGNUP_ENABLED", False)
+    assert client.get("/api/auth/signup-status").json() == {"enabled": False}
+    monkeypatch.setattr(settings, "PUBLIC_SIGNUP_ENABLED", True)
+    assert client.get("/api/auth/signup-status").json() == {"enabled": True}
+
+def test_signup_is_refused_when_public_signup_is_off(client, monkeypatch):
+    from gateway.config import settings
+
+    monkeypatch.setattr(settings, "PUBLIC_SIGNUP_ENABLED", False)
+    resp = client.post(
+        "/api/auth/signup",
+        json={"email": "new.viewer@example.org", "username": "newviewer", "password": "secret-123"},
+    )
+    assert resp.status_code == 403
+    assert "turned off" in resp.json()["detail"]
+
 # ═══════════════════════════════════════════════════════════════
 # Protected Endpoints (no token)
 # ═══════════════════════════════════════════════════════════════
@@ -248,6 +277,50 @@ def test_refresh_request_schema():
 
     req = RefreshRequest(refresh_token="x.y.z")
     assert req.refresh_token == "x.y.z"
+
+# ═══════════════════════════════════════════════════════════════
+# First admin account
+# ═══════════════════════════════════════════════════════════════
+
+def test_first_admin_is_created_from_admin_password(monkeypatch):
+    from gateway.auth_service import verify_password
+    from gateway.config import settings
+    from gateway.main import _ensure_admin_account
+
+    monkeypatch.setattr(settings, "ADMIN_PASSWORD", "S3cure-first-login")
+    conn, cursor = _admin_check_connection(None, ("new-admin-id",))
+
+    asyncio.run(_ensure_admin_account(conn))
+
+    insert_sql, params = cursor.execute.await_args_list[1].args
+    assert "INSERT INTO users" in insert_sql and "'admin'" in insert_sql
+    assert params[:2] == (settings.ADMIN_EMAIL, settings.ADMIN_USERNAME)
+    assert verify_password("S3cure-first-login", params[2])
+    conn.commit.assert_awaited_once()
+
+def test_existing_admin_is_left_untouched(monkeypatch):
+    from gateway.config import settings
+    from gateway.main import _ensure_admin_account
+
+    monkeypatch.setattr(settings, "ADMIN_PASSWORD", "ignored-because-admin-exists")
+    conn, cursor = _admin_check_connection((1,))
+
+    asyncio.run(_ensure_admin_account(conn))
+
+    assert cursor.execute.await_count == 1
+    conn.commit.assert_not_awaited()
+
+def test_no_admin_is_created_without_admin_password(monkeypatch):
+    from gateway.config import settings
+    from gateway.main import _ensure_admin_account
+
+    monkeypatch.setattr(settings, "ADMIN_PASSWORD", "")
+    conn, cursor = _admin_check_connection(None)
+
+    asyncio.run(_ensure_admin_account(conn))
+
+    assert cursor.execute.await_count == 1
+    conn.commit.assert_not_awaited()
 
 def test_get_db_connection_rebuilds_pool_after_timeout(monkeypatch):
     from gateway.database import DatabasePool, get_db_connection

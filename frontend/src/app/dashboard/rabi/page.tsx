@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { api } from "@/lib/api";
+import { Icon } from "@/components/icons";
 import {
     LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
     Legend, ResponsiveContainer,
@@ -63,16 +64,20 @@ export default function RABIPage() {
             <div className="relative overflow-hidden glass-panel rounded-2xl p-6 animate-fade-in-up">
                 <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 to-brand-500/5 dark:from-cyan-500/[0.03] dark:to-brand-500/[0.03]" />
                 <div className="relative">
-                    <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-brand-500 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-                            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                            </svg>
-                        </div>
-                        Cold-Start Solution
+                    <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white flex flex-wrap items-center gap-3">
+                        <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-brand-500 flex items-center justify-center shadow-lg shadow-cyan-500/20 text-white">
+                            <Icon name="seedling" className="h-5 w-5" />
+                        </span>
+                        Cold start (RABI)
+                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-500/20">Simulated</span>
                     </h1>
-                    <p className="text-slate-500 dark:text-gray-400 mt-1.5 text-sm">
-                        Instantly learns about new document types by borrowing knowledge from similar ones already seen
+                    <p className="text-slate-600 dark:text-gray-300 mt-1.5 max-w-3xl text-sm">
+                        When a new vendor appears, RABI builds its starting belief about a policy from similar vendors it
+                        has already seen, instead of starting from a flat prior.
+                    </p>
+                    <p className="text-slate-500 dark:text-gray-400 mt-1 text-xs">
+                        This page runs RABI in the simulator. The document pipeline and the benchmark do not use it; only
+                        the separate AHMN service (see Policy check) uses it for cold starts.
                     </p>
                 </div>
             </div>
@@ -85,21 +90,21 @@ export default function RABIPage() {
 
             {/* Concept */}
             <div className="glass-panel rounded-2xl p-6 animate-fade-in-up" style={{ animationDelay: '60ms' }}>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-3">Why Cold Start Matters</h2>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-3">Why cold start matters</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-red-50/50 dark:bg-red-500/5 backdrop-blur-sm rounded-xl p-4 border border-red-200/40 dark:border-red-500/10">
+                    <div className="rounded-xl p-4 border border-slate-200 bg-slate-50/60 dark:border-gray-700 dark:bg-gray-800/40">
                         <div className="flex items-center gap-2 mb-2">
-                            <span className="w-2 h-2 rounded-full bg-red-500" />
-                            <p className="font-semibold text-red-600 dark:text-red-400 text-xs">Without Smart Prior</p>
+                            <span className="w-2 h-2 rounded-full bg-slate-400" />
+                            <p className="font-semibold text-slate-700 dark:text-gray-200 text-xs">Flat prior</p>
                         </div>
-                        <p className="text-sm text-slate-600 dark:text-gray-300">New vendor → starts from scratch with no knowledge → needs ~50 rounds of trial-and-error to learn what works.</p>
+                        <p className="text-sm text-slate-600 dark:text-gray-300">A new vendor starts with no knowledge, so the router has to find a good policy by trial and error.</p>
                     </div>
-                    <div className="bg-cyan-50/50 dark:bg-cyan-500/5 backdrop-blur-sm rounded-xl p-4 border border-cyan-200/40 dark:border-cyan-500/10">
+                    <div className="rounded-xl p-4 border border-cyan-200 bg-cyan-50/60 dark:border-cyan-500/20 dark:bg-cyan-500/5">
                         <div className="flex items-center gap-2 mb-2">
                             <span className="w-2 h-2 rounded-full bg-cyan-500" />
-                            <p className="font-semibold text-cyan-600 dark:text-cyan-400 text-xs">With Smart Prior</p>
+                            <p className="font-semibold text-cyan-800 dark:text-cyan-300 text-xs">Borrowed prior</p>
                         </div>
-                        <p className="text-sm text-slate-600 dark:text-gray-300">New vendor → finds similar vendors already known → borrows their experience → near-optimal from round 1.</p>
+                        <p className="text-sm text-slate-600 dark:text-gray-300">A new vendor starts from the outcomes of the most similar known vendors, weighted by similarity.</p>
                     </div>
                 </div>
             </div>
@@ -110,36 +115,21 @@ export default function RABIPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 stagger-children">
                     <div className="glass-stat p-4">
                         <div className="relative z-10">
-                            <div className="flex items-center gap-2 mb-2">
-                                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-50 to-cyan-50 dark:from-brand-500/10 dark:to-cyan-500/10 border border-brand-100/60 dark:border-brand-500/15 flex items-center justify-center">
-                                    <span className="text-xs">🌡️</span>
-                                </div>
-                                <p className="text-[10px] text-slate-500 dark:text-gray-400 font-semibold uppercase tracking-wider">Temperature (τ)</p>
-                            </div>
+                            <p className="mb-2 text-[10px] text-slate-500 dark:text-gray-400 font-semibold uppercase tracking-wider">Temperature (τ)</p>
                             <p className="text-2xl font-extrabold text-slate-900 dark:text-white">{temperature}</p>
-                            <p className="text-[11px] text-slate-500 dark:text-gray-500 mt-1">Controls how much weight the most similar neighbor gets vs. spreading evenly</p>
+                            <p className="text-[11px] text-slate-500 dark:text-gray-500 mt-1">Lower values give the most similar neighbour more weight</p>
                         </div>
                     </div>
                     <div className="glass-stat p-4">
                         <div className="relative z-10">
-                            <div className="flex items-center gap-2 mb-2">
-                                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-50 to-cyan-50 dark:from-brand-500/10 dark:to-cyan-500/10 border border-brand-100/60 dark:border-brand-500/15 flex items-center justify-center">
-                                    <span className="text-xs">📏</span>
-                                </div>
-                                <p className="text-[10px] text-slate-500 dark:text-gray-400 font-semibold uppercase tracking-wider">Similarity Min</p>
-                            </div>
+                            <p className="mb-2 text-[10px] text-slate-500 dark:text-gray-400 font-semibold uppercase tracking-wider">Minimum similarity</p>
                             <p className="text-2xl font-extrabold text-slate-900 dark:text-white">{threshold}</p>
-                            <p className="text-[11px] text-slate-500 dark:text-gray-500 mt-1">Only neighbors at least 40% similar are considered — filters out irrelevant ones</p>
+                            <p className="text-[11px] text-slate-500 dark:text-gray-500 mt-1">Known vendors below this cosine similarity are ignored</p>
                         </div>
                     </div>
                     <div className="glass-stat p-4">
                         <div className="relative z-10">
-                            <div className="flex items-center gap-2 mb-2">
-                                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-50 to-cyan-50 dark:from-brand-500/10 dark:to-cyan-500/10 border border-brand-100/60 dark:border-brand-500/15 flex items-center justify-center">
-                                    <span className="text-xs">👥</span>
-                                </div>
-                                <p className="text-[10px] text-slate-500 dark:text-gray-400 font-semibold uppercase tracking-wider">Neighbors (k)</p>
-                            </div>
+                            <p className="mb-2 text-[10px] text-slate-500 dark:text-gray-400 font-semibold uppercase tracking-wider">Neighbours (k)</p>
                             <p className="text-2xl font-extrabold text-slate-900 dark:text-white">{k}</p>
                             <p className="text-[11px] text-slate-500 dark:text-gray-500 mt-1">Number of most-similar known document types to learn from</p>
                         </div>
@@ -150,11 +140,8 @@ export default function RABIPage() {
                     disabled={loading}
                     className="glass-button px-6 py-3 rounded-xl text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] transition-all duration-200"
                 >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    {loading ? "Computing..." : "Run Demo"}
+                    <Icon name="play" />
+                    {loading ? "Computing..." : "Run simulation"}
                 </button>
             </div>
 

@@ -5,12 +5,12 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ThemeToggle } from "./theme-toggle";
+import { SignupLink } from "./signup-link";
 
 const navLinks = [
     { label: "Home", href: "/" },
     { label: "Features", href: "/features" },
     { label: "About", href: "/about" },
-    { label: "Pricing", href: "/pricing" },
     { label: "Docs", href: "/docs" },
     { label: "Contact", href: "/contact" },
 ];
@@ -79,12 +79,12 @@ export function PublicNavbar() {
                             >
                                 Sign In
                             </Link>
-                            <Link
-                                href="/signup"
+                            <SignupLink
+                                hideWhenClosed
                                 className="px-5 py-2.5 glass-button rounded-xl text-sm flex items-center gap-2"
                             >
                                 Get Started
-                            </Link>
+                            </SignupLink>
                         </div>
 
                         {/* Mobile Menu Button */}
@@ -134,12 +134,12 @@ export function PublicNavbar() {
                                 >
                                     Sign In
                                 </Link>
-                                <Link
-                                    href="/signup"
+                                <SignupLink
+                                    hideWhenClosed
                                     className="flex-1 px-4 py-3 text-center text-sm font-medium glass-button rounded-xl flex items-center justify-center gap-2"
                                 >
                                     Get Started
-                                </Link>
+                                </SignupLink>
                             </div>
                         </div>
                     </motion.div>

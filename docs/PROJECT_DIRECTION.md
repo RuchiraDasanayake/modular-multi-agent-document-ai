@@ -6,71 +6,52 @@ Unlike `docs/SYSTEM_CONTRACT.md`, this file is expected to change as goals evolv
 
 ## Current Phase
 
-`Dataset-driven stabilization and evidence build`
+`Evidence frozen; publication preparation`
 
-The repository is now in a dataset-driven stabilization phase.
-
-Cleanup still matters, but only when it directly improves:
-
-- external labeled evaluation
-- canonical runtime reliability
-- adaptive-safe evidence quality
-- operator-visible auditability
+The paired `static` vs `adaptive_safe` evaluation on CORD-dev, CORD-holdout, FUNSD-20 and HARD-13 is complete. Its
+results, run folders and regeneration commands are frozen in `paper/FINAL_EVIDENCE.md`, and `paper/ieee/main.tex`
+reports them as they are: adaptive routing did not improve accuracy, and it added latency on receipts.
 
 ## Primary Goal
 
-Make `adaptive_safe` and the extraction runtime defensible on real labeled data without widening the claim or breaking the canonical product path.
+Publish the paper and a reproducible repository without changing the frozen evidence.
 
 That means:
 
-- keeping the paper claim narrow: `static` vs `adaptive_safe`
-- using external labeled data to find repeated extraction failures early
-- fixing only high-ROI issues that improve reliability across many cases
-- preserving one clear canonical runtime path
-- separating exact labeled metrics from runtime proxy reward
-- freezing mapping, config, and evidence before writing final results
-- simplifying or removing work that does not help the evidence loop
-- keeping docs aligned with the actual execution plan
+- every number in the paper traces to a run folder or command listed in `paper/FINAL_EVIDENCE.md`
+- `docs/REPRODUCING_RESULTS.md` rebuilds the packs, the runs and the tables from a clean checkout
+- runtime changes are limited to defects; a change that would alter benchmark outcomes needs new runs and an update
+  of both the paper and the evidence file
+- the claim stays narrow: `static` vs `adaptive_safe`, with the negative result stated plainly
 
 ## Current In-Scope Work
 
-- stage and evaluate `CORD v2` as the primary external labeled dataset
-- define a strict receipt-field mapping for the first exact-metric loop
-- run repeated `static` vs `adaptive_safe` evaluations through the canonical runtime
-- inspect failures manually on small deterministic subsets before scaling
-- prioritize only high-ROI fixes in `IDPO`, `frontend`, or `AHMN` that improve evidence quality or runtime reliability
-- preserve and clarify run artifacts needed for exact scoring and adaptive containment review
-- keep the operator UI and run artifacts aligned with the adaptive-safe claim
-- quarantine or defer evaluation paths that do not serve the current claim
-- keep docs in sync with the active testing and evidence plan
+- venue selection, template formatting and camera-ready edits of the paper
+- archiving the run folders listed in `paper/FINAL_EVIDENCE.md` for the artifact release
+- an anonymised repository link for review
+- defect fixes in the canonical runtime, the gateway and the frontend job path, with tests
+- keeping setup, reproduction and contract docs accurate
 
 ## Current Non-Goals
 
 For the current phase, do not prioritize:
 
-- major new product features
-- broad frontend redesign
-- cross-service architecture rewrites
-- broad benchmark claim expansion across many document families at once
-- adding alternate entrypoints unless explicitly required
-- Vercel-first deployment redesign
-- broad UI expansion
-- adding new knobs, panels, or metrics before the evaluation loop is stable
-- multi-dataset expansion before `CORD v2` mapping and scoring are stable
-- line-item research expansion before flat receipt totals and containment behavior are reliable
+- new routing features, policies or reward changes (the paper lists these as future work: a text-based document type
+  before routing, actions that change OCR output, and rewards tied to correctness)
+- wiring Guardrails into the measured pipeline; the paper treats it as a separate service
+- enabling RABI or DAAF in the runtime; both are reported as simulation results only
+- re-tuning prompts, normalisers or the scorer against the benchmark packs
+- broad frontend redesign or cross-service architecture rewrites
 
 ## Current Success Criteria
 
 This phase is successful when:
 
-- the team can run a deterministic labeled subset through the canonical runtime and score it exactly
-- `CORD v2` staging, mapping, and scoring are reproducible and documented
-- repeated failure categories are known and triaged by ROI instead of guessed ad hoc
-- high-ROI fixes improve exact extraction quality, structured-output quality, or containment visibility
-- the canonical runtime path remains stable and documented
-- exact labeled metrics remain clearly separated from runtime proxy reward
-- the main operator-facing UI and run artifacts clearly expose adaptive-safe behavior
-- evidence can be frozen without changing runtime labels or adding paper-only branches
+- the paper compiles to six pages and every figure in it matches `paper/FINAL_EVIDENCE.md`
+- a teammate can follow `SETUP.md` and `docs/REPRODUCING_RESULTS.md` without prior context
+- the `ahmn_core`, `gateway`, `guardrails`, `xai_hitl` and `idpo` test suites and the frontend type check, lint and
+  server tests pass
+- the run folders behind the paper are archived alongside the release
 
 ## Document Roles
 
@@ -78,10 +59,18 @@ Use the docs this way:
 
 - `docs/PROJECT_DIRECTION.md`
   The current goal, scope, and non-goals
+- `paper/ieee/main.tex` (compiled to `paper/ieee/main.pdf`)
+  The paper
+- `paper/FINAL_EVIDENCE.md`
+  The frozen results, the run folders they came from and the commands that regenerate them
+- `docs/REPRODUCING_RESULTS.md`
+  How to rebuild the packs, rerun the benchmarks and the simulation, and compile the paper
+- `SETUP.md`
+  Local setup of the services, the frontend and the extraction runtime
 - `docs/DATASET_PLAN.md`
-  The active dataset ladder and labeling strategy
+  The dataset ladder used to build the evidence (completed)
 - `docs/CORD_EVALUATION_PLAN.md`
-  The active external labeled testing plan and failure triage loop
+  The labeled testing plan and failure triage loop used to build the evidence (completed)
 - `docs/SYSTEM_CONTRACT.md`
   What the system currently is and must emit
 - `docs/IDPO_CLEANUP_PASS1.md`
@@ -123,17 +112,26 @@ Which docs must be updated:
 Which code areas are most affected:
 ```
 
+## Goal Change Record
+
+```text
+Date: 2026-10-08
+Old phase: Dataset-driven stabilization and evidence build
+New phase: Evidence frozen; publication preparation
+Reason: The paired static vs adaptive_safe runs on all four packs are complete, rescored with the final scorer and
+  frozen in paper/FINAL_EVIDENCE.md.
+What is now in scope: paper submission, reproducibility, defect fixes with tests, accurate docs.
+What is now out of scope: feature work and any change that would alter the frozen benchmark outcomes.
+Which docs must be updated: PROJECT_DIRECTION.md, SYSTEM_CONTRACT.md, REPRODUCING_RESULTS.md, SETUP.md, README.md,
+  CLAUDE.md.
+Which code areas are most affected: paper/ and docs/; code only for defect fixes.
+```
+
 ## Current Next Step
 
-Run the evaluation program in strict order:
-
-1. set up the external labeled path first
-   Use `CORD v2` as the first serious dataset and keep the first mapped field set small and exact
-2. build a deterministic pilot subset and manual review loop
-   Start with a small receipt subset, inspect failures, and classify them before making fixes
-3. apply only high-ROI fixes
-   Prioritize repeated normalization, extraction, logging, and containment issues over broad refactors
-4. freeze the mapping and scoring path before scaling
-   Do not keep changing what counts as correct while collecting evidence
-5. run larger validation passes only after the small loop is stable
-6. keep cleanup work scoped to what directly improves reliability, auditability, or exact evaluation
+1. choose the venue and adapt `paper/ieee/main.tex` to its template, page limit and review policy
+2. archive the run folders listed in `paper/FINAL_EVIDENCE.md` with the repository release
+3. for double-blind review, point the paper's release sentence at an anonymised copy of the repository; add the author
+   block for the camera-ready version
+4. after any runtime defect fix, rerun the affected test suites; rerun the benchmarks only if the fix can change their
+   outcomes, and then update the paper and the evidence file together

@@ -17,7 +17,12 @@ This is the current supported deployment model for demos, viva, and short-term p
 
 It matches the current runtime path:
 
-`frontend -> /api/runs/start -> frontend job runner -> idpo.cli process-inbox -> IDPO_DATA_DIR/runs/<run_id>`
+`frontend job (POST /api/jobs/<job_id>/documents, then POST /api/jobs/<job_id>/runs) -> frontend job runner -> idpo.cli process-inbox -> IDPO_DATA_DIR/runs/<run_id>`
+
+The job API (`/api/jobs`, `/api/runs`, `/api/benchmarks`) and the dashboard pages run on the frontend server, so the
+frontend middleware checks every request against the gateway's `/api/auth/me` before serving it. A request without a
+session the gateway accepts gets `401` (API) or a redirect to `/login` (pages); if the gateway is unreachable it gets
+`503`. The frontend server must therefore reach the gateway at `INTERNAL_API_URL` (default `http://localhost:8000`).
 
 That means the machine running the frontend must also have:
 
@@ -33,7 +38,8 @@ That means the machine running the frontend must also have:
 These are not the supported end-to-end deployment path right now:
 
 - Vercel-only deployment
-- frontend-only Docker deployment
+- frontend-only Docker deployment (the image ships `runner.config.docker.json`, whose
+  command is a placeholder; jobs started there fail with "wrote no run output")
 - any deployment where the frontend server cannot run local Python commands
 
 Vercel can still host the UI later, but not the current full job-runner path without a separate worker redesign.
@@ -49,8 +55,13 @@ Required on the demo host:
 - PostgreSQL
 - Redis
 - Ollama
-- pulled Ollama model `phi3:mini`
+- pulled Ollama model `qwen3.5:9b` (the `llm.local_model` in `configs/idpo_research_config.json`)
 - `paddleocr` installed in the Python environment
+- `pymupdf` installed in the Python environment, for scanned / image-only PDFs
+  (Poppler is no longer required; `pdf2image` + Poppler is only a fallback)
+- Tesseract OCR, as the fallback OCR engine. It is found on `PATH`, via
+  `TESSERACT_CMD`, or in the default Windows install folders under
+  `Program Files` / `%LOCALAPPDATA%\Programs`
 
 Required for cloud fallback:
 
@@ -147,15 +158,21 @@ For LAN-only use:
   -ApiOrigin "http://HOST_IP:8000"
 ```
 
-After startup, run the smoke test:
+The script turns public sign-up off (`PUBLIC_SIGNUP_ENABLED=false`), so visitors cannot create accounts. Create the
+accounts you hand out (for example a viewer account for examiners) on `/dashboard/admin`. Pass `-AllowSignup`, or set
+`PUBLIC_SIGNUP_ENABLED=true`, to keep `/signup` open.
+
+After startup, run the smoke test. It signs in first, so give it an account password through `-Password`,
+`SMOKE_PASSWORD`, or `ADMIN_PASSWORD` (the user defaults to `admin`; override with `-Username` or `SMOKE_USERNAME`):
 
 ```powershell
+$env:SMOKE_PASSWORD = "<admin password>"
 .\scripts\run_public_demo_smoke.ps1
 ```
 
 This validates the real path:
 
-`/api/runs/start -> frontend job runner -> idpo.cli process-inbox -> run artifacts on disk`
+`sign in -> POST /api/jobs -> POST /api/jobs/<job_id>/documents -> POST /api/jobs/<job_id>/runs -> frontend job runner -> idpo.cli process-inbox -> run artifacts on disk`
 
 You can also inspect live stack health through:
 
@@ -218,8 +235,14 @@ Recommended flow:
 
 - if the host machine is off, the public demo is off
 - if `OPENAI_API_KEY` is missing, cloud fallback will not run
-- if `phi3:mini` is not installed in Ollama, local extraction will not run as configured
+- if `qwen3.5:9b` is not installed in Ollama, local extraction will not run as configured
+- choosing a different local model on a job (for example `phi3:mini`) makes the runner pull it
+  through the Ollama HTTP API at `llm.base_url` before the run starts; the `ollama` CLI does not
+  need to be on `PATH`, and the first run with a new model waits for the download
 - if `paddleocr` is missing, scanned-document quality will degrade or fail depending on path
+- if the frontend server restarts while a job is running, that job is marked failed
+  ("Interrupted") on next load and must be run again
+- set `NEXT_PUBLIC_CONTACT_EMAIL` before building the frontend to enable the Contact page form
 
 ## Next Evolution
 

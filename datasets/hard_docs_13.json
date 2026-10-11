@@ -1,0 +1,290 @@
+{
+  "name": "hard_mixed_13",
+  "description": "Readable-but-hard documents: 6 synthetic (skew, blur, noise, fax, faded, multi-page, dense digital), 4 real CORD v2 receipts, 3 FUNSD forms. Built by scripts/build_hard_docs_pack.py.",
+  "batch_mode": "per_case",
+  "cases": [
+    {
+      "case_id": "hard_invoice_scanned_skewed",
+      "tags": [
+        "scanned",
+        "noisy_ocr",
+        "table",
+        "invoice",
+        "pdf_image_only"
+      ],
+      "path": "datasets/derived/hard_docs/hard_invoice_scanned_skewed.pdf",
+      "fields": {
+        "invoice_number": "The invoice number / invoice ID.",
+        "invoice_date": "The invoice issue date, as written.",
+        "vendor_name": "The company that issued the invoice.",
+        "subtotal_amount": "Subtotal before tax. Number only.",
+        "tax_amount": "Tax / VAT amount. Number only.",
+        "total_amount": "Final total amount due. Number only."
+      },
+      "expected": {
+        "invoice_number": "INV-2024-0871",
+        "invoice_date": "14/03/2024",
+        "vendor_name": "NORTHWIND OFFICE SUPPLIES (PVT) LTD",
+        "subtotal_amount": "67,400.00",
+        "tax_amount": "12,132.00",
+        "total_amount": "79,532.00"
+      }
+    },
+    {
+      "case_id": "hard_receipt_faded_photo",
+      "tags": [
+        "receipt",
+        "noisy_ocr",
+        "scanned",
+        "low_contrast"
+      ],
+      "path": "datasets/derived/hard_docs/hard_receipt_faded_photo.jpg",
+      "fields": {
+        "total_amount": "Final total amount due. Number only.",
+        "subtotal_amount": "Subtotal before tax. Number only.",
+        "cash_amount": "Cash paid by the customer. Number only.",
+        "change_amount": "Change returned to the customer. Number only.",
+        "document_date": "The date printed on the document."
+      },
+      "expected": {
+        "total_amount": "5,280.00",
+        "subtotal_amount": "4,800.00",
+        "cash_amount": "6,000.00",
+        "change_amount": "720.00",
+        "document_date": "02/11/2023"
+      }
+    },
+    {
+      "case_id": "hard_letter_photo",
+      "tags": [
+        "text",
+        "correspondence",
+        "scanned",
+        "photo"
+      ],
+      "path": "datasets/derived/hard_docs/hard_letter_photo.jpg",
+      "fields": {
+        "sender": "The person who signed or sent the letter.",
+        "recipient": "The person the letter is addressed to.",
+        "date": "The date of the letter, as written.",
+        "subject": "The subject line of the letter."
+      },
+      "expected": {
+        "sender": "Rohan Wickramasinghe",
+        "recipient": "Anjali Perera",
+        "date": "18 September 2023",
+        "subject": "Revised shipping schedule for Q4 consignments"
+      }
+    },
+    {
+      "case_id": "hard_fax_claim_form",
+      "tags": [
+        "form",
+        "scanned",
+        "noisy_ocr",
+        "fax",
+        "handwriting_like"
+      ],
+      "path": "datasets/derived/hard_docs/hard_fax_claim_form.png",
+      "fields": {
+        "claim_reference": "The claim reference number.",
+        "policy_number": "The insurance policy number.",
+        "claimant_name": "The full name of the claimant.",
+        "incident_date": "The date of the incident.",
+        "claim_amount": "The amount claimed. Number only."
+      },
+      "expected": {
+        "claim_reference": "CLM-77310-B",
+        "policy_number": "POL-5520918",
+        "claimant_name": "Dilan Jayawardena",
+        "incident_date": "07/06/2024",
+        "claim_amount": "145,750.00"
+      }
+    },
+    {
+      "case_id": "hard_multipage_po_scanned",
+      "tags": [
+        "scanned",
+        "multi_page",
+        "table",
+        "pdf_image_only"
+      ],
+      "path": "datasets/derived/hard_docs/hard_multipage_po_scanned.pdf",
+      "fields": {
+        "po_number": "The purchase order number.",
+        "order_date": "The order date.",
+        "supplier_name": "The supplier company name.",
+        "tax_amount": "Tax / VAT amount. Number only.",
+        "total_amount": "Final total amount due. Number only."
+      },
+      "expected": {
+        "po_number": "PO-55120",
+        "order_date": "2024-01-22",
+        "supplier_name": "Lanka Hardware Traders",
+        "tax_amount": "74,318.40",
+        "total_amount": "487,198.40"
+      }
+    },
+    {
+      "case_id": "hard_bank_statement_digital",
+      "tags": [
+        "table",
+        "text",
+        "digital_pdf",
+        "dense_numbers"
+      ],
+      "path": "datasets/derived/hard_docs/hard_bank_statement_digital.pdf",
+      "fields": {
+        "account_holder": "The account holder's name.",
+        "account_number": "The bank account number.",
+        "statement_date": "The date the statement was issued.",
+        "opening_balance": "Opening balance for the period. Number only.",
+        "closing_balance": "Closing balance for the period. Number only."
+      },
+      "expected": {
+        "account_holder": "Nimal Senanayake",
+        "account_number": "0045-2231-7789",
+        "statement_date": "02/09/2024",
+        "opening_balance": "182,450.75",
+        "closing_balance": "166,096.18"
+      }
+    },
+    {
+      "case_id": "cord_validation_0003",
+      "tags": [
+        "receipt",
+        "scanned",
+        "noisy_ocr",
+        "real_cord"
+      ],
+      "path": "datasets/derived/hard_docs/cord_validation_0003.jpg",
+      "fields": {
+        "total_amount": "Number only.",
+        "cash_amount": "Number only.",
+        "change_amount": "Number only.",
+        "subtotal_amount": "Number only.",
+        "tax_amount": "Number only."
+      },
+      "expected": {
+        "total_amount": "28,000",
+        "cash_amount": "28,000",
+        "change_amount": "0",
+        "subtotal_amount": "28,000",
+        "tax_amount": "0"
+      }
+    },
+    {
+      "case_id": "cord_validation_0017",
+      "tags": [
+        "receipt",
+        "scanned",
+        "noisy_ocr",
+        "real_cord"
+      ],
+      "path": "datasets/derived/hard_docs/cord_validation_0017.jpg",
+      "fields": {
+        "total_amount": "Number only.",
+        "cash_amount": "Number only.",
+        "change_amount": "Number only.",
+        "subtotal_amount": "Number only."
+      },
+      "expected": {
+        "total_amount": "20,000",
+        "cash_amount": "100,000",
+        "change_amount": "80.000",
+        "subtotal_amount": "20,000"
+      }
+    },
+    {
+      "case_id": "cord_validation_0042",
+      "tags": [
+        "receipt",
+        "scanned",
+        "noisy_ocr",
+        "real_cord"
+      ],
+      "path": "datasets/derived/hard_docs/cord_validation_0042.jpg",
+      "fields": {
+        "total_amount": "Number only.",
+        "change_amount": "Number only.",
+        "subtotal_amount": "Number only."
+      },
+      "expected": {
+        "total_amount": "53,000",
+        "change_amount": "0",
+        "subtotal_amount": "53,000"
+      }
+    },
+    {
+      "case_id": "cord_validation_0066",
+      "tags": [
+        "receipt",
+        "scanned",
+        "noisy_ocr",
+        "real_cord"
+      ],
+      "path": "datasets/derived/hard_docs/cord_validation_0066.jpg",
+      "fields": {
+        "total_amount": "Number only.",
+        "cash_amount": "Number only."
+      },
+      "expected": {
+        "total_amount": "7,000",
+        "cash_amount": "7,000"
+      }
+    },
+    {
+      "case_id": "funsd_82092117",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82092117.png",
+      "fields": {
+        "recipient": "The recipient name or department in the TO field.",
+        "date": "The date on the form (as written). Extract exactly as it appears."
+      },
+      "expected": {
+        "recipient": "George Baroody",
+        "date": "12 /10 /98"
+      }
+    },
+    {
+      "case_id": "funsd_82200067_0069",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82200067_0069.png",
+      "fields": {
+        "recipient": "The recipient name or department in the TO field.",
+        "sender": "The sender name or department in the FROM field."
+      },
+      "expected": {
+        "recipient": "K. A. Sparrow",
+        "sender": "T. D. Blachly"
+      }
+    },
+    {
+      "case_id": "funsd_82250337_0338",
+      "tags": [
+        "form",
+        "scanned",
+        "business_form"
+      ],
+      "path": "datasets/FUNSD/testing_data/images/82250337_0338.png",
+      "fields": {
+        "recipient": "The recipient name or department in the TO field.",
+        "sender": "The sender name or department in the FROM field.",
+        "date": "The date on the form (as written). Extract exactly as it appears."
+      },
+      "expected": {
+        "recipient": "Sam Zolot",
+        "sender": "D. J. Landro",
+        "date": "2- Dec- 97"
+      }
+    }
+  ]
+}

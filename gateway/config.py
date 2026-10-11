@@ -31,6 +31,14 @@ class Settings(BaseSettings):
     # ── CORS ──
     BACKEND_CORS_ORIGINS: str = "*"
 
+    # ── First admin account (created at startup only while no admin exists) ──
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_EMAIL: str = "admin@localhost"
+    ADMIN_PASSWORD: str = ""
+
+    # ── Public self-registration (creates viewer accounts; admins can always add users) ──
+    PUBLIC_SIGNUP_ENABLED: bool = True
+
     def validate_jwt_secret(self) -> None:
         """Ensure a stable JWT secret across restarts.
 

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { useUser } from "@/hooks/use-user";
+import { Icon, type IconName } from "@/components/icons";
 
 type Tab = "ltm" | "mtm" | "stm" | "users" | "guardrails" | "hitl";
 
@@ -71,14 +72,21 @@ interface HITLEntry {
     priority?: string;
 }
 
-const TABS: { key: Tab; label: string; icon: string; desc: string }[] = [
-    { key: "ltm", label: "LTM Policies", icon: "🧠", desc: "Long-Term Memory — validated policy strategies with Thompson Sampling α/β" },
-    { key: "mtm", label: "MTM Outcomes", icon: "📊", desc: "Mid-Term Memory — recent advice outcomes and performance metrics" },
-    { key: "stm", label: "STM Cache", icon: "⚡", desc: "Short-Term Memory — active Redis entries with TTL countdown" },
-    { key: "users", label: "Users", icon: "👥", desc: "Registered users and their roles" },
-    { key: "guardrails", label: "Guardrail Audit", icon: "🛡️", desc: "Validation audit log — pass/fail history per document" },
-    { key: "hitl", label: "HITL Feedback", icon: "✍️", desc: "Human-in-the-Loop expert feedback entries" },
+const TABS: { key: Tab; label: string; icon: IconName; desc: string }[] = [
+    { key: "ltm", label: "Long-term memory", icon: "layers", desc: "Policies AHMN has promoted, with their Thompson-sampling α and β." },
+    { key: "mtm", label: "Mid-term memory", icon: "chart", desc: "Recent advice outcomes reported back to AHMN." },
+    { key: "stm", label: "Short-term cache", icon: "clock", desc: "Active Redis entries and the seconds until each expires." },
+    { key: "users", label: "Users", icon: "users", desc: "Registered users and their roles." },
+    { key: "guardrails", label: "Quality-check log", icon: "shield", desc: "Pass and fail history from the Guardrails service." },
+    { key: "hitl", label: "Expert ratings", icon: "userCheck", desc: "Ratings submitted on the Expert review page." },
 ];
+
+const VERDICT_LABELS: Record<string, string> = {
+    correct: "Correct",
+    partially_correct: "Partly correct",
+    incorrect: "Wrong",
+    needs_more_context: "Needs more context",
+};
 
 function Badge({ children, color = "gray" }: { children: React.ReactNode; color?: string }) {
     const colors: Record<string, string> = {
@@ -211,11 +219,11 @@ export default function DatabaseExplorerPage() {
         return (
             <div className="max-w-4xl 3xl:max-w-5xl mx-auto">
                 <div className="glass-panel rounded-2xl p-12 text-center">
-                    <div className="w-16 h-16 mx-auto rounded-2xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 flex items-center justify-center mb-4">
-                        <span className="text-3xl">🔒</span>
+                    <div className="w-14 h-14 mx-auto rounded-2xl bg-slate-100 dark:bg-gray-800 border border-slate-200 dark:border-gray-700 flex items-center justify-center mb-4 text-slate-600 dark:text-gray-300">
+                        <Icon name="lock" className="h-6 w-6" />
                     </div>
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Access Denied</h2>
-                    <p className="text-slate-500 dark:text-gray-400 text-sm">Administrator privileges required.</p>
+                    <h1 className="text-xl font-bold text-slate-900 dark:text-white mb-2">For administrators only</h1>
+                    <p className="text-slate-600 dark:text-gray-300 text-sm">Sign in with an admin account to browse the stored data.</p>
                 </div>
             </div>
         );
@@ -227,35 +235,40 @@ export default function DatabaseExplorerPage() {
         <div className="max-w-7xl 3xl:max-w-full mx-auto space-y-6">
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Database Explorer</h1>
-                <p className="text-slate-500 dark:text-gray-500 mt-1">Browse all data across PostgreSQL, Redis, and audit logs</p>
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Database</h1>
+                <p className="text-slate-600 dark:text-gray-300 mt-1 text-sm">
+                    Read-only view of what AHMN, Guardrails and the XAI service have stored in PostgreSQL and Redis.
+                </p>
             </div>
 
-            {/* Tab Bar */}
-            <div className="flex flex-wrap gap-2">
+            <div role="tablist" aria-label="Stored data" className="flex flex-wrap gap-2">
                 {TABS.map((t) => (
                     <button
                         key={t.key}
+                        type="button"
+                        role="tab"
+                        aria-selected={tab === t.key}
                         onClick={() => setTab(t.key)}
                         className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${tab === t.key
                                 ? "bg-brand-500/10 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300 border border-brand-200/60 dark:border-brand-500/20 shadow-sm"
                                 : "text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800 border border-transparent"
                             }`}
                     >
-                        <span>{t.icon}</span>
+                        <Icon name={t.icon} className="h-4 w-4" />
                         {t.label}
                     </button>
                 ))}
             </div>
 
-            {/* Description + Refresh */}
-            <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-gray-500">{tabInfo.desc}</p>
+            <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-slate-600 dark:text-gray-400">{tabInfo.desc}</p>
                 <button
+                    type="button"
                     onClick={() => loadTab(tab)}
-                    className="text-xs text-brand-600 dark:text-brand-400 hover:underline"
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 dark:text-brand-300 hover:underline"
                 >
-                    ↻ Refresh
+                    <Icon name="refresh" className="h-3.5 w-3.5" />
+                    Refresh
                 </button>
             </div>
 
@@ -290,7 +303,7 @@ export default function DatabaseExplorerPage() {
 // ── Table Components ────────────────────────────────────────────────────────
 
 function LTMTable({ data }: { data: LTMEntry[] }) {
-    if (!data.length) return <EmptyState label="No LTM policies found — run the seed script to populate." />;
+    if (!data.length) return <EmptyState label="No long-term policies are stored yet." />;
     return (
         <table className="min-w-full divide-y divide-slate-200/60 dark:divide-gray-800/60">
             <thead className="bg-slate-50/50 dark:bg-gray-900/30"><tr>
@@ -327,7 +340,7 @@ function LTMTable({ data }: { data: LTMEntry[] }) {
 }
 
 function MTMTable({ data }: { data: MTMEntry[] }) {
-    if (!data.length) return <EmptyState label="No MTM outcomes recorded yet." />;
+    if (!data.length) return <EmptyState label="No advice outcomes are recorded yet." />;
     return (
         <table className="min-w-full divide-y divide-slate-200/60 dark:divide-gray-800/60">
             <thead className="bg-slate-50/50 dark:bg-gray-900/30"><tr>
@@ -365,7 +378,7 @@ function MTMTable({ data }: { data: MTMEntry[] }) {
 }
 
 function STMTable({ data }: { data: STMEntry[] }) {
-    if (!data.length) return <EmptyState label="No active STM entries — entries appear when AHMN processes advice requests." />;
+    if (!data.length) return <EmptyState label="The cache is empty. Entries appear while AHMN answers advice requests." />;
     return (
         <table className="min-w-full divide-y divide-slate-200/60 dark:divide-gray-800/60">
             <thead className="bg-slate-50/50 dark:bg-gray-900/30"><tr>
@@ -376,7 +389,7 @@ function STMTable({ data }: { data: STMEntry[] }) {
                     <tr key={row.key || i} className="hover:bg-slate-50/50 dark:hover:bg-gray-800/20 transition-colors">
                         <Td className="font-mono text-xs">{row.key}</Td>
                         <Td className="font-mono">
-                            <span className={row.ttl_seconds < 300 ? "text-red-500" : row.ttl_seconds < 900 ? "text-amber-500" : "text-emerald-500"}>
+                            <span className={row.ttl_seconds < 300 ? "text-red-700 dark:text-red-400" : row.ttl_seconds < 900 ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400"}>
                                 {row.ttl_seconds}s
                             </span>
                         </Td>
@@ -411,7 +424,7 @@ function UsersTable({ data }: { data: UserEntry[] }) {
 }
 
 function GuardrailsTable({ data }: { data: GuardrailEntry[] }) {
-    if (!data.length) return <EmptyState label="No guardrail audits recorded yet." />;
+    if (!data.length) return <EmptyState label="No quality checks are recorded yet." />;
     return (
         <table className="min-w-full divide-y divide-slate-200/60 dark:divide-gray-800/60">
             <thead className="bg-slate-50/50 dark:bg-gray-900/30"><tr>
@@ -421,7 +434,7 @@ function GuardrailsTable({ data }: { data: GuardrailEntry[] }) {
                 {data.map((row, i) => (
                     <tr key={row.audit_log_id || i} className="hover:bg-slate-50/50 dark:hover:bg-gray-800/20 transition-colors">
                         <Td className="text-xs">{row.doc_type}</Td>
-                        <Td>{row.overall_passes ? <Badge color="green">PASS</Badge> : <Badge color="red">FAIL</Badge>}</Td>
+                        <Td>{row.overall_passes ? <Badge color="green">Pass</Badge> : <Badge color="red">Fail</Badge>}</Td>
                         <Td className="font-mono">{row.processing_time_ms?.toFixed(0)}</Td>
                         <Td><JsonCell data={row.checks} /></Td>
                         <Td className="text-xs text-slate-500 dark:text-gray-500">{formatTime(row.timestamp)}</Td>
@@ -433,7 +446,7 @@ function GuardrailsTable({ data }: { data: GuardrailEntry[] }) {
 }
 
 function HITLTable({ data }: { data: HITLEntry[] }) {
-    if (!data.length) return <EmptyState label="No HITL feedback submitted yet." />;
+    if (!data.length) return <EmptyState label="No expert ratings are stored yet." />;
     return (
         <table className="min-w-full divide-y divide-slate-200/60 dark:divide-gray-800/60">
             <thead className="bg-slate-50/50 dark:bg-gray-900/30"><tr>
@@ -443,7 +456,7 @@ function HITLTable({ data }: { data: HITLEntry[] }) {
                 {data.map((row, i) => (
                     <tr key={row.feedback_id || i} className="hover:bg-slate-50/50 dark:hover:bg-gray-800/20 transition-colors">
                         <Td className="max-w-xs truncate text-xs">{row.question}</Td>
-                        <Td><Badge color={row.feedback_type === "correct" ? "green" : row.feedback_type === "incorrect" ? "red" : "amber"}>{row.feedback_type}</Badge></Td>
+                        <Td><Badge color={row.feedback_type === "correct" ? "green" : row.feedback_type === "incorrect" ? "red" : "amber"}>{VERDICT_LABELS[row.feedback_type] ?? row.feedback_type}</Badge></Td>
                         <Td>{row.is_answer_correct ? <Badge color="green">Yes</Badge> : <Badge color="red">No</Badge>}</Td>
                         <Td className="font-mono">{(row.explanation_quality ?? row.ratings?.explanation_quality ?? 0)}/5</Td>
                         <Td className="text-xs text-slate-500 dark:text-gray-500">{formatTime(row.timestamp || row.created_at || '')}</Td>
@@ -457,10 +470,10 @@ function HITLTable({ data }: { data: HITLEntry[] }) {
 function EmptyState({ label }: { label: string }) {
     return (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-gray-800 border border-slate-200 dark:border-gray-700 flex items-center justify-center mb-4">
-                <span className="text-2xl">📭</span>
+            <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-gray-800 border border-slate-200 dark:border-gray-700 flex items-center justify-center mb-4 text-slate-500 dark:text-gray-400">
+                <Icon name="inbox" className="h-6 w-6" />
             </div>
-            <p className="text-sm text-slate-500 dark:text-gray-500 max-w-md">{label}</p>
+            <p className="text-sm text-slate-600 dark:text-gray-400 max-w-md">{label}</p>
         </div>
     );
 }

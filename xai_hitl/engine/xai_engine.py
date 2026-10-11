@@ -2257,6 +2257,17 @@ class XAIEngine:
 
         return shap_exp, lime_exp
 
+    def highlighted_spans_for_answer(
+        self, paragraph: str, shap_exp: SHAPExplanation, lime_exp: LIMEExplanation
+    ) -> list[TextSpan]:
+        """Word highlights for the scores returned by generate_xai_for_answer().
+
+        A generated answer has no position in the paragraph, so no answer span is added.
+        """
+        no_position = ModelPrediction(answer="", confidence=0.0, start_index=-1, end_index=-1, top_k_answers=[])
+        word_scores = self._calculate_combined_scores(shap_exp, lime_exp)
+        return self._create_highlighted_spans(paragraph, word_scores, no_position)
+
     # ─── main entry points ────────────────────────────────────
 
     def get_answer_only(self, paragraph: str, question: str) -> XAIExplanation:

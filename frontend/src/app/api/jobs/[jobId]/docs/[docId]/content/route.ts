@@ -28,6 +28,11 @@ function guessContentType(filename: string): string {
       return "image/gif";
     case ".webp":
       return "image/webp";
+    case ".bmp":
+      return "image/bmp";
+    case ".tif":
+    case ".tiff":
+      return "image/tiff";
     case ".txt":
       return "text/plain; charset=utf-8";
     case ".json":

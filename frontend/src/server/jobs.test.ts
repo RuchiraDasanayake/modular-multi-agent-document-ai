@@ -3,10 +3,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { GET as getJobDocumentTextRoute } from "@/app/api/jobs/[jobId]/docs/[docId]/text/route";
 import { POST as postJobDocumentsRoute } from "@/app/api/jobs/[jobId]/documents/route";
 import { PATCH as patchJobRoute } from "@/app/api/jobs/[jobId]/route";
 import { loadRunnerConfig, resetConfigCacheForTests } from "./config";
-import { createWorkspaceJob, listJobs } from "./jobs";
+import { createWorkspaceJob, getJob, listJobs, setJobRunning } from "./jobs";
 
 test("listJobs ignores non-job artifacts in the jobs directory", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "idpo-jobs-list-"));
@@ -267,6 +268,130 @@ test("listJobs preserves benchmark expected field values on saved outcomes", () 
       total_amount: "28,000",
       cash_amount: "28,000",
     });
+  } finally {
+    resetConfigCacheForTests();
+    delete process.env.IDPO_DATA_DIR;
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test("a running job left behind by a previous server process is marked interrupted", () => {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "idpo-jobs-interrupted-"));
+  const dataDir = path.join(tmpRoot, "idpo-data");
+  process.env.IDPO_DATA_DIR = dataDir;
+  resetConfigCacheForTests();
+
+  try {
+    const config = loadRunnerConfig();
+    const live = createWorkspaceJob({ jobName: "Live", mode: "adaptive", fieldConfigCurrent: [] });
+    setJobRunning(live.jobId);
+    assert.equal(getJob(live.jobId)?.status, "running");
+
+    const orphan = createWorkspaceJob({ jobName: "Orphan", mode: "adaptive", fieldConfigCurrent: [] });
+    const orphanFile = path.join(config.jobsDir, `${orphan.jobId}.json`);
+    const stored = JSON.parse(fs.readFileSync(orphanFile, "utf-8")) as Record<string, unknown>;
+    fs.writeFileSync(
+      orphanFile,
+      JSON.stringify({
+        ...stored,
+        status: "running",
+        serverInstanceId: "previous-process",
+        runs: [{ jobRunId: "jr-1", mode: "adaptive", status: "running", createdAt: stored.createdAt, selectedFileIds: [] }],
+      }),
+      "utf-8",
+    );
+
+    const reloaded = getJob(orphan.jobId);
+    assert.equal(reloaded?.status, "failed");
+    assert.match(String(reloaded?.error), /Interrupted/);
+    assert.equal(reloaded?.runs?.[0]?.status, "failed");
+  } finally {
+    resetConfigCacheForTests();
+    delete process.env.IDPO_DATA_DIR;
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test("getJob refuses ids that point outside the jobs folder", () => {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "idpo-jobs-traversal-"));
+  const dataDir = path.join(tmpRoot, "idpo-data");
+  process.env.IDPO_DATA_DIR = dataDir;
+  resetConfigCacheForTests();
+
+  try {
+    const config = loadRunnerConfig();
+    const real = createWorkspaceJob({ jobName: "Real", mode: "adaptive", fieldConfigCurrent: [] });
+    const outsideFile = path.join(config.jobsDir, "..", "outside.json");
+    fs.writeFileSync(outsideFile, JSON.stringify({ jobId: "outside", status: "draft", documents: [] }), "utf-8");
+
+    assert.equal(getJob("../outside"), null);
+    assert.equal(getJob(real.jobId)?.jobName, "Real");
+  } finally {
+    resetConfigCacheForTests();
+    delete process.env.IDPO_DATA_DIR;
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test("document text route returns the OCR text of the latest run", async () => {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "idpo-job-doc-text-"));
+  const dataDir = path.join(tmpRoot, "idpo-data");
+  process.env.IDPO_DATA_DIR = dataDir;
+  resetConfigCacheForTests();
+
+  try {
+    const config = loadRunnerConfig();
+    const job = createWorkspaceJob({ jobName: "Text Job", mode: "adaptive", fieldConfigCurrent: [] });
+    const jobFile = path.join(config.jobsDir, `${job.jobId}.json`);
+    const stored = JSON.parse(fs.readFileSync(jobFile, "utf-8")) as Record<string, unknown>;
+    const createdAt = String(stored.createdAt);
+    fs.writeFileSync(
+      jobFile,
+      JSON.stringify({
+        ...stored,
+        documents: [
+          {
+            fileId: "doc-1",
+            fileName: "receipt.png",
+            storedName: "receipt.png",
+            size: 10,
+            selected: true,
+            status: "processed",
+            errorSummary: null,
+            reviewState: null,
+            latestRoute: "light",
+            latestPolicy: "default",
+            latestRunId: "run-ocr",
+            latestDocId: "doc-runtime-1",
+            createdAt,
+            updatedAt: createdAt,
+            outcomes: [],
+          },
+        ],
+      }),
+      "utf-8",
+    );
+    const ocrDir = path.join(config.runsDir, "run-ocr", "primary", "docs", "doc-runtime-1", "preprocessing", "ocr");
+    fs.mkdirSync(ocrDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(ocrDir, "text.json"),
+      JSON.stringify({ pages: [{ text: " TOTAL 28,000 " }, { text: "" }, { text: "Thank you" }] }),
+      "utf-8",
+    );
+
+    const response = await getJobDocumentTextRoute(new Request("http://localhost/api/jobs/x/docs/doc-1/text"), {
+      params: Promise.resolve({ jobId: job.jobId, docId: "doc-1" }),
+    });
+    assert.equal(response.status, 200);
+    const payload = (await response.json()) as Record<string, unknown>;
+    assert.equal(payload.fileName, "receipt.png");
+    assert.equal(payload.text, "TOTAL 28,000\n\nThank you");
+    assert.equal(payload.truncated, false);
+
+    const missing = await getJobDocumentTextRoute(new Request("http://localhost/api/jobs/x/docs/nope/text"), {
+      params: Promise.resolve({ jobId: job.jobId, docId: "nope" }),
+    });
+    assert.equal(missing.status, 404);
   } finally {
     resetConfigCacheForTests();
     delete process.env.IDPO_DATA_DIR;

@@ -56,18 +56,47 @@ def _check_paddleocr() -> list[str]:
         return ["Python package paddleocr is missing (install with pip install paddleocr)"]
     return []
 
+_WINDOWS_TESSERACT_PATHS = (
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+)
+
+
+def find_tesseract_cmd() -> str | None:
+    """Locate tesseract: TESSERACT_CMD, then PATH, then the default Windows install folders."""
+    configured = os.environ.get("TESSERACT_CMD", "").strip()
+    if configured and os.path.exists(configured):
+        return configured
+    on_path = shutil.which("tesseract")
+    if on_path:
+        return on_path
+    candidates = list(_WINDOWS_TESSERACT_PATHS)
+    local_appdata = os.environ.get("LOCALAPPDATA")
+    if local_appdata:
+        candidates.append(os.path.join(local_appdata, "Programs", "Tesseract-OCR", "tesseract.exe"))
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+    return None
+
+
 def _check_tesseract() -> list[str]:
-    if shutil.which("tesseract"):
+    if find_tesseract_cmd():
         return []
-    return ["Tesseract OCR is not on PATH (install and add tesseract.exe to PATH)"]
+    return ["Tesseract OCR not found (install it, add it to PATH, or set TESSERACT_CMD)"]
 
 def _check_poppler() -> list[str]:
+    try:
+        import fitz  # noqa: F401  PyMuPDF renders scanned PDF pages without Poppler
+        return []
+    except Exception:
+        pass
     env_path = os.environ.get("POPPLER_PATH")
     if env_path and (shutil.which("pdftoppm") or os.path.exists(env_path)):
         return []
     if shutil.which("pdftoppm"):
         return []
-    return ["Poppler pdftoppm is not available (install Poppler and set POPPLER_PATH if needed)"]
+    return ["No PDF rasterizer for scanned PDFs (pip install pymupdf, or install Poppler and set POPPLER_PATH)"]
 
 def _check_ollama(base_url: str, model: str) -> list[str]:
     url = base_url.rstrip("/") + "/api/tags"

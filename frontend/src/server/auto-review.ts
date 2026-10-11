@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { JobFieldConfig, JobStatus, ReviewStage } from "@/types/idpo";
+import { readRunOcrText } from "@/server/artifacts";
 import { loadRunnerConfig } from "@/server/config";
 import type { ReviewFieldResult } from "@/server/review";
 import { buildRequestedReviewRows } from "@/server/review";
@@ -122,24 +123,6 @@ function parseReviewerOutput(text: string): ReviewerOutput | null {
   } catch {
     return null;
   }
-}
-
-function getOcrText(runId: string, docId: string): string {
-  if (!runId || !docId) {
-    return "";
-  }
-
-  const runRoot = path.join(loadRunnerConfig().runsDir, runId, "primary");
-  const ocrPath = path.join(runRoot, "docs", docId, "preprocessing", "ocr", "text.json");
-  const payload = parseJsonFile(ocrPath);
-  const pages = Array.isArray(payload.pages) ? payload.pages : [];
-  return pages
-    .map((page) => {
-      const entry = asRecord(page);
-      return typeof entry?.text === "string" ? entry.text.trim() : "";
-    })
-    .filter(Boolean)
-    .join("\n\n");
 }
 
 function summarizeValidationIssues(detail: DetailRecord): string[] {
@@ -310,7 +293,7 @@ export async function autoReviewDocument(input: {
     detail: input.detail,
     fieldConfig: input.fieldConfig,
     job: input.job,
-    ocrText: getOcrText(input.runId, input.docId),
+    ocrText: readRunOcrText(input.runId, input.docId),
   });
   const config = loadReviewerConfig(input.job);
 

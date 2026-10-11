@@ -15,6 +15,7 @@ from xai_hitl.engine.xai_engine import (
     SHAPExplanation,
     LIMEExplanation,
     ModelPrediction,
+    XAIEngine,
 )
 from xai_hitl.hitl.models import (
     HITLFeedback,
@@ -85,6 +86,24 @@ def test_lime_explanation_to_dict():
     )
     d = lime.to_dict()
     assert d["prediction_proba"] == 0.85
+
+def test_highlighted_spans_for_answer_marks_whole_words_in_the_paragraph():
+    # Skips __init__, which loads the BART model; building spans uses no model state.
+    engine = XAIEngine.__new__(XAIEngine)
+    paragraph = "TOTAL 81,400\nCash 100,000"
+    shap = SHAPExplanation(
+        base_value=0.5,
+        shap_values=[("total", 0.6), ("ak", 0.7), ("cash", 1.0)],
+        feature_names=["total", "ak", "cash"],
+    )
+    lime = LIMEExplanation(word_weights=[("Cash", 0.02)], prediction_proba=0.2)
+
+    spans = engine.highlighted_spans_for_answer(paragraph, shap, lime)
+
+    assert [(s.start, s.end, s.text) for s in spans] == [(0, 5, "TOTAL"), (13, 17, "Cash")]
+    assert spans[1].shap_score == 1.0
+    assert spans[1].lime_score == 0.02
+    assert all(s.highlight_type == HighlightType.POSITIVE_CONTRIBUTION for s in spans)
 
 # ═══════════════════════════════════════════════════════════════
 # HITL Models

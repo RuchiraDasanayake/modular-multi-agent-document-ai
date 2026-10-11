@@ -24,9 +24,15 @@ const tone: Record<string, string> = {
   warn: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-700/30",
 };
 
+const labels: Record<string, string> = {
+  loaded: "not processed",
+  ai_validated: "auto reviewed",
+  human_reviewed: "human reviewed",
+};
+
 export function StatusBadge({ value }: StatusBadgeProps) {
   const key = value.toLowerCase();
-  const label = key === "ai_validated" ? "auto reviewed" : value.replace(/_/g, " ");
+  const label = labels[key] ?? value.replace(/_/g, " ");
   return (
     <span
       className={clsx(

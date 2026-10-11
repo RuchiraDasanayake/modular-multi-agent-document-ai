@@ -16,12 +16,31 @@ import type { FieldExtraction, ProvenanceEvent } from "@/types/idpo";
 
 type ReviewState = "correct" | "wrong_value" | "missed_field" | "correctly_skipped" | "hallucinated_field";
 
+const REVIEW_STATE_OPTIONS: { value: ReviewState; label: string }[] = [
+  { value: "correct", label: "Correct" },
+  { value: "wrong_value", label: "Wrong value" },
+  { value: "missed_field", label: "Missed (value is in the document)" },
+  { value: "correctly_skipped", label: "Correctly left empty" },
+  { value: "hallucinated_field", label: "Not in the document" },
+];
+
+function formatReviewStatus(value: unknown): string {
+  if (typeof value !== "string" || !value.trim()) {
+    return "—";
+  }
+  const text = value.trim();
+  if (text === "ai_validated") return "Auto reviewed";
+  if (text === "human_reviewed") return "Human reviewed";
+  if (text === "unreviewed") return "Not reviewed";
+  return text.replace(/\(s\)/g, "s").replace(/\b1 issues\b/g, "1 issue").replace(/_/g, " ");
+}
+
 interface ReviewRow {
   fieldKey: string;
   fieldLabel: string;
   extractedValue: string;
   correctedValue: string;
-  reviewState: ReviewState;
+  reviewState: ReviewState | "";
   reviewNote: string;
 }
 
@@ -33,7 +52,7 @@ function detectPreviewKind(filename: string | null): "pdf" | "image" | "text" | 
   if (lower.endsWith(".pdf")) {
     return "pdf";
   }
-  if (lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".gif") || lower.endsWith(".webp")) {
+  if ([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"].some((extension) => lower.endsWith(extension))) {
     return "image";
   }
   if (lower.endsWith(".txt") || lower.endsWith(".json")) {
@@ -44,17 +63,17 @@ function detectPreviewKind(filename: string | null): "pdf" | "image" | "text" | 
 
 function formatValue(value: unknown): string {
   if (typeof value === "string") {
-    return value || "-";
+    return value || "—";
   }
   if (typeof value === "number" || typeof value === "boolean") {
     return String(value);
   }
-  return "-";
+  return "—";
 }
 
 function formatMetric(value: unknown, suffix = ""): string {
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    return "-";
+    return "—";
   }
   return `${value}${suffix}`;
 }
@@ -441,7 +460,7 @@ function collectAuditFacts(
 
 function formatPercentValue(value: unknown): string {
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    return "-";
+    return "—";
   }
   const percent = value > 1 ? value : value * 100;
   return `${percent.toFixed(1)}%`;
@@ -449,7 +468,7 @@ function formatPercentValue(value: unknown): string {
 
 function formatScoreValue(value: unknown): string {
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    return "-";
+    return "—";
   }
   return value.toFixed(2);
 }
@@ -642,6 +661,7 @@ export function JobDocumentPage() {
   const [focusedIssueField, setFocusedIssueField] = useState<string | null>(null);
   const [reviewRows, setReviewRows] = useState<ReviewRow[]>([]);
   const [savingReview, setSavingReview] = useState(false);
+  const uncheckedReviewCount = reviewRows.filter((row) => !row.reviewState).length;
   const extractedFieldsRef = useRef<HTMLDivElement>(null);
   const reviewIssuesRef = useRef<HTMLDivElement>(null);
   const executionNotesRef = useRef<HTMLDivElement>(null);
@@ -682,7 +702,7 @@ export function JobDocumentPage() {
   useEffect(() => {
     const suggestedRows = suggestedReviewRowsFromDocumentPayload(payload).map((row) => ({
       ...row,
-      reviewState: row.reviewState as ReviewState,
+      reviewState: row.reviewState as ReviewState | "",
     }));
     setReviewRows(suggestedRows);
   }, [payload]);
@@ -734,14 +754,10 @@ export function JobDocumentPage() {
   const selectedFieldKeys = selectedEvent ? collectRelevantFieldKeys(selectedEvent) : [];
   const selectedIssueFields = selectedEvent ? collectRelevantIssueFields(selectedEvent) : [];
   const selectedEventFacts = selectedEvent ? collectEventFacts(selectedEvent) : [];
-  const fieldDetailByKey = useMemo(
-    () =>
-      new Map(
-        detailedFields
-          .filter((field) => typeof field.key === "string" && field.key.trim())
-          .map((field) => [normalizeFieldKey(field.key), field] as const),
-      ),
-    [detailedFields],
+  const fieldDetailByKey = new Map(
+    detailedFields
+      .filter((field) => typeof field.key === "string" && field.key.trim())
+      .map((field) => [normalizeFieldKey(field.key), field] as const),
   );
   const pathStages = orderedEvents.reduce<Array<{ key: string; label: string }>>((stages, event) => {
     const key = `${event.stage}:${event.eventType}`;
@@ -753,32 +769,24 @@ export function JobDocumentPage() {
     }
     return stages;
   }, []);
-  const visibleFieldEntries = useMemo(() => {
-    if (!selectedEvent || getEvidenceTarget(selectedEvent) !== "fields" || selectedFieldKeys.length === 0) {
-      return fieldEntries;
-    }
-    return fieldEntries.filter(([key]) => selectedFieldKeys.includes(normalizeFieldKey(key)));
-  }, [fieldEntries, selectedEvent, selectedFieldKeys]);
-  const visibleFieldRows = useMemo(
-    () =>
-      visibleFieldEntries.map(([key, value]) => ({
-        key,
-        value,
-        detail: fieldDetailByKey.get(normalizeFieldKey(key)) ?? null,
-      })),
-    [fieldDetailByKey, visibleFieldEntries],
-  );
+  const visibleFieldEntries =
+    !selectedEvent || getEvidenceTarget(selectedEvent) !== "fields" || selectedFieldKeys.length === 0
+      ? fieldEntries
+      : fieldEntries.filter(([key]) => selectedFieldKeys.includes(normalizeFieldKey(key)));
+  const visibleFieldRows = visibleFieldEntries.map(([key, value]) => ({
+    key,
+    value,
+    detail: fieldDetailByKey.get(normalizeFieldKey(key)) ?? null,
+  }));
 
-  const visibleValidationIssues = useMemo(() => {
-    if (!selectedEvent || getEvidenceTarget(selectedEvent) !== "review" || selectedIssueFields.length === 0) {
-      return validationIssues;
-    }
-    return validationIssues.filter((issue) => {
-      const entry = asRecord(issue);
-      const field = typeof entry?.field === "string" ? entry.field : "";
-      return field ? selectedIssueFields.includes(normalizeFieldKey(field)) : false;
-    });
-  }, [selectedEvent, selectedIssueFields, validationIssues]);
+  const visibleValidationIssues =
+    !selectedEvent || getEvidenceTarget(selectedEvent) !== "review" || selectedIssueFields.length === 0
+      ? validationIssues
+      : validationIssues.filter((issue) => {
+          const entry = asRecord(issue);
+          const field = typeof entry?.field === "string" ? entry.field : "";
+          return field ? selectedIssueFields.includes(normalizeFieldKey(field)) : false;
+        });
 
   const localCall = asRecord(llmDiagnostics.local_call);
   const cloudCalls = asRecordArray(llmDiagnostics.cloud_calls);
@@ -814,7 +822,7 @@ export function JobDocumentPage() {
         ? "human review"
         : benchmarkBackedReview
           ? "benchmark label"
-        : "-";
+        : "Not reviewed";
 
   useEffect(() => {
     if (!focusedSection) {
@@ -930,6 +938,10 @@ export function JobDocumentPage() {
       setError("No run id available for review save.");
       return;
     }
+    if (reviewRows.some((row) => !row.reviewState)) {
+      setError("Choose a review state for every field before saving.");
+      return;
+    }
     setSavingReview(true);
     try {
       const response = await idpoApi.saveJobDocumentReview(jobId, docId, {
@@ -948,7 +960,7 @@ export function JobDocumentPage() {
       setPayload(nextPayload);
       const savedRows = suggestedReviewRowsFromDocumentPayload(nextPayload).map((row) => ({
         ...row,
-        reviewState: row.reviewState as ReviewState,
+        reviewState: row.reviewState as ReviewState | "",
       }));
       if (savedRows.length > 0) {
         setReviewRows(savedRows);
@@ -962,13 +974,31 @@ export function JobDocumentPage() {
   }
 
   if (loading) {
-    return <div className="text-sm text-slate-600 dark:text-slate-300">Loading document detail...</div>;
+    return (
+      <div className="mx-auto max-w-7xl space-y-4" aria-busy="true">
+        <div className="h-36 animate-pulse rounded-3xl bg-slate-200/70 dark:bg-slate-800/60" />
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+          {[0, 1, 2, 3].map((index) => (
+            <div key={index} className="h-20 animate-pulse rounded-2xl bg-slate-200/70 dark:bg-slate-800/60" />
+          ))}
+        </div>
+        <div className="h-72 animate-pulse rounded-2xl bg-slate-200/70 dark:bg-slate-800/60" />
+      </div>
+    );
   }
 
   if (!payload) {
     return (
-      <div className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-700/40 dark:bg-rose-900/20 dark:text-rose-300">
-        {error || "Document not found"}
+      <div className="mx-auto max-w-3xl space-y-3">
+        <Link
+          href={`/dashboard/idpo/jobs/${encodeURIComponent(jobId)}`}
+          className="text-xs text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+        >
+          ← Back to job
+        </Link>
+        <div className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-700/40 dark:bg-rose-900/20 dark:text-rose-300">
+          {error || "This document has no results yet."}
+        </div>
       </div>
     );
   }
@@ -979,7 +1009,7 @@ export function JobDocumentPage() {
         <div>
           <h2 className="text-base font-semibold text-slate-900 dark:text-white">Original document</h2>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            Validate the extraction against the actual source document, not just the output table.
+            Compare the extracted values with the source.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -1011,6 +1041,7 @@ export function JobDocumentPage() {
         ) : null}
         {previewKind === "image" ? (
           <div className="flex justify-center bg-slate-100 p-4 dark:bg-slate-950">
+            {/* eslint-disable-next-line @next/next/no-img-element -- next/image's optimizer fetches without the session cookie, and this route needs it */}
             <img
               src={previewUrl}
               alt={fileName ?? "Original document"}
@@ -1028,7 +1059,7 @@ export function JobDocumentPage() {
         ) : null}
         {previewKind === "unsupported" ? (
           <div className="p-6 text-sm text-slate-600 dark:text-slate-300">
-            Inline preview is not supported for this file type yet. Use <span className="font-medium text-slate-900 dark:text-white">Open original</span> or <span className="font-medium text-slate-900 dark:text-white">Download</span>.
+            Browsers cannot show this file type inline. Use <span className="font-medium text-slate-900 dark:text-white">Open original</span> or <span className="font-medium text-slate-900 dark:text-white">Download</span>.
           </div>
         ) : null}
       </div>
@@ -1068,7 +1099,7 @@ export function JobDocumentPage() {
                 : null;
             const hasExpected = expectedMap !== null && Object.keys(expectedMap).length > 0;
             return (
-              <table className="w-full min-w-[720px] text-sm">
+              <table className={`w-full text-sm ${hasExpected ? "min-w-[480px]" : ""}`}>
                 <thead>
                   <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
                     <th className="px-2 py-2">Field</th>
@@ -1094,8 +1125,8 @@ export function JobDocumentPage() {
                           focusedFieldKey === normKey ? "bg-cyan-50 dark:bg-cyan-950/20" : ""
                         }`}
                       >
-                        <td className="px-2 py-2 font-medium text-slate-900 dark:text-slate-100">{key}</td>
-                        <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
+                        <td className="px-2 py-2 align-top font-medium text-slate-900 [overflow-wrap:anywhere] dark:text-slate-100">{key}</td>
+                        <td className="px-2 py-2 align-top text-slate-700 [overflow-wrap:anywhere] dark:text-slate-200">
                           <div>{formatValue(value)}</div>
                           {collectFieldEvidenceFacts(detail).length > 0 ? (
                             <div className="mt-1 flex flex-wrap gap-1">
@@ -1172,7 +1203,7 @@ export function JobDocumentPage() {
                 <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-200">
                   {stage.label}
                 </span>
-                {index < pathStages.length - 1 ? <span className="text-slate-400 dark:text-slate-500">-&gt;</span> : null}
+                {index < pathStages.length - 1 ? <span className="text-slate-400 dark:text-slate-500" aria-hidden="true">→</span> : null}
               </div>
             ))
           ) : (
@@ -1184,7 +1215,7 @@ export function JobDocumentPage() {
       <IdpoCard>
         <h2 className="text-base font-semibold text-slate-900 dark:text-white">Document log</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-          Queue-item style timeline for this document. Keep it operational and readable.
+          Every step recorded for this document. Select a step to highlight the fields or issues it touched.
         </p>
         {selectedEvent ? (
           <div className="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/70 p-4 text-sm text-cyan-950 dark:border-cyan-800/50 dark:bg-cyan-950/30 dark:text-cyan-50">
@@ -1255,14 +1286,11 @@ export function JobDocumentPage() {
           </div>
         ) : null}
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[980px] text-sm">
+          <table className="w-full min-w-[520px] text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
                 <th className="px-2 py-2">Time</th>
-                <th className="px-2 py-2">Stage</th>
-                <th className="px-2 py-2">Action</th>
-                <th className="px-2 py-2">Agent</th>
-                <th className="px-2 py-2">Latency</th>
+                <th className="px-2 py-2">Step</th>
                 <th className="px-2 py-2">Details</th>
               </tr>
             </thead>
@@ -1283,18 +1311,18 @@ export function JobDocumentPage() {
                     selectedEventId === event.eventId ? "bg-cyan-50 dark:bg-cyan-950/20" : ""
                   }`}
                 >
-                  <td className="px-2 py-2 whitespace-nowrap text-slate-600 dark:text-slate-300">
+                  <td className="px-2 py-2 align-top whitespace-nowrap text-slate-600 dark:text-slate-300">
                     {formatEventTime(event.timestamp)}
                   </td>
-                  <td className="px-2 py-2 text-slate-700 dark:text-slate-200">{titleCase(event.stage)}</td>
-                  <td className="px-2 py-2 font-medium text-slate-900 dark:text-slate-100">
-                    {titleCase(event.eventType)}
+                  <td className="px-2 py-2 align-top">
+                    <div className="font-medium text-slate-900 dark:text-slate-100">{titleCase(event.eventType)}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                      {titleCase(event.stage)}
+                      {event.agent ? ` · ${event.agent}` : ""}
+                      {typeof event.latencyMs === "number" ? ` · ${Math.round(event.latencyMs)} ms` : ""}
+                    </div>
                   </td>
-                  <td className="px-2 py-2 text-slate-600 dark:text-slate-300">{event.agent}</td>
-                  <td className="px-2 py-2 text-slate-600 dark:text-slate-300">
-                    {typeof event.latencyMs === "number" ? `${Math.round(event.latencyMs)} ms` : "-"}
-                  </td>
-                  <td className="px-2 py-2 text-slate-600 dark:text-slate-300">
+                  <td className="px-2 py-2 align-top text-slate-600 [overflow-wrap:anywhere] dark:text-slate-300">
                     <div>{summarizeProvenanceEvent(event)}</div>
                     {getEvidenceTarget(event) ? (
                       <div className="mt-1 text-xs font-medium text-cyan-700 dark:text-cyan-300">
@@ -1597,13 +1625,13 @@ export function JobDocumentPage() {
           <div>
             <h2 className="text-base font-semibold text-slate-900 dark:text-white">Inspector</h2>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Switch between extracted evidence, review findings, execution notes, the document log, and the LLM audit.
+              Fields with their evidence, review issues, notes, the processing log and the LLM call.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="inline-flex flex-wrap rounded-lg border border-slate-300 p-0.5 dark:border-slate-700" role="tablist" aria-label="Inspector sections">
             {[
               ["fields", "Fields"],
-              ["review", "Review"],
+              ["review", "Issues"],
               ["notes", "Notes"],
               ["log", "Log"],
               ["llm", "LLM"],
@@ -1611,11 +1639,13 @@ export function JobDocumentPage() {
               <button
                 key={value}
                 type="button"
+                role="tab"
+                aria-selected={inspectorTab === value}
                 onClick={() => setInspectorTab(value as InspectorTab)}
-                className={`rounded-lg px-3 py-2 text-sm font-medium ${
+                className={`rounded-md px-3 py-1.5 text-sm font-medium ${
                   inspectorTab === value
                     ? "bg-cyan-600 text-white"
-                    : "border border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
                 }`}
               >
                 {label}
@@ -1632,51 +1662,53 @@ export function JobDocumentPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <Link
-          href={`/dashboard/idpo/jobs/${encodeURIComponent(jobId)}`}
-          className="text-xs text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-        >
-          Back to job
-        </Link>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
-            {String(payload.fileName ?? payload.fileId ?? docId)}
-          </h1>
-          <StatusBadge value={String(payload.status ?? "unknown")} />
-        </div>
-        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-          Atomic document view. Extraction result first, then review state, route, fallback, and compact AHMN/XAI/HITL
-          support signals.
-        </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setLayoutMode("split")}
-            className={`rounded-lg px-3 py-2 text-sm font-medium ${
-              layoutMode === "split"
-                ? "bg-cyan-600 text-white"
-                : "border border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            }`}
-          >
-            Side by side
-          </button>
-          <button
-            type="button"
-            onClick={() => setLayoutMode("stacked")}
-            className={`rounded-lg px-3 py-2 text-sm font-medium ${
-              layoutMode === "stacked"
-                ? "bg-cyan-600 text-white"
-                : "border border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            }`}
-          >
-            Stacked
-          </button>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <Link
+              href={`/dashboard/idpo/jobs/${encodeURIComponent(jobId)}`}
+              className="text-xs text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+            >
+              ← Back to job
+            </Link>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <h1 className="min-w-0 break-words text-2xl font-semibold text-slate-900 dark:text-white">
+                {String(payload.fileName ?? payload.fileId ?? docId)}
+              </h1>
+              <StatusBadge value={String(payload.status ?? "unknown")} />
+            </div>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+              Check each extracted value against the original, mark what is right or wrong, then save the review.
+            </p>
+          </div>
+          <div className="hidden xl:block">
+            <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Layout</span>
+            <div className="inline-flex rounded-lg border border-slate-300 p-0.5 dark:border-slate-700" role="group" aria-label="Layout">
+              {([
+                ["split", "Side by side"],
+                ["stacked", "Stacked"],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={layoutMode === value}
+                  onClick={() => setLayoutMode(value)}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                    layoutMode === value
+                      ? "bg-cyan-600 text-white"
+                      : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <IdpoCard>
-          <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Route</p>
+          <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Quality route</p>
           <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">{formatValue(payload.latestRoute)}</p>
         </IdpoCard>
         <IdpoCard>
@@ -1692,11 +1724,11 @@ export function JobDocumentPage() {
         <IdpoCard>
           <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Review</p>
           <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
-            {formatValue((review as Record<string, unknown> | null)?.reviewStatus ?? payload.reviewState)}
+            {formatReviewStatus((review as Record<string, unknown> | null)?.reviewStatus ?? payload.reviewState)}
           </p>
         </IdpoCard>
         <IdpoCard>
-          <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Final source</p>
+          <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Extracted by</p>
           <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">{finalExtraction.finalModel}</p>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{finalExtraction.finalSource}</p>
         </IdpoCard>
@@ -1705,9 +1737,9 @@ export function JobDocumentPage() {
       <IdpoCard>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white">Execution path</h2>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white">How this document was processed</h2>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Planned route and final extraction outcome, without mixing them together.
+              What was planned for the document and what actually produced the final values.
             </p>
           </div>
           {policyHref ? (
@@ -1721,53 +1753,61 @@ export function JobDocumentPage() {
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm dark:border-slate-800 dark:bg-slate-950/40">
-            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Policy decision</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Policy</div>
             <div className="mt-2 font-medium text-slate-900 dark:text-white">{selectedPolicyId || "No policy recorded"}</div>
             <div className="mt-2 space-y-1 text-slate-600 dark:text-slate-300">
-              <p>Route bin: {formatValue(metadata.routeBin ?? payload.latestRoute)}</p>
-              <p>Advice: {formatValue(metadata.adviceStatus)}</p>
+              <p>Quality route: {formatValue(metadata.routeBin ?? payload.latestRoute)}</p>
+              <p>AHMN advice: {formatValue(metadata.adviceStatus)}</p>
               <p>
-                Baseline:{" "}
+                Static choice:{" "}
                 {staticPolicyId
                   ? policyChanged
-                    ? `${staticPolicyId} -> changed`
-                    : staticPolicyId
-                  : "none"}
+                    ? `${staticPolicyId} (changed by advice)`
+                    : `${staticPolicyId} (kept)`
+                  : "—"}
               </p>
             </div>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm dark:border-slate-800 dark:bg-slate-950/40">
             <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">OCR and preprocessing</div>
             <div className="mt-2 font-medium text-slate-900 dark:text-white">
-              {preprocessRoute.length > 0 ? preprocessRoute.join(" -> ") : "No extra preprocessing recorded"}
+              {preprocessRoute.length > 0 ? preprocessRoute.map(titleCase).join(" → ") : "No extra preprocessing"}
             </div>
             <div className="mt-2 space-y-1 text-slate-600 dark:text-slate-300">
-              <p>OCR engine: {formatValue(metadata.ocrEngineUsed)}</p>
-              <p>OCR confidence: {formatPercentValue(metadata.ocrAvgConfidence)}</p>
-              <p>OCR rerun pages: {formatMetric(metadata.ocrRerunUsedPages)}</p>
+              <p>OCR engine: {typeof metadata.ocrEngineUsed === "string" && metadata.ocrEngineUsed.trim() ? metadata.ocrEngineUsed : "none recorded"}</p>
+              <p>
+                OCR confidence:{" "}
+                {typeof metadata.ocrEngineUsed === "string" && metadata.ocrEngineUsed.trim()
+                  ? formatPercentValue(metadata.ocrAvgConfidence)
+                  : "—"}
+              </p>
+              <p>Pages re-run through OCR: {formatMetric(metadata.ocrRerunUsedPages)}</p>
             </div>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm dark:border-slate-800 dark:bg-slate-950/40">
-            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Extraction outcome</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Extraction</div>
             <div className="mt-2 font-medium text-slate-900 dark:text-white">
               {finalExtraction.finalModel}
             </div>
             <div className="mt-2 space-y-1 text-slate-600 dark:text-slate-300">
-              <p>Planned route: {formatValue(metadata.modelUsed)} / {formatValue(metadata.modelMode)}</p>
-              <p>Final source: {finalExtraction.finalSource}</p>
-              <p>Unresolved fields: {formatMetric(metadata.unresolvedFieldCount)}</p>
+              <p>
+                Planned model: {formatValue(metadata.modelUsed)}
+                {typeof metadata.modelMode === "string" && metadata.modelMode ? ` (${metadata.modelMode})` : ""}
+              </p>
+              <p>Values came from: {finalExtraction.finalSource}</p>
+              <p>Fields left unresolved: {formatMetric(metadata.unresolvedFieldCount)}</p>
             </div>
             <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{finalExtraction.summary}</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm dark:border-slate-800 dark:bg-slate-950/40">
-            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Fallback handling</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Fallback</div>
             <div className="mt-2 font-medium text-slate-900 dark:text-white">
               {fallbackSummary.title}
             </div>
             <div className="mt-2 space-y-1 text-slate-600 dark:text-slate-300">
-              <p>Planned fallback path: {formatValue(metadata.fallbackPath)}</p>
-              <p>Escalated: {formatValue(escalation.escalated)}</p>
-              <p>Target model: {escalationTarget ?? "-"}</p>
+              <p>Planned fallback: {formatValue(metadata.fallbackPath)}</p>
+              <p>Escalated: {escalation.escalated === true ? "yes" : "no"}</p>
+              <p>Escalation model: {escalationTarget ?? "—"}</p>
             </div>
             <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
               {fallbackSummary.detail || escalationReason || formatValue(metadata.deferReason)}
@@ -1786,7 +1826,12 @@ export function JobDocumentPage() {
                 : "Human review is authoritative for policy ranking. Auto review is only a prefill step."}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {uncheckedReviewCount > 0 ? (
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                {uncheckedReviewCount} {uncheckedReviewCount === 1 ? "field" : "fields"} left to review
+              </span>
+            ) : null}
             <button
               type="button"
               onClick={() => void handleAiValidate()}
@@ -1798,18 +1843,18 @@ export function JobDocumentPage() {
             <button
               type="button"
               onClick={() => void handleSaveReview()}
-              disabled={savingReview || reviewRows.length === 0}
+              disabled={savingReview || reviewRows.length === 0 || uncheckedReviewCount > 0}
               className="rounded-lg bg-cyan-600 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-700 disabled:opacity-60"
             >
               Save review
             </button>
           </div>
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-6">
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/40">
             <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Status</div>
             <div className="mt-1 font-medium text-slate-900 dark:text-white">
-              {formatValue(review?.reviewStatus ?? payload.reviewState)}
+              {formatReviewStatus(review?.reviewStatus ?? payload.reviewState)}
             </div>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/40">
@@ -1845,12 +1890,12 @@ export function JobDocumentPage() {
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/40">
             <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">AHMN learning</div>
             <div className="mt-1 font-medium text-slate-900 dark:text-white">
-              {Boolean(ahmn.reviewedFeedbackLogged) ? "logged" : formatValue(ahmn.reviewedFeedbackError ?? "pending")}
+              {Boolean(ahmn.reviewedFeedbackLogged) ? "Sent" : ahmn.reviewedFeedbackError ? formatValue(ahmn.reviewedFeedbackError) : "Not sent yet"}
             </div>
           </div>
         </div>
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[920px] text-sm">
+          <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
                 <th className="px-2 py-2">Field</th>
@@ -1871,17 +1916,21 @@ export function JobDocumentPage() {
                       onChange={(event) =>
                         setReviewRows((current) =>
                           current.map((item, currentIndex) =>
-                            currentIndex === index ? { ...item, reviewState: event.target.value as ReviewState } : item,
+                            currentIndex === index ? { ...item, reviewState: event.target.value as ReviewState | "" } : item,
                           ),
                         )
                       }
-                      className="w-full rounded-lg border border-slate-300 px-2 py-1 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                      aria-label={`Review state for ${row.fieldLabel}`}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                     >
-                      <option value="correct">correct</option>
-                      <option value="wrong_value">wrong_value</option>
-                      <option value="missed_field">missed_field</option>
-                      <option value="correctly_skipped">correctly_skipped</option>
-                      <option value="hallucinated_field">hallucinated_field</option>
+                      <option value="" disabled>
+                        Choose…
+                      </option>
+                      {REVIEW_STATE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
                     </select>
                   </td>
                   <td className="px-2 py-2">
@@ -1894,7 +1943,9 @@ export function JobDocumentPage() {
                           ),
                         )
                       }
-                      className="w-full rounded-lg border border-slate-300 px-2 py-1 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                      aria-label={`Corrected value for ${row.fieldLabel}`}
+                      placeholder="Correct value, if wrong"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                     />
                   </td>
                   <td className="px-2 py-2">
@@ -1907,7 +1958,9 @@ export function JobDocumentPage() {
                           ),
                         )
                       }
-                      className="w-full rounded-lg border border-slate-300 px-2 py-1 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                      aria-label={`Note for ${row.fieldLabel}`}
+                      placeholder="Optional"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                     />
                   </td>
                 </tr>

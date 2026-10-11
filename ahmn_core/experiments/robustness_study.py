@@ -14,9 +14,8 @@ RELATIVE improvement (positive = AHMN wins, negative = AHMN hurts).
 
 This answers the critical question: under what conditions does AHMN actually help?
 
-Usage:
-    cd ahmn_core
-    python -m experiments.robustness_study
+Usage (from the repository root):
+    python -m ahmn_core.experiments.robustness_study
 """
 
 import sys
@@ -25,7 +24,7 @@ import json
 import time
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from ahmn_core.experiments.synthetic_data import (
     Scenario, VendorProfile, DriftEvent, PolicyConfig,

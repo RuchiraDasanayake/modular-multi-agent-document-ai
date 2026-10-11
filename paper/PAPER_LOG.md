@@ -1,4 +1,9 @@
 # IDPO Research Paper — Master Log
+
+> **Superseded.** This log covers the earlier draft and its unpaired runs, including a research claim the final paper
+> does not make. The final evidence, run folders and regeneration commands are in
+> [`FINAL_EVIDENCE.md`](FINAL_EVIDENCE.md), and the paper is `ieee/main.tex`. Keep this file for history only.
+
 > Everything in one place: implementation details, observations, evidence, formulas, goals, decisions, open issues.
 > Updated continuously. Job: `idpo_research_permanent_01`. Branch: `feature/IDPO`.
 

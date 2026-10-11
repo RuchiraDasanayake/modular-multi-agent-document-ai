@@ -3,7 +3,9 @@ param(
   [string]$BaseUrl = "http://127.0.0.1:3000",
   [string]$SampleFile = "",
   [int]$TimeoutSec = 600,
-  [int]$PollIntervalSec = 5
+  [int]$PollIntervalSec = 5,
+  [string]$Username = $(if ($env:SMOKE_USERNAME) { $env:SMOKE_USERNAME } else { "admin" }),
+  [string]$Password = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -11,13 +13,14 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $frontendDir = Join-Path $root "frontend"
 $runnerConfigPath = Join-Path $frontendDir "runner.config.json"
+$script:AuthHeaders = @{}
 
 function Get-JsonResponse {
   param(
     [Parameter(Mandatory = $true)][string]$Url
   )
 
-  $response = Invoke-WebRequest -UseBasicParsing -Uri $Url -Method Get -TimeoutSec 30
+  $response = Invoke-WebRequest -UseBasicParsing -Uri $Url -Method Get -Headers $script:AuthHeaders -TimeoutSec 30
   if ($response.StatusCode -ge 400) {
     throw "GET $Url failed with status $($response.StatusCode)"
   }
@@ -68,9 +71,41 @@ function Get-ContentTypeForFile {
   }
 }
 
-function Start-SmokeRun {
+function Invoke-JsonPost {
+  param(
+    [Parameter(Mandatory = $true)][string]$Url,
+    [Parameter(Mandatory = $true)]$Body
+  )
+
+  $json = ConvertTo-Json -InputObject $Body -Depth 6 -Compress
+  $response = Invoke-WebRequest -UseBasicParsing -Uri $Url -Method Post -ContentType "application/json" -Body $json -Headers $script:AuthHeaders -TimeoutSec 60
+  return $response.Content | ConvertFrom-Json
+}
+
+function Connect-SmokeSession {
   param(
     [Parameter(Mandatory = $true)][string]$BaseUrl,
+    [Parameter(Mandatory = $true)][string]$Username,
+    [string]$Password
+  )
+
+  if (-not $Password) {
+    $Password = if ($env:SMOKE_PASSWORD) { $env:SMOKE_PASSWORD } else { $env:ADMIN_PASSWORD }
+  }
+  if (-not $Password) {
+    throw "The job API requires sign-in. Pass -Password or set SMOKE_PASSWORD (or ADMIN_PASSWORD) for user '$Username'."
+  }
+
+  $login = Invoke-JsonPost -Url "$BaseUrl/api/auth/login" -Body @{ username = $Username; password = $Password }
+  if (-not $login.access_token) {
+    throw "Login response did not include an access token."
+  }
+  $script:AuthHeaders = @{ Authorization = "Bearer $($login.access_token)" }
+}
+
+function Send-SmokeUpload {
+  param(
+    [Parameter(Mandatory = $true)][string]$Url,
     [Parameter(Mandatory = $true)][string]$SamplePath
   )
 
@@ -83,10 +118,8 @@ function Start-SmokeRun {
   $curlOutput = & $curl.Source `
     -s `
     -w "`n$statusMarker%{http_code}`n" `
-    -X POST "$BaseUrl/api/runs/start" `
-    -F "adaptiveMode=adaptive_safe" `
-    -F "shadowMode=false" `
-    -F "report=true" `
+    -X POST $Url `
+    -H "Authorization: $($script:AuthHeaders.Authorization)" `
     -F "files=@$SamplePath;type=$(Get-ContentTypeForFile -Path $SamplePath)"
 
   if ($LASTEXITCODE -ne 0) {
@@ -105,14 +138,38 @@ function Start-SmokeRun {
   [void][int]::TryParse($statusText, [ref]$statusCode)
 
   if ($statusCode -lt 200 -or $statusCode -ge 300) {
-    throw "Run start failed with status ${statusCode}: $body"
+    throw "Document upload failed with status ${statusCode}: $body"
   }
 
   if (-not $body) {
-    throw "Run start returned an empty response body."
+    throw "Document upload returned an empty response body."
   }
 
   return $body | ConvertFrom-Json
+}
+
+function Start-SmokeRun {
+  param(
+    [Parameter(Mandatory = $true)][string]$BaseUrl,
+    [Parameter(Mandatory = $true)][string]$SamplePath
+  )
+
+  $job = Invoke-JsonPost -Url "$BaseUrl/api/jobs" -Body @{ jobName = "public-demo-smoke"; mode = "adaptive" }
+  if (-not $job.jobId) {
+    throw "Job creation response did not include jobId."
+  }
+
+  $withDocuments = Send-SmokeUpload -Url "$BaseUrl/api/jobs/$($job.jobId)/documents" -SamplePath $SamplePath
+  $fileIds = @($withDocuments.documents | ForEach-Object { [string]$_.fileId } | Where-Object { $_ })
+  if ($fileIds.Count -eq 0) {
+    throw "Document upload response listed no documents."
+  }
+
+  return Invoke-JsonPost -Url "$BaseUrl/api/jobs/$($job.jobId)/runs" -Body @{
+    selectedFileIds = $fileIds
+    mode = "adaptive"
+    settings = @{ adaptiveMode = "adaptive_safe"; shadowMode = $false; report = $true }
+  }
 }
 
 function Assert-AnyPathExists {
@@ -198,6 +255,8 @@ if ($failingChecks.Count -gt 0) {
   throw "System status check failed: $details"
 }
 Write-Output "System status checks passed."
+Connect-SmokeSession -BaseUrl $base -Username $Username -Password $Password
+Write-Output "Signed in as $Username."
 $job = Start-SmokeRun -BaseUrl $base -SamplePath $resolvedSample
 if (-not $job.jobId) {
   throw "Run start response did not include jobId."
