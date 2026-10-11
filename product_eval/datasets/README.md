@@ -61,3 +61,25 @@ Score only with a joined, complete gold/candidate set. If any gold exclusions
 remain, report them and the reduced quality denominator; never present the
 2,000 execution count as 2,000 scored documents. Keep the source PDFs and
 generated gold outside the application repository.
+
+## Family-wise analysis
+
+After both product run shards finish, verify their source receipts and break
+the unchanged `product_eval` metrics down by VRDU family:
+
+```powershell
+python -m product_eval.datasets.vrdu_analysis --cohort 'E:\DocAI-Benchmarks\vrdu-cohort-04a4df7\cohort.jsonl' --gold 'E:\DocAI-Benchmarks\vrdu-cohort-04a4df7\gold.jsonl' --run-dir 'PATH_TO_REGISTRATION_RUN' --run-dir 'PATH_TO_ADBUY_RUN' --output 'PATH_TO_FAMILY_REPORT'
+```
+
+`--run-dir` verifies completed run manifests, source bytes, and an exact join
+to the frozen cohort before scoring. For already verified candidate JSONL,
+`--candidate` can be repeated instead. `--full-report` is optional; when
+supplied, the utility recomputes the complete scorer output and rejects a
+report that does not match. Each family's score is produced by the same
+scorer on that family's exact document IDs. Companion diagnostics show strict
+value outcomes, missed published field IDs, extra candidate IDs, linked-row
+array outcomes, abstentions and evidence text comparisons. They do not infer
+semantic aliases or per-row alignment. A candidate evidence quote that differs
+from the official OCR at its numeric span is marked as an ambiguous OCR/text
+comparison, not a grounding failure. No values or page text appear in the
+analysis report. Missing candidate documents stay in the family denominator.
