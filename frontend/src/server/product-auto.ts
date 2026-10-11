@@ -33,6 +33,10 @@ const ADDED_FIELD_ID = /^[a-z][a-z0-9_]{0,63}$/;
 const SCHEMA_FIELD_ID = /^[\p{L}][\p{L}\p{N}_]{0,63}$/u;
 const SCHEMA_TYPES = new Set(["string", "integer", "decimal", "boolean", "date", "array[object]"]);
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const HEARTBEAT_INTERVAL_MS = 15_000;
+const LEASE_TIMEOUT_MS = 5 * 60_000;
+const RECOVERY_INTERVAL_MS = 30_000;
+const activeHeartbeats = new Map<string, NodeJS.Timeout>();
 const instanceId: string = (() => {
   const holder = globalThis as typeof globalThis & { __productAutoInstanceId?: string };
   holder.__productAutoInstanceId ??= randomUUID();
@@ -58,6 +62,12 @@ interface RunRecord {
   error?: string;
 }
 
+interface RunLease {
+  ownerInstanceId: string;
+  heartbeatAt: string;
+  expiresAt: string;
+}
+
 function requireSafeId(value: string): void {
   if (!SAFE_ID.test(value)) throw new AccessError("Run or document not found.", 404);
 }
@@ -70,6 +80,14 @@ function runFile(jobId: string, runId: string): string {
   requireSafeId(jobId);
   requireSafeId(runId);
   return path.join(storageRoot(), "frontend", "auto_runs", jobId, `${runId}.json`);
+}
+
+function terminalFile(jobId: string, runId: string): string {
+  return runFile(jobId, runId).replace(/\.json$/, ".terminal.json");
+}
+
+function leaseFile(jobId: string, runId: string): string {
+  return runFile(jobId, runId).replace(/\.json$/, ".lease.json");
 }
 
 function outputDir(runId: string): string {
@@ -122,11 +140,79 @@ function parseJsonLines(filePath: string): Record<string, unknown>[] {
 function readRunRecord(jobId: string, runId: string): RunRecord {
   const filePath = runFile(jobId, runId);
   if (!fs.existsSync(filePath)) throw new AccessError("Run not found.", 404);
-  return parseJsonObject(filePath) as unknown as RunRecord;
+  const base = parseJsonObject(filePath) as unknown as RunRecord;
+  const terminal = terminalFile(jobId, runId);
+  if (!fs.existsSync(terminal)) return base;
+  const completed = parseJsonObject(terminal) as unknown as RunRecord;
+  if (completed.jobId !== jobId || completed.runId !== runId ||
+    !["success", "failed"].includes(completed.status)) throw new Error("Invalid run terminal record.");
+  return completed;
 }
 
 function saveRunRecord(record: RunRecord): void {
   writeJsonAtomic(runFile(record.jobId, record.runId), record);
+}
+
+function publishTerminalRecord(record: RunRecord): boolean {
+  const target = terminalFile(record.jobId, record.runId);
+  const temporary = `${target}.${randomUUID()}.tmp`;
+  try {
+    fs.writeFileSync(temporary, JSON.stringify(record, null, 2), { encoding: "utf8", flag: "wx" });
+    fs.linkSync(temporary, target);
+    return true;
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "EEXIST") return false;
+    throw error;
+  } finally {
+    if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
+  }
+}
+
+function writeLease(jobId: string, runId: string): void {
+  const now = Date.now();
+  const lease: RunLease = { ownerInstanceId: instanceId, heartbeatAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + LEASE_TIMEOUT_MS).toISOString() };
+  writeJsonAtomic(leaseFile(jobId, runId), lease);
+}
+
+function leaseExpired(record: RunRecord, now: number): boolean {
+  const leasePath = leaseFile(record.jobId, record.runId);
+  if (fs.existsSync(leasePath)) {
+    try {
+      const lease = parseJsonObject(leasePath) as unknown as RunLease;
+      const expiresAt = Date.parse(lease.expiresAt);
+      if (lease.ownerInstanceId === record.serverInstanceId && Number.isFinite(expiresAt) &&
+        expiresAt <= now + LEASE_TIMEOUT_MS + HEARTBEAT_INTERVAL_MS) return expiresAt <= now;
+    } catch { /* An invalid lease uses its file modification time. */ }
+    try {
+      return fs.statSync(leasePath).mtimeMs + LEASE_TIMEOUT_MS <= now;
+    } catch { /* The lease disappeared while it was being read. */ }
+  }
+  const createdAt = Date.parse(record.createdAt);
+  return !Number.isFinite(createdAt) || createdAt + LEASE_TIMEOUT_MS <= now;
+}
+
+function stopHeartbeat(runId: string): void {
+  const heartbeat = activeHeartbeats.get(runId);
+  if (heartbeat) clearInterval(heartbeat);
+  activeHeartbeats.delete(runId);
+}
+
+function startHeartbeat(jobId: string, runId: string): void {
+  const heartbeat = setInterval(() => {
+    try {
+      const record = readRunRecord(jobId, runId);
+      if (record.status !== "running" || record.serverInstanceId !== instanceId) {
+        stopHeartbeat(runId);
+        return;
+      }
+      writeLease(jobId, runId);
+    } catch (error) {
+      console.error("Product run heartbeat failed:", error);
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+  heartbeat.unref();
+  activeHeartbeats.set(runId, heartbeat);
 }
 
 function sha256File(filePath: string): string {
@@ -400,31 +486,89 @@ function validatedDocuments(record: RunRecord): ProductAutoRunDocument[] {
   });
 }
 
-function finishRun(jobId: string, runId: string, exitCode: number | null): void {
+function finishRun(jobId: string, runId: string, exitCode: number | null, leaseExpiredFailure = false,
+  verifiedDocuments?: ProductAutoRunDocument[]): void {
   const record = readRunRecord(jobId, runId);
   if (record.status !== "running") return;
   record.endedAt = new Date().toISOString();
   try {
     if (exitCode !== 0) throw new Error("The extraction process failed. Check server logs.");
-    record.documents = validatedDocuments(record);
+    record.documents = verifiedDocuments ?? validatedDocuments(record);
     record.status = "success";
   } catch {
     record.status = "failed";
-    record.error = exitCode !== 0
+    record.error = leaseExpiredFailure
+      ? "The extraction owner stopped renewing its lease. Start a new run to retry."
+      : exitCode !== 0
       ? "The extraction process failed. Check server logs."
       : "Extraction finished, but its output could not be verified.";
   }
-  saveRunRecord(record);
-  fs.rmSync(stagedInputDir(runId), { recursive: true, force: true });
+  if (publishTerminalRecord(record) && !leaseExpiredFailure) {
+    fs.rmSync(stagedInputDir(runId), { recursive: true, force: true });
+  }
+  stopHeartbeat(runId);
 }
 
-function refreshRun(jobId: string, runId: string): RunRecord {
+function runForDisplay(jobId: string, runId: string): RunRecord {
   const record = readRunRecord(jobId, runId);
   if (record.status === "running" && fs.existsSync(path.join(outputDir(runId), "run.json"))) {
-    finishRun(jobId, runId, 0);
-    return readRunRecord(jobId, runId);
+    return { ...record, status: "success", documents: validatedDocuments(record) };
   }
   return record;
+}
+
+/** Reconcile completed or expired runs outside request reads. Safe to invoke in multiple frontend processes. */
+export function recoverProductAutoRuns(jobId?: string): { recovered: number; examined: number } {
+  const root = path.join(storageRoot(), "frontend", "auto_runs");
+  if (!fs.existsSync(root)) return { recovered: 0, examined: 0 };
+  const jobIds = jobId ? [jobId] : fs.readdirSync(root).filter((name) => /^[a-f0-9]{32}$/i.test(name));
+  let recovered = 0;
+  let examined = 0;
+  for (const currentJobId of jobIds) {
+    const directory = path.dirname(runFile(currentJobId, "placeholder"));
+    if (!fs.existsSync(directory)) continue;
+    for (const name of fs.readdirSync(directory).filter((file) => /^auto_[a-f0-9]{32}\.json$/.test(file))) {
+      const runId = name.slice(0, -5);
+      examined += 1;
+      try {
+        const record = readRunRecord(currentJobId, runId);
+        if (record.status !== "running") continue;
+        const expired = leaseExpired(record, Date.now());
+        if (fs.existsSync(path.join(outputDir(runId), "run.json"))) {
+          let documents: ProductAutoRunDocument[];
+          try {
+            documents = validatedDocuments(record);
+          } catch {
+            if (expired) finishRun(currentJobId, runId, 0, true);
+            else continue;
+            if (readRunRecord(currentJobId, runId).status !== "running") recovered += 1;
+            continue;
+          }
+          finishRun(currentJobId, runId, 0, false, documents);
+        } else if (expired) {
+          finishRun(currentJobId, runId, null, true);
+        } else {
+          continue;
+        }
+        if (readRunRecord(currentJobId, runId).status !== "running") recovered += 1;
+      } catch (error) {
+        console.error("Product run recovery failed:", error);
+      }
+    }
+  }
+  return { recovered, examined };
+}
+
+let recoveryTimer: NodeJS.Timeout | null = null;
+
+/** Start one process-local scan; GET handlers only read run state. */
+export function startProductAutoRecoveryLoop(): void {
+  if (recoveryTimer) return;
+  recoveryTimer = setInterval(() => {
+    try { recoverProductAutoRuns(); }
+    catch (error) { console.error("Product run recovery scan failed:", error); }
+  }, RECOVERY_INTERVAL_MS);
+  recoveryTimer.unref();
 }
 
 function publicRun(record: RunRecord): ProductAutoRun {
@@ -474,13 +618,13 @@ export function listProductAutoRuns(jobId: string): ProductAutoRun[] {
   const directory = path.dirname(runFile(jobId, "placeholder"));
   if (!fs.existsSync(directory)) return [];
   return fs.readdirSync(directory).filter((name) => /^auto_[a-f0-9]{32}\.json$/.test(name))
-    .map((name) => refreshRun(jobId, name.slice(0, -5)))
+    .map((name) => runForDisplay(jobId, name.slice(0, -5)))
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
     .map(publicRun);
 }
 
 export function getProductAutoRun(jobId: string, runId: string): ProductAutoRun {
-  return publicRun(refreshRun(jobId, runId));
+  return publicRun(runForDisplay(jobId, runId));
 }
 
 export function startProductAutoRun(jobId: string, selectedFileIds: string[], admin: boolean): ProductAutoRun {
@@ -490,6 +634,7 @@ export function startProductAutoRun(jobId: string, selectedFileIds: string[], ad
   if (!selectedFileIds.length || new Set(selectedFileIds).size !== selectedFileIds.length) {
     throw new AccessError("Select one or more distinct documents.", 400);
   }
+  recoverProductAutoRuns(jobId);
   if (listProductAutoRuns(jobId).some((run) => run.status === "running")) {
     throw new AccessError("This job already has an automatic extraction run in progress.", 409);
   }
@@ -529,6 +674,7 @@ export function startProductAutoRun(jobId: string, selectedFileIds: string[], ad
       serverInstanceId: instanceId, selectedFiles, documents: [],
     };
     saveRunRecord(record);
+    writeLease(jobId, runId);
     const command = getCommandConfig("idpo_process_auto");
     const args = command.args.map((arg) => arg.replaceAll("{input_dir}", inputDir).replaceAll("{run_id}", runId));
     if (model && baseUrl) args.push("--model", model, "--api-base-url", baseUrl);
@@ -538,11 +684,13 @@ export function startProductAutoRun(jobId: string, selectedFileIds: string[], ad
       windowsHide: true,
       stdio: "ignore",
     });
+    startHeartbeat(jobId, runId);
     child.once("error", () => finishRun(jobId, runId, null));
     child.once("close", (code) => finishRun(jobId, runId, code));
     return publicRun(record);
   } catch (error) {
-    fs.rmSync(inputDir, { recursive: true, force: true });
+    if (fs.existsSync(runFile(jobId, runId))) finishRun(jobId, runId, null);
+    else fs.rmSync(inputDir, { recursive: true, force: true });
     throw error;
   }
 }

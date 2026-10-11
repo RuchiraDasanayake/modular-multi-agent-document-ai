@@ -3,13 +3,14 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { spawn } from "node:child_process";
 import test from "node:test";
 import { GET as listAutoRoute, POST as startAutoRoute } from "@/app/api/jobs/[jobId]/auto/route";
 import { GET as getAutoDocRoute, POST as reviewAutoDocRoute } from "@/app/api/jobs/[jobId]/auto/[runId]/docs/[docId]/route";
 import { GET as getOriginalContentRoute } from "@/app/api/jobs/[jobId]/docs/[docId]/content/route";
 import { resetConfigCacheForTests } from "./config";
 import { addDocumentsToJob, createWorkspaceJob } from "./jobs";
-import { deriveProductAutoCorrectedResult, productAutoAvailability } from "./product-auto";
+import { deriveProductAutoCorrectedResult, productAutoAvailability, recoverProductAutoRuns } from "./product-auto";
 import type { ProductAutoCandidate, ProductAutoReview } from "@/types/product-auto";
 
 function request(pathname: string, token: string, init?: RequestInit): Request {
@@ -113,6 +114,10 @@ test("automatic extraction keeps source access private and rejects conflicting r
   const listBody = await list.text();
   assert.equal(listBody.includes(privatePath), false);
   assert.equal(JSON.parse(listBody).runs[0].status, "success");
+  assert.equal(JSON.parse(fs.readFileSync(path.join(metadataDir, `${runId}.json`), "utf8")).status, "running");
+  assert.equal(fs.existsSync(path.join(metadataDir, `${runId}.terminal.json`)), false);
+  assert.equal(recoverProductAutoRuns(job.jobId).recovered, 1);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(metadataDir, `${runId}.terminal.json`), "utf8")).status, "success");
   const detail = await getAutoDocRoute(request(docUrl, "alice"), detailParams);
   assert.equal(detail.status, 200);
   const detailBody = await detail.text();
@@ -284,6 +289,69 @@ test("reading a run owned by another live server does not mark it failed", async
   assert.equal(response.status, 200);
   assert.equal((await response.json()).runs[0].status, "running");
   assert.equal(JSON.parse(fs.readFileSync(recordPath, "utf8")).status, "running");
+}));
+
+test("a foreign live process retains its run; an expired crash lease is recovered outside GET", async () => withStorage(async (dataDir) => {
+  const job = createWorkspaceJob({ ownerUserId: "alice-id" });
+  const runId = `auto_${"e".repeat(32)}`;
+  const directory = path.join(dataDir, "frontend", "auto_runs", job.jobId);
+  fs.mkdirSync(directory, { recursive: true });
+  const recordPath = path.join(directory, `${runId}.json`);
+  const terminalPath = path.join(directory, `${runId}.terminal.json`);
+  const leasePath = path.join(directory, `${runId}.lease.json`);
+  const stagedPath = path.join(dataDir, "frontend", "auto_inputs", runId);
+  fs.mkdirSync(stagedPath, { recursive: true });
+  fs.writeFileSync(path.join(stagedPath, "source.txt"), "still possibly in use by the worker");
+  const ownerInstanceId = "foreign-live-process";
+  fs.writeFileSync(recordPath, JSON.stringify({ runId, jobId: job.jobId, status: "running",
+    createdAt: new Date().toISOString(), serverInstanceId: ownerInstanceId, selectedFiles: [], documents: [] }));
+  const original = fs.readFileSync(recordPath);
+  const child = spawn(process.execPath, ["-e", `
+    const fs = require("node:fs");
+    const leasePath = process.argv[1];
+    const ownerInstanceId = process.argv[2];
+    const renew = () => { const now = Date.now(); fs.writeFileSync(leasePath, JSON.stringify({
+      ownerInstanceId, heartbeatAt: new Date(now).toISOString(), expiresAt: new Date(now + 300000).toISOString(),
+    })); };
+    renew(); setInterval(renew, 100);
+  `, leasePath, ownerInstanceId], { stdio: "ignore", windowsHide: true });
+  try {
+    const deadline = Date.now() + 5000;
+    while (!fs.existsSync(leasePath) && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    assert.equal(fs.existsSync(leasePath), true, "foreign process should publish its lease");
+    const url = `/api/jobs/${job.jobId}/auto`;
+    const params = { params: Promise.resolve({ jobId: job.jobId }) };
+    assert.equal((await (await listAutoRoute(request(url, "alice"), params)).json()).runs[0].status, "running");
+    assert.equal(recoverProductAutoRuns(job.jobId).recovered, 0);
+    assert.deepEqual(fs.readFileSync(recordPath), original);
+    assert.equal(fs.existsSync(terminalPath), false);
+  } finally {
+    child.kill();
+    if (child.exitCode === null) await new Promise<void>((resolve) => child.once("close", () => resolve()));
+  }
+  const expired = new Date(Date.now() - 1000).toISOString();
+  fs.writeFileSync(leasePath, JSON.stringify({ ownerInstanceId, heartbeatAt: expired, expiresAt: expired }));
+  const url = `/api/jobs/${job.jobId}/auto`;
+  const params = { params: Promise.resolve({ jobId: job.jobId }) };
+  assert.equal((await (await listAutoRoute(request(url, "alice"), params)).json()).runs[0].status, "running");
+  assert.equal(fs.existsSync(terminalPath), false, "GET must not recover an expired run");
+  assert.equal(recoverProductAutoRuns(job.jobId).recovered, 1);
+  assert.equal(recoverProductAutoRuns(job.jobId).recovered, 0, "recovery should be idempotent");
+  const runs = (await (await listAutoRoute(request(url, "alice"), params)).json()).runs;
+  assert.equal(runs[0].status, "failed");
+  assert.match(runs[0].error, /lease/);
+  assert.deepEqual(fs.readFileSync(recordPath), original);
+  assert.equal(JSON.parse(fs.readFileSync(terminalPath, "utf8")).status, "failed");
+  assert.equal(fs.existsSync(path.join(stagedPath, "source.txt")), true);
+  const terminal = fs.readFileSync(terminalPath);
+  const lateOutput = path.join(dataDir, "product_runs", runId);
+  fs.mkdirSync(lateOutput, { recursive: true });
+  fs.writeFileSync(path.join(lateOutput, "run.json"), JSON.stringify({ contract_version: 1, run_id: runId, doc_count: 0 }));
+  fs.writeFileSync(path.join(lateOutput, "manifest.jsonl"), "");
+  assert.equal(recoverProductAutoRuns(job.jobId).recovered, 0);
+  assert.deepEqual(fs.readFileSync(terminalPath), terminal, "late worker output cannot overwrite the terminal decision");
 }));
 
 test("legacy not-present reviews derive a removal without added-field metadata", () => {
