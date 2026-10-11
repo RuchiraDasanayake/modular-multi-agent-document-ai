@@ -79,7 +79,10 @@ report that does not match. Each family's score is produced by the same
 scorer on that family's exact document IDs. Companion diagnostics show strict
 value outcomes, missed published field IDs, extra candidate IDs, linked-row
 array outcomes, abstentions and evidence text comparisons. They do not infer
-semantic aliases or per-row alignment. A candidate evidence quote that differs
-from the official OCR at its numeric span is marked as an ambiguous OCR/text
-comparison, not a grounding failure. No values or page text appear in the
-analysis report. Missing candidate documents stay in the family denominator.
+semantic aliases or per-row alignment. `--run-dir` also verifies each accepted
+quote against the runtime's own OCR sidecar, separately from the VRDU gold OCR.
+Exact source anchoring does not prove field relevance. A candidate quote that
+differs from the official OCR at its numeric span is marked as an ambiguous
+cross-OCR comparison, not a grounding failure. No values or page text appear
+in the analysis report. Missing candidate documents stay in the family
+denominator.

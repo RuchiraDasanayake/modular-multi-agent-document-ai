@@ -26,6 +26,38 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _candidate_ocr_grounding(run_dir: Path, doc_id: str, candidate: dict[str, Any]) -> Counter[str]:
+    """Check evidence against the runtime's own OCR, separate from VRDU gold."""
+    result_path = run_dir / "docs" / doc_id / "result.json"
+    try:
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise AnalysisError(f"Cannot read candidate OCR sidecar: {result_path}") from exc
+    if not isinstance(result, dict) or result.get("candidate") != candidate or not isinstance(result.get("pages"), list):
+        raise AnalysisError(f"Candidate OCR sidecar differs from candidate JSONL: {result_path}")
+    pages = {item["page"]: item["text"] for item in result["pages"]}
+    counts: Counter[str] = Counter()
+    for prediction in candidate["extracted_values"]:
+        if prediction["status"] != "accepted":
+            continue
+        counts["accepted_values"] += 1
+        evidence = prediction.get("evidence")
+        if not isinstance(evidence, dict) or not all(
+            type(evidence.get(name)) is int for name in ("page", "start", "end")
+        ) or not isinstance(evidence.get("quote"), str):
+            counts["incomplete_evidence"] += 1
+            continue
+        page = pages.get(evidence["page"])
+        start, end = evidence["start"], evidence["end"]
+        if not isinstance(page, str) or not 0 <= start < end <= len(page):
+            counts["invalid_candidate_ocr_range"] += 1
+        elif page[start:end] == evidence["quote"]:
+            counts["exact_quote_in_candidate_ocr"] += 1
+        else:
+            counts["quote_differs_from_candidate_ocr"] += 1
+    return counts
+
+
 def _cohort_rows(path: Path) -> dict[str, dict[str, Any]]:
     rows: dict[str, dict[str, Any]] = {}
     source_hashes: set[str] = set()
@@ -263,7 +295,11 @@ def analyze_vrdu_runs(
     cohort = _cohort_rows(Path(cohort_path).resolve())
     verified = verify_runs(resolved_runs, min_unique=len(cohort))
     seen: set[str] = set()
+    model_calls_total = 0
+    documents_with_model_calls = 0
+    candidate_ocr_grounding: dict[str, Counter[str]] = defaultdict(Counter)
     for run_dir in resolved_runs:
+        run_candidates = load_jsonl(run_dir / "candidates.jsonl", kind="candidate")
         with (run_dir / "manifest.jsonl").open("r", encoding="utf-8") as handle:
             for line in handle:
                 if not line.strip():
@@ -273,6 +309,12 @@ def analyze_vrdu_runs(
                 if doc_id not in cohort or receipt["source_sha256"] != cohort[doc_id]["source_sha256"]:
                     raise AnalysisError(f"Run source does not match frozen VRDU cohort: {doc_id}")
                 seen.add(doc_id)
+                model_calls = receipt["model_call_count"]
+                model_calls_total += model_calls
+                documents_with_model_calls += int(model_calls > 0)
+                candidate_ocr_grounding[cohort[doc_id]["family"]].update(
+                    _candidate_ocr_grounding(run_dir, doc_id, run_candidates[doc_id])
+                )
     if seen != set(cohort):
         raise AnalysisError(f"Run/cohort coverage differs: missing={len(set(cohort) - seen)}")
     result = analyze_vrdu(
@@ -282,6 +324,16 @@ def analyze_vrdu_runs(
         full_report_path=full_report_path,
     )
     result["run_verification"] = verified
+    result["model_usage"] = {
+        "model_calls_total": model_calls_total,
+        "documents_with_model_calls": documents_with_model_calls,
+        "mode": "no_model_baseline" if model_calls_total == 0 else "model_assisted_or_mixed",
+    }
+    result["candidate_ocr_grounding"] = {
+        "overall": dict(sorted(sum(candidate_ocr_grounding.values(), Counter()).items())),
+        "by_family": {family: dict(sorted(counts.items())) for family, counts in sorted(candidate_ocr_grounding.items())},
+        "interpretation": "Exact quote in candidate OCR proves source anchoring only, not field relevance, normalized value correctness, or agreement with VRDU's independent OCR.",
+    }
     return result
 
 

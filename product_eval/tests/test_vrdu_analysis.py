@@ -76,7 +76,7 @@ def test_family_report_rejects_duplicate_shards_and_mismatched_report(tmp_path: 
         analyze_vrdu(cohort, FIXTURES / "gold.jsonl", [first, second], full_report_path=mismatch)
 
 
-def _completed_run(tmp_path: Path, run_id: str, candidate: dict[str, object], source: Path) -> Path:
+def _completed_run(tmp_path: Path, run_id: str, candidate: dict[str, object], source: Path, page_text: str) -> Path:
     run_dir = tmp_path / run_id
     run_dir.mkdir()
     source_bytes = source.read_bytes()
@@ -100,6 +100,12 @@ def _completed_run(tmp_path: Path, run_id: str, candidate: dict[str, object], so
     (run_dir / "manifest.jsonl").write_text(json.dumps(receipt) + "\n", encoding="utf-8")
     (run_dir / "candidates.jsonl").write_text(json.dumps(candidate) + "\n", encoding="utf-8")
     (run_dir / "run.json").write_text(json.dumps(run), encoding="utf-8")
+    sidecar_dir = run_dir / "docs" / str(candidate["doc_id"])
+    sidecar_dir.mkdir(parents=True)
+    (sidecar_dir / "result.json").write_text(
+        json.dumps({"candidate": candidate, "pages": [{"page": 1, "text": page_text}]}),
+        encoding="utf-8",
+    )
     return run_dir
 
 
@@ -111,11 +117,15 @@ def test_run_directory_mode_verifies_real_source_hashes_and_cohort_join(tmp_path
     hashes = tuple(hashlib.sha256(path.read_bytes()).hexdigest() for path in (source_a, source_b))
     cohort = _cohort(tmp_path, hashes)
     candidates = list(load_jsonl(FIXTURES / "candidate.jsonl", kind="candidate").values())
-    run_a = _completed_run(tmp_path, "run-a", candidates[0], source_a)
-    run_b = _completed_run(tmp_path, "run-b", candidates[1], source_b)
+    gold = list(load_jsonl(FIXTURES / "gold.jsonl", kind="gold").values())
+    run_a = _completed_run(tmp_path, "run-a", candidates[0], source_a, gold[0]["pages"][0]["text"])
+    run_b = _completed_run(tmp_path, "run-b", candidates[1], source_b, gold[1]["pages"][0]["text"])
     report = analyze_vrdu_runs(cohort, FIXTURES / "gold.jsonl", [run_a, run_b])
     assert report["run_verification"]["documents"] == 2
     assert report["run_verification"]["distinct_sources"] == 2
+    assert report["model_usage"]["mode"] == "no_model_baseline"
+    assert report["candidate_ocr_grounding"]["overall"]["exact_quote_in_candidate_ocr"] == 2
+    assert report["candidate_ocr_grounding"]["overall"]["incomplete_evidence"] == 3
     assert report["by_family"]["ad-buy-form"]["diagnostics"]["top_spurious_candidate_field_ids"] == {"claim_number": 1}
     cohort.write_text(cohort.read_text(encoding="utf-8").replace(hashes[0], "c" * 64), encoding="utf-8")
     with pytest.raises(AnalysisError, match="does not match frozen VRDU cohort"):
