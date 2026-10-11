@@ -50,6 +50,7 @@ chmod 600 .env.production
 # A caller's shell variables otherwise take precedence over --env-file.
 unset POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB REDIS_PASSWORD JWT_SECRET_KEY
 unset ADMIN_USERNAME ADMIN_EMAIL ADMIN_PASSWORD NEXT_PUBLIC_API_URL BACKEND_CORS_ORIGINS
+unset PUBLIC_SIGNUP_ENABLED ICORE_API_KEY IDPO_AUTO_MODEL IDPO_AUTO_API_BASE_URL
 compose=(docker compose --env-file .env.production -f docker-compose.prod.yml)
 "${compose[@]}" config --quiet
 "${compose[@]}" build
