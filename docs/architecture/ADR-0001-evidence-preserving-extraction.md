@@ -34,9 +34,9 @@ table HTML, and cell boxes. Conversion quality and deployment cost are unmeasure
 | Current evidence in this checkout | Consequence for the target |
 | --- | --- |
 | [Intake](../../idpo/agents/intake.py) supports JSON, TXT, PDF, and common raster images; PDF text comes from pypdf. [Page](../../idpo/core/types.py) stores text and optional image path/metadata. | Add a parser adapter and explicit format outcomes; do not make downstream code depend on Docling classes. |
-| [product_auto](../../idpo/product_auto/workflow.py) proposes at most 24 scalar fields, uses at most 50 pages/24,000 model characters, and writes exact page-text offsets. It leaves discovered schemas in review. | Preserve its safe abstention behavior; extend the result contract for nested/repeated fields and visual evidence. Do not call a text match semantic validation. |
+| [product_auto](../../idpo/product_auto/workflow.py) proposes at most 24 fields, uses at most 50 pages/24,000 model characters, and writes exact page-text offsets. Its configured model can propose `array[object]` columns with bounded row ordinals; the no-model route cannot. It leaves discovered schemas in review. | Preserve abstention and improve linked-row semantics and visual evidence. Do not call a text match semantic validation. |
 | [TableFormAgent](../../idpo/agents/preprocess.py) detects text lines containing pipes or tabs; the auto path does not consume structured cells. | A table parser and row linker need their own measured slice. Flat keys cannot represent line items reliably. |
-| [Frontend auto runs](../../frontend/src/server/product-auto.ts) spawn a child process and store run/review JSON on the host. Review can correct or remove proposed scalar fields and add missed scalar fields on one document, but cannot approve reusable schemas or edit linked rows. PostgreSQL and Redis exist in Compose but are not this job path's durable queue or metadata store. | Add approved schema revisions and row adjudication before claiming reusable recipes; move execution state into durable metadata/queue when the single-host pilot advances. |
+| [Frontend auto runs](../../frontend/src/server/product-auto.ts) use a local child process or a private Compose worker and store run/review JSON on the shared host volume. Review can correct or remove proposed fields, add missed scalar fields, and inspect or correct linked cells on one document; it cannot approve reusable schemas. PostgreSQL and Redis exist in Compose but are not this job path's durable queue or metadata store. | Add approved schema revisions and row relation adjudication before claiming reusable recipes; move execution state into durable metadata/queue when the pilot advances. |
 
 The [2,000-document VRDU no-model development baseline](../evaluations/VRDU_2000_NO_MODEL_V1.md) reported 4.33%
 strict schema F1 and 0.95% strict value F1 across two families; all 2,500 ad-buy linked-row field records were
@@ -44,7 +44,8 @@ missing or unresolved. It made no model calls, so it is not a test of AI-generat
 Its cost and human-review fields had zero coverage, so it cannot establish cost per accepted document. These results
 motivate the row/schema gates; they do not predict performance on arbitrary document families. That archived run's
 `processed` status also predates the current review-only behavior in `process-auto` and must not be interpreted as
-approved, correct output.
+approved, correct output. The [v4 run](../evaluations/VRDU_2000_NO_MODEL_V4.md) found zero proposed linked cells
+against 30,133 gold cells; it also lacked the OCR executable, so it is not a valid bounded-OCR comparison.
 
 ## Product contracts to introduce
 

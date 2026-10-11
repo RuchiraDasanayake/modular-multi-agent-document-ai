@@ -69,10 +69,12 @@ parser, stable row identity across versions, or a guarantee of useful fields on 
 receipts, `candidates.jsonl`, and `docs/<doc_id>/result.json` with OCR pages, the proposal, model-call telemetry and
 reason. Cost fields exist but remain null until provider prices, compute rates and review work are recorded. The
 frontend checks source hashes and artifact consistency before displaying a completed run. Owner-scoped result and
-source routes lead to a field review page. A reviewer can correct or remove proposed scalar fields and add missing
-scalar fields. The API derives a document-scoped `correctedResult` from the immutable machine candidate and latest
-review snapshot. Undecided machine values remain in review; human-added fields have no machine evidence. Review changes
-append revisioned events and reject stale saves. This is one-document adjudication, not an approved reusable recipe.
+source routes lead to a field review page. A reviewer can correct or remove proposed scalar fields, add missing
+scalar fields, and inspect or correct bounded linked cells by row. The server checks each machine cell's text evidence
+and accepts a human row correction only as a typed array. The API derives a document-scoped `correctedResult` from the
+immutable machine candidate and latest review snapshot. Undecided machine values remain in review; human corrections
+are assertions and have no machine evidence. Review changes append revisioned events and reject stale saves. This is
+one-document adjudication, not an approved reusable recipe or geometric table annotation.
 
 The single-host path runs as a child process of the frontend server; Docker sends it to one private worker that admits
 one active run and returns a busy error for another. It has no durable queue, cancellation, approved schema registry,

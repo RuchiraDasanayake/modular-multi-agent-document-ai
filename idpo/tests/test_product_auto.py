@@ -65,6 +65,8 @@ def test_invoice_baseline_preserves_zero_and_exact_spans(tmp_path: Path) -> None
     assert sidecar["ocr_pages"][0]["page"] == 1
     assert sidecar["ocr_pages"][0]["rerun_attempted"] is False
     assert sidecar["api_cost_usd"] is None
+    assert sidecar["stage_timings_ms"]["ocr"] >= 0
+    assert sidecar["source_prepare_ms"] >= 0
     assert candidate["measurements"]["latency_ms"] >= 0
     assert "api_cost_usd" not in candidate["measurements"]
     _assert_exact_evidence(candidate, sidecar)
@@ -150,6 +152,25 @@ def test_narrative_without_model_abstains_and_empty_document_is_unsupported(tmp_
     candidate, sidecar = _result(run["run_dir"])
     assert candidate["document_status"] == "unsupported"
     assert sidecar["reason"] == "no_text_after_ocr"
+
+
+def test_empty_ocr_with_engine_failure_is_a_failed_run_not_an_unsupported_source(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    source = tmp_path / "scan.txt"
+    source.write_text("", encoding="utf-8")
+
+    def failing_ocr(self, payload, ctx):
+        return types.SimpleNamespace(artifacts={
+            "document": payload["document"],
+            "signal": types.SimpleNamespace(failure_reason="ocr_failed"),
+        })
+
+    monkeypatch.setattr(OcrAgent, "run", failing_ocr)
+    run = process_auto(source, run_id="ocr_dependency_failure", output_root=tmp_path / "runs")
+    candidate, sidecar = _result(run["run_dir"])
+    assert candidate["document_status"] == "failed"
+    assert sidecar["reason"] == "ocr_failed"
 
 
 def test_missing_marker_stays_distinct_from_numeric_zero(tmp_path: Path) -> None:

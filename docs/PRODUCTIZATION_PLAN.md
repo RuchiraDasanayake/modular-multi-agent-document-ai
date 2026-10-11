@@ -22,23 +22,28 @@ every possible router or the reported accepted submission.
 
 ## Current Starting Point And Boundaries
 
-- The opt-in `idpo.cli process-auto` path and owner-scoped review UI now exist as a single-host pilot. They propose
-  scalar fields and values, verify exact OCR text spans, and keep unapproved schemas in review. They have no durable
-  queue, approved recipe, linked rows, priced cost meter, or demonstrated arbitrary-family accuracy. The first
+- The opt-in `idpo.cli process-auto` path and owner-scoped review UI now exist as a pilot. They propose scalar fields,
+  and a configured model can propose bounded repeated columns with row ordinals; the review UI can inspect cells and
+  save typed row corrections. They verify exact OCR text spans and keep unapproved schemas in review. They have no
+  durable queue, approved recipe, visual table structure, priced cost meter, or demonstrated arbitrary-family accuracy. The first
   2,000-document no-model development baseline failed the quality gate; see
   [the measured v1 report](evaluations/VRDU_2000_NO_MODEL_V1.md). The [v2 safety run](evaluations/VRDU_2000_NO_MODEL_V2.md)
   verified 2,000 distinct sources and eliminated automatic release of unapproved schemas, while strict schema F1
   remained 4.33% and pre-review accepted-value F1 became 0%. These paths are distinct from the research pipeline and
   paper results. The [v3 corrected-OCR diagnostic](evaluations/VRDU_V3_ABORTED_DIAGNOSTIC.md) recovered some previously
   unsupported scans but was stopped at 1,229 distinct sidecars because multipass scan latency was too high. It is not
-  a completed quality gate.
+  a completed quality gate. The [v4 full run](evaluations/VRDU_2000_NO_MODEL_V4.md) verified 2,000 distinct sources,
+  but its OCR comparison is invalid because the Tesseract executable was absent from that run's environment. It
+  found zero candidate linked cells or rows against 30,133 gold cells and 7,234 gold rows. It did not configure a
+  model and cannot evaluate the new model-backed row path.
 
 - Current job execution is `frontend job API -> frontend runner -> python -m idpo.cli process-inbox -> IDPO_DATA_DIR`.
   IDPO runs `ingest/inbox -> orchestrator -> executor -> exports`. AHMN direct advice is in process. Guardrails and
   XAI-HITL services are not called by the measured document path; RABI and DAAF are simulation results only.
-- The single-host demo is the documented end-to-end path. The Docker frontend copies
-  `frontend/runner.config.docker.json`, whose command is `echo`; a healthy Compose stack does **not** prove that a job
-  processed a document. See [Public Demo Deployment](PUBLIC_DEMO_DEPLOYMENT.md).
+- The single-host demo is the verified end-to-end path. The Compose product-auto route now has a private Python
+  worker and shared-volume Unix socket. Static Compose checks, unit tests and a frontend build pass; the local Docker
+  daemon was unavailable, so live container extraction remains unverified. The canonical research job route is
+  explicitly unavailable in Compose. See [Public Demo Deployment](PUBLIC_DEMO_DEPLOYMENT.md).
 - A one-file, no-LLM host smoke on the repository's sample invoice completed, but the generic `forms` policy emitted
   healthcare keys (`claim_number`, `member_id`, `service_date`) for invoice values while validation reported no issues.
   This is a qualitative failure example, not a benchmark. It shows why automatic schema discovery, field semantics and
@@ -68,7 +73,7 @@ service boundary needs a concrete availability, scaling or ownership reason; it 
 | Boundary | Target contract | First implementation decision |
 | --- | --- | --- |
 | Intake and identity | Authenticated owner, content hash, verified file type, limits, immutable input, job and schema versions; auto mode accepts a document without selecting a template | Preserve the job UI; make all reads and writes owner-scoped and test indirect artifact routes. Unsupported or illegible files get an explicit outcome, never a fabricated schema. |
-| Job execution | Durable status, idempotency key, bounded retries, cancellation, stage timings, replayable artifacts | Replace the Docker placeholder; start with one queue and worker path before adopting a workflow platform. |
+| Job execution | Durable status, idempotency key, bounded retries, cancellation, stage timings, replayable artifacts | The current private Docker worker admits one active product run and rejects another; add durable queued state before multi-host scale. |
 | Parsing | Native PDF text when reliable; OCR/layout for scans; page, box, reading order and table-cell evidence | Keep current PyPDF/PaddleOCR/Tesseract as the measured baseline; spike Docling and PP-StructureV3 on failure slices. |
 | Schema discovery | Infer document family, candidate fields, types, groups and table relationships, each with source evidence; propose a versioned reusable recipe | Run on first or unfamiliar documents with no manual template setup. Mark ambiguous candidates and let an authorized reviewer approve or amend a recipe. Never silently rewrite an approved schema. |
 | Extraction | Provider-neutral extraction against a versioned proposed or approved schema; bounded prompt/context; typed output; recorded provider/model/version | Compare a simple extractor on local CPU, local GPU and approved cloud APIs against the same holdout. Cloud use is opt-in per data policy, with redaction where required and hard spend caps. |
@@ -119,8 +124,10 @@ price. Keep the actual key out of files, logs, test fixtures and commits. The
 [synthetic pilot](evaluations/ICORE_SYNTHETIC_PILOT.json) authenticated the nine-ID model catalog and exercised schema
 and value calls for two synthetic texts with `innobot-luna-6` and `innobot-minimax-m2-5`. The catalog advertises separate
 text embedding and image generation routes and some chat models with image inputs; vision extraction was not tested.
-No VRDU or private document has been sent to ICORE. Published prices, data-use terms and a hard spend limit are still
-required before a real-data trial, which must be scored against the local baseline on the same authorized documents.
+The [bounded six-public-PDF VRDU pilot](evaluations/ICORE_VRDU_SIX_PILOT.json) sent only public cohort documents: one
+of six attempted chat calls succeeded, five returned `APIConnectionError`, and no value extraction completed. No
+private document was sent. Published prices, data-use terms and a hard spend limit are still unverified; do not
+expand cloud use until transport reliability and a documented spend policy are established.
 
 ## Quality-Cost Evaluation Contract
 

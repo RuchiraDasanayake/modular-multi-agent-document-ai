@@ -52,8 +52,8 @@ def process_auto(
     """Write versioned product candidates under IDPO_DATA_DIR/product_runs.
 
     No policy store, AHMN feedback, or research run artifact is read or changed.
-    A configured model proposes scalar fields and values; source evidence is
-    checked locally before a value can be accepted.
+    A configured model proposes scalar and bounded linked fields and values;
+    source evidence is checked locally before a value can be accepted.
     """
     run_started = time.perf_counter()
     source = Path(input_path).resolve()
@@ -149,6 +149,7 @@ def process_auto(
                 "source_hash_kind": hash_kind,
                 "source_container_sha256": container_hash,
                 "duration_ms": duration_ms,
+                "source_prepare_ms": round(shared_prepare_ms, 3),
                 "document_status": candidate["document_status"],
                 "candidate": candidate,
             })
@@ -217,6 +218,7 @@ def _process_document(
         "pages": [],
         "reason": initial_reason,
         "model_calls": [],
+        "stage_timings_ms": {"ocr": None},
         "api_cost_usd": None,
         "compute_cost_usd": None,
         "total_cost_usd": None,
@@ -225,6 +227,7 @@ def _process_document(
         return candidate, sidecar
     sidecar["source_document_id"] = document.doc_id
     document.doc_id = doc_id
+    ocr_started = time.perf_counter()
     try:
         ocr_result = ocr.run({"document": document}, ctx)
         processed_doc = ocr_result.artifacts.get("document", document)
@@ -247,14 +250,18 @@ def _process_document(
             }
             for page in processed_doc.pages
         ]
-    except Exception:  # noqa: BLE001 - OCR failures remain reviewable per-document outcomes
+    except Exception:  # noqa: BLE001 - isolate OCR errors to this document
+        sidecar["stage_timings_ms"]["ocr"] = round((time.perf_counter() - ocr_started) * 1000, 3)
         sidecar["reason"] = "ocr_failed"
-        candidate["document_status"] = "needs_review"
+        candidate["document_status"] = "failed"
         return candidate, sidecar
+    sidecar["stage_timings_ms"]["ocr"] = round((time.perf_counter() - ocr_started) * 1000, 3)
 
     if not pages or not any(str(page["text"]).strip() for page in pages):
-        sidecar["reason"] = "no_text_after_ocr"
-        candidate["document_status"] = "unsupported"
+        # An unavailable OCR dependency is an execution failure, not proof that
+        # the source document is illegible or unsupported.
+        sidecar["reason"] = str(ocr_failure) if ocr_failure else "no_text_after_ocr"
+        candidate["document_status"] = "failed" if ocr_failure else "unsupported"
         return candidate, sidecar
 
     schema: list[dict[str, object]] = []
