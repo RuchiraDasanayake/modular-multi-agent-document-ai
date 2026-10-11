@@ -1,8 +1,9 @@
-# Secondary FUNSD form slice: frozen inputs, no extraction result yet
+# Secondary FUNSD form slice: frozen inputs and no-model extraction result
 
-**Status, 12 October 2026:** the source and sparse gold adapter is implemented
-and staged locally. The 30 forms have **not** been processed by the new product
-runtime as part of this receipt. No extraction accuracy is claimed here.
+**Status, 12 October 2026:** the source and sparse gold adapter is staged locally,
+and the 30 forms have been processed once by the no-model `process-auto` path.
+All 30 execution receipts verified. The sparse gold supports positive recall only;
+it does not support precision, false-acceptance, or arbitrary-document accuracy claims.
 
 ## Why this slice
 
@@ -37,14 +38,10 @@ no dataset images or answer text. The repository already tracks 50 FUNSD test
 annotation JSON files; that existing redistribution also needs a rights review
 before a commercial release.
 
-[CORD v2](https://github.com/clovaai/cord) is a future receipt slice candidate;
-the creator's [dataset page](https://huggingface.co/datasets/naver-clova-ix/cord-v2)
-labels it CC BY 4.0. The current repository's CORD benchmark packs contain
-derived labels but all 50 holdout image paths are missing, and no CORD parquet
-exists at `datasets/external/cord-v2/data`. Those packs cannot currently be
-used to substantiate a new extraction run. A CORD acquisition should pin the
-creator dataset revision and raw validation parquet SHA256, retain attribution,
-and stage only the needed images outside this repository.
+The independent [CORD v2 receipt slice](CORD_SECONDARY_SLICE.md) now pins a
+creator-hosted test parquet and stages its images outside Git. The old CORD
+benchmark packs still have missing local image paths and cannot substantiate
+a new extraction run.
 
 ## Frozen local receipt
 
@@ -87,6 +84,48 @@ candidate documents. Its precision and absent-field metrics are intentionally
 undefined. The date fields are raw strings, so formatting changes count as
 non-exact even if a human would judge the date equivalent.
 
+## Completed no-model run
+
+`python -m idpo.cli process-auto` completed as
+`E:\DocAI-Benchmarks\runtime\product_runs\funsd_remainder_30_v1`, with
+`TESSERACT_CMD` and `TESSDATA_PREFIX` set to Tesseract `v5.5.3.20260724`.
+The executable SHA-256 was
+`c66f0f12ed76f6aa455dac97684bbc86756d6a732380bee09122454cfda3f420` and
+`eng.traineddata` SHA-256 was
+`7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2`.
+The repository HEAD at report time was `90f26fc1e0751092bea0d93c6ae883c406549bcb`;
+the most recent product OCR implementation in that checkout was the bounded
+Tesseract change used in the [VRDU v6 gate](VRDU_2000_NO_MODEL_V6.md).
+No model was configured and no cloud call was made. This is a secondary
+development-slice diagnostic, not a new 2,000-source implementation gate.
+
+| Measure | Result |
+| --- | ---: |
+| Distinct input hashes / candidate outputs / missing | 30 / 30 / 0 |
+| `needs_review` / `failed` / `unsupported` / released | 30 / 0 / 0 / 0 |
+| Documents with published positive target links | 18 |
+| Published positive `date` / `recipient` / `sender` values | 14 / 7 / 5 |
+| Exact accepted positive values | **0 / 26** |
+| Exact values pending review | **1 / 26** |
+| Target values not proposed at all | 22 / 26 |
+| Target values proposed with wrong or no value | 3 / 26 |
+
+The one exact pending value is a `date`. No `recipient` or `sender` positive
+value was proposed under its mapped field name. A missing FUNSD target link
+remains unknown, so these counts must not be converted into false-positive
+rates or schema F1. The execution verifier found 30 distinct verified source
+hashes and no duplicate outputs. Sum of document durations was 223,668.935 ms;
+this sum is neither wall time nor a deployment throughput measurement.
+
+The candidate JSONL SHA-256 is
+`4a9b8c77deb91feb6a19073171a640087965d66dfcc1dc843cbfe6dec99caaed`.
+The local execution-report and positive-recall-report SHA-256 values are
+`d78a40b0006aa60e11b44de64f8725ae62767639b1f2649639266fe3b92dc48d`
+and `f39f321823c5b2028e6da7e449bab643795d665980007a299bc0b9d15e1bb957`.
+These reports remain outside Git beside the staged images. This run confirms
+that the baseline extractor fails badly on a third scanned-form family; it
+does not test the PP-OCRv6 challenger or a model-backed schema path.
+
 ## Reproduce and execute
 
 Use a new output directory and the same 50 FUNSD test images as the committed
@@ -98,24 +137,23 @@ python -m product_eval.datasets.funsd_remainder `
   --image-root 'E:\Research Project\Code\IDPO\datasets\FUNSD\testing_data\images' `
   --output-dir 'E:\DocAI-Benchmarks\funsd-test-remainder-30-v1'
 
-# After the separate 2,000-source implementation gate, with Tesseract configured:
+# With the pinned Tesseract installation configured:
 python -m idpo.cli process-auto `
   --input 'E:\DocAI-Benchmarks\funsd-test-remainder-30-v1\input' `
   --run-id funsd_remainder_30_v1
 
 python -m product_eval.verify_execution `
-  'PATH_TO_IDPO_DATA_DIR\product_runs\funsd_remainder_30_v1' `
-  --min-unique 30 --report 'PATH_TO_EXECUTION_REPORT.json'
+  'E:\DocAI-Benchmarks\runtime\product_runs\funsd_remainder_30_v1' `
+  --min-unique 30 --report 'E:\DocAI-Benchmarks\funsd-test-remainder-30-v1\execution-report.json'
 
 python -m product_eval.datasets.funsd_positive_score `
   --cohort 'E:\DocAI-Benchmarks\funsd-test-remainder-30-v1\cohort.jsonl' `
   --gold 'E:\DocAI-Benchmarks\funsd-test-remainder-30-v1\gold.jsonl' `
-  --candidate 'PATH_TO_IDPO_DATA_DIR\product_runs\funsd_remainder_30_v1\candidates.jsonl' `
-  --report 'PATH_TO_POSITIVE_RECALL_REPORT.json'
+  --candidate 'E:\DocAI-Benchmarks\runtime\product_runs\funsd_remainder_30_v1\candidates.jsonl' `
+  --report 'E:\DocAI-Benchmarks\funsd-test-remainder-30-v1\positive-recall-report.json'
 ```
 
-Record the product Git commit, model/provider configuration, OCR executable and
-traineddata hashes, candidate JSONL hash, execution receipt, and all 30 statuses.
 Do not merge this 30-document score into the 2,000-source VRDU gate or use it
-to claim arbitrary-document accuracy. The next independent real receipt slice
-needs freshly pinned CORD inputs or a team-owned, adjudicated document set.
+to claim arbitrary-document accuracy. The CORD slice adds one separate
+receipt family; broader claims still need a team-owned, adjudicated document
+set with stronger split controls.
