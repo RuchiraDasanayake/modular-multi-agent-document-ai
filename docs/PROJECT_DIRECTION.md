@@ -184,10 +184,9 @@ Which code areas are most affected: frontend job API/runner, gateway access chec
 
 ## Current Next Step
 
-1. use the completed [v5 2,000-source pinned-OCR gate](evaluations/VRDU_2000_NO_MODEL_V5.md) as the reproducible
-   no-model comparator: it recovered all 35 formerly unsupported scans, but strict schema F1 remained 4.245%, all
-   documents required review, and linked cells remained zero; run a separate pinned 2,000-source gate for the later
-   OCR timeout implementation before considering it promoted
+1. use the completed [v6 2,000-source bounded-OCR gate](evaluations/VRDU_2000_NO_MODEL_V6.md) as the reproducible
+   no-model comparator: all sources remained reviewable with strict schema F1 4.245% and zero linked cells; no page
+   triggered the timeout, so the recovery branch still relies on focused tests and a forced-timeout smoke
 2. isolate schema discovery from value extraction with the bounded local oracle-schema diagnostic, then improve field
    semantics and linked rows on small authorized, adjudicated development slices before any model-backed full gate;
    the initial local Qwen and bounded ICORE pilots did not pass real-document quality/reliability

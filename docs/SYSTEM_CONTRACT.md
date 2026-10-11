@@ -59,7 +59,8 @@ format. It uses local OCR/text extraction and either a deterministic label/value
 OpenAI-compatible chat model for scalar or bounded repeated-column schema discovery followed by value extraction.
 Product-auto Tesseract calls now have a 30-second default timeout and a 120-second per-image-page search budget;
 these limits are configurable in the CLI and do not alter the canonical research OCR route. A timeout with no text is
-an execution failure, while partial text remains in review. This implementation postdates the pinned v5 gate.
+an execution failure, while partial text remains in review. The [pinned v6 gate](evaluations/VRDU_2000_NO_MODEL_V6.md)
+completed 2,000 sources with no timeout events and unchanged no-model extraction quality.
 Local loopback HTTP servers may run without an API key; remote providers require an HTTPS URL and server-side key. The model can replace the
 heuristic schema. Proposed values require exact text-span evidence and a matching, JSON-round-trippable typed value
 for machine acceptance. Ambiguous boolean quotes and partial identifier matches stay pending review. A newly
