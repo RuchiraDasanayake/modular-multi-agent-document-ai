@@ -1,0 +1,199 @@
+{
+  "report_version": 1,
+  "title": "Qwen3-VL two-document required-value output diagnostic",
+  "reported_at_utc": "2026-10-11T22:04:32Z",
+  "decision": "Do not promote the v2 prompt or JSON schema constraint to production or a bulk run. One of two replies passed the strict parser; exact scalar value recall was 1/19 with one false accepted value, and no linked rows were proposed.",
+  "scope": "Research only. Two public VRDU PDFs selected by lowest raw source SHA-256, one from each frozen family. Local Qwen3-VL inference used saved completed v6 OCR sidecars and page images. Gold field IDs and types were supplied as an oracle. Gold values and evidence were used only for scoring. No private documents, cloud calls, re-OCR, production runtime changes, or automatic release.",
+  "dataset": {
+    "source": "https://github.com/google-research-datasets/vrdu",
+    "creator_commit": "04a4df7ac5cc694e51c48115c03fe428f0e240cc",
+    "cohort_sha256": "98f4fcbd6521594304da3a80104362cf89174c87c27ed08ce90a1158fef4bc90",
+    "gold_sha256": "8a631bffbf439ccc8376f84cbf7d4af25c86d35c0ccc7996ce3b23e6085138bf",
+    "selection_rule": "Lowest raw source SHA-256 from each of registration-form and ad-buy-form, independent of gold labels.",
+    "selected_documents": [
+      {
+        "doc_id": "2e8f9a5f9657c1f854527313071dc9d3",
+        "family": "registration-form",
+        "source_sha256": "00159e1d37fc2665b6ffaf6223ff69187e51decdb00e0fe4cd501643b069c5d5",
+        "v6_run_id": "vrdu_v6_reg_01",
+        "v6_sidecar_sha256": "49a020bf60f21fa9a59dabcae5f8d6a7523026e2ee3faaa4cc76a93c0c27d12a",
+        "pages": 3,
+        "v6_ocr_chars": 3095
+      },
+      {
+        "doc_id": "c960338957dfa60346aac9863edd4c27",
+        "family": "ad-buy-form",
+        "source_sha256": "00af9ec9594520a61f852e0ccfd93441f068b38fc120625a0571e04941eb1060",
+        "v6_run_id": "vrdu_v6_ad_00",
+        "v6_sidecar_sha256": "7dd243163c1194c72cb18cb610c7fce5e659832243c9fc1d7accaee530c7c321",
+        "pages": 3,
+        "v6_ocr_chars": 7885
+      }
+    ],
+    "verified_completed_v6_runs_and_source_hashes": true,
+    "same_sources_and_sidecars_in_v1_and_v2": true,
+    "candidate_gold_doc_id_join": "exact 2:2"
+  },
+  "model_and_runtime": {
+    "official_model_repository": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF",
+    "model_revision": "1cd86afb9a95c410a6038ab3b40d8b578c892266",
+    "model_file": "Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+    "model_sha256": "66358cb18bb6b3b1b6675aa412c7a88ef01d228f481184d13668e5201c730a0a",
+    "projector_file": "mmproj-Qwen3VL-4B-Instruct-Q8_0.gguf",
+    "projector_sha256": "30ba2c7dd3127a4561b6cba9d13d0f711c91bdb38742e2f56d73c8cb596bd06d",
+    "llama_cpp_build": "b11425-e117148a4",
+    "local_endpoint": "http://127.0.0.1:18082/v1/chat/completions",
+    "server_reported_multimodal_capability": true,
+    "server_launch_image_min_tokens": 1024,
+    "server_launch_image_min_tokens_source": "Server owner reported launch flag; not exposed by the server API receipt.",
+    "pdfium_version": "5.14.0",
+    "pillow_version": "12.1.0",
+    "context_tokens": 12288,
+    "max_completion_tokens_per_call": 3000,
+    "sampling": {
+      "temperature": 0.2,
+      "top_p": 0.8,
+      "seed": 42
+    },
+    "image_render_scale": 2.0,
+    "image_max_dimension": 1280,
+    "v2_call_cap": 2,
+    "v2_total_token_cap": 30000,
+    "measured_usd_compute_cost": null,
+    "cloud_api_calls": 0
+  },
+  "controlled_change": {
+    "v1_response_format": "json_object",
+    "v2_response_format": "json_schema",
+    "v2_response_schema": "Root requires values array. Each entry requires field_id and value, disallows extra keys, and limits field_id to the supplied oracle IDs. Optional page and quote remain. The value type is checked by the existing product parser.",
+    "v2_prompt_change": "Explicitly requires a value key for each entry, forbids a type key in entries, gives a concrete unrelated permit example, and defines null and linked row cell behavior.",
+    "parser_unchanged_sha256": "b499a7564691616622591c2e4cfbd8559b0e9951cc4c45715936b6ead23a25e4",
+    "scorer_unchanged": "product_eval/scorer.py plus the existing linked-row scorer",
+    "v1_runner_sha256": "c3a345a132342ef9f6455cabe6b97d56a0b1fec0e8165fd0f2c05525f12e9a8c",
+    "v2_runner_sha256": "70c575f6fe186b6186ebf511b43fcb069f0df4e2e97c911c650f9853166ea5aa",
+    "v2_response_schema_sha256_by_doc": {
+      "2e8f9a5f9657c1f854527313071dc9d3": "aa258d088a3da9c26f8d7ea3ca04a6d4f0c443d0307e1bcd02063c79579bd764",
+      "c960338957dfa60346aac9863edd4c27": "823c0870b04f6ffe3fe9272f2fd80867dc902e8f70647a19280b4cbf08bb71bd"
+    }
+  },
+  "comparison": {
+    "v1": {
+      "chat_calls": 2,
+      "prompt_tokens": 13026,
+      "completion_tokens": 743,
+      "total_reported_tokens": 13769,
+      "chat_latency_ms_sum": 23564.551,
+      "raw_json_objects": 2,
+      "strict_parser_valid_replies": 0,
+      "raw_structure": "Registration returned 6/6 and ad-buy 13/14 entries. All 19 returned entries had field_id, page, quote, and type, but no value key.",
+      "scalar_score": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 19
+      },
+      "linked_gold_cells": 154,
+      "linked_candidate_cells": 0,
+      "linked_gold_rows": 32,
+      "linked_candidate_rows": 0,
+      "review_documents": 2
+    },
+    "v2": {
+      "chat_calls": 2,
+      "prompt_tokens": 13152,
+      "completion_tokens": 3276,
+      "total_reported_tokens": 16428,
+      "chat_latency_ms_sum": 58675.933,
+      "raw_json_objects": 1,
+      "strict_parser_valid_replies": 1,
+      "scalar_score": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 18,
+        "precision": 0.5,
+        "recall": 0.05263157894736842,
+        "false_accepted": 1
+      },
+      "linked_gold_cells": 154,
+      "linked_candidate_cells": 0,
+      "linked_gold_rows": 32,
+      "linked_candidate_rows": 0,
+      "v6_ocr_grounded_accepted_scalars": 2,
+      "frozen_gold_evidence_valid_accepted_scalars": 0,
+      "review_documents": 2,
+      "auto_released_documents": 0
+    }
+  },
+  "v2_per_document": [
+    {
+      "doc_id": "2e8f9a5f9657c1f854527313071dc9d3",
+      "finish_reason": "stop",
+      "prompt_tokens": 4871,
+      "completion_tokens": 276,
+      "chat_latency_ms": 7708.639,
+      "raw_json_valid": true,
+      "raw_value_entries": 6,
+      "entries_with_required_value": 6,
+      "entries_with_type_instead_of_value": 0,
+      "strict_parser_valid": true,
+      "accepted": 2,
+      "needs_review": 4,
+      "exact_gold_correct_accepted_field_ids": [
+        "registration_num"
+      ],
+      "false_accepted_field_ids": [
+        "file_date"
+      ],
+      "v6_ocr_grounded_accepted": 2,
+      "frozen_gold_evidence_valid_accepted": 0
+    },
+    {
+      "doc_id": "c960338957dfa60346aac9863edd4c27",
+      "finish_reason": "length",
+      "prompt_tokens": 8281,
+      "completion_tokens": 3000,
+      "chat_latency_ms": 50967.294,
+      "raw_json_valid": false,
+      "strict_parser_valid": false,
+      "response_reason": "truncated_model_response",
+      "partial_response_diagnostic": "The incomplete text contained 11 field_id markers and 73 row markers. These are lexical counts, not valid or scored cells.",
+      "accepted": 0,
+      "needs_review": 14,
+      "linked_candidate_cells": 0,
+      "unsupported_gold_field_ids": [
+        "property"
+      ]
+    }
+  ],
+  "evidence_and_score_caveats": [
+    "The parser resolves exact quotes and half-open spans against saved v6 OCR page text. Both v2 accepted scalars passed that runtime check.",
+    "The frozen gold scorer validates evidence offsets against separately normalized gold page text and adjudicated gold spans. The one correct accepted field, registration_num, has an OCR offset that does not index the same quote in the gold page text. Its scorer evidence outcome is therefore invalid. The wrong accepted file_date also has invalid gold evidence.",
+    "Oracle schema field IDs and types are supplied, so the 20/20 schema match measures compliance with supplied labels, not automatic schema discovery.",
+    "All candidate documents and accepted fields remain pending review in this research runner. Scorer automation is 0/20 fields and 0/2 documents.",
+    "Linked row scoring is exact derived field ID, row ordinal, and OCR surface string, not the official VRDU matcher or semantic alignment.",
+    "The CPU-only RapidOCR benchmark ran concurrently during v2. Model latency versus v1 is not an isolated throughput comparison. No electricity, reviewer time, or local compute USD cost was measured."
+  ],
+  "recommendation": "A required-value schema constraint fixes the v1 key omission on a short registration form but does not solve value correctness or long linked-row output. Keep strict abstention. The next bounded research trial should cap or partition linked-row extraction by page or field so one response can complete within context and output limits, then score the same public documents with a separate OCR-grounding check and frozen-gold value score. Do not run bulk Qwen3-VL inference from this two-document result.",
+  "reproducibility": {
+    "runner": "product_eval/oracle_vl_diagnostic.py",
+    "invocation": "python -m product_eval.oracle_vl_diagnostic --cohort E:/DocAI-Benchmarks/vrdu-cohort-04a4df7/cohort.jsonl --gold E:/DocAI-Benchmarks/vrdu-cohort-04a4df7/gold.jsonl --runs-root E:/DocAI-Benchmarks/runtime/product_runs --gate-id vrdu_v6 --per-family 1 --prompt-version 2 --run --model-file E:/DocAI-Benchmarks/tools/qwen3-vl-4b-instruct-1cd86af/Qwen3VL-4B-Instruct-Q4_K_M.gguf --projector-file E:/DocAI-Benchmarks/tools/qwen3-vl-4b-instruct-1cd86af/mmproj-Qwen3VL-4B-Instruct-Q8_0.gguf --model-url http://127.0.0.1:18082/v1/chat/completions --output-dir <new-empty-output-dir>",
+    "v1_output_dir_on_test_host": "E:/DocAI-Benchmarks/vrdu-oracle-vl-v1-20261011T2153Z",
+    "v2_output_dir_on_test_host": "E:/DocAI-Benchmarks/vrdu-oracle-vl-v2-20261011T2201Z",
+    "v1_artifact_sha256": {
+      "run.json": "6187fab7885cac157164b5ebd558c68317aa2eae15d6aa92573c325f9d81f0a3",
+      "score.json": "926b86de234992ce1b1537e7369f788615844fbc63dc2b3e01d930be39fc6d2c",
+      "candidates.jsonl": "e51cefd3eb2641105b3fab6351a2b1732e463d887bbf4efc43f15fd3e219b1bb",
+      "diagnostics.jsonl": "90a124ea718526a7e52faa251f78c6bfeab2ef2bdbf7c50734224d82796bb184"
+    },
+    "v2_artifact_sha256": {
+      "run.json": "0156c541d1701f6a86334fa24dbdc823c07a7d4799a4bc3bec1db4937f568d50",
+      "score.json": "f1b24b7f2d91ecdd6e57584abcc8507303b839acd4ef31bc9997cf888e62f73b",
+      "candidates.jsonl": "9611f3ed381781a73fed05df504de152b427229a89c504f3dcac0bc764ca939b",
+      "diagnostics.jsonl": "ea035a5296938588abc516d3275090fc9974ddabe88ca8432465d1389a7e1db8"
+    },
+    "independent_score_recalculation_matches_saved_score_v1_and_v2": true,
+    "focused_tests": "python -m pytest product_eval/tests/test_oracle_vl_diagnostic.py -q",
+    "focused_test_result": "14 passed",
+    "lint": "python -m ruff check product_eval/oracle_vl_diagnostic.py product_eval/tests/test_oracle_vl_diagnostic.py",
+    "lint_result": "passed"
+  }
+}

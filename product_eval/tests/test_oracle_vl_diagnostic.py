@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import sys
 import types
@@ -62,6 +63,42 @@ def test_multimodal_prompt_pairs_each_image_with_same_numbered_ocr_page() -> Non
         vl.build_messages(pages, list(reversed(images)), [])
 
 
+def test_v2_prompt_and_schema_require_value_without_type_entry() -> None:
+    pages = [{"page": 1, "text": "Code ABC"}]
+    images = [{"page": 1, "data_url": "data:image/png;base64,AAAA"}]
+    fields = [{"field_id": "code", "type": "string"}]
+    messages = vl.build_messages(pages, images, fields, prompt_version=2)
+    instruction = messages[1]["content"][0]["text"]
+    assert "EVERY entry MUST have keys field_id and value" in instruction
+    assert "never use a type key" in instruction
+    response = vl.response_format_v2(fields)
+    assert response["type"] == "json_schema"
+    item = response["schema"]["properties"]["values"]["items"]
+    assert item["required"] == ["field_id", "value"]
+    assert item["properties"]["field_id"]["enum"] == ["code"]
+    assert "type" not in item["properties"]
+    assert item["additionalProperties"] is False
+
+
+def test_v2_schema_is_sent_in_local_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: list[dict[str, object]] = []
+
+    class FakeOpener:
+        def open(self, request: object, timeout: int) -> io.BytesIO:
+            assert timeout == 240
+            captured.append(json.loads(request.data))
+            payload = {"choices": [{"message": {"content": '{"values":[]}'}, "finish_reason": "stop"}],
+                       "usage": {"prompt_tokens": 10, "completion_tokens": 3}}
+            return io.BytesIO(json.dumps(payload).encode("utf-8"))
+
+    monkeypatch.setattr(vl, "_local_opener", FakeOpener)
+    schema = vl.response_format_v2([{"field_id": "code", "type": "string"}])
+    reply = vl.local_completion([{"role": "user", "content": "test"}],
+                                "http://127.0.0.1:18082/v1/chat/completions", schema)
+    assert reply["error"] is None
+    assert captured[0]["response_format"] == schema
+
+
 def test_oracle_values_require_exact_saved_ocr_spans_and_exclude_gold_values() -> None:
     pages = [{"page": 1, "text": "Code ABC\nAmount: 12.00\n"}]
     images = [{"page": 1, "data_url": "data:image/png;base64,AAAA"}]
@@ -92,6 +129,22 @@ def test_oracle_values_require_exact_saved_ocr_spans_and_exclude_gold_values() -
     assert "evidence" not in values["amount"]
     assert values["aliases"]["status"] == "needs_review"
     assert candidate["document_status"] == "needs_review"
+
+
+def test_v2_truncated_reply_abstains_even_if_partial_text_contains_a_valid_value() -> None:
+    pages = [{"page": 1, "text": "Code ABC"}]
+    images = [{"page": 1, "data_url": "data:image/png;base64,AAAA"}]
+    gold = {"gold_schema": [{"field_id": "code", "type": "string", "critical": False}]}
+
+    def complete(_messages: list[dict[str, object]]) -> dict[str, object]:
+        return {"text": '{"values":[{"field_id":"code","value":"ABC","page":1,"quote":"ABC"}]}',
+                "finish_reason": "length", "error": None, "latency_ms": 1,
+                "prompt_tokens": 20, "completion_tokens": 3}
+
+    candidate, diagnostic = vl.evaluate_document("doc-a", pages, gold, images, complete, prompt_version=2)
+    assert diagnostic["reason"] == "truncated_model_response"
+    assert candidate["extracted_values"] == [{"field_id": "code", "value": None,
+                                              "status": "needs_review", "review_state": "pending"}]
 
 
 def test_render_uses_pinned_pdfium_and_keeps_one_based_page_mapping(
@@ -177,8 +230,10 @@ def test_server_requires_loaded_vision_model(tmp_path: Path, monkeypatch: pytest
         vl.check_server("http://127.0.0.1:18082/v1/chat/completions", model)
 
 
+@pytest.mark.parametrize("prompt_version", [1, 2])
 def test_mocked_run_keeps_over_limit_document_in_denominator(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    prompt_version: int,
 ) -> None:
     cohort = tmp_path / "cohort.jsonl"
     cohort.write_text("public synthetic cohort\n", encoding="utf-8")
@@ -220,9 +275,11 @@ def test_mocked_run_keeps_over_limit_document_in_denominator(
         return [{"page": page["page"], "data_url": "data:image/png;base64,AAAA", "sha256": "0" * 64,
                  "width": 10, "height": 10} for page in pages]
 
-    def fake_complete(messages: list[dict[str, object]], url: str) -> dict[str, object]:
+    def fake_complete(messages: list[dict[str, object]], url: str,
+                      response_format: dict[str, object] | None = None) -> dict[str, object]:
         calls.append(url)
         assert "Code ABC" in json.dumps(messages)
+        assert (response_format is not None) == (prompt_version == 2)
         return {"text": json.dumps({"values": [{"field_id": "code", "value": "ABC", "page": 1, "quote": "ABC"}]}),
                 "finish_reason": "stop", "error": None, "latency_ms": 2,
                 "prompt_tokens": 40, "completion_tokens": 20}
@@ -231,10 +288,12 @@ def test_mocked_run_keeps_over_limit_document_in_denominator(
     run = vl.run_diagnostic(items=items, cohort_path=cohort, gold_path=gold_path,
                             model_file=model, projector_file=projector,
                             url="http://127.0.0.1:18082/v1/chat/completions", output_dir=output,
+                            prompt_version=prompt_version,
                             render=fake_render, complete=fake_complete, server_check=lambda _url, _model: None)
     score = json.loads((output / "score.json").read_text(encoding="utf-8"))
     candidates = [json.loads(line) for line in (output / "candidates.jsonl").read_text(encoding="utf-8").splitlines()]
     assert run["complete"] and run["selected_docs"] == 2 and run["model_calls"] == 1
+    assert run["max_model_calls"] == (2 if prompt_version == 2 else 12)
     assert len(calls) == 1
     assert score["documents"] == {"gold": 2, "candidate": 2, "missing_candidate": 0, "unsupported": 0, "failed": 0}
     assert score["values"]["tp"] == 1 and score["values"]["fn"] == 1
