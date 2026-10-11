@@ -11,14 +11,15 @@ A microservices-based research system for adaptive document extraction. A docume
 > **Research results and how to reproduce them:** see [`docs/REPRODUCING_RESULTS.md`](docs/REPRODUCING_RESULTS.md).
 
 > **Project status:** This is a research prototype under product stabilization. An opt-in
-> automatic extraction path now proposes flat schemas and source-anchored values,
-> with owner-scoped human review. It is a single-host pilot, not a validated
+> automatic extraction path now proposes scalar and bounded repeated-column schemas with source-anchored values,
+> with owner-scoped human review. It is a pilot, not a validated
 > general-purpose extractor. The first 2,000-document no-model development run
-> scored 4.33% strict schema F1 and 0.95% strict value F1; see
-> [`docs/evaluations/VRDU_2000_NO_MODEL_V1.md`](docs/evaluations/VRDU_2000_NO_MODEL_V1.md).
+> scored 4.33% strict schema F1 and 0.95% strict value F1, with unsafe automatic acceptance;
+> the second kept every discovered schema in review and scored 0% pre-review accepted-value F1.
+> See [v1](docs/evaluations/VRDU_2000_NO_MODEL_V1.md) and [v2](docs/evaluations/VRDU_2000_NO_MODEL_V2.md).
 > The later October paired evaluation in [`paper/FINAL_EVIDENCE.md`](paper/FINAL_EVIDENCE.md)
-> did not show an accuracy gain from adaptive routing, and the canonical Docker
-> document job path is incomplete. See the [productization plan](docs/PRODUCTIZATION_PLAN.md)
+> did not show an accuracy gain from adaptive routing, and the canonical research
+> document job path is unavailable in Docker. See the [productization plan](docs/PRODUCTIZATION_PLAN.md)
 > for the proposed quality, cost, review, and deployment gates.
 
 ## Opt-in Product Pilot
@@ -150,6 +151,7 @@ AHMN routing runs in-process (`ahmn_core/direct_advisor.py`), so no AHMN server 
 | Guardrails   | 8002          | —               |
 | XAI-HITL     | 8003          | —               |
 | IDPO         | 8004          | —               |
+| Product worker | Unix socket | —             |
 | **Gateway**  | 8000          | **8000**        |
 | **Frontend** | 3000          | **3000**        |
 
@@ -186,12 +188,11 @@ AHMN routing runs in-process (`ahmn_core/direct_advisor.py`), so no AHMN server 
 
 ### Start the supporting services with Docker
 
-The Docker frontend image currently contains a placeholder job runner. It can serve
-the UI and service dashboards, but starting a document job there does not run the
-canonical IDPO pipeline. For end-to-end document extraction, use the single-host
-setup in [Public Demo Deployment](docs/PUBLIC_DEMO_DEPLOYMENT.md) and verify it with
-`scripts/run_public_demo_smoke.ps1`. Do not treat a healthy Docker stack as proof
-that document processing works.
+The Docker frontend is wired to a private product extraction worker over a Unix socket and shared data volume.
+The **Automatic extraction** path targets that worker; the canonical research job path returns an explicit
+unavailable response in Docker. Compose configuration and focused tests pass, but a live image/container extraction
+smoke has not run on this host. The verified end-to-end research demo remains the single-host setup in
+[Public Demo Deployment](docs/PUBLIC_DEMO_DEPLOYMENT.md), checked with `scripts/run_public_demo_smoke.ps1`.
 
 ```bash
 # 1. Clone the repository
@@ -423,7 +424,7 @@ An admin can create viewer accounts through `/api/auth/register`.
 │   └── forgetting.py           # DAAF decay job
 ├── configs/                    # IDPO configuration files
 ├── scripts/init.sql            # PostgreSQL schema
-├── docker-compose.yml          # 8 services orchestration
+├── docker-compose.yml          # Research services, frontend, and product worker
 ├── CONTRIBUTING.md             # Developer guidelines
 └── LICENSE                     # MIT
 ```
@@ -504,12 +505,11 @@ cp .env.example .env
 
 ## Legacy Docker Service Deployment
 
-The steps below describe the existing service/UI stack only. They do not provide
-an end-to-end document extraction deployment: the Docker frontend still has a
-placeholder job runner. Do not deploy this as a production document-processing
-system. The supported end-to-end demo path is the single-host setup in
-[Public Demo Deployment](docs/PUBLIC_DEMO_DEPLOYMENT.md); a separate worker and
-durable job execution path are required before container production deployment.
+The steps below describe the legacy service/UI stack plus the product extraction worker.
+The worker boundary has passed Compose parsing and focused tests but has not passed a live container smoke on this host.
+Its current single-run limit and lack of a durable queue make it a pilot rather than a production deployment.
+The canonical research job path remains available through the single-host setup in
+[Public Demo Deployment](docs/PUBLIC_DEMO_DEPLOYMENT.md).
 
 ### Prerequisites
 

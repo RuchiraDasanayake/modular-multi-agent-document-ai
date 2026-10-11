@@ -47,17 +47,23 @@ That is the path cleanup work should protect.
 
 The separate, experimental product path is:
 
-`owner-scoped job upload -> POST /api/jobs/<job_id>/auto -> frontend server runner -> idpo.cli process-auto -> IDPO_DATA_DIR/product_runs/<run_id>`
+`owner-scoped job upload -> POST /api/jobs/<job_id>/auto -> frontend server runner -> product extraction worker -> IDPO_DATA_DIR/product_runs/<run_id>`
+
+On a single host, the runner executes `idpo.cli process-auto` directly. In Compose, the frontend invokes a Node
+bridge to a private Python worker over a Unix socket in the shared data volume. That Docker path has passed static
+Compose checks, a frontend build and focused tests but has **not** completed a live container extraction smoke here.
+The canonical research job runner is explicitly unavailable in Docker.
 
 The CLI accepts one file or a directory. It supports PDF, common raster images, text, and the existing JSON document
 format. It uses local OCR/text extraction and either a deterministic label/value proposal or an optional
-OpenAI-compatible chat model for flat schema discovery followed by value extraction. Local loopback HTTP servers may
-run without an API key; remote providers require an HTTPS URL and server-side key. The model can replace the
+OpenAI-compatible chat model for scalar or bounded repeated-column schema discovery followed by value extraction.
+Local loopback HTTP servers may run without an API key; remote providers require an HTTPS URL and server-side key. The model can replace the
 heuristic schema. Proposed values require exact text-span evidence and a matching, JSON-round-trippable typed value
 for machine acceptance. Ambiguous boolean quotes and partial identifier matches stay pending review. A newly
 discovered schema is unapproved, so every document remains `needs_review` until an operator reviews it. There is no
-approved recipe or automatic release policy yet. The current contract covers scalar fields only; it does not extract
-table rows or guarantee useful fields on unfamiliar documents.
+approved recipe or automatic release policy yet. A model can propose repeated columns as `array[object]` values with
+shared row ordinals and per-cell text evidence; row links remain pending human review. This is not a visual table
+parser, stable row identity across versions, or a guarantee of useful fields on unfamiliar documents.
 
 `product_runs/<run_id>` contains `run.json` as the completion marker, `manifest.jsonl` with source hashes and per-document
 receipts, `candidates.jsonl`, and `docs/<doc_id>/result.json` with OCR pages, the proposal, model-call telemetry and
@@ -68,8 +74,9 @@ scalar fields. The API derives a document-scoped `correctedResult` from the immu
 review snapshot. Undecided machine values remain in review; human-added fields have no machine evidence. Review changes
 append revisioned events and reject stale saves. This is one-document adjudication, not an approved reusable recipe.
 
-This path runs as a child process of the single-host frontend server. It has no durable queue, retry budget, cancellation,
-approved schema registry, table/row result contract, per-user cloud quota, or verified Docker execution. Model-backed
+The single-host path runs as a child process of the frontend server; Docker sends it to one private worker that admits
+one active run and returns a busy error for another. It has no durable queue, cancellation, approved schema registry,
+reusable row recipe, per-user cloud quota, or verified live Docker execution. Model-backed
 UI runs are admin-only until cloud data and spend controls exist. It does not use the AHMN policy router, Guardrails
 service, or the separate XAI-HITL service. Its benchmarks and outputs must never be represented as the submitted paper's
 results or as the canonical research runtime's outputs.

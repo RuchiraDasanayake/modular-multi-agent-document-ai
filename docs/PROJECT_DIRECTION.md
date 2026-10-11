@@ -32,8 +32,8 @@ That means:
 - make accuracy, grounded field evidence, review burden, latency and compute/API spend visible together
 - discover document families and typed fields automatically, then stabilize recurring business fields in approved,
   versioned recipes; ambiguous or unsupported content must abstain for review
-- fix release blockers before calling the product deployable: access to another user's jobs/runs/artifacts and the
-  Docker frontend's placeholder runner
+- fix release blockers before calling the product deployable: access to another user's jobs/runs/artifacts, live Docker
+  worker verification, and durable bounded job execution
 - require measured quality or cost gains before keeping AHMN routing, agent loops or separate services in the
   operational hot path; the existing service layout is not a product requirement
 - use `docs/PRODUCTIZATION_PLAN.md` for target architecture and acceptance gates; `docs/SYSTEM_CONTRACT.md` continues
