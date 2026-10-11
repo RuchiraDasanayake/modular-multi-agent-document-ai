@@ -33,7 +33,6 @@ const ADDED_FIELD_ID = /^[a-z][a-z0-9_]{0,63}$/;
 const SCHEMA_FIELD_ID = /^[\p{L}][\p{L}\p{N}_]{0,63}$/u;
 const SCHEMA_TYPES = new Set(["string", "integer", "decimal", "boolean", "date", "array[object]"]);
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
-const interrupted = "The server stopped before extraction finished. Run the documents again.";
 const instanceId: string = (() => {
   const holder = globalThis as typeof globalThis & { __productAutoInstanceId?: string };
   holder.__productAutoInstanceId ??= randomUUID();
@@ -166,6 +165,47 @@ function linkedValueMatchesQuote(value: string, quote: string): boolean {
   return false;
 }
 
+function canonicalDecimal(value: string): string | null {
+  const match = /^([+-]?)(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(value);
+  if (!match) return null;
+  let digits = `${match[2]}${match[3] ?? ""}`.replace(/^0+/, "");
+  if (!digits) return "0";
+  let exponent = Number(match[4] ?? 0) - (match[3]?.length ?? 0);
+  while (digits.endsWith("0")) {
+    digits = digits.slice(0, -1);
+    exponent += 1;
+  }
+  return `${match[1] === "-" ? "-" : ""}${digits}e${exponent}`;
+}
+
+function acceptedScalarMatchesQuote(value: unknown, type: string, quote: string, fieldId: string): boolean {
+  if (type === "string" || type === "date") {
+    if (typeof value !== "string" || !value.trim()) return false;
+    if (type === "date" && (!/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+      Number.isNaN(Date.parse(`${value}T00:00:00Z`)) ||
+      new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) !== value)) return false;
+    const identifier = ["id", "number", "reference", "phone", "postal_code", "zip_code"].includes(fieldId) ||
+      ["_id", "_number", "_reference", "_code", "_phone"].some((suffix) => fieldId.endsWith(suffix));
+    return type === "string" && identifier
+      ? quote.trim().toLowerCase() === value.trim().toLowerCase()
+      : linkedValueMatchesQuote(value.trim(), quote);
+  }
+  if (type === "boolean") {
+    if (typeof value !== "boolean") return false;
+    const tokens = quote.toLowerCase().match(/(?<![\p{L}\p{N}_])(?:true|false|yes|no)(?![\p{L}\p{N}_])/gu) ?? [];
+    const polarities = new Set(tokens.map((token) => token === "true" || token === "yes"));
+    return polarities.size === 1 && polarities.has(value);
+  }
+  if (type === "integer" || type === "decimal") {
+    if (typeof value !== "number" || !Number.isFinite(value) || Math.abs(value) > Number.MAX_SAFE_INTEGER ||
+      type === "integer" && !Number.isSafeInteger(value)) return false;
+    const numbers = quote.match(/[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?/g) ?? [];
+    return numbers.length === 1 &&
+      canonicalDecimal(numbers[0].replaceAll(",", "")) === canonicalDecimal(String(value));
+  }
+  return false;
+}
+
 function machineLinkedRows(value: unknown): ProductAutoLinkedCell[] | null {
   if (!Array.isArray(value) || value.length > MAX_LINKED_ROWS) return null;
   const seen = new Set<number>();
@@ -221,7 +261,12 @@ function candidateFromArtifact(value: unknown, docId: string, pages: unknown): P
     }
     if (field.status === "accepted" && !field.evidence) throw new Error("Accepted value has no evidence.");
     if (field.evidence) assertSourceEvidence(field.evidence, pages);
-    if (schemaTypes.get(field.field_id) === "array[object]") {
+    const fieldType = schemaTypes.get(field.field_id)!;
+    if (field.status === "accepted" && fieldType !== "array[object]" &&
+      !acceptedScalarMatchesQuote(field.value, fieldType, field.evidence.quote, field.field_id)) {
+      throw new Error("Accepted value does not match its type and source quote.");
+    }
+    if (fieldType === "array[object]") {
       if (field.value === null) {
         if (field.status === "accepted") throw new Error("A missing linked field cannot be accepted.");
         continue;
@@ -378,12 +423,6 @@ function refreshRun(jobId: string, runId: string): RunRecord {
   if (record.status === "running" && fs.existsSync(path.join(outputDir(runId), "run.json"))) {
     finishRun(jobId, runId, 0);
     return readRunRecord(jobId, runId);
-  }
-  if (record.status === "running" && record.serverInstanceId !== instanceId) {
-    record.status = "failed";
-    record.error = interrupted;
-    record.endedAt = new Date().toISOString();
-    saveRunRecord(record);
   }
   return record;
 }
@@ -670,6 +709,9 @@ function parseAddedFields(
     const offset = page?.text.indexOf(quote) ?? -1;
     if (!page || offset < 0 || !linkedValueMatchesQuote(item.value.trim(), quote)) {
       throw new AccessError("Added field value and quote must match the OCR source page.", 400);
+    }
+    if (page.text.indexOf(quote, offset + 1) >= 0) {
+      throw new AccessError("Source quote occurs more than once on the page. Select a longer quote.", 400);
     }
     const start = [...page.text.slice(0, offset)].length;
     const evidence = { page: page.page, start, end: start + [...quote].length, quote };

@@ -75,7 +75,7 @@ test("automatic extraction keeps source access private and rejects conflicting r
   const docId = "doc1";
   const sidecarDir = path.join(dataDir, "product_runs", runId, "docs", docId);
   fs.mkdirSync(sidecarDir, { recursive: true });
-  const candidate = {
+  const candidate: ProductAutoCandidate = {
     contract_version: 1, doc_id: docId, document_status: "processed",
     proposed_schema: [{ field_id: "total", type: "string" }],
     extracted_values: [{ field_id: "total", value: "100", status: "accepted", review_state: "none",
@@ -182,6 +182,11 @@ test("automatic extraction keeps source access private and rejects conflicting r
   assert.equal((await post("alice", 2, [{ field_id: "total", decision: "remove" }],
     [{ field_id: "invoice_number", type: "string", value: "INV-7",
       evidence: { page: 1, start: 0, quote: "Invoice number: INV-7" } }])).status, 400);
+  const ambiguousQuote = await post("alice", 2, [{ field_id: "total", decision: "remove" }],
+    [{ field_id: "document_type", type: "string", value: "Invoice",
+      evidence: { page: 1, quote: "Invoice" } }]);
+  assert.equal(ambiguousQuote.status, 400);
+  assert.match((await ambiguousQuote.json()).error, /more than once/);
   assert.equal((await post("alice", 2, [{ field_id: "total", decision: "remove" }],
     Array.from({ length: 25 }, (_, index) => ({ field_id: `missed_${index}`, type: "string", value: "Invoice",
       evidence: { page: 1, quote: "Invoice" } })))).status, 400);
@@ -226,6 +231,59 @@ test("automatic extraction keeps source access private and rejects conflicting r
   const unresolved = await post("alice", 4, [{ field_id: "total", decision: "incorrect" }], []);
   assert.equal(unresolved.status, 200);
   assert.equal((await unresolved.json()).review.status, "pending");
+
+  const writeCandidate = () => fs.writeFileSync(path.join(sidecarDir, "result.json"), JSON.stringify({
+    pages: [{ page: 1, text: sourceText }], candidate,
+  }));
+  const evidenceFor = (quote: string) => {
+    const start = [...sourceText.slice(0, sourceText.indexOf(quote))].length;
+    return { page: 1, start, end: start + [...quote].length, quote };
+  };
+  candidate.extracted_values[0].value = "999";
+  writeCandidate();
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 500);
+  candidate.proposed_schema[0].type = "integer";
+  candidate.extracted_values[0].value = 100;
+  writeCandidate();
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 200);
+  candidate.extracted_values[0].value = 999;
+  writeCandidate();
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 500);
+  candidate.extracted_values[0].value = "100";
+  writeCandidate();
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 500);
+  candidate.proposed_schema[0].type = "decimal";
+  candidate.extracted_values[0].value = 12.5;
+  candidate.extracted_values[0].evidence = evidenceFor("12.50");
+  writeCandidate();
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 200);
+  candidate.proposed_schema[0].type = "boolean";
+  candidate.extracted_values[0].value = false;
+  candidate.extracted_values[0].evidence = evidenceFor("false");
+  writeCandidate();
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 200);
+  candidate.proposed_schema[0].type = "date";
+  candidate.extracted_values[0].value = "2026-02-10";
+  candidate.extracted_values[0].evidence = evidenceFor("2026-02-10");
+  writeCandidate();
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 200);
+}));
+
+test("reading a run owned by another live server does not mark it failed", async () => withStorage(async (dataDir) => {
+  const job = createWorkspaceJob({ ownerUserId: "alice-id" });
+  const runId = `auto_${"f".repeat(32)}`;
+  const directory = path.join(dataDir, "frontend", "auto_runs", job.jobId);
+  fs.mkdirSync(directory, { recursive: true });
+  const recordPath = path.join(directory, `${runId}.json`);
+  fs.writeFileSync(recordPath, JSON.stringify({
+    runId, jobId: job.jobId, status: "running", createdAt: new Date().toISOString(),
+    serverInstanceId: "another-live-server", selectedFiles: [], documents: [],
+  }));
+  const response = await listAutoRoute(request(`/api/jobs/${job.jobId}/auto`, "alice"),
+    { params: Promise.resolve({ jobId: job.jobId }) });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).runs[0].status, "running");
+  assert.equal(JSON.parse(fs.readFileSync(recordPath, "utf8")).status, "running");
 }));
 
 test("legacy not-present reviews derive a removal without added-field metadata", () => {
