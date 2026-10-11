@@ -38,3 +38,23 @@ complexity. The available execution modes are local CPU, an 8 GB local GPU, and 
 The current evidence is strong enough to replace expensive default service startup and to **test** better parsers.
 It is not strong enough to claim that a new OCR engine, VLM, queue, or database has already made the extractor
 world-class. Promotion requires the paired accuracy, evidence, cost and deployment gates above.
+
+## Broader parser scan and selection order
+
+The parser choice must be made at the **cell and field** level. A Markdown or reading-order benchmark does not
+establish that values have the right labels, rows, and source regions. These projects are credible comparators, not
+preselected replacements:
+
+| Project | Reusable capability | Deployment or rights constraint | Decision here |
+| --- | --- | --- | --- |
+| [pdfplumber](https://github.com/jsvine/pdfplumber/blob/stable/README.md) | Native PDF text, geometry, and `find_tables`/`extract_tables` with rows and cells. | Does not OCR scans. Its MIT-licensed, text-layer path should be much cheaper than a vision parser when the source PDF is sound; measure rather than assume the size of that gain. | Run a frozen native-PDF comparator with predeclared `lines` and `text` settings after the Docling diagnostic. Count scans as failed/no-table outcomes. |
+| [Docling](https://docling-project.github.io/docling/reference/docling_document/) | Versioned document structure and table cell model across PDF and office formats. | CPU conversion was already much slower than the cheap intake on a small native-PDF smoke. | Finish the 12-PDF exact cell/linked-row diagnostic before product integration. |
+| [PaddleOCR PP-StructureV3](https://www.paddleocr.ai/main/en/version3.x/pipeline_usage/PP-StructureV3.html) | Document layout and table recognition in one supported pipeline. | The official pipeline's model and memory requirements need a local CPU/GPU feasibility check; an 8 GB card has not been proven sufficient. | Compare only on the frozen hard subset where the cheaper parsers fail. |
+| [Marker](https://github.com/datalab-to/marker) and [Surya](https://github.com/datalab-to/surya) | Marker emits JSON blocks and table HTML/boxes; Surya 2 exposes OCR, layout and table recognition from one VLM. | Code is Apache-2.0, but the model weights have [additional commercial terms](https://github.com/datalab-to/marker/blob/master/MODEL_LICENSE). Their current GPU route expects vLLM in Docker; a CPU route uses llama.cpp. Neither local fit nor extraction accuracy is established here. | Keep as a bounded comparator if Docling/Paddle results leave a quality gap; check the exact weight terms and runtime before promotion. |
+| [MinerU](https://github.com/opendatalab/mineru) | Multi-format document parsing with Markdown/JSON and advanced table handling. | Its [custom license](https://github.com/opendatalab/MinerU/blob/master/LICENSE.md) adds commercial-scale thresholds and attribution for online services; do not label it plain Apache-2.0. | Consider only after a pinned version, output-geometry, resource and rights audit. |
+| [Unstructured OSS](https://github.com/Unstructured-IO/unstructured) | Broad input partitioning and a `hi_res` PDF table path; HTML can preserve table rows/cells. | `auto` selects fast native text or OCR-only for some PDFs; `hi_res` requires extra inference dependencies, and fallback can change the actual strategy. See its [strategy code](https://github.com/Unstructured-IO/unstructured/blob/main/unstructured/partition/strategies.py). | Useful file-format adapter candidate, but verify the effective strategy and score cells before using it as a table engine. |
+
+The next promotion decision is therefore a **measured routing rule**: native text/table extraction when reliable,
+specialist OCR/layout on scans or broken tables, and an expensive visual model only for pages that still fail. All
+branches must yield the same versioned parsed-document and source-evidence contract, and failures must remain in the
+reported denominator. A package's own aggregate score, especially one for Markdown, cannot replace this product gate.
