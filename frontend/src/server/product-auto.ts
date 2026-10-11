@@ -6,8 +6,10 @@ import { AccessError } from "@/server/auth";
 import { getCommandConfig, loadRunnerConfig } from "@/server/config";
 import { getJobOrThrow } from "@/server/jobs";
 import type {
+  ProductAutoAddedField,
   ProductAutoAuditEvent,
   ProductAutoCandidate,
+  ProductAutoCorrectedResult,
   ProductAutoDocumentDetail,
   ProductAutoReview,
   ProductAutoReviewDecision,
@@ -19,6 +21,9 @@ import type {
 const SAFE_ID = /^[a-zA-Z0-9_-]{1,100}$/;
 const MAX_REVIEW_NOTE = 2000;
 const MAX_CORRECTION = 10000;
+const MAX_ADDED_FIELDS = 100;
+const ADDED_FIELD_ID = /^[a-z][a-z0-9_]{0,63}$/;
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 const interrupted = "The server stopped before extraction finished. Run the documents again.";
 const instanceId: string = (() => {
   const holder = globalThis as typeof globalThis & { __productAutoInstanceId?: string };
@@ -307,8 +312,30 @@ function publicRun(record: RunRecord): ProductAutoRun {
 
 export function productAutoAvailability(): { available: boolean; modelConfigured: boolean } {
   const available = loadRunnerConfig().commands.some((command) => command.id === "idpo_process_auto");
-  const modelConfigured = Boolean(process.env.IDPO_AUTO_MODEL?.trim() && process.env.IDPO_AUTO_API_BASE_URL?.trim() && process.env.ICORE_API_KEY?.trim());
+  const model = process.env.IDPO_AUTO_MODEL?.trim();
+  const baseUrl = process.env.IDPO_AUTO_API_BASE_URL?.trim();
+  let modelConfigured = false;
+  if (model && baseUrl) {
+    try {
+      modelConfigured = !modelEndpointRequiresKey(baseUrl) || Boolean(process.env.ICORE_API_KEY?.trim());
+    } catch {
+      modelConfigured = false;
+    }
+  }
   return { available, modelConfigured };
+}
+
+function modelEndpointRequiresKey(baseUrl: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(baseUrl);
+  } catch {
+    throw new AccessError("The server model URL is invalid.", 503);
+  }
+  if (url.username || url.password) throw new AccessError("The server model URL must not contain credentials.", 503);
+  if (url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname)) return false;
+  if (url.protocol === "https:") return true;
+  throw new AccessError("The server model URL must use HTTPS or loopback HTTP.", 503);
 }
 
 export function listProductAutoRuns(jobId: string): ProductAutoRun[] {
@@ -337,7 +364,9 @@ export function startProductAutoRun(jobId: string, selectedFileIds: string[], ad
   const model = process.env.IDPO_AUTO_MODEL?.trim();
   const baseUrl = process.env.IDPO_AUTO_API_BASE_URL?.trim();
   if (Boolean(model) !== Boolean(baseUrl)) throw new AccessError("The server model configuration is incomplete.", 503);
-  if (model && !process.env.ICORE_API_KEY?.trim()) throw new AccessError("The server model key is missing.", 503);
+  if (baseUrl && modelEndpointRequiresKey(baseUrl) && !process.env.ICORE_API_KEY?.trim()) {
+    throw new AccessError("The server model key is missing.", 503);
+  }
   if (model && !admin) throw new AccessError("Admin access is required to start model-backed extraction.", 403);
   const documents = selectedFileIds.map((fileId) => job.documents?.find((document) => document.fileId === fileId));
   if (documents.some((document) => !document)) throw new AccessError("A selected document was not found.", 400);
@@ -390,24 +419,120 @@ export function getProductAutoDocument(jobId: string, runId: string, docId: stri
   const run = getProductAutoRun(jobId, runId);
   const document = run.documents.find((item) => item.docId === docId);
   if (run.status !== "success" || !document) throw new AccessError("Document result not found.", 404);
+  const candidate = readCandidate(runId, docId);
+  const auditTrail = readAuditTrail(jobId, runId, docId);
+  const review = auditTrail.at(-1)?.review_snapshot ?? null;
   return {
     runId, fileId: document.fileId, fileName: document.fileName,
-    candidate: readCandidate(runId, docId), review: readReview(jobId, runId, docId),
-    auditTrail: readAuditTrail(jobId, runId, docId),
+    candidate, review, auditTrail,
+    correctedResult: deriveProductAutoCorrectedResult(candidate, review),
   };
+}
+
+export function deriveProductAutoCorrectedResult(
+  candidate: ProductAutoCandidate, review: ProductAutoReview | null,
+): ProductAutoCorrectedResult {
+  const machineValues = new Map(candidate.extracted_values.map((item) => [item.field_id, item]));
+  const decisions = new Map(review?.fields.map((item) => [item.field_id, item]) ?? []);
+  const removed_field_ids: string[] = [];
+  const fields: ProductAutoCorrectedResult["fields"] = [];
+  for (const schema of candidate.proposed_schema) {
+    const decision = decisions.get(schema.field_id);
+    if (decision?.decision === "not_present" || decision?.decision === "remove") {
+      removed_field_ids.push(schema.field_id);
+      continue;
+    }
+    const machine = machineValues.get(schema.field_id);
+    const identity = { field_id: schema.field_id, type: schema.type, ...(schema.group ? { group: schema.group } : {}) };
+    if (decision?.decision === "corrected") {
+      let value: string | number | boolean | null = null;
+      try {
+        if (decision.corrected_value) value = parseCorrectedValue(decision.corrected_value, schema.type);
+      } catch {
+        // Older audit events could contain a correction that does not match the field type.
+      }
+      fields.push({ ...identity, value, status: value === null ? "needs_review" : "accepted", provenance: "human_correction" });
+    } else if (decision?.decision === "incorrect") {
+      fields.push({ ...identity, value: null, status: "needs_review", provenance: "machine" });
+    } else {
+      const verified = decision?.decision === "correct";
+      const status = verified ? machine?.value == null ? "missing" : "accepted" : "needs_review";
+      fields.push({ ...identity, value: machine?.value ?? null, status,
+        provenance: verified ? "human_verified" : "machine",
+        ...(machine?.evidence ? { evidence: machine.evidence } : {}) });
+    }
+  }
+  for (const added of [...(review?.added_fields ?? [])].sort((left, right) => left.field_id.localeCompare(right.field_id))) {
+    fields.push({ field_id: added.field_id, type: added.type, value: added.value,
+      status: "accepted", provenance: "human_added" });
+  }
+  return { scope: "document", doc_id: candidate.doc_id, review_revision: review?.revision ?? 0,
+    review_status: review?.status ?? "unreviewed", fields, removed_field_ids };
+}
+
+function parseCorrectedValue(raw: string, fieldType: string): string | number | boolean {
+  const text = raw.trim();
+  if (!text || text.length > MAX_CORRECTION) throw new AccessError("Invalid corrected value.", 400);
+  if (fieldType === "boolean") {
+    if (!/^(?:true|false|yes|no)$/i.test(text)) throw new AccessError("Correction must be a boolean.", 400);
+    return /^(?:true|yes)$/i.test(text);
+  }
+  if (fieldType === "integer" || fieldType === "decimal") {
+    if (!/^\$?\s*[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?$/.test(text)) {
+      throw new AccessError("Correction must be a number.", 400);
+    }
+    const value = Number(text.replace(/^\$\s*/, "").replaceAll(",", ""));
+    if (!Number.isFinite(value) || Math.abs(value) > Number.MAX_SAFE_INTEGER ||
+      fieldType === "integer" && !Number.isSafeInteger(value)) {
+      throw new AccessError("Correction is outside the supported numeric range.", 400);
+    }
+    return value;
+  }
+  if (fieldType === "date") {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(text) || Number.isNaN(Date.parse(`${text}T00:00:00Z`)) ||
+      new Date(`${text}T00:00:00Z`).toISOString().slice(0, 10) !== text) {
+      throw new AccessError("Correction must be a valid ISO date.", 400);
+    }
+  }
+  return text;
+}
+
+function parseAddedFields(values: unknown, proposedIds: Set<string>): ProductAutoAddedField[] {
+  if (!Array.isArray(values)) throw new AccessError("Added fields must be a list.", 400);
+  if (values.length > MAX_ADDED_FIELDS) throw new AccessError("Too many added fields.", 400);
+  const seen = new Set<string>();
+  return values.map((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new AccessError("Invalid added field.", 400);
+    const item = value as Record<string, unknown>;
+    const fieldId = item.field_id;
+    const type = item.type;
+    if (typeof fieldId !== "string" || !ADDED_FIELD_ID.test(fieldId) || proposedIds.has(fieldId) || seen.has(fieldId) ||
+      !["string", "integer", "decimal", "boolean", "date"].includes(String(type))) {
+      throw new AccessError("Invalid or repeated added field.", 400);
+    }
+    seen.add(fieldId);
+    if (item.note != null && typeof item.note !== "string") throw new AccessError("Invalid added field note.", 400);
+    const note = typeof item.note === "string" ? item.note.trim() : null;
+    if (note && note.length > MAX_REVIEW_NOTE) throw new AccessError("Added field note is too long.", 400);
+    if (typeof item.value !== "string") throw new AccessError("Invalid added field value.", 400);
+    const parsedValue = parseCorrectedValue(item.value, type as string);
+    return { field_id: fieldId, type: type as ProductAutoAddedField["type"], value: parsedValue, note };
+  });
 }
 
 export function saveProductAutoReview(
   jobId: string, runId: string, docId: string, reviewerUserId: string, expectedRevision: unknown, fields: unknown,
+  addedFields: unknown = [],
 ): ProductAutoReview {
   if (!Number.isSafeInteger(expectedRevision) || typeof expectedRevision !== "number" || expectedRevision < 0) {
     throw new AccessError("A valid expected review revision is required.", 400);
   }
-  return saveProductAutoReviewWithRevision(jobId, runId, docId, reviewerUserId, expectedRevision, fields);
+  return saveProductAutoReviewWithRevision(jobId, runId, docId, reviewerUserId, expectedRevision, fields, addedFields);
 }
 
 function saveProductAutoReviewWithRevision(
   jobId: string, runId: string, docId: string, reviewerUserId: string, expectedRevision: number, fields: unknown,
+  addedFields: unknown,
 ): ProductAutoReview {
   const detail = getProductAutoDocument(jobId, runId, docId);
   if ((detail.review?.revision ?? 0) !== expectedRevision) {
@@ -415,6 +540,8 @@ function saveProductAutoReviewWithRevision(
   }
   if (!Array.isArray(fields)) throw new AccessError("Review fields must be a list.", 400);
   const allowed = new Set(detail.candidate.proposed_schema.map((field) => field.field_id));
+  const fieldTypes = new Map(detail.candidate.proposed_schema.map((field) => [field.field_id, field.type]));
+  const parsedAdded = parseAddedFields(addedFields, allowed);
   const seen = new Set<string>();
   const parsed: ProductAutoReviewField[] = [];
   for (const value of fields) {
@@ -423,7 +550,7 @@ function saveProductAutoReviewWithRevision(
     const fieldId = item.field_id;
     const decision = item.decision;
     if (typeof fieldId !== "string" || !allowed.has(fieldId) || seen.has(fieldId) ||
-      !["correct", "incorrect", "corrected", "not_present"].includes(String(decision))) {
+      !["correct", "incorrect", "corrected", "not_present", "remove"].includes(String(decision))) {
       throw new AccessError("Invalid or repeated review field.", 400);
     }
     if (item.corrected_value != null && typeof item.corrected_value !== "string") throw new AccessError("Invalid corrected value.", 400);
@@ -434,6 +561,7 @@ function saveProductAutoReviewWithRevision(
       decision === "corrected" && !correctedValue || decision !== "corrected" && correctedValue) {
       throw new AccessError("Invalid review correction or note.", 400);
     }
+    if (decision === "corrected" && correctedValue) parseCorrectedValue(correctedValue, fieldTypes.get(fieldId) ?? "string");
     parsed.push({ field_id: fieldId, decision: decision as ProductAutoReviewDecision,
       corrected_value: correctedValue, note });
     seen.add(fieldId);
@@ -444,8 +572,9 @@ function saveProductAutoReviewWithRevision(
   const revision = (previous?.revision ?? 0) + 1;
   const review: ProductAutoReview = {
     review_version: 1, job_id: jobId, run_id: runId, doc_id: docId,
-    status: seen.size > 0 && seen.size === allowed.size ? "completed" : "pending",
-    reviewer_user_id: reviewerUserId, updated_at: createdAt, fields: parsed,
+    status: seen.size === allowed.size && (seen.size > 0 || parsedAdded.length > 0) &&
+      parsed.every((field) => field.decision !== "incorrect") ? "completed" : "pending",
+    reviewer_user_id: reviewerUserId, updated_at: createdAt, fields: parsed, added_fields: parsedAdded,
     revision, audit_event_id: eventId,
   };
   const machineValues = new Map(detail.candidate.extracted_values.map((item) => [item.field_id, item]));
@@ -459,6 +588,7 @@ function saveProductAutoReviewWithRevision(
         status: machine?.status ?? "not_proposed", evidence: machine?.evidence };
     }),
     review_fields: parsed,
+    review_added_fields: parsedAdded,
   };
   const directory = auditDir(jobId, runId, docId);
   publishAuditEvent(directory, event);

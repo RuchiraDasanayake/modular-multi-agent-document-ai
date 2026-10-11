@@ -7,7 +7,7 @@ import type {
   BenchmarkRunSummary,
   BenchmarkEvidencePayload,
 } from "@/types/idpo";
-import type { ProductAutoDocumentDetail, ProductAutoReview, ProductAutoReviewField, ProductAutoRun, ProductAutoSourceDocument } from "@/types/product-auto";
+import type { ProductAutoAddedFieldInput, ProductAutoCorrectedResult, ProductAutoDocumentDetail, ProductAutoReview, ProductAutoReviewField, ProductAutoRun, ProductAutoSourceDocument } from "@/types/product-auto";
 
 async function localRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
@@ -44,11 +44,11 @@ export const idpoApi = {
     return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(runId)}/docs/${encodeURIComponent(docId)}`);
   },
 
-  saveProductAutoReview(jobId: string, runId: string, docId: string, expectedRevision: number, fields: ProductAutoReviewField[]): Promise<{ review: ProductAutoReview }> {
+  saveProductAutoReview(jobId: string, runId: string, docId: string, expectedRevision: number, fields: ProductAutoReviewField[], addedFields: ProductAutoAddedFieldInput[]): Promise<{ review: ProductAutoReview; correctedResult: ProductAutoCorrectedResult }> {
     return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(runId)}/docs/${encodeURIComponent(docId)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ expected_revision: expectedRevision, fields }),
+      body: JSON.stringify({ expected_revision: expectedRevision, fields, added_fields: addedFields }),
     });
   },
 

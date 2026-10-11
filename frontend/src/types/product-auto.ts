@@ -1,6 +1,7 @@
 export type ProductAutoDocumentStatus = "processed" | "needs_review" | "unsupported" | "failed";
 export type ProductAutoValueStatus = "accepted" | "needs_review" | "missing" | "rejected";
-export type ProductAutoReviewDecision = "correct" | "incorrect" | "corrected" | "not_present";
+export type ProductAutoReviewDecision = "correct" | "incorrect" | "corrected" | "not_present" | "remove";
+export type ProductAutoScalarType = "string" | "integer" | "decimal" | "boolean" | "date";
 
 export interface ProductAutoField {
   field_id: string;
@@ -32,6 +33,20 @@ export interface ProductAutoReviewField {
   note?: string | null;
 }
 
+export interface ProductAutoAddedField {
+  field_id: string;
+  type: ProductAutoScalarType;
+  value: string | number | boolean;
+  note?: string | null;
+}
+
+export interface ProductAutoAddedFieldInput {
+  field_id: string;
+  type: ProductAutoScalarType;
+  value: string;
+  note?: string | null;
+}
+
 export interface ProductAutoReview {
   review_version: 1;
   job_id: string;
@@ -41,6 +56,8 @@ export interface ProductAutoReview {
   reviewer_user_id: string;
   updated_at: string;
   fields: ProductAutoReviewField[];
+  // Optional so review events written before human-added fields remain readable.
+  added_fields?: ProductAutoAddedField[];
   revision: number;
   audit_event_id: string;
 }
@@ -59,6 +76,26 @@ export interface ProductAutoAuditEvent {
     evidence?: ProductAutoValue["evidence"];
   }>;
   review_fields: ProductAutoReviewField[];
+  review_added_fields?: ProductAutoAddedField[];
+}
+
+export interface ProductAutoCorrectedField {
+  field_id: string;
+  type: string;
+  group?: string;
+  value: unknown;
+  status: "accepted" | "needs_review" | "missing";
+  provenance: "machine" | "human_verified" | "human_correction" | "human_added";
+  evidence?: ProductAutoValue["evidence"];
+}
+
+export interface ProductAutoCorrectedResult {
+  scope: "document";
+  doc_id: string;
+  review_revision: number;
+  review_status: "unreviewed" | "pending" | "completed";
+  fields: ProductAutoCorrectedField[];
+  removed_field_ids: string[];
 }
 
 export interface ProductAutoSourceDocument {
@@ -92,6 +129,7 @@ export interface ProductAutoDocumentDetail {
   fileId: string;
   fileName: string;
   candidate: ProductAutoCandidate;
+  correctedResult: ProductAutoCorrectedResult;
   review: ProductAutoReview | null;
   auditTrail: ProductAutoAuditEvent[];
 }
