@@ -470,18 +470,42 @@ def test_ocr_image_falls_back_to_tesseract_when_paddle_returns_no_text(tmp_path:
 
 
 def test_rasterize_pdf_page_renders_the_requested_page_of_an_image_only_pdf(tmp_path: Path) -> None:
+    import pypdfium2
+
     pdf_path = tmp_path / "scan.pdf"
-    first = Image.new("RGB", (400, 300), "white")
-    second = Image.new("RGB", (300, 500), "white")
+    first = Image.new("RGB", (400, 300), "red")
+    second = Image.new("RGB", (300, 500), "blue")
+    second.paste("green", (25, 30, 100, 80))
     first.save(pdf_path, "PDF", resolution=100, save_all=True, append_images=[second])
+
+    # An independent invocation of the pre-instrumentation PDFium pixel path.
+    pdf = pypdfium2.PdfDocument(str(pdf_path))
+    try:
+        pdf_page = pdf[1]
+        try:
+            bitmap = pdf_page.render(scale=100 / 72)
+            try:
+                expected_pixels = bitmap.to_pil().convert("RGB").copy().tobytes()
+            finally:
+                bitmap.close()
+        finally:
+            pdf_page.close()
+    finally:
+        pdf.close()
 
     page = Page(number=2, text="", image_path=str(pdf_path), metadata={"file_type": ".pdf", "pdf_page_index": 1})
     rendered = rasterize_pdf_page(page, "scan", _ctx(tmp_path), dpi=100)
 
     assert rendered.image_path is not None and rendered.image_path.endswith(".png")
     assert rendered.metadata["pdf_source_path"] == str(pdf_path)
+    assert rendered.metadata["pdf_renderer"] == "pdfium"
+    assert rendered.metadata["pdf_renderer_fallback_reason"] is None
+    assert rendered.metadata["pdf_page_index"] == 1
+    assert rendered.metadata["pdf_rendered_dpi"] == 100
+    assert rendered.metadata["pdf_render_size_px"] == [300, 500]
     with Image.open(rendered.image_path) as img:
         assert img.size == (300, 500)
+        assert img.convert("RGB").tobytes() == expected_pixels
 
 
 def test_rasterize_pdf_page_honors_pdf_page_rotation(tmp_path: Path) -> None:
@@ -498,6 +522,7 @@ def test_rasterize_pdf_page_honors_pdf_page_rotation(tmp_path: Path) -> None:
     rendered = rasterize_pdf_page(page, "rotated", _ctx(tmp_path), dpi=100)
 
     assert rendered.image_path is not None
+    assert rendered.metadata["pdf_page_rotation_deg"] == 90
     with Image.open(rendered.image_path) as img:
         assert img.size == (300, 400)
 
@@ -521,8 +546,96 @@ def test_pdfium_failure_falls_back_to_one_based_poppler_page(tmp_path: Path, mon
 
     actual = preprocess._render_pdf_page("scan.pdf", page_index=1, dpi=150)  # noqa: SLF001
 
-    assert actual is expected
+    assert actual.image is expected
+    assert actual.renderer == "poppler"
+    assert actual.fallback_reason == "pdfium_open_failed"
     assert calls == [("scan.pdf", {"first_page": 2, "last_page": 2, "poppler_path": str(tmp_path), "dpi": 150})]
+
+
+def test_both_pdf_renderers_fail_with_bounded_provenance(tmp_path: Path, monkeypatch) -> None:
+    import pypdfium2
+
+    def fail(*args, **kwargs):  # noqa: ANN002, ANN003, ARG001
+        raise RuntimeError("private/customer.pdf: sensitive document text")
+
+    monkeypatch.setattr(pypdfium2, "PdfDocument", fail)
+    monkeypatch.setattr("pdf2image.convert_from_path", fail)
+    page = Page(number=1, text="", image_path=str(tmp_path / "private.pdf"), metadata={"pdf_page_index": 0})
+
+    rendered = rasterize_pdf_page(page, "private", _ctx(tmp_path), dpi=150)
+
+    assert rendered.image_path == page.image_path
+    assert rendered.metadata["pdf_renderer"] == "none"
+    assert rendered.metadata["pdf_renderer_fallback_reason"] == "poppler_failed"
+    assert rendered.metadata["pdf_render_size_px"] is None
+    assert "private" not in str(rendered.metadata["pdf_renderer_fallback_reason"])
+
+
+def test_direct_pdf_poppler_provenance_only_after_a_page_is_rendered(monkeypatch) -> None:
+    from PIL import ImageSequence
+
+    image = Image.new("RGB", (40, 70), "white")
+    agent = OcrAgent()
+    monkeypatch.setattr("pdf2image.convert_from_path", lambda *args, **kwargs: [image])
+    monkeypatch.setattr(agent, "_find_poppler_path", lambda: None)
+    monkeypatch.setattr(agent, "_normalize_image", lambda frame, *args: frame)
+    monkeypatch.setattr(agent, "_apply_orientation_correction", lambda frame, *args: (frame, 0))
+    monkeypatch.setattr(agent, "_run_ocr_variants", lambda *args, **kwargs: ("Invoice 42", {}))
+    page = Page(number=2, text="", image_path="private.pdf", metadata={
+        "pdf_page_index": 1,
+        "pdf_page_rotation_deg": 90,
+        "pdf_renderer": "none",
+        "pdf_renderer_fallback_reason": "poppler_failed",
+    })
+
+    text, failure, meta = agent._ocr_pdf_page(  # noqa: SLF001
+        "private.pdf", page, object(), Image, ImageSequence, None, "eng", 6, 3, [], 150
+    )
+
+    assert (text, failure) == ("Invoice 42", None)
+    assert meta["pdf_renderer"] == "poppler_direct"
+    assert meta["pdf_page_index"] == 1
+    assert meta["pdf_page_rotation_deg"] == 90
+    assert meta["pdf_rendered_dpi"] == 150
+    assert meta["pdf_render_size_px"] == [40, 70]
+
+    monkeypatch.setattr("pdf2image.convert_from_path", lambda *args, **kwargs: [])
+    monkeypatch.setattr(Image, "open", lambda *args, **kwargs: (_ for _ in ()).throw(OSError("failed")))
+    _, failure, meta = agent._ocr_pdf_page(  # noqa: SLF001
+        "private.pdf", page, object(), Image, ImageSequence, None, "eng", 6, 3, [], 150
+    )
+    assert failure == "pdf_render_failed"
+    assert "pdf_renderer" not in meta
+
+
+def test_ocr_run_preserves_direct_pdf_renderer_metadata(tmp_path: Path, monkeypatch) -> None:
+    agent = OcrAgent()
+    page = Page(number=1, text="", image_path="scan.pdf", metadata={
+        "pdf_page_index": 0,
+        "pdf_renderer": "none",
+        "pdf_renderer_fallback_reason": "poppler_failed",
+    })
+    monkeypatch.setattr(preprocess, "rasterize_pdf_page", lambda page, doc_id, ctx, dpi: page)
+    monkeypatch.setattr(agent, "_ocr_image", lambda page, settings, engine_name: (
+        "Invoice Number INV-42", True, None, {
+            "ocr_engine_used": "tesseract",
+            "ocr_confidence": 90.0,
+            "pdf_renderer": "poppler_direct",
+            "pdf_renderer_fallback_reason": "poppler_failed",
+            "pdf_page_index": 0,
+            "pdf_page_rotation_deg": 90,
+            "pdf_rendered_dpi": 300,
+            "pdf_render_size_px": [500, 700],
+        }
+    ))
+    document = Document(doc_id="scan", source="scanned", path="scan.pdf", pages=[page])
+
+    result = agent.run({"document": document}, _ctx(tmp_path))
+    metadata = result.artifacts["document"].pages[0].metadata
+
+    assert metadata["pdf_renderer"] == "poppler_direct"
+    assert metadata["pdf_page_rotation_deg"] == 90
+    assert metadata["pdf_render_size_px"] == [500, 700]
 
 
 def test_pdfium_render_is_serialized_and_image_does_not_share_bitmap_buffer(monkeypatch) -> None:
@@ -572,7 +685,7 @@ def test_pdfium_render_is_serialized_and_image_does_not_share_bitmap_buffer(monk
         images = list(pool.map(lambda _: preprocess._render_pdf_page("scan.pdf", 0, 100), range(4)))
 
     assert state == {"active": 0, "peak": 1}
-    assert all(image is not None and image.getpixel((0, 0)) == (255, 255, 255) for image in images)
+    assert all(result.renderer == "pdfium" and result.image.getpixel((0, 0)) == (255, 255, 255) for result in images)
 
 
 def test_rasterize_pdf_page_leaves_image_pages_untouched(tmp_path: Path) -> None:

@@ -108,6 +108,12 @@ class IntakeAgent:
         garbled_detected = False
         for idx, page in enumerate(reader.pages, start=1):
             raw_text = page.extract_text() or ""
+            try:
+                stored_rotation = int(page.rotation)
+                if stored_rotation not in {0, 90, 180, 270}:
+                    stored_rotation = None
+            except Exception:
+                stored_rotation = None
             # Normalize whitespace: collapse double/triple spaces from PDF extractors
             import re
             text = re.sub(r"[ \t]+", " ", raw_text).strip()
@@ -123,7 +129,11 @@ class IntakeAgent:
                     text=text,
                     raw_text=raw_text,
                     image_path=str(path),
-                    metadata={"file_type": ".pdf", "pdf_page_index": idx - 1},
+                    metadata={
+                        "file_type": ".pdf",
+                        "pdf_page_index": idx - 1,
+                        "pdf_page_rotation_deg": stored_rotation,
+                    },
                 )
             )
         if not pages:

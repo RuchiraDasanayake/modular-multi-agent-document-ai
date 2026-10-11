@@ -294,6 +294,12 @@ def _process_document(
                 "retry_path": page.metadata.get("ocr_retry_path"),
                 "candidate_count": page.metadata.get("ocr_candidate_count"),
                 "failure_reason": page.metadata.get("ocr_failure_reason"),
+                "pdf_renderer": page.metadata.get("pdf_renderer"),
+                "pdf_renderer_fallback_reason": page.metadata.get("pdf_renderer_fallback_reason"),
+                "pdf_page_index": page.metadata.get("pdf_page_index"),
+                "pdf_page_rotation_deg": page.metadata.get("pdf_page_rotation_deg"),
+                "pdf_rendered_dpi": page.metadata.get("pdf_rendered_dpi"),
+                "pdf_render_size_px": page.metadata.get("pdf_render_size_px"),
             }
             for page in processed_doc.pages
         ]

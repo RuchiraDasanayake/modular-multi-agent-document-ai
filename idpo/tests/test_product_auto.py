@@ -94,6 +94,40 @@ def test_invoice_baseline_preserves_zero_and_exact_spans(tmp_path: Path) -> None
     assert verify_run(run["run_dir"])["distinct_sources"] == 1
 
 
+def test_product_sidecar_whitelists_pdf_renderer_provenance(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "scan.pdf"
+    Image.new("RGB", (80, 60), "white").save(source, "PDF", resolution=100)
+    monkeypatch.setattr(OcrAgent, "_ocr_image", lambda self, page, settings, engine_name="paddle": (
+        "Invoice Number INV-42", True, None, {"ocr_engine_used": "test", "ocr_confidence": 80.0}
+    ))
+
+    run = process_auto(source, run_id="pdf-renderer", output_root=tmp_path / "runs")
+    _, sidecar = _result(run["run_dir"])
+    page = sidecar["ocr_pages"][0]
+    renderer_fields = {key: value for key, value in page.items() if key.startswith("pdf_")}
+
+    assert set(renderer_fields) == {
+        "pdf_renderer", "pdf_renderer_fallback_reason", "pdf_page_index",
+        "pdf_page_rotation_deg", "pdf_rendered_dpi", "pdf_render_size_px",
+    }
+    assert page["pdf_renderer"] == "pdfium"
+    assert page["pdf_renderer_fallback_reason"] is None
+    assert page["pdf_page_index"] == 0
+    assert page["pdf_page_rotation_deg"] == 0
+    assert page["pdf_rendered_dpi"] == 300
+    assert 239 <= page["pdf_render_size_px"][0] <= 241
+    assert 179 <= page["pdf_render_size_px"][1] <= 181
+    assert "source_sha256" in sidecar
+    assert not any(str(source) in str(value) for value in renderer_fields.values())
+
+    native = tmp_path / "native.txt"
+    native.write_text("Invoice Number INV-42", encoding="utf-8")
+    native_run = process_auto(native, run_id="native-renderer", output_root=tmp_path / "runs")
+    _, native_sidecar = _result(native_run["run_dir"])
+    assert native_sidecar["ocr_pages"][0]["pdf_renderer"] is None
+    assert native_sidecar["ocr_pages"][0]["pdf_render_size_px"] is None
+
+
 def test_product_auto_sets_single_initial_ocr_profile(tmp_path: Path, monkeypatch) -> None:
     source = tmp_path / "invoice.txt"
     source.write_text("Invoice Number: INV-42\n", encoding="utf-8")
