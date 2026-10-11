@@ -26,6 +26,23 @@ and hashes the actual source bytes (or the individual canonical JSON-array entry
 raise the unique-source count. A 2,000-source execution report proves volume and failure coverage; a field-quality
 claim additionally requires an adjudicated gold set and `product_eval.cli` scoring on the matching candidate IDs.
 
+For repeatable **no-model** gates, `run_gate` launches each disjoint input directory as a separate real `process-auto`
+subprocess, verifies every source hash, joins all candidate records, requires the candidate IDs to equal the gold IDs,
+and writes execution, quality, provenance, exit-code and per-shard log files. Use a new gate ID and report directory for
+each candidate; partial shards are never silently reused. It removes provider secrets from the child environment and
+records the Git commit and whether the working tree was dirty. Example:
+
+```powershell
+python -m product_eval.run_gate --gold path/to/gold.jsonl --data-dir path/to/runtime `
+  --report-dir path/to/gate-v4 --gate-id vrdu_v4 --min-unique 2000 --workers 4 `
+  path/to/shards/ad_00 path/to/shards/ad_01 path/to/shards/reg_00 path/to/shards/reg_01 `
+  path/to/shards/reg_02 path/to/shards/reg_03 path/to/shards/reg_04 path/to/shards/reg_05
+```
+
+The gate records the sum of document durations, not parallel wall time. It cannot establish API, compute or reviewer
+cost when those measurements are absent, and it does not turn a two-family development cohort into a generalization
+holdout. Model-backed gates need a separate hard spend/data policy before this runner is extended to launch them.
+
 ## JSONL contract
 
 Each line is one JSON object with `contract_version: 1` and a stable, unique `doc_id`. Gold and candidate files are separate. The scorer joins by exact `doc_id`; a missing candidate document is scored as no output, while an unknown candidate document is an error.
