@@ -15,6 +15,7 @@ from idpo.agents.preprocess import OcrAgent
 from idpo.product_auto import process_auto
 from idpo.product_auto.provider import ModelReply, OpenAICompatibleChat
 from product_eval.contracts import load_jsonl
+from product_eval.execution import verify_run
 
 
 def _result(run_dir: str) -> tuple[dict, dict]:
@@ -68,6 +69,10 @@ def test_invoice_baseline_preserves_zero_and_exact_spans(tmp_path: Path) -> None
     assert sidecar["api_cost_usd"] is None
     assert sidecar["stage_timings_ms"]["ocr"] >= 0
     assert sidecar["source_prepare_ms"] >= 0
+    usage = sidecar["resource_usage"]
+    assert usage["worker_process_cpu_ms"] >= usage["source_prepare_worker_process_cpu_ms"] >= 0
+    assert usage["worker_rss_before_bytes"] is None or usage["worker_rss_before_bytes"] >= 0
+    assert usage["worker_rss_after_bytes"] is None or usage["worker_rss_after_bytes"] >= 0
     assert candidate["measurements"]["latency_ms"] >= 0
     assert "api_cost_usd" not in candidate["measurements"]
     _assert_exact_evidence(candidate, sidecar)
@@ -80,7 +85,13 @@ def test_invoice_baseline_preserves_zero_and_exact_spans(tmp_path: Path) -> None
     assert receipt["document_status"] == "needs_review"
     assert receipt["run_id"] == "invoice"
     assert receipt["duration_ms"] >= 0
-    assert json.loads((Path(run["run_dir"]) / "run.json").read_text(encoding="utf-8"))["doc_count"] == 1
+    assert receipt["resource_usage"] == usage
+    run_metadata = json.loads((Path(run["run_dir"]) / "run.json").read_text(encoding="utf-8"))
+    assert run_metadata["doc_count"] == 1
+    assert run_metadata["resource_usage"]["worker_process_cpu_ms"] >= 0
+    assert run_metadata["resource_usage"]["rss_method"] == "boundary_snapshots; not peak memory"
+    assert run_metadata["compute_cost_usd"] is None
+    assert verify_run(run["run_dir"])["distinct_sources"] == 1
 
 
 def test_product_auto_sets_single_initial_ocr_profile(tmp_path: Path, monkeypatch) -> None:
@@ -140,6 +151,7 @@ def test_over_page_limit_pdf_abstains_before_ocr(tmp_path: Path) -> None:
     assert candidate["document_status"] == "unsupported"
     assert candidate["proposed_schema"] == []
     assert sidecar["reason"] == "too_many_pages"
+    assert sidecar["resource_usage"]["worker_process_cpu_ms"] >= 0
 
 
 def test_narrative_without_model_abstains_and_empty_document_is_unsupported(tmp_path: Path) -> None:

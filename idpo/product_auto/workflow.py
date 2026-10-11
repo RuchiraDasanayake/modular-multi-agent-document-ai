@@ -28,6 +28,7 @@ from idpo.product_auto.logic import (
     values_prompt,
 )
 from idpo.product_auto.provider import ModelReply
+from idpo.product_auto.resource_telemetry import ResourceProbe, elapsed_cpu_ms
 
 CONTRACT_VERSION = 1
 SUPPORTED_INPUT_EXTS = {".json", ".txt", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
@@ -61,6 +62,8 @@ def process_auto(
     source evidence is checked locally before a value can be accepted.
     """
     run_started = time.perf_counter()
+    resource_probe = ResourceProbe()
+    run_resources_started = resource_probe.snapshot()
     source = Path(input_path).resolve()
     if source.is_file():
         files = [source]
@@ -104,6 +107,7 @@ def process_auto(
     counts = {"processed": 0, "needs_review": 0, "unsupported": 0, "failed": 0}
     for file_path in files:
         file_started = time.perf_counter()
+        file_resources_started = resource_probe.snapshot()
         container_hash = _sha256_file(file_path)
         container_size = file_path.stat().st_size
         if file_path.suffix.lower() not in SUPPORTED_INPUT_EXTS:
@@ -144,11 +148,22 @@ def process_auto(
             except Exception:  # noqa: BLE001 - a bad input must not abort the batch
                 rows = [(_doc_id(file_path.name, container_hash, 0), None, "parse_failed", 0, container_hash, container_size, "raw_file")]
         shared_prepare_ms = (time.perf_counter() - file_started) * 1000 / len(rows)
+        shared_prepare_cpu_ms = elapsed_cpu_ms(file_resources_started, resource_probe.snapshot()) / len(rows)
 
         for doc_id, document, initial_reason, source_index, source_hash, source_size, hash_kind in rows:
             started = time.perf_counter()
+            doc_resources_started = resource_probe.snapshot()
             candidate, sidecar = _process_document(doc_id, document, ctx, ocr, model, initial_reason)
+            doc_resources_ended = resource_probe.snapshot()
             duration_ms = round(shared_prepare_ms + (time.perf_counter() - started) * 1000, 3)
+            resource_usage = {
+                "worker_process_cpu_ms": round(
+                    shared_prepare_cpu_ms + elapsed_cpu_ms(doc_resources_started, doc_resources_ended), 3
+                ),
+                "source_prepare_worker_process_cpu_ms": round(shared_prepare_cpu_ms, 3),
+                "worker_rss_before_bytes": doc_resources_started.worker_rss_bytes,
+                "worker_rss_after_bytes": doc_resources_ended.worker_rss_bytes,
+            }
             candidate["measurements"] = {"latency_ms": duration_ms}
             sidecar.update({
                 "run_id": resolved_run_id,
@@ -161,6 +176,7 @@ def process_auto(
                 "source_container_sha256": container_hash,
                 "duration_ms": duration_ms,
                 "source_prepare_ms": round(shared_prepare_ms, 3),
+                "resource_usage": resource_usage,
                 "document_status": candidate["document_status"],
                 "candidate": candidate,
             })
@@ -185,11 +201,13 @@ def process_auto(
                 "page_count": len(sidecar["pages"]),
                 "model_call_count": len(sidecar["model_calls"]),
                 "model_sdk_attempt_count": _known_sdk_attempts(sidecar["model_calls"]),
+                "resource_usage": resource_usage,
             })
 
     _write_jsonl(run_dir / "candidates.jsonl", candidates)
     _write_jsonl(run_dir / "manifest.jsonl", receipts)
     known_attempts = [receipt["model_sdk_attempt_count"] for receipt in receipts]
+    run_resources_ended = resource_probe.snapshot()
     run_payload = {
         "contract_version": CONTRACT_VERSION,
         "run_id": resolved_run_id,
@@ -210,6 +228,14 @@ def process_auto(
             if all(type(attempts) is int for attempts in known_attempts) else None
         ),
         "duration_ms": round((time.perf_counter() - run_started) * 1000, 3),
+        "resource_usage": {
+            "worker_process_cpu_ms": round(elapsed_cpu_ms(run_resources_started, run_resources_ended), 3),
+            "worker_rss_start_bytes": run_resources_started.worker_rss_bytes,
+            "worker_rss_end_bytes": run_resources_ended.worker_rss_bytes,
+            "scope": "worker process and its threads; excludes OCR subprocesses and remote model compute",
+            "rss_method": "boundary_snapshots; not peak memory",
+            "source_prepare_allocation": "evenly divided among documents parsed from one input file",
+        },
         "api_cost_usd": None,
         "compute_cost_usd": None,
         "total_cost_usd": None,
