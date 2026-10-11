@@ -53,6 +53,7 @@ Gold records contain:
 - `pages`: immutable normalized page text as `{ "page": 1, "text": "..." }`. Page numbers start at 1.
 - `gold_schema`: fields with canonical `field_id`, `type`, optional `group`, and required boolean `critical`.
 - `gold_values`: exactly one record per gold field, with a required `value`. JSON `null` means the field is genuinely absent; numeric zero and empty string are values. A non-null value may have adjudicated `evidence`.
+- A linked field with `type: "array[object]"` uses `value: [{"row": 0, "value": "..."}, ...]`. Row ordinals are unique within that field and start at zero. This is the VRDU adapter's derived structure, not a general table interchange format.
 
 Candidate records contain:
 
@@ -69,6 +70,7 @@ Field IDs are case-sensitive canonical IDs assigned during human gold adjudicati
 
 - Schema precision/recall/F1 count matched, spurious, and missed field IDs. Type and group accuracies have their own matched-field denominators.
 - Value precision/recall/F1 score **pre-review** accepted values using strict JSON type and value equality. A wrong accepted value contributes one false positive and, if gold has a value, one false negative. An abstention on a present gold value contributes one false negative. `0`, `0.0`, `false`, and `null` remain distinct. No date, currency, or text normalization is implied by this v1 scorer.
+- `linked_rows` separately scores exact proposed and accepted cells by field ID, row ordinal, and OCR surface string. It also counts a complete row only when every predicted field/value on that ordinal equals gold. This diagnostic uses derived ordinals and does not perform semantic row alignment or the official VRDU matcher.
 - `false_accepted` counts wrong, absent, or unknown accepted fields; `critical_false_accepted` is the subset on known critical gold fields. The two missing/zero counters expose missing declared for gold numeric zero and accepted numeric zero for gold absence.
 - Evidence presence and validity use accepted fields with a gold span as the denominator. Incomplete or page-only references fail presence; incorrect quote, span, or value fail validity.
 - Field automation is accepted gold fields with `review_state: none` divided by all gold fields. Review rates count a field or document requiring or receiving human review. Document automation counts processed documents with no review signal. These coverage metrics do not assert correctness.
@@ -76,4 +78,4 @@ Field IDs are case-sensitive canonical IDs assigned during human gold adjudicati
 
 Every metric includes its numerator and denominator or the underlying counts; undefined ratios are JSON `null`. `per_field` and `per_document` list outcomes without copying document text or field values into the report. `measurements` reports coverage and observed sums; partial sums are not totals for the batch.
 
-This first scorer does not evaluate line-item row alignment, semantic aliases, reviewer corrections, calibrated confidence, OCR accuracy, or normalized business values. Those require adjudicated contracts and dedicated metrics before product claims are made.
+This scorer does not evaluate semantic row alignment across reordered or split tables, semantic aliases, reviewer corrections, calibrated confidence, OCR accuracy, or normalized business values. Those require adjudicated contracts and dedicated metrics before product claims are made.

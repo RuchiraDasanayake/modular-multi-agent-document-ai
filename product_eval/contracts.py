@@ -106,6 +106,25 @@ def _validate_gold_evidence(value: Any, pages: dict[int, str], label: str) -> No
         raise ContractError(f"{label}.quote must equal the source text span")
 
 
+def _validate_linked_entries(value: Any, label: str) -> None:
+    if value is None:
+        return
+    if not isinstance(value, list):
+        raise ContractError(f"{label} must be null or a row-indexed array")
+    seen_rows: set[int] = set()
+    for index, raw in enumerate(value):
+        entry = _require_object(raw, f"{label}[{index}]")
+        row = entry.get("row")
+        if type(row) is not int or row < 0 or row in seen_rows:
+            raise ContractError(f"{label}[{index}].row must be a unique non-negative integer")
+        seen_rows.add(row)
+        _require_name(entry.get("value"), f"{label}[{index}].value")
+        if "status" in entry and entry["status"] not in FIELD_STATUSES:
+            raise ContractError(f"{label}[{index}].status is invalid")
+        if "evidence" in entry and entry["evidence"] is not None and not isinstance(entry["evidence"], dict):
+            raise ContractError(f"{label}[{index}].evidence must be an object or null")
+
+
 def validate_record(record: Any, *, kind: str, label: str = "record") -> None:
     record = _require_object(record, label)
     if type(record.get("contract_version")) is not int or record["contract_version"] != CONTRACT_VERSION:
@@ -129,6 +148,8 @@ def validate_record(record: Any, *, kind: str, label: str = "record") -> None:
         for field_id, item in values.items():
             if "value" not in item:
                 raise ContractError(f"{label}.gold_values.{field_id}.value is required (null means absent)")
+            if schema[field_id]["type"] == "array[object]":
+                _validate_linked_entries(item["value"], f"{label}.gold_values.{field_id}.value")
             if item["value"] is None and item.get("evidence") is not None:
                 raise ContractError(f"{label}.gold_values.{field_id}: absent values cannot have evidence")
             if item.get("evidence") is not None:
@@ -140,12 +161,16 @@ def validate_record(record: Any, *, kind: str, label: str = "record") -> None:
     status = record.get("document_status")
     if not isinstance(status, str) or status not in DOCUMENT_STATUSES:
         raise ContractError(f"{label}.document_status must be one of {sorted(DOCUMENT_STATUSES)}")
-    _validate_schema(record.get("proposed_schema"), f"{label}.proposed_schema", gold=False)
+    schema = _validate_schema(record.get("proposed_schema"), f"{label}.proposed_schema", gold=False)
     values = _unique_fields(record.get("extracted_values"), f"{label}.extracted_values")
     for field_id, item in values.items():
         field_label = f"{label}.extracted_values.{field_id}"
         if "value" not in item:
             raise ContractError(f"{field_label}.value is required (null means absent)")
+        if isinstance(item["value"], list) or (
+            field_id in schema and schema[field_id]["type"] == "array[object]"
+        ):
+            _validate_linked_entries(item["value"], f"{field_label}.value")
         if not isinstance(item.get("status"), str) or item["status"] not in FIELD_STATUSES:
             raise ContractError(f"{field_label}.status must be one of {sorted(FIELD_STATUSES)}")
         if not isinstance(item.get("review_state"), str) or item["review_state"] not in REVIEW_STATES:

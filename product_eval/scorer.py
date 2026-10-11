@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from product_eval.contracts import ContractError, validate_record
+from product_eval.linked_rows import linked_row_counts
 
 
 def _rate(numerator: int, denominator: int) -> float | None:
@@ -94,6 +95,10 @@ def score_records(
     schema = Counter()
     values = Counter()
     evidence = Counter()
+    linked = {
+        name: Counter()
+        for name in ("totals", "proposed_cells", "accepted_cells", "proposed_complete_rows", "accepted_complete_rows")
+    }
     operations = Counter()
     measurement_counts = Counter()
     observed_measurements = Counter()
@@ -111,6 +116,9 @@ def score_records(
         proposed_schema = {item["field_id"]: item for item in candidate["proposed_schema"]} if candidate else {}
         extracted_values = {item["field_id"]: item for item in candidate["extracted_values"]} if candidate else {}
         pages = {item["page"]: item["text"] for item in gold["pages"]}
+        doc_linked = linked_row_counts(gold_schema, gold_values, proposed_schema, extracted_values)
+        for metric, counts in doc_linked.items():
+            linked[metric].update(counts)
 
         operations["gold_field_count"] += len(gold_schema)
         operations["orphan_extracted_values"] += len(set(extracted_values) - set(proposed_schema))
@@ -269,6 +277,8 @@ def score_records(
                 "critical_evidence_valid": doc_critical_evidence_valid,
                 "correct_auto_release": correct_auto_release,
                 "total_cost_reported": "total_cost_usd" in measurements,
+                "gold_linked_rows": doc_linked["totals"]["gold_rows"],
+                "proposed_complete_linked_rows": doc_linked["proposed_complete_rows"]["tp"],
             }
         )
         for name in ("latency_ms", "api_cost_usd", "compute_cost_usd", "total_cost_usd", "review_minutes"):
@@ -304,6 +314,14 @@ def score_records(
             "critical_false_accepted": values["critical_false_accepted"],
             "gold_zero_predicted_missing": values["gold_zero_predicted_missing"],
             "gold_missing_predicted_zero": values["gold_missing_predicted_zero"],
+        },
+        "linked_rows": {
+            "matching": "Exact derived field ID, row ordinal, and OCR surface string; not the official VRDU matcher or a semantic alignment.",
+            **dict(linked["totals"]),
+            "proposed_cells": _prf(**linked["proposed_cells"]),
+            "accepted_cells": _prf(**linked["accepted_cells"]),
+            "proposed_complete_rows": _prf(**linked["proposed_complete_rows"]),
+            "accepted_complete_rows": _prf(**linked["accepted_complete_rows"]),
         },
         "evidence": {
             "evaluable_accepted_values": evidence["evaluable_accepted_values"],

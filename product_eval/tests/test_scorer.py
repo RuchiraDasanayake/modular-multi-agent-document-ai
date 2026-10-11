@@ -154,6 +154,51 @@ def test_duplicate_document_and_field_ids_are_rejected(tmp_path: Path) -> None:
         score_records(gold, candidate)
 
 
+def test_linked_rows_score_cells_and_complete_record_structure_separately() -> None:
+    gold = {
+        "linked-1": {
+            "contract_version": 1, "doc_id": "linked-1",
+            "pages": [{"page": 1, "text": "A 10\nB 20\n"}],
+            "gold_schema": [
+                {"field_id": "item", "type": "array[object]", "critical": False},
+                {"field_id": "amount", "type": "array[object]", "critical": False},
+            ],
+            "gold_values": [
+                {"field_id": "item", "value": [{"row": 0, "value": "A"}, {"row": 1, "value": "B"}]},
+                {"field_id": "amount", "value": [{"row": 0, "value": "10"}, {"row": 1, "value": "20"}]},
+            ],
+        }
+    }
+    candidate = {
+        "linked-1": {
+            "contract_version": 1, "doc_id": "linked-1", "document_status": "needs_review",
+            "proposed_schema": [
+                {"field_id": "item", "type": "array[object]"},
+                {"field_id": "amount", "type": "array[object]"},
+            ],
+            "extracted_values": [
+                {"field_id": "item", "value": [{"row": 0, "value": "A"}, {"row": 1, "value": "B"}],
+                 "status": "needs_review", "review_state": "pending"},
+                {"field_id": "amount", "value": [{"row": 0, "value": "10"}, {"row": 1, "value": "99"}],
+                 "status": "needs_review", "review_state": "pending"},
+            ],
+        }
+    }
+    rows = score_records(gold, candidate)["linked_rows"]
+    assert rows["gold_cells"] == 4
+    assert rows["gold_rows"] == 2
+    assert rows["proposed_cells"] == {"tp": 3, "fp": 1, "fn": 1, "precision": 0.75, "recall": 0.75, "f1": 0.75}
+    assert rows["proposed_complete_rows"]["tp"] == 1
+    assert rows["proposed_complete_rows"]["fp"] == 1
+    assert rows["proposed_complete_rows"]["fn"] == 1
+    assert rows["accepted_cells"]["tp"] == 0
+    assert rows["accepted_cells"]["fn"] == 4
+
+    candidate["linked-1"]["extracted_values"][0]["value"][1]["row"] = 0
+    with pytest.raises(ContractError, match="unique non-negative"):
+        score_records(gold, candidate)
+
+
 def test_cli_min_documents_guard(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     from product_eval.cli import main
 

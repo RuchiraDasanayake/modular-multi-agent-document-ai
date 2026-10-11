@@ -204,7 +204,7 @@ def _diagnostics(
         "evidence_text_comparison": dict(sorted(evidence_text.items())),
         "notes": [
             "Missed and spurious field IDs may reflect canonicalization gaps; semantic aliases are not inferred.",
-            "array[object] is a complete linked-row exact match, not a per-row alignment metric.",
+            "The values metric treats array[object] as one complete field; linked_rows adds strict row-indexed cell and complete-row diagnostics, not the creator's matcher.",
             "A quote differing from official OCR at a candidate span is ambiguous across independent OCR outputs; it is not proof of model grounding failure.",
         ],
     }
