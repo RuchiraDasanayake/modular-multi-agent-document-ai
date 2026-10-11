@@ -14,11 +14,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
+from idpo.core.preflight import find_tesseract_cmd
 from product_eval.contracts import ContractError, load_jsonl
 from product_eval.execution import verify_runs
 from product_eval.scorer import score_records
 
 _SAFE_ID = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
+_OCR_INPUT_EXTS = {".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -41,12 +43,103 @@ def _write_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
-def _run_shard(shard: Path, run_id: str, data_dir: Path, report_dir: Path, repository_root: Path) -> int:
+def _requires_ocr(shards: list[Path]) -> bool:
+    return any(
+        source.is_file() and source.suffix.lower() in _OCR_INPUT_EXTS
+        for shard in shards for source in shard.iterdir()
+    )
+
+
+def _preflight_ocr() -> dict[str, Any]:
+    """Fail before a gate starts if scanned inputs cannot use English OCR."""
+    command = find_tesseract_cmd()
+    if not command:
+        raise ValueError("OCR preflight failed: Tesseract is unavailable; set TESSERACT_CMD to its executable")
+    executable = Path(command).resolve()
+    try:
+        version_result = subprocess.run(
+            [str(executable), "--version"], capture_output=True, text=True, timeout=10, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ValueError(f"OCR preflight failed: Tesseract did not start: {exc}") from exc
+    if version_result.returncode != 0:
+        raise ValueError("OCR preflight failed: Tesseract --version returned an error")
+    version = (version_result.stdout or version_result.stderr).splitlines()
+    if not version:
+        raise ValueError("OCR preflight failed: Tesseract did not report a version")
+
+    configured_data = os.environ.get("TESSDATA_PREFIX")
+    if configured_data and Path(configured_data).is_dir():
+        tessdata_dir: Path | None = Path(configured_data).resolve()
+    elif (executable.parent / "tessdata").is_dir():
+        tessdata_dir = (executable.parent / "tessdata").resolve()
+    else:
+        tessdata_dir = None
+    language_command = [str(executable), "--list-langs"]
+    if tessdata_dir is not None:
+        language_command += ["--tessdata-dir", str(tessdata_dir)]
+    try:
+        language_result = subprocess.run(
+            language_command, capture_output=True, text=True, timeout=10, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ValueError(f"OCR preflight failed: Tesseract could not list languages: {exc}") from exc
+    if language_result.returncode != 0 or "eng" not in language_result.stdout.splitlines():
+        raise ValueError("OCR preflight failed: Tesseract cannot load English traineddata")
+    if tessdata_dir is None:
+        match = re.search(r'List of available languages in "([^"]+)"', language_result.stdout)
+        if match is None:
+            raise ValueError("OCR preflight failed: set TESSDATA_PREFIX so English traineddata can be hashed")
+        tessdata_dir = Path(match.group(1)).resolve()
+    traineddata = tessdata_dir / "eng.traineddata"
+    if not traineddata.is_file():
+        raise ValueError(f"OCR preflight failed: English traineddata is missing from {tessdata_dir}")
+
+    try:
+        import pytesseract
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError as exc:
+        raise ValueError("OCR preflight failed: Pillow and pytesseract are required") from exc
+    image = Image.new("RGB", (420, 70), "white")
+    ImageDraw.Draw(image).text((8, 8), "DOCUMENT OCR 12345", fill="black", font=ImageFont.load_default())
+    image = image.resize((1680, 280), Image.Resampling.NEAREST)
+    previous_command = pytesseract.pytesseract.tesseract_cmd
+    previous_data = os.environ.get("TESSDATA_PREFIX")
+    try:
+        pytesseract.pytesseract.tesseract_cmd = str(executable)
+        os.environ["TESSDATA_PREFIX"] = str(tessdata_dir)
+        recognized = pytesseract.image_to_string(image, lang="eng", config="--psm 6", timeout=15)
+    except Exception as exc:
+        raise ValueError(f"OCR preflight failed: English OCR smoke failed: {exc}") from exc
+    finally:
+        pytesseract.pytesseract.tesseract_cmd = previous_command
+        if previous_data is None:
+            os.environ.pop("TESSDATA_PREFIX", None)
+        else:
+            os.environ["TESSDATA_PREFIX"] = previous_data
+    if "DOCUMENT" not in recognized.upper() or "12345" not in recognized:
+        raise ValueError("OCR preflight failed: English OCR smoke returned no recognizable text")
+    return {
+        "tesseract_executable": str(executable),
+        "tesseract_version": version[0].strip(),
+        "tessdata_dir": str(tessdata_dir),
+        "eng_traineddata_sha256": _sha256_file(traineddata),
+        "ocr_smoke_passed": True,
+    }
+
+
+def _run_shard(
+    shard: Path, run_id: str, data_dir: Path, report_dir: Path, repository_root: Path,
+    ocr_preflight: dict[str, Any] | None,
+) -> int:
     environment = os.environ.copy()
     environment["IDPO_DATA_DIR"] = str(data_dir)
     # This gate never configures a model, so provider secrets have no purpose in a child.
     for name in ("ICORE_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
         environment.pop(name, None)
+    if ocr_preflight is not None:
+        environment["TESSERACT_CMD"] = str(ocr_preflight["tesseract_executable"])
+        environment["TESSDATA_PREFIX"] = str(ocr_preflight["tessdata_dir"])
     command = [
         sys.executable, "-m", "idpo.cli", "process-auto", "--input", str(shard), "--run-id", run_id,
     ]
@@ -100,6 +193,9 @@ def run_gate(
     if any(path.exists() for path in run_dirs) or report_dir.exists():
         raise ValueError("gate report directory and run IDs must be new; no partial run is reused")
 
+    ocr_required = _requires_ocr(shards)
+    ocr_preflight = _preflight_ocr() if ocr_required else None
+
     report_dir.mkdir(parents=True)
     data_dir.mkdir(parents=True, exist_ok=True)
     provenance = {
@@ -115,6 +211,8 @@ def run_gate(
         "shard_dirs": [str(shard) for shard in shards],
         "run_ids": run_ids,
         "model_configured": False,
+        "ocr_required": ocr_required,
+        "ocr_preflight": ocr_preflight,
         "min_unique": min_unique,
         "max_workers": max_workers,
     }
@@ -123,7 +221,9 @@ def run_gate(
     exit_codes: dict[str, int] = {}
     with ThreadPoolExecutor(max_workers=min(max_workers, len(shards))) as executor:
         futures = {
-            executor.submit(_run_shard, shard, run_id, data_dir, report_dir, repository_root): run_id
+            executor.submit(
+                _run_shard, shard, run_id, data_dir, report_dir, repository_root, ocr_preflight,
+            ): run_id
             for shard, run_id in zip(shards, run_ids)
         }
         for future in as_completed(futures):
