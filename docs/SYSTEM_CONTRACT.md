@@ -75,16 +75,21 @@ shared row ordinals and per-cell text evidence; row links remain pending human r
 parser, stable row identity across versions, or a guarantee of useful fields on unfamiliar documents.
 
 `product_runs/<run_id>` contains `run.json` as the completion marker, `manifest.jsonl` with source hashes and per-document
-receipts, `candidates.jsonl`, and `docs/<doc_id>/result.json` with OCR pages, the proposal, model-call telemetry and
-reason. Cost fields exist but remain null until provider prices, compute rates and review work are recorded. The
+receipts, `candidates.jsonl`, and `docs/<doc_id>/result.json` with OCR pages, per-page PDF renderer provenance,
+the proposal, model-call telemetry and reason. Worker process CPU and boundary RSS snapshots are recorded where
+available; they exclude OCR child processes and remote model compute, and RSS is not peak memory. Cost fields exist
+but remain null until provider prices, compute rates and review work are recorded. The
 frontend checks source hashes and artifact consistency before displaying a completed run. Owner-scoped result and
 source routes lead to a field review page. A reviewer can correct or remove proposed scalar fields, add missing
-scalar fields, and inspect or correct bounded linked cells by row. The server checks each machine cell's text evidence
-and requires an exact source quote for a newly added scalar. It accepts a human row correction only as a typed array.
+scalar fields, inspect or correct bounded linked cells by row, and add a wholly missed linked column. The server checks
+each machine cell's text evidence and requires a unique exact OCR quote and page for every new linked cell; it also
+requires an exact source quote for a newly added scalar. It accepts a human row correction only as a typed array.
 The API derives a document-scoped `correctedResult` from the
 immutable machine candidate and latest review snapshot. Undecided machine values remain in review; human corrections
-are reviewer assertions; newly added scalar corrections also carry a checked OCR quote, which proves source presence
-but not semantic correctness. Review changes append revisioned events and reject stale saves. The
+are reviewer assertions; newly added scalar and linked-cell corrections carry checked OCR quotes, which prove source
+presence but not semantic correctness. Review changes append revisioned events and reject stale saves. A reviewer may
+record 1 to 14,400 seconds of self-reported active work for an individual save; the system does not infer this time
+and older events have no such field. The
 job-scoped recipe API separately records owner-scoped draft, approval, and disable events from completed reviews; it
 requires explicit linked-row group confirmation and does not yet configure extraction. This is not geometric table annotation.
 
