@@ -33,6 +33,8 @@ Unicode NFKC normalization and whitespace collapse are applied to both gold and 
 
 Raw per-crop records include both predictions, failures, confidence where supplied, and elapsed milliseconds. The summary gives p50/p95 and total sequential crop time for each engine. Tesseract's per-crop process launch and RapidOCR's first-call model load make these timings a reproducible diagnostic, **not** a deployment throughput or price comparison. Neither engine uses page detection here; no claim about OCR polygons, source evidence, row order, HITL workload, or total system cost follows from a better crop CER.
 
+The separate [30-page PP-OCRv6 scan pilot](RAPIDOCR_PPOCRV6_THIRTY_SCAN_PILOT.md#windows-gpu-feasibility-and-next-cost-comparison-read-only-plan) specifies a post-gate, full-pipeline CPU-versus-Windows-CUDA comparison using the exact detector and recognizer ONNX weights. This CORD recognition-only crop experiment does not substitute for that local CPU/GPU cost test.
+
 ## Reproduction
 
 Run from the repository root. Preparation requires Python 3.13 with PyArrow 22.0.0 and Pillow 12.1.0. The local PyArrow bundle is compiled for Python 3.13 and cannot load in the Python 3.11 RapidOCR environment. The following preparation has already completed and must use a new output directory if repeated:
