@@ -23,8 +23,10 @@ every possible router or the reported accepted submission.
 ## Current Starting Point And Boundaries
 
 - The opt-in `idpo.cli process-auto` path and owner-scoped review UI now exist as a pilot. They propose scalar fields,
-  and a configured model can propose bounded repeated columns with row ordinals; the review UI can inspect cells and
-  save typed row corrections. They verify exact OCR text spans and keep unapproved schemas in review. A separate
+  and a configured model can propose bounded repeated columns with row ordinals; the review UI can inspect cells,
+  add missed linked columns with per-cell exact OCR quotes, and save typed row corrections. Optional self-reported
+  active reviewer seconds are stored per save; measured total reviewer cost is still unavailable. They verify exact
+  OCR text spans and keep unapproved schemas in review. A separate
   owner-scoped registry now stores review-derived schema drafts, explicit `approved_shadow` revisions, and disable
   events; extraction does not match or use them yet. They have no durable queue, runtime recipe reuse, visual table
   structure, priced cost meter, or demonstrated arbitrary-family accuracy. The first
@@ -42,7 +44,10 @@ every possible router or the reported accepted submission.
   unsupported scans. Strict schema F1 was 4.245%, all 2,000 remained in review, and linked cells stayed at zero.
   The [v6 bounded-OCR gate](evaluations/VRDU_2000_NO_MODEL_V6.md) completed 2,000 distinct sources with the timeout
   implementation: no page hit a timeout, all 2,000 remained reviewable, and schema F1 and linked-cell counts were
-  unchanged. Focused tests and a forced-timeout smoke cover the limit branch; v6 establishes no quality gain.
+  unchanged. Focused tests and a forced-timeout smoke cover the limit branch; v6 establishes no quality gain. The
+  [v7 PDFium-first gate](evaluations/VRDU_2000_NO_MODEL_V7_PDFIUM.md) completed the same 2,000 source hashes with
+  zero releases and zero linked rows; strict schema F1 changed from 4.2448% to 4.2423%. Page-level renderer
+  provenance was added after v7 and needs a fresh 2,000-source gate.
 
 - Current job execution is `frontend job API -> frontend runner -> python -m idpo.cli process-inbox -> IDPO_DATA_DIR`.
   IDPO runs `ingest/inbox -> orchestrator -> executor -> exports`. AHMN direct advice is in process. Guardrails and
@@ -81,7 +86,7 @@ service boundary needs a concrete availability, scaling or ownership reason; it 
 | --- | --- | --- |
 | Intake and identity | Authenticated owner, content hash, verified file type, limits, immutable input, job and schema versions; auto mode accepts a document without selecting a template | Preserve the job UI; make all reads and writes owner-scoped and test indirect artifact routes. Unsupported or illegible files get an explicit outcome, never a fabricated schema. |
 | Job execution | Durable status, idempotency key, bounded retries, cancellation, stage timings, replayable artifacts | The current private Docker worker admits one active product run and rejects another; add durable queued state before multi-host scale. |
-| Parsing | Native PDF text when reliable; OCR/layout for scans; page, box, reading order and table-cell evidence | Keep current PyPDF/PaddleOCR/Tesseract as the measured baseline; spike Docling and PP-StructureV3 on failure slices. |
+| Parsing | Native PDF text when reliable; OCR/layout for scans; page, box, reading order and table-cell evidence | Keep PDFium-first rendering plus bounded Tesseract as the measured product baseline. The frozen [Docling/pdfplumber comparison](evaluations/VRDU_ADBUY12_TABLE_PARSER_COMPARISON_20261012.md) recovered at most 4/219 exact complete linked rows, so test PP-StructureV3 on the same hard slice before adopting a table adapter. |
 | Schema discovery | Infer document family, candidate fields, types, groups and table relationships, each with source evidence; propose a versioned reusable recipe | Run on first or unfamiliar documents with no manual template setup. Mark ambiguous candidates and let an authorized reviewer approve or amend a recipe. Never silently rewrite an approved schema. |
 | Extraction | Provider-neutral extraction against a versioned proposed or approved schema; bounded prompt/context; typed output; recorded provider/model/version | Compare a simple extractor on local CPU, local GPU and approved cloud APIs against the same holdout. Cloud use is opt-in per data policy, with redaction where required and hard spend caps. |
 | Verification | Schema and deterministic format/business rules, source-span or image-region grounding, explicit missing values | Reject unsupported values and route uncertain fields to review; do not use model self-confidence as truth. |
