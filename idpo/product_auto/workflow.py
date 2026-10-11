@@ -7,6 +7,7 @@ import json
 import re
 import time
 import uuid
+from dataclasses import replace
 from pathlib import Path
 from typing import Protocol
 
@@ -111,11 +112,20 @@ def process_auto(
                 else:
                     documents = intake.ingest(str(file_path))
                 if documents is not None:
+                    if file_path.suffix.lower() == ".json":
+                        # Uploaded JSON supplies text pages, never paths to server-side files.
+                        for document in documents:
+                            document.pages = [replace(page, image_path=None, metadata={}) for page in document.pages]
                     sources = _json_entry_sources(file_path) if file_path.suffix.lower() == ".json" else [(container_hash, container_size, "raw_file")] * len(documents)
                     if len(sources) != len(documents):
                         raise ValueError("JSON source entries and parsed documents differ")
                     rows = [
-                        (_doc_id(file_path.name, source_hash, index), document, None, index, source_hash, source_size, hash_kind)
+                        (
+                            _doc_id(file_path.name, source_hash, index),
+                            document,
+                            "too_many_pages" if len(document.pages) > MAX_PAGES else None,
+                            index, source_hash, source_size, hash_kind,
+                        )
                         for index, (document, (source_hash, source_size, hash_kind)) in enumerate(zip(documents, sources))
                     ]
                     if not rows:
@@ -211,7 +221,7 @@ def _process_document(
         "compute_cost_usd": None,
         "total_cost_usd": None,
     }
-    if document is None:
+    if document is None or initial_reason is not None:
         return candidate, sidecar
     sidecar["source_document_id"] = document.doc_id
     document.doc_id = doc_id

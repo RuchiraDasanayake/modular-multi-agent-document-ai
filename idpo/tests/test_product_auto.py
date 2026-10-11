@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from idpo.product_auto import process_auto
 from idpo.agents.preprocess import OcrAgent
+from idpo.product_auto import process_auto
 from idpo.product_auto.provider import ModelReply, OpenAICompatibleChat
 from product_eval.contracts import load_jsonl
 
@@ -86,7 +86,7 @@ def test_product_auto_sets_single_initial_ocr_profile(tmp_path: Path, monkeypatc
     seen: list[tuple[int, int, list[int], bool, int | None]] = []
     original_run = OcrAgent.run
 
-    def inspect_run(self, payload, ctx):  # noqa: ANN001
+    def inspect_run(self, payload, ctx):
         preprocessing = ctx.config.preprocessing
         seen.append((
             preprocessing.ocr_psm,
@@ -293,6 +293,46 @@ def test_json_array_receipts_hash_individual_documents(tmp_path: Path) -> None:
         assert receipt["source_container_sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
         assert receipt["source_hash_kind"] == "canonical_json_entry"
         assert receipt["document_status"] == candidates[receipt["doc_id"]]["document_status"]
+
+
+def test_uploaded_json_cannot_make_product_ocr_read_an_external_image(tmp_path: Path, monkeypatch) -> None:
+    secret = tmp_path / "outside.png"
+    secret.write_bytes(b"private image bytes")
+    source = tmp_path / "untrusted.json"
+    source.write_text(json.dumps({
+        "doc_id": "untrusted", "pages": [{"number": 1, "text": "", "image_path": str(secret)}],
+    }), encoding="utf-8")
+    calls: list[bool] = []
+
+    def forbidden_ocr(*args, **kwargs):
+        calls.append(True)
+        raise AssertionError("Uploaded JSON referenced a server-side file")
+
+    monkeypatch.setattr(OcrAgent, "_ocr_image", forbidden_ocr)
+    run = process_auto(source, run_id="untrusted_json", output_root=tmp_path / "runs")
+    candidate, sidecar = _result(run["run_dir"])
+    assert calls == []
+    assert candidate["document_status"] == "unsupported"
+    assert sidecar["reason"] == "no_text_after_ocr"
+
+
+def test_uploaded_json_page_limit_is_checked_before_ocr(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "many.json"
+    source.write_text(json.dumps({
+        "doc_id": "many", "pages": [{"number": index + 1, "text": "A: 1"} for index in range(51)],
+    }), encoding="utf-8")
+    calls: list[bool] = []
+
+    def forbidden_ocr(*args, **kwargs):
+        calls.append(True)
+        raise AssertionError("Too many pages reached OCR")
+
+    monkeypatch.setattr(OcrAgent, "run", forbidden_ocr)
+    run = process_auto(source, run_id="too_many_json_pages", output_root=tmp_path / "runs")
+    candidate, sidecar = _result(run["run_dir"])
+    assert calls == []
+    assert candidate["document_status"] == "unsupported"
+    assert sidecar["reason"] == "too_many_pages"
 
 
 def test_cli_process_auto_without_model_uses_runtime_data_root(tmp_path: Path, monkeypatch, capsys) -> None:
