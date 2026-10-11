@@ -83,6 +83,9 @@ def test_surface_presence_does_not_count_as_an_exact_cell_or_complete_row() -> N
     assert score["gold_cells"] == 4
     assert score["gold_cell_surface_present_in_any_table_cell"] == 4
     assert score["gold_cell_exact_text_one_to_one"] == 2
+    assert score["gold_within_row_cell_pairs"] == 2
+    assert score["within_row_pairs_surface_colocated_unbounded"] == 1
+    assert score["within_row_pairs_exact_cells_colocated_unbounded"] == 1
     assert score["complete_rows_exact_cells_one_to_one"] == 1
     assert score["complete_rows_exact_multiset_one_to_one"] == 0
     assert score["gold_cells_in_exact_linked_rows"] == 2
@@ -92,6 +95,8 @@ def test_repeated_gold_rows_cannot_reuse_one_parser_row_or_cells() -> None:
     score = tables.score_tables({0: ["A", "1"], 1: ["A", "1"]}, ["a", "1"], [["a", "1"]])
     assert score["gold_cell_surface_present_in_any_table_cell"] == 4
     assert score["gold_cell_exact_text_one_to_one"] == 2
+    assert score["gold_within_row_cell_pairs"] == 2
+    assert score["within_row_pairs_exact_cells_colocated_unbounded"] == 2
     assert score["complete_rows_surface_colocated_one_to_one"] == 1
     assert score["complete_rows_exact_cells_one_to_one"] == 1
     assert score["complete_rows_exact_multiset_one_to_one"] == 1

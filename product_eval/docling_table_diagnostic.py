@@ -242,12 +242,25 @@ def score_tables(gold_rows: dict[int, list[str]], parser_cells: list[str],
         for values in gold_row_items
     ]
     surface_matches = _one_to_one_match(surface_adjacency, len(parser_rows))
+    pairs = [
+        (values[left], values[right])
+        for values in gold_row_items
+        for left in range(len(values))
+        for right in range(left + 1, len(values))
+    ]
     return {
         "gold_rows": len(gold_rows),
         "gold_cells": len(gold_items),
         "short_gold_cells_under_3_chars": sum(len(value) < 3 for value in gold_items),
         "gold_cell_surface_present_in_any_table_cell": surface_present,
         "gold_cell_exact_text_one_to_one": exact_cells,
+        "gold_within_row_cell_pairs": len(pairs),
+        "within_row_pairs_surface_colocated_unbounded": sum(
+            any(_surface_row_match(list(pair), row) for row in parser_rows) for pair in pairs
+        ),
+        "within_row_pairs_exact_cells_colocated_unbounded": sum(
+            any(not Counter(pair) - Counter(row) for row in parser_rows) for pair in pairs
+        ),
         "complete_rows_surface_colocated_one_to_one": len(surface_matches),
         "complete_rows_exact_cells_one_to_one": len(exact_matches),
         "complete_rows_exact_multiset_one_to_one": len(strict_matches),
@@ -352,7 +365,7 @@ def score_saved(output_dir: Path, gold_path: Path, selected: list[dict[str, Any]
         "parser_totals": parser_totals,
         "metrics": aggregate,
         "per_document": per_document,
-        "matching_caveat": "Gold linked cells lack page evidence. Normalization is NFKC, casefold and whitespace collapse only. Presence permits substring and repeated reuse; exact cells are one-to-one by string. Complete rows require all gold cells in one parsed table row, with one-to-one gold-to-parser row assignment. Field ID or column mapping is not measured.",
+        "matching_caveat": "Gold linked cells lack page evidence. Normalization is NFKC, casefold and whitespace collapse only. Presence permits substring and repeated reuse; exact cells are one-to-one by string. Pair co-location allows reuse across different gold pairs and is only a partial-row upper bound. Complete rows require all gold cells in one parsed table row, with one-to-one gold-to-parser row assignment. Field ID or column mapping is not measured.",
     }
 
 
