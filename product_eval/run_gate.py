@@ -62,6 +62,7 @@ def run_gate(
     shard_dirs: list[Path],
     *,
     gold_path: Path,
+    cohort_path: Path | None = None,
     data_dir: Path,
     report_dir: Path,
     gate_id: str,
@@ -89,9 +90,12 @@ def run_gate(
     data_dir = data_dir.resolve()
     report_dir = report_dir.resolve()
     gold_path = gold_path.resolve()
+    cohort_path = cohort_path.resolve() if cohort_path is not None else None
     repository_root = repository_root.resolve()
     if not gold_path.is_file():
         raise ValueError("gold JSONL does not exist")
+    if cohort_path is not None and not cohort_path.is_file():
+        raise ValueError("cohort JSONL does not exist")
     run_dirs = [data_dir / "product_runs" / run_id for run_id in run_ids]
     if any(path.exists() for path in run_dirs) or report_dir.exists():
         raise ValueError("gate report directory and run IDs must be new; no partial run is reused")
@@ -106,6 +110,8 @@ def run_gate(
         "platform": platform.platform(),
         "gold_path": str(gold_path),
         "gold_sha256": _sha256_file(gold_path),
+        "cohort_path": str(cohort_path) if cohort_path else None,
+        "cohort_sha256": _sha256_file(cohort_path) if cohort_path else None,
         "shard_dirs": [str(shard) for shard in shards],
         "run_ids": run_ids,
         "model_configured": False,
@@ -146,6 +152,14 @@ def run_gate(
         )
     quality = score_records(gold, candidates)
     _write_json(report_dir / "quality-report.json", quality)
+    if cohort_path is not None:
+        from product_eval.datasets.vrdu_analysis import analyze_vrdu_runs
+
+        family = analyze_vrdu_runs(
+            cohort_path, gold_path, run_dirs, full_report_path=report_dir / "quality-report.json",
+        )
+        _write_json(report_dir / "family-report.json", family)
+        provenance["family_report_sha256"] = _sha256_file(report_dir / "family-report.json")
     provenance["candidate_sha256"] = _sha256_file(candidate_path)
     provenance["execution_report_sha256"] = _sha256_file(report_dir / "execution-report.json")
     provenance["quality_report_sha256"] = _sha256_file(report_dir / "quality-report.json")
@@ -157,6 +171,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("shard_dirs", type=Path, nargs="+")
     parser.add_argument("--gold", type=Path, required=True)
+    parser.add_argument("--cohort", type=Path, help="Optional frozen VRDU cohort for family and OCR grounding analysis")
     parser.add_argument("--data-dir", type=Path, required=True)
     parser.add_argument("--report-dir", type=Path, required=True)
     parser.add_argument("--gate-id", required=True)
@@ -165,7 +180,7 @@ def main() -> None:
     args = parser.parse_args()
     try:
         result = run_gate(
-            args.shard_dirs, gold_path=args.gold, data_dir=args.data_dir,
+            args.shard_dirs, gold_path=args.gold, cohort_path=args.cohort, data_dir=args.data_dir,
             report_dir=args.report_dir, gate_id=args.gate_id,
             min_unique=args.min_unique, max_workers=args.workers,
         )

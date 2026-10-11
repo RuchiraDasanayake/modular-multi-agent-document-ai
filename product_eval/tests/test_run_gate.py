@@ -31,11 +31,17 @@ def test_gate_runs_distinct_shards_and_scores_only_after_source_verification(tmp
         records.append(_gold_record(source, value))
     gold_path = tmp_path / "gold.jsonl"
     gold_path.write_text("".join(json.dumps(record) + "\n" for record in records), encoding="utf-8")
+    cohort_path = tmp_path / "cohort.jsonl"
+    cohort_path.write_text("".join(
+        json.dumps({"doc_id": record["doc_id"], "family": shard.name,
+                    "source_sha256": hashlib.sha256((shard / "invoice.txt").read_bytes()).hexdigest()}) + "\n"
+        for shard, record in zip(shards, records)
+    ), encoding="utf-8")
 
     data_dir = tmp_path / "data"
     report_dir = tmp_path / "report"
     result = run_gate(
-        shards, gold_path=gold_path, data_dir=data_dir, report_dir=report_dir,
+        shards, gold_path=gold_path, cohort_path=cohort_path, data_dir=data_dir, report_dir=report_dir,
         gate_id="small_gate", min_unique=2, max_workers=2,
     )
 
@@ -44,6 +50,8 @@ def test_gate_runs_distinct_shards_and_scores_only_after_source_verification(tmp
     assert result["execution"]["source_hashes_verified"] is True
     assert result["quality"]["schema"]["tp"] == 2
     assert result["provenance"]["model_configured"] is False
+    family = json.loads((report_dir / "family-report.json").read_text(encoding="utf-8"))
+    assert set(family["by_family"]) == {"shard_a", "shard_b"}
     assert len((report_dir / "candidates.jsonl").read_text(encoding="utf-8").splitlines()) == 2
     assert len(list(report_dir.glob("small_gate_*.log"))) == 2
 

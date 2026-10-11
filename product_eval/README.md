@@ -28,12 +28,13 @@ claim additionally requires an adjudicated gold set and `product_eval.cli` scori
 
 For repeatable **no-model** gates, `run_gate` launches each disjoint input directory as a separate real `process-auto`
 subprocess, verifies every source hash, joins all candidate records, requires the candidate IDs to equal the gold IDs,
-and writes execution, quality, provenance, exit-code and per-shard log files. Use a new gate ID and report directory for
+and writes execution, quality, provenance, exit-code and per-shard log files. Pass a frozen VRDU `--cohort` to also
+produce a source-verified family and OCR-grounding report. Use a new gate ID and report directory for
 each candidate; partial shards are never silently reused. It removes provider secrets from the child environment and
 records the Git commit and whether the working tree was dirty. Example:
 
 ```powershell
-python -m product_eval.run_gate --gold path/to/gold.jsonl --data-dir path/to/runtime `
+python -m product_eval.run_gate --gold path/to/gold.jsonl --cohort path/to/cohort.jsonl --data-dir path/to/runtime `
   --report-dir path/to/gate-v4 --gate-id vrdu_v4 --min-unique 2000 --workers 4 `
   path/to/shards/ad_00 path/to/shards/ad_01 path/to/shards/reg_00 path/to/shards/reg_01 `
   path/to/shards/reg_02 path/to/shards/reg_03 path/to/shards/reg_04 path/to/shards/reg_05
