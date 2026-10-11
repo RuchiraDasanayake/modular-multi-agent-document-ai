@@ -125,9 +125,14 @@ price. Keep the actual key out of files, logs, test fixtures and commits. The
 and value calls for two synthetic texts with `innobot-luna-6` and `innobot-minimax-m2-5`. The catalog advertises separate
 text embedding and image generation routes and some chat models with image inputs; vision extraction was not tested.
 The [bounded six-public-PDF VRDU pilot](evaluations/ICORE_VRDU_SIX_PILOT.json) sent only public cohort documents: one
-of six attempted chat calls succeeded, five returned `APIConnectionError`, and no value extraction completed. No
-private document was sent. Published prices, data-use terms and a hard spend limit are still unverified; do not
-expand cloud use until transport reliability and a documented spend policy are established.
+of six attempted chat calls succeeded, five returned `APIConnectionError`, and no value extraction completed. A
+missing OCR executable is strongly indicated for its one zero-text scan; that scan does not measure the provider.
+No private document was sent. Published prices, data-use terms and a hard spend limit are still unverified; do not
+expand cloud use until transport reliability and a documented spend policy are established. The
+[local Qwen 12-PDF diagnostic](evaluations/LOCAL_QWEN_VRDU_TWELVE_PILOT.json) used 18 model calls with no cloud fee,
+but proposed zero linked cells and matched only one canonical value on nine model-served PDFs. Two scan outcomes are
+also confounded by the earlier OCR environment. Local compute cost was not priced, and improved synthetic prompts
+did not establish real-document accuracy.
 
 ## Quality-Cost Evaluation Contract
 
