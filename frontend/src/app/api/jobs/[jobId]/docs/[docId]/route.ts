@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getJobOrThrow, mutateJob } from "@/server/jobs";
+import { requireJob } from "@/server/access";
+import { requireUser } from "@/server/auth";
 import { getRunDocument } from "@/server/artifacts";
 import { apiError } from "@/server/api/response";
 import type { JobDocumentRunOutcome } from "@/types/idpo";
@@ -43,12 +45,15 @@ function pickOutcome(
   if (filtered.length > 0) {
     return filtered[filtered.length - 1] ?? null;
   }
+  if (requestedMode || requestedRunId) return null;
   return outcomes[outcomes.length - 1] ?? null;
 }
 
 export async function GET(request: Request, { params }: Params) {
   try {
+    const user = await requireUser(request.headers);
     const { jobId, docId } = await params;
+    requireJob(jobId, user);
     const job = getJobOrThrow(jobId);
     const document = (job.documents ?? []).find((entry) => entry.fileId === docId);
     if (!document) {
@@ -175,7 +180,9 @@ export async function GET(request: Request, { params }: Params) {
 
 export async function POST(request: Request, { params }: Params) {
   try {
+    const user = await requireUser(request.headers);
     const { jobId, docId } = await params;
+    requireJob(jobId, user);
     const payload = (await request.json()) as Record<string, unknown>;
     const runId = typeof payload.runId === "string" ? payload.runId : "";
     const mode = payload.mode === "strict" ? "strict" : payload.mode === "adaptive" ? "adaptive" : undefined;
@@ -189,7 +196,7 @@ export async function POST(request: Request, { params }: Params) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 });
     }
     const outcome = pickOutcome(document.outcomes, mode ?? null, runId);
-    if (!outcome?.docId || outcome.status !== "processed") {
+    if (!outcome?.docId || outcome.runId !== runId || outcome.status !== "processed") {
       throw new Error("Only processed documents can be reviewed");
     }
 

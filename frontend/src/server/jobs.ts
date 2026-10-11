@@ -398,6 +398,7 @@ function validateUpload(file: File, allowedExtensions: string[], maxUploadMb: nu
 
 export function createWorkspaceJob(
   options?: {
+    ownerUserId?: string;
     jobName?: string;
     mode?: JobExecutionMode;
     fieldConfigCurrent?: JobFieldConfig[];
@@ -412,6 +413,7 @@ export function createWorkspaceJob(
 
   const job: JobStatus = {
     jobId,
+    ownerUserId: options?.ownerUserId,
     status: "draft",
     createdAt,
     startedAt: createdAt,
@@ -488,7 +490,7 @@ export function getJobOrThrow(jobId: string): JobStatus {
 export function mutateJob(jobId: string, mutator: (job: JobStatus) => JobStatus | void): JobStatus {
   const current = getJobOrThrow(jobId);
   const candidate = mutator(structuredClone(current));
-  const next = normalizeJob(claimIfRunning((candidate ?? current) as JobStatus));
+  const next = normalizeJob(claimIfRunning({ ...(candidate ?? current), ownerUserId: current.ownerUserId } as JobStatus));
   persistJob(next);
   return next;
 }
@@ -512,6 +514,7 @@ export function updateJob(jobId: string, patch: Partial<JobStatus>): JobStatus {
   const next: JobStatus = normalizeJob(claimIfRunning({
     ...current,
     ...patch,
+    ownerUserId: current.ownerUserId,
     logs: patch.logs ?? current.logs,
     settings: patch.settings ?? current.settings,
   }));

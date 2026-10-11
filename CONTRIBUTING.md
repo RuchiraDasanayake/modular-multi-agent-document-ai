@@ -29,6 +29,10 @@ cp .env.example .env
 docker compose up --build
 ```
 
+This starts the service stack and UI, but the Docker frontend job runner is a
+placeholder. Use [Public Demo Deployment](docs/PUBLIC_DEMO_DEPLOYMENT.md) for
+end-to-end extraction until a worker-backed container path is implemented.
+
 ## Development Workflow
 
 ### Branch Naming

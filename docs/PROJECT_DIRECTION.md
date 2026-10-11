@@ -6,52 +6,81 @@ Unlike `docs/SYSTEM_CONTRACT.md`, this file is expected to change as goals evolv
 
 ## Current Phase
 
-`Evidence frozen; publication preparation`
+`Accepted paper preserved; product stabilization`
 
-The paired `static` vs `adaptive_safe` evaluation on CORD-dev, CORD-holdout, FUNSD-20 and HARD-13 is complete. Its
-results, run folders and regeneration commands are frozen in `paper/FINAL_EVIDENCE.md`, and `paper/ieee/main.tex`
-reports them as they are: adaptive routing did not improve accuracy, and it added latency on receipts.
+The author reports that a paper was accepted for an oral presentation at ICTAR 2026. The author-provided May PDF
+appears to be that submission, but the exact manuscript uploaded to CMT still needs verification. The later October
+`paper/ieee/main.tex` and `paper/FINAL_EVIDENCE.md` describe a different paired `static` vs `adaptive_safe` study on
+CORD-dev, CORD-holdout, FUNSD-20 and HARD-13. Its results, run folders and regeneration commands are frozen as
+**October internal evidence**; they are not verified as the accepted submission. In that study adaptive routing did
+not improve accuracy and added latency on receipts. Camera-ready work must reconcile the submitted manuscript,
+reviewer comments, venue requirements and later evidence accurately, without overwriting or backdating either study.
+Product development is a third track with new evaluations and claims.
 
 ## Primary Goal
 
-Publish the paper and a reproducible repository without changing the frozen evidence.
+Deliver better structured extraction from an arbitrary document without manual template setup, at a lower total cost
+per accepted document across available local CPU, local GPU and cloud API capacity. Preserve the author-reported
+accepted submission and the separate frozen October evidence. Prefer local and open-source components when they meet
+the measured quality, cost and data-handling gates.
 
 That means:
 
-- every number in the paper traces to a run folder or command listed in `paper/FINAL_EVIDENCE.md`
-- `docs/REPRODUCING_RESULTS.md` rebuilds the packs, the runs and the tables from a clean checkout
-- runtime changes are limited to defects; a change that would alter benchmark outcomes needs new runs and an update
-  of both the paper and the evidence file
-- the claim stays narrow: `static` vs `adaptive_safe`, with the negative result stated plainly
+- preserve `paper/FINAL_EVIDENCE.md`, its referenced run folders and the October draft's narrow `static` vs
+  `adaptive_safe` claim; do not present those results as the accepted submission or reinterpret new product results as
+  either earlier study
+- make accuracy, grounded field evidence, review burden, latency and compute/API spend visible together
+- discover document families and typed fields automatically, then stabilize recurring business fields in approved,
+  versioned recipes; ambiguous or unsupported content must abstain for review
+- fix release blockers before calling the product deployable: access to another user's jobs/runs/artifacts and the
+  Docker frontend's placeholder runner
+- require measured quality or cost gains before keeping AHMN routing, agent loops or separate services in the
+  operational hot path; the existing service layout is not a product requirement
+- use `docs/PRODUCTIZATION_PLAN.md` for target architecture and acceptance gates; `docs/SYSTEM_CONTRACT.md` continues
+  to describe the implemented runtime
 
 ## Current In-Scope Work
 
-- venue selection, template formatting and camera-ready edits of the paper
-- archiving the run folders listed in `paper/FINAL_EVIDENCE.md` for the artifact release
-- an anonymised repository link for review
-- defect fixes in the canonical runtime, the gateway and the frontend job path, with tests
+- identify and archive the exact accepted manuscript from CMT; make reviewer- and venue-compliant camera-ready edits
+  with any differences from the May PDF and October draft made explicit
+- archive the run folders listed in `paper/FINAL_EVIDENCE.md` as separate October internal evidence
+- an end-to-end, owner-scoped job/run/document API and an executable runner in every advertised deployment mode
+- a representative, legally usable labeled evaluation set with unseen-document-family, layout, scan-quality and
+  line-item slices
+- a static extraction baseline, separate schema-discovery and value-extraction scoring, parser/model comparisons and a
+  quality-cost frontier on the same test set
+- automatic family and typed-schema discovery with source evidence, followed by extraction against a versioned
+  proposed or approved schema and a reusable recipe
+- provider-neutral comparisons of local CPU, local GPU and opt-in cloud API extraction, with data controls and spend caps
+- field-level source evidence, side-by-side human review, adjudicated corrections and auditable outcomes
+- defect fixes and focused reduction of the canonical runtime, gateway and frontend job path, with tests
 - keeping setup, reproduction and contract docs accurate
 
 ## Current Non-Goals
 
 For the current phase, do not prioritize:
 
-- new routing features, policies or reward changes (the paper lists these as future work: a text-based document type
-  before routing, actions that change OCR output, and rewards tied to correctness)
-- wiring Guardrails into the measured pipeline; the paper treats it as a separate service
-- enabling RABI or DAAF in the runtime; both are reported as simulation results only
-- re-tuning prompts, normalisers or the scorer against the benchmark packs
-- broad frontend redesign or cross-service architecture rewrites
+- new routing features, more agents, RABI or DAAF in the production path before a head-to-head quality-cost test
+- preserving the current microservices because they exist; combine, isolate or remove them when evidence warrants it
+- using the frozen October packs as a product tuning set or silently changing their scorer, prompts or results
+- claiming the separate Guardrails and XAI-HITL services are integrated into the measured runtime
+- broad frontend redesign that does not improve upload, extraction, evidence, review or access control
 
 ## Current Success Criteria
 
 This phase is successful when:
 
-- the paper compiles to six pages and every figure in it matches `paper/FINAL_EVIDENCE.md`
-- a teammate can follow `SETUP.md` and `docs/REPRODUCING_RESULTS.md` without prior context
-- the `ahmn_core`, `gateway`, `guardrails`, `xai_hitl` and `idpo` test suites and the frontend type check, lint and
-  server tests pass
-- the run folders behind the paper are archived alongside the release
+- the camera-ready paper is traceable to the verified CMT submission and honestly reconciles later findings; the
+  October study and its run folders are separately archived
+- a teammate can reproduce the October results from a clean checkout and separately reproduce the product benchmark;
+  reproducibility claims for the accepted submission are checked against its actual artifacts
+- both unauthorized cross-user access and the Docker runner blocker have passing end-to-end regression checks
+- a user can upload an unfamiliar supported document without choosing a template and receive a proposed typed schema,
+  grounded values and explicit review or abstention states; schema discovery and value accuracy are scored separately
+- each extracted field can be inspected against source evidence, corrected or abstained from, with review time recorded
+- a candidate system meets predeclared quality and cost gates on an untouched holdout; no agentic or adaptive path is
+  promoted based only on an internal proxy reward
+- the relevant backend, frontend and runner tests pass for each release candidate
 
 ## Document Roles
 
@@ -59,10 +88,12 @@ Use the docs this way:
 
 - `docs/PROJECT_DIRECTION.md`
   The current goal, scope, and non-goals
+- author-provided May PDF and the CMT-uploaded manuscript (identity to verify)
+  The reported accepted submission and the source of truth for camera-ready reconciliation
 - `paper/ieee/main.tex` (compiled to `paper/ieee/main.pdf`)
-  The paper
+  The later October internal draft; do not label it the accepted submission without verification
 - `paper/FINAL_EVIDENCE.md`
-  The frozen results, the run folders they came from and the commands that regenerate them
+  The frozen October results, the run folders they came from and the commands that regenerate them
 - `docs/REPRODUCING_RESULTS.md`
   How to rebuild the packs, rerun the benchmarks and the simulation, and compile the paper
 - `SETUP.md`
@@ -72,7 +103,10 @@ Use the docs this way:
 - `docs/CORD_EVALUATION_PLAN.md`
   The labeled testing plan and failure triage loop used to build the evidence (completed)
 - `docs/SYSTEM_CONTRACT.md`
-  What the system currently is and must emit
+  What the implemented system currently is and must emit
+- `docs/PRODUCTIZATION_PLAN.md`
+  The target architecture, component decisions, quality-cost gates and release blockers; targets here are not claims
+  about the current runtime
 - `docs/IDPO_CLEANUP_PASS1.md`
   The cleanup plan when a runtime reduction directly helps the evidence loop
 - `docs/SYSTEMATIC_REDUCTION_PLAN.md`
@@ -127,11 +161,32 @@ Which docs must be updated: PROJECT_DIRECTION.md, SYSTEM_CONTRACT.md, REPRODUCIN
 Which code areas are most affected: paper/ and docs/; code only for defect fixes.
 ```
 
+That historical October phase record describes the repository's later draft and its evidence; it does not establish the
+identity of the manuscript accepted through CMT.
+
+```text
+Date: 2026-10-11
+Old phase: Evidence frozen; publication preparation
+New phase: Accepted paper preserved; product stabilization
+Reason: The author reports ICTAR 2026 acceptance of a manuscript whose uploaded identity remains to be verified and
+  wants a useful, lower-cost extraction product. The separate October comparison found no significant accuracy gain
+  from adaptive routing and higher receipt latency.
+What is now in scope: release blockers, labeled product evaluation, grounded extraction, human review, cost accounting,
+  and measured component replacement or reduction.
+What is now out of scope: unmeasured agent/routing expansion and rewriting either research study as product evidence.
+Which docs must be updated: PROJECT_DIRECTION.md, SYSTEM_CONTRACT.md, PRODUCTIZATION_PLAN.md; setup and deployment docs
+  when the executable deployment path changes.
+Which code areas are most affected: frontend job API/runner, gateway access checks, IDPO extraction and evaluation;
+  October evidence remains frozen; the accepted submission must be identified before camera-ready editing.
+```
+
 ## Current Next Step
 
-1. choose the venue and adapt `paper/ieee/main.tex` to its template, page limit and review policy
-2. archive the run folders listed in `paper/FINAL_EVIDENCE.md` with the repository release
-3. for double-blind review, point the paper's release sentence at an anonymised copy of the repository; add the author
-   block for the camera-ready version
-4. after any runtime defect fix, rerun the affected test suites; rerun the benchmarks only if the fix can change their
-   outcomes, and then update the paper and the evidence file together
+1. close and test cross-user job/run/document/artifact access in every entrypoint, then make the advertised Docker job
+   path execute real IDPO work or remove that deployment claim
+2. verify and archive the CMT-submitted manuscript; reconcile camera-ready changes with the reviewers, venue and
+   October findings without blending the studies or new product measurements
+3. build the product holdout and run a simple auto-discovery and extraction baseline with field-level evidence,
+   separate schema/value scores, setup and review time, and cost instrumentation
+4. compare candidate parsers and extractors on that same holdout; keep adaptive routing only if it clears the gate in
+   `docs/PRODUCTIZATION_PLAN.md`

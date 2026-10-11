@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getJobOrThrow, mutateJob } from "@/server/jobs";
+import { requireJob } from "@/server/access";
+import { requireAdmin, requireUser } from "@/server/auth";
 import { getRunDocument } from "@/server/artifacts";
 import { apiError } from "@/server/api/response";
 import {
@@ -23,7 +25,10 @@ interface Params {
 
 export async function POST(request: Request, { params }: Params) {
   try {
+    const user = await requireUser(request.headers);
     const { jobId } = await params;
+    requireJob(jobId, user);
+    requireAdmin(user);
     const payload = (await request.json()) as Record<string, unknown>;
     const selectedFileIds = Array.isArray(payload.selectedFileIds)
       ? payload.selectedFileIds.filter((value): value is string => typeof value === "string")

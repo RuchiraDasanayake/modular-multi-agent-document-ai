@@ -9,6 +9,34 @@ import { PATCH as patchJobRoute } from "@/app/api/jobs/[jobId]/route";
 import { loadRunnerConfig, resetConfigCacheForTests } from "./config";
 import { createWorkspaceJob, getJob, listJobs, setJobRunning } from "./jobs";
 
+const originalFetch = globalThis.fetch;
+const originalGatewayUrl = process.env.INTERNAL_API_URL;
+
+test.before(() => {
+  process.env.INTERNAL_API_URL = "http://test-gateway.local";
+  globalThis.fetch = async (input, init) => {
+    if (String(input) === "http://test-gateway.local/api/auth/me") {
+      const token = new Headers(init?.headers).get("authorization");
+      return token === "Bearer test-token"
+        ? Response.json({ id: "test-user", role: "admin" })
+        : Response.json({ detail: "Invalid token" }, { status: 401 });
+    }
+    return originalFetch(input, init);
+  };
+});
+
+test.after(() => {
+  globalThis.fetch = originalFetch;
+  if (originalGatewayUrl === undefined) delete process.env.INTERNAL_API_URL;
+  else process.env.INTERNAL_API_URL = originalGatewayUrl;
+});
+
+function authenticatedRequest(input: string, init?: RequestInit): Request {
+  const headers = new Headers(init?.headers);
+  headers.set("Authorization", "Bearer test-token");
+  return new Request(input, { ...init, headers });
+}
+
 test("listJobs ignores non-job artifacts in the jobs directory", () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "idpo-jobs-list-"));
   const dataDir = path.join(tmpRoot, "idpo-data");
@@ -69,7 +97,7 @@ test("job patch stores and clears the local model override", async () => {
     });
 
     const setResponse = await patchJobRoute(
-      new Request(`http://localhost/api/jobs/${job.jobId}`, {
+      authenticatedRequest(`http://localhost/api/jobs/${job.jobId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -86,7 +114,7 @@ test("job patch stores and clears the local model override", async () => {
     assert.equal(updated.settings.llmLocalModel, "qwen3:8b");
 
     const clearResponse = await patchJobRoute(
-      new Request(`http://localhost/api/jobs/${job.jobId}`, {
+      authenticatedRequest(`http://localhost/api/jobs/${job.jobId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -122,7 +150,7 @@ test("job documents route accepts octet-stream file uploads", async () => {
     });
 
     const response = await postJobDocumentsRoute(
-      new Request(`http://localhost/api/jobs/${job.jobId}/documents`, {
+      authenticatedRequest(`http://localhost/api/jobs/${job.jobId}/documents`, {
         method: "POST",
         headers: {
           "Content-Type": "application/octet-stream",
@@ -379,7 +407,7 @@ test("document text route returns the OCR text of the latest run", async () => {
       "utf-8",
     );
 
-    const response = await getJobDocumentTextRoute(new Request("http://localhost/api/jobs/x/docs/doc-1/text"), {
+    const response = await getJobDocumentTextRoute(authenticatedRequest("http://localhost/api/jobs/x/docs/doc-1/text"), {
       params: Promise.resolve({ jobId: job.jobId, docId: "doc-1" }),
     });
     assert.equal(response.status, 200);
@@ -388,7 +416,7 @@ test("document text route returns the OCR text of the latest run", async () => {
     assert.equal(payload.text, "TOTAL 28,000\n\nThank you");
     assert.equal(payload.truncated, false);
 
-    const missing = await getJobDocumentTextRoute(new Request("http://localhost/api/jobs/x/docs/nope/text"), {
+    const missing = await getJobDocumentTextRoute(authenticatedRequest("http://localhost/api/jobs/x/docs/nope/text"), {
       params: Promise.resolve({ jobId: job.jobId, docId: "nope" }),
     });
     assert.equal(missing.status, 404);

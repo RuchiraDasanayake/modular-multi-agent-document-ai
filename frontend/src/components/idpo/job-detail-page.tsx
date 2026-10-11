@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { IdpoCard } from "@/components/idpo/card";
 import { StatusBadge } from "@/components/idpo/status-badge";
 import { Icon } from "@/components/icons";
+import { api } from "@/lib/api";
 import { idpoApi } from "@/lib/idpo-api";
 import type {
   JobDocumentRecord,
@@ -185,6 +186,7 @@ export function JobDetailPage() {
   const [escalationEnabled, setEscalationEnabled] = useState(true);
   const [localModel, setLocalModel] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [showRoutingDetails, setShowRoutingDetails] = useState(false);
   const [showReviewContext, setShowReviewContext] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -225,6 +227,16 @@ export function JobDetailPage() {
     void loadJob();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
+
+  useEffect(() => {
+    let active = true;
+    void api.me().then((user) => {
+      if (active) setIsAdmin(user.role === "admin");
+    }).catch(() => {
+      if (active) setIsAdmin(false);
+    });
+    return () => { active = false; };
+  }, []);
 
   // Form state comes from the first load only, so polling never overwrites what the user is editing.
   useEffect(() => {
@@ -469,10 +481,10 @@ export function JobDetailPage() {
           configPath: CONFIG_PATH,
           adaptiveMode: effectiveMode === "strict" ? "static" : "adaptive_safe",
           report: true,
-          escalationEnabled,
-          maxCostPerDoc: maxCostPerDoc.trim() ? Number(maxCostPerDoc) : undefined,
-          llmLocalModel: localModel.trim() || undefined,
-          autoInstallLocalModel: Boolean(localModel.trim()),
+          escalationEnabled: isAdmin ? escalationEnabled : false,
+          maxCostPerDoc: isAdmin && maxCostPerDoc.trim() ? Number(maxCostPerDoc) : undefined,
+          llmLocalModel: isAdmin ? localModel.trim() || undefined : undefined,
+          autoInstallLocalModel: isAdmin && Boolean(localModel.trim()),
           customFields: fieldConfig.map((field) => ({
             key: field.name,
             description: field.description,
@@ -901,7 +913,7 @@ export function JobDetailPage() {
                   {busyAction === "retry" ? "Starting..." : `Retry failed${selectedFailedDocuments.length > 0 ? ` (${selectedFailedDocuments.length})` : ""}`}
                 </button>
               ) : null}
-              <button
+              {isAdmin ? <button
                 type="button"
                 onClick={() => void validateSelectedWithAi()}
                 disabled={saving || !canAutoReview}
@@ -909,7 +921,7 @@ export function JobDetailPage() {
                 className={secondaryButton}
               >
                 {busyAction === "review" ? "Reviewing..." : "Auto review"}
-              </button>
+              </button> : null}
               <button
                 type="button"
                 onClick={() => void startRun(mode, false)}
@@ -1148,14 +1160,14 @@ export function JobDetailPage() {
               Leave this empty and the policy chosen for each document decides which fields to extract. Add a field to ask for a specific value, such as an invoice total.
             </p>
           </div>
-          <button
+          {isAdmin ? <button
             type="button"
             onClick={() => setShowAdvanced((current) => !current)}
             aria-expanded={showAdvanced}
             className={`text-sm ${linkStyle}`}
           >
             {showAdvanced ? "Hide advanced settings" : "Advanced settings"}
-          </button>
+          </button> : null}
         </div>
 
         <form
@@ -1214,7 +1226,7 @@ export function JobDetailPage() {
           </div>
         ) : null}
 
-        {showAdvanced ? (
+        {isAdmin && showAdvanced ? (
           <div className="mt-4 grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2 dark:border-slate-800 dark:bg-slate-950/40">
             <label className="text-sm">
               <span className="mb-1 block text-slate-700 dark:text-slate-300">Local extraction model</span>

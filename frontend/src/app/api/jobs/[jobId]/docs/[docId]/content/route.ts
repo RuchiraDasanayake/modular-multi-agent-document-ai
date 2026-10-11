@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { getJobOrThrow } from "@/server/jobs";
+import { requireJob } from "@/server/access";
+import { requireUser } from "@/server/auth";
 import { ensurePathInside } from "@/server/paths";
 import { apiError } from "@/server/api/response";
 
@@ -46,7 +48,9 @@ function guessContentType(filename: string): string {
 
 export async function GET(request: Request, { params }: Params) {
   try {
+    const user = await requireUser(request.headers);
     const { jobId, docId } = await params;
+    requireJob(jobId, user);
     const job = getJobOrThrow(jobId);
     const document = (job.documents ?? []).find((entry) => entry.fileId === docId);
     if (!document) {

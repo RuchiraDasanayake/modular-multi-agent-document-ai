@@ -10,6 +10,12 @@ A microservices-based research system for adaptive document extraction. A docume
 
 > **Research results and how to reproduce them:** see [`docs/REPRODUCING_RESULTS.md`](docs/REPRODUCING_RESULTS.md).
 
+> **Project status:** This is a research prototype under product stabilization.
+> The later October paired evaluation in [`paper/FINAL_EVIDENCE.md`](paper/FINAL_EVIDENCE.md)
+> did not show an accuracy gain from adaptive routing, and the canonical Docker
+> document job path is incomplete. See the [productization plan](docs/PRODUCTIZATION_PLAN.md)
+> for the proposed quality, cost, review, and deployment gates.
+
 ## Key Features
 
 - **Policy-driven document pipeline** — Intake → Document analysis → Policy selection → Preprocessing and OCR → Extraction → Validation → Recovery → Export, with each stage parameterised by the selected policy
@@ -159,12 +165,19 @@ AHMN routing runs in-process (`ahmn_core/direct_advisor.py`), so no AHMN server 
 
 ### Prerequisites
 
-- **Docker** & **Docker Compose** v2+ (only requirement for production)
+- **Docker** & **Docker Compose** v2+ for the supporting services
 - Python 3.10 (for local development; the document pipeline is tested on 3.10.10 with PaddlePaddle 2.6.2)
 - Node.js 18+ (for frontend development)
 - [Ollama](https://ollama.com) with `qwen3.5:9b` and Tesseract 5 (for document extraction; see [docs/REPRODUCING_RESULTS.md](docs/REPRODUCING_RESULTS.md))
 
-### Run with Docker (Recommended)
+### Start the supporting services with Docker
+
+The Docker frontend image currently contains a placeholder job runner. It can serve
+the UI and service dashboards, but starting a document job there does not run the
+canonical IDPO pipeline. For end-to-end document extraction, use the single-host
+setup in [Public Demo Deployment](docs/PUBLIC_DEMO_DEPLOYMENT.md) and verify it with
+`scripts/run_public_demo_smoke.ps1`. Do not treat a healthy Docker stack as proof
+that document processing works.
 
 ```bash
 # 1. Clone the repository
@@ -175,7 +188,7 @@ cd modular-multi-agent-document-ai
 cp .env.example .env
 # Edit .env: set JWT_SECRET_KEY to a random 32-char string and ADMIN_PASSWORD for the first admin account
 
-# 3. Build and start all eight services (database, cache, four Python services, gateway, frontend)
+# 3. Build and start the supporting services and UI
 docker compose up --build
 
 # 4. Open the app
@@ -249,6 +262,9 @@ All traffic flows through the gateway at `:8000`. JWT authentication is required
 | POST   | `/api/auth/register`         | Admin: create user    |
 | GET    | `/api/auth/users`            | Admin: list all users |
 | PATCH  | `/api/auth/users/:id/toggle` | Admin: enable/disable |
+
+Public sign-up is disabled by default until per-user processing and storage quotas are enforced.
+An admin can create viewer accounts through `/api/auth/register`.
 
 ### AHMN Core (→ :8001)
 
@@ -472,7 +488,14 @@ cp .env.example .env
 
 ---
 
-## Production Deployment
+## Legacy Docker Service Deployment
+
+The steps below describe the existing service/UI stack only. They do not provide
+an end-to-end document extraction deployment: the Docker frontend still has a
+placeholder job runner. Do not deploy this as a production document-processing
+system. The supported end-to-end demo path is the single-host setup in
+[Public Demo Deployment](docs/PUBLIC_DEMO_DEPLOYMENT.md); a separate worker and
+durable job execution path are required before container production deployment.
 
 ### Prerequisites
 

@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import { IdpoCard } from "@/components/idpo/card";
 import { StatusBadge } from "@/components/idpo/status-badge";
 import { getRunDocument } from "@/server/artifacts";
+import { requireRun } from "@/server/access";
+import { requireUser } from "@/server/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,6 +75,7 @@ export default async function IDPORunDocumentRoute({ params }: Params) {
   let detail: Record<string, unknown>;
 
   try {
+    requireRun(decodedRunId, await requireUser(await headers()));
     detail = getRunDocument(decodedRunId, decodedDocId);
   } catch {
     notFound();

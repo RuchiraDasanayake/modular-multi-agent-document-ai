@@ -6,6 +6,7 @@ Uses FastAPI TestClient with mocked database and Redis dependencies.
 
 import asyncio
 
+import httpx
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timedelta, timezone
@@ -171,6 +172,12 @@ def test_signup_missing_fields(client):
     resp = client.post("/api/auth/signup", json={})
     assert resp.status_code == 422
 
+def test_public_signup_defaults_to_off(monkeypatch):
+    from gateway.config import Settings
+
+    monkeypatch.delenv("PUBLIC_SIGNUP_ENABLED", raising=False)
+    assert Settings(_env_file=None).PUBLIC_SIGNUP_ENABLED is False
+
 def test_signup_status_follows_setting(client, monkeypatch):
     from gateway.config import settings
 
@@ -201,6 +208,56 @@ def test_me_without_token(client):
 def test_proxy_without_token(client):
     resp = client.get("/api/advice/something")
     assert resp.status_code in (401, 403)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/idpo/runs",
+        "/api/idpo/runs/other-user/docs.xlsx",
+        "/api/xai/explanation/other-user-question",
+        "/api/hitl/history",
+        "/api/dashboard/memory/mtm",
+        "/api/guardrails/history",
+    ],
+)
+def test_viewer_cannot_proxy_unscoped_service_data(client, path):
+    from gateway.deps import get_current_user
+    from gateway.main import app
+
+    app.dependency_overrides[get_current_user] = lambda: {"id": "viewer-1", "role": "viewer"}
+    with patch("gateway.main._get_client", new_callable=AsyncMock) as get_client:
+        resp = client.get(path)
+
+    assert resp.status_code == 403
+    get_client.assert_not_awaited()
+
+
+def test_viewer_cannot_start_legacy_idpo_run(client):
+    from gateway.deps import get_current_user
+    from gateway.main import app
+
+    app.dependency_overrides[get_current_user] = lambda: {"id": "viewer-1", "role": "viewer"}
+    with patch("gateway.main._get_client", new_callable=AsyncMock) as get_client:
+        resp = client.post("/api/idpo/run", json={"documents": []})
+
+    assert resp.status_code == 403
+    get_client.assert_not_awaited()
+
+
+def test_admin_can_proxy_legacy_service(client):
+    from gateway.deps import get_current_user
+    from gateway.main import app
+
+    app.dependency_overrides[get_current_user] = lambda: {"id": "admin-1", "role": "admin"}
+    upstream = AsyncMock()
+    upstream.request.return_value = httpx.Response(200, json={"runs": []})
+    with patch("gateway.main._get_client", new_callable=AsyncMock, return_value=upstream):
+        resp = client.get("/api/idpo/runs")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"runs": []}
+    assert upstream.request.await_args.kwargs["headers"]["x-user-id"] == "admin-1"
 
 # ═══════════════════════════════════════════════════════════════
 # Proxy Routing Logic

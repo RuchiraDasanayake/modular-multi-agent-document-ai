@@ -1,6 +1,7 @@
 # System Contract
 
-This file defines the current practical contract for the system.
+This file defines the current practical contract for the system. The proposed product architecture and acceptance gates
+are in `docs/PRODUCTIZATION_PLAN.md`; they must not be read as implemented features.
 
 It is intentionally shorter and stricter than the long architecture docs.
 
@@ -8,7 +9,9 @@ It is intentionally shorter and stricter than the long architecture docs.
 
 The system is a document-processing platform with one canonical runtime path and a few legacy or research-facing support surfaces.
 
-The main goal right now is to keep the runtime understandable, stable, easy to audit, and focused on clear adaptive extraction results.
+The current runtime must remain understandable, stable and auditable while product stabilization proceeds. Its research
+policy outputs are retained for the frozen October internal study, which is separate from the author-reported accepted
+May submission; whether adaptive routing belongs in the future product is an open measurement decision.
 
 ## Document Precedence
 
@@ -18,9 +21,11 @@ Use the project docs with this precedence:
    Defines the current phase, goal, and non-goals
 2. `docs/SYSTEM_CONTRACT.md`
    Defines the current system contract and canonical outputs
-3. `docs/IDPO_CLEANUP_PASS1.md`
+3. `docs/PRODUCTIZATION_PLAN.md`
+   Defines proposed product changes and their gates, without changing this current contract
+4. `docs/IDPO_CLEANUP_PASS1.md`
    Defines the active cleanup plan
-4. `AGENTS.md`
+5. `AGENTS.md`
    Defines AI workflow rules for working in the repo
 
 If they conflict, update the stale document instead of letting the mismatch persist.
@@ -168,7 +173,9 @@ The primary UI requirement is:
 
 without digging through subsystem-specific panels first.
 
-The target UI model is defined in `docs/JOB_UI_CONTRACT.md`.
+The near-term job-first UI model is defined in `docs/JOB_UI_CONTRACT.md`. Product review and field-evidence gates are
+defined separately in `docs/PRODUCTIZATION_PLAN.md`; AHMN-specific UI requirements remain subject to its keep/remove
+decision.
 
 That model is job-first:
 
@@ -181,7 +188,8 @@ The current runtime remains run-centric underneath, but the frontend now treats 
 ## Access Control
 
 The job API and the dashboard pages are served by the frontend server, so the gateway never sees those requests.
-`frontend/src/middleware.ts` checks them instead:
+`frontend/src/middleware.ts` checks their session, and the job API routes resolve the current user before accessing
+stored resources:
 
 - Public without a session: `/`, `/features`, `/about`, `/docs`, `/contact`, `/login`, `/signup`, `/forgot-password`,
   `/reset-password`, static assets, and the `/api/*` routes that are proxied to the gateway, which checks them itself.
@@ -196,11 +204,23 @@ The job API and the dashboard pages are served by the frontend server, so the ga
 The gateway creates the first admin account at startup from `ADMIN_PASSWORD` (with `ADMIN_USERNAME` and `ADMIN_EMAIL`)
 when no admin exists, and never changes existing users.
 
-Any signed-in account, viewer or admin, can use the job API. Public sign-up (`POST /api/auth/signup`) always creates a
-viewer and follows the gateway's `PUBLIC_SIGNUP_ENABLED` setting: on by default, off in `docker-compose.prod.yml` and
-`scripts/start_public_demo_stack.ps1` unless set to `true`. While it is off, sign-up answers 403, admins create
-accounts on `/dashboard/admin`, and the frontend reads `GET /api/auth/signup-status` to replace its sign-up links with
-sign-in.
+On the current branch, a new job records its creator as `ownerUserId`. Viewers can access their own jobs, related runs
+and document artifacts; admins can access all jobs. Jobs from before ownership was recorded are admin-only. The local
+benchmark API is admin-only. The gateway's catch-all `/api/{path:path}` proxy is also admin-only, including legacy
+`/api/{advice,dashboard,scheduler,guardrails,xai,hitl,idpo,experiments}/...` routes, because those services do not yet
+enforce per-user ownership. This is a temporary isolation gate, **not** per-user HITL or Guardrails support. The
+multi-user route matrix and end-to-end artifact reads remain a release verification gate in
+`docs/PRODUCTIZATION_PLAN.md`.
+
+The frontend run API currently rejects viewer-supplied model, cloud, custom config, escalation and resource overrides,
+and rejects a viewer run when a cloud policy is enabled. Creating or changing job policies is admin-only; a viewer may
+read policies for a job they own. These are temporary spend and data-egress controls until per-user authorization,
+quotas and provider policies are implemented and tested. They do not define the final product's cloud access policy.
+
+Public sign-up (`POST /api/auth/signup`) always creates a viewer and follows the gateway's `PUBLIC_SIGNUP_ENABLED`
+setting: off by default until per-user processing and storage quotas exist. It can be explicitly set to `true` for a
+controlled deployment. While it is off, sign-up answers 403, admins create accounts on `/dashboard/admin`, and the frontend reads
+`GET /api/auth/signup-status` to replace its sign-up links with sign-in.
 
 ## Supported Demo Deployment
 
@@ -236,7 +256,7 @@ Rules:
 
 ## What The System Should Be
 
-During cleanup, the system should be:
+For current-runtime cleanup, the system should be:
 
 - one understandable runtime path
 - one stable run artifact contract
@@ -250,6 +270,10 @@ It should not be:
 - a collection of overlapping entrypoints with different behavior
 - a mix of demo logic and production-path logic in the same core files
 - dependent on giant multi-purpose files for basic reasoning
+
+The product target in `docs/PRODUCTIZATION_PLAN.md` may simplify or replace these service boundaries after measured
+quality, cost, security and operability checks. Its worker, grounded field-evidence and review requirements are not
+promises made by this current-runtime contract.
 
 ## Change Protocol
 

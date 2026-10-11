@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import { BackLink } from "@/components/back-link";
 import { IdpoCard } from "@/components/idpo/card";
 import { StatusBadge } from "@/components/idpo/status-badge";
 import { getRunOverview } from "@/server/artifacts";
+import { requireRun } from "@/server/access";
+import { requireUser } from "@/server/auth";
 import type { DocumentSummary, RunOverview } from "@/types/idpo";
 
 export const runtime = "nodejs";
@@ -89,6 +92,7 @@ export default async function IDPORunDetailRoute({ params }: Params) {
   let overview: RunOverview;
 
   try {
+    requireRun(decodeURIComponent(runId), await requireUser(await headers()));
     overview = getRunOverview(decodeURIComponent(runId));
   } catch {
     notFound();

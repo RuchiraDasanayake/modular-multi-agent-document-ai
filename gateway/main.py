@@ -639,9 +639,9 @@ def _resolve_upstream(path: str) -> tuple[str, str] | None:
 async def proxy(
     request: Request,
     path: str,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_admin),
 ):
-    """Authenticate, then forward request to the responsible microservice."""
+    """Limit unscoped legacy services to admins until they enforce ownership."""
     resolved = _resolve_upstream(request.url.path)
     if resolved is None:
         raise HTTPException(status_code=404, detail="No upstream service for this path")

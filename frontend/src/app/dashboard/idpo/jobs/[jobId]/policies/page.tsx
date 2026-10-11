@@ -1,8 +1,12 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+import { notFound } from "next/navigation";
 import { IdpoCard } from "@/components/idpo/card";
 import { JobPolicyCreateForm } from "@/components/idpo/job-policy-create-form";
 import { JobPolicyRuntimeToggle } from "@/components/idpo/job-policy-runtime-toggle";
 import { getJobPolicyTemplates, getSuggestedJobPolicyMatching, listJobPolicies } from "@/server/policies";
+import { requireJob } from "@/server/access";
+import { requireUser } from "@/server/auth";
 
 function formatF1(value: number | null): string {
   return typeof value === "number" ? value.toFixed(2) : "-";
@@ -86,6 +90,14 @@ export default async function JobPoliciesWorkspacePage({
 }) {
   const resolved = await params;
   const jobId = decodeURIComponent(resolved.jobId);
+  let isAdmin = false;
+  try {
+    const user = await requireUser(await headers());
+    requireJob(jobId, user);
+    isAdmin = user.role === "admin";
+  } catch {
+    notFound();
+  }
   const workspace = listJobPolicies(jobId);
   const suggestedMatching = getSuggestedJobPolicyMatching(jobId);
   const policyTemplates = getJobPolicyTemplates(jobId);
@@ -111,7 +123,7 @@ export default async function JobPoliciesWorkspacePage({
         </p>
         <p className="mt-2 max-w-4xl text-sm text-slate-600 dark:text-slate-300">
           Optional paid cloud policies are listed here as inactive extensions. They stay out of the active runtime bank
-          until you explicitly turn them on for a job.
+          until an admin turns them on for a job.
         </p>
         <div className="mt-4 grid gap-3 md:grid-cols-4">
           <IdpoCard className="p-4">
@@ -188,12 +200,12 @@ export default async function JobPoliciesWorkspacePage({
                     </div>
                   </td>
                   <td className="px-2 py-3">
-                    <JobPolicyRuntimeToggle
+                    {isAdmin ? <JobPolicyRuntimeToggle
                       jobId={jobId}
                       policyId={policy.policyId}
                       runtimeEnabled={policy.runtimeEnabled}
                       runtimeToggleAllowed={policy.runtimeToggleAllowed}
-                    />
+                    /> : <span className="text-xs text-slate-500">Admin only</span>}
                   </td>
                   <td className="px-2 py-3 text-slate-600 dark:text-slate-300">{formatF1(policy.meanExactF1)}</td>
                   <td className="px-2 py-3 text-slate-600 dark:text-slate-300">{formatConfidence(policy.ahmnConfidence)}</td>
@@ -211,7 +223,7 @@ export default async function JobPoliciesWorkspacePage({
         </div>
       </IdpoCard>
 
-      <IdpoCard>
+      {isAdmin ? <IdpoCard>
         <details className="group">
           <summary className="flex cursor-pointer list-none items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left dark:border-slate-800 dark:bg-slate-950/40">
             <div>
@@ -232,7 +244,7 @@ export default async function JobPoliciesWorkspacePage({
             <JobPolicyCreateForm jobId={jobId} initialMatching={suggestedMatching} policyTemplates={policyTemplates} />
           </div>
         </details>
-      </IdpoCard>
+      </IdpoCard> : null}
 
       <IdpoCard>
         <div className="flex flex-wrap items-start justify-between gap-4">

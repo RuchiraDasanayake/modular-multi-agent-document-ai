@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { requireJob } from "@/server/access";
+import { requireAdmin, requireUser } from "@/server/auth";
 import { apiError } from "@/server/api/response";
 import { createJobCustomPolicy, listJobPolicies, setJobPolicyRuntimeEnabled } from "@/server/policies";
 
@@ -22,9 +24,11 @@ function parseStringArray(value: unknown): string[] {
     .filter((entry) => entry.length > 0);
 }
 
-export async function GET(_: Request, { params }: Params) {
+export async function GET(request: Request, { params }: Params) {
   try {
+    const user = await requireUser(request.headers);
     const { jobId } = await params;
+    requireJob(jobId, user);
     return NextResponse.json(listJobPolicies(jobId), { headers: NO_STORE_HEADERS });
   } catch (error) {
     return apiError(error, 400);
@@ -33,7 +37,10 @@ export async function GET(_: Request, { params }: Params) {
 
 export async function POST(request: Request, { params }: Params) {
   try {
+    const user = await requireUser(request.headers);
     const { jobId } = await params;
+    requireJob(jobId, user);
+    requireAdmin(user);
     const payload = (await request.json()) as Record<string, unknown>;
     const policyId = typeof payload.policyId === "string" ? payload.policyId : "";
     const name = typeof payload.name === "string" ? payload.name : "";
@@ -80,7 +87,10 @@ export async function POST(request: Request, { params }: Params) {
 
 export async function PATCH(request: Request, { params }: Params) {
   try {
+    const user = await requireUser(request.headers);
     const { jobId } = await params;
+    requireJob(jobId, user);
+    requireAdmin(user);
     const payload = (await request.json()) as Record<string, unknown>;
     const policyId = typeof payload.policyId === "string" ? payload.policyId : "";
     if (!policyId.trim()) {

@@ -36,6 +36,7 @@ interface StartRunRequest {
     llmLocalModel?: string;
     llmCloudModel?: string;
     llmDefaultMode?: "local" | "cloud";
+    forceLocalOnly?: boolean;
     llmUseExtraction?: boolean;
     llmUseSummarization?: boolean;
     flagshipModel?: string;
@@ -156,7 +157,7 @@ function mergeFieldDescription(baseDescription: string | undefined, reviewNotes:
   return parts.join(" ");
 }
 
-function patchConfig(baseConfig: Record<string, unknown>, settings: StartRunRequest["settings"], jobId: string): Record<string, unknown> {
+export function patchConfig(baseConfig: Record<string, unknown>, settings: StartRunRequest["settings"], jobId: string): Record<string, unknown> {
   const updated = structuredClone(baseConfig);
 
   if (settings.adaptiveMode) {
@@ -225,6 +226,20 @@ function patchConfig(baseConfig: Record<string, unknown>, settings: StartRunRequ
       llm.use_summarization = settings.llmUseSummarization;
     }
     updated.llm = llm;
+  }
+
+  if (settings.forceLocalOnly) {
+    const llm = ((updated.llm as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
+    llm.default_mode = "local";
+    llm.history_mode = "local";
+    llm.provider = "ollama";
+    llm.allow_cloud_fallback = false;
+    llm.enable_flagship_fallback = false;
+    llm.description_refinement_use_cloud = false;
+    updated.llm = llm;
+    const escalation = ((updated.escalation as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
+    escalation.enabled = false;
+    updated.escalation = escalation;
   }
 
   if (Array.isArray(settings.customFields) && settings.customFields.length > 0) {

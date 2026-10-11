@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD: str = ""
 
     # ── Public self-registration (creates viewer accounts; admins can always add users) ──
-    PUBLIC_SIGNUP_ENABLED: bool = True
+    PUBLIC_SIGNUP_ENABLED: bool = False
 
     def validate_jwt_secret(self) -> None:
         """Ensure a stable JWT secret across restarts.
