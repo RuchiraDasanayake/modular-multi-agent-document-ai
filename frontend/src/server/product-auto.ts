@@ -27,7 +27,8 @@ const MAX_CORRECTION = 10000;
 const MAX_LINKED_CORRECTION = 300000;
 const MAX_LINKED_ROWS = 128;
 const MAX_SCHEMA_FIELDS = 24;
-const MAX_ADDED_FIELDS = 100;
+const MAX_ADDED_FIELDS = MAX_SCHEMA_FIELDS;
+const MAX_ADDED_QUOTE = 500;
 const ADDED_FIELD_ID = /^[a-z][a-z0-9_]{0,63}$/;
 const SCHEMA_FIELD_ID = /^[\p{L}][\p{L}\p{N}_]{0,63}$/u;
 const SCHEMA_TYPES = new Set(["string", "integer", "decimal", "boolean", "date", "array[object]"]);
@@ -248,8 +249,28 @@ function readCandidate(runId: string, docId: string): ProductAutoCandidate {
   return candidateFromArtifact(result.candidate, docId, result.pages);
 }
 
+function readSourcePages(runId: string, docId: string): Array<{ page: number; text: string }> {
+  requireSafeId(docId);
+  const result = parseJsonObject(path.join(outputDir(runId), "docs", docId, "result.json"));
+  if (!Array.isArray(result.pages)) throw new Error("Invalid source pages.");
+  const seen = new Set<number>();
+  return result.pages.map((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid source page.");
+    const page = value as Record<string, unknown>;
+    if (!Number.isSafeInteger(page.page) || typeof page.page !== "number" || page.page < 1 ||
+      seen.has(page.page) || typeof page.text !== "string") throw new Error("Invalid source page.");
+    seen.add(page.page);
+    return { page: page.page, text: page.text };
+  });
+}
+
 function readReview(jobId: string, runId: string, docId: string): ProductAutoReview | null {
   return readAuditTrail(jobId, runId, docId).at(-1)?.review_snapshot ?? null;
+}
+
+function effectiveReviewStatus(review: ProductAutoReview | null): "unreviewed" | "pending" | "completed" {
+  if (!review) return "unreviewed";
+  return review.added_fields?.some((field) => !hasEvidenceShape(field.evidence)) ? "pending" : review.status;
 }
 
 function readAuditTrail(jobId: string, runId: string, docId: string): ProductAutoAuditEvent[] {
@@ -329,7 +350,7 @@ function validatedDocuments(record: RunRecord): ProductAutoRunDocument[] {
       status: candidate.document_status,
       fieldCount: candidate.proposed_schema.length,
       acceptedCount: candidate.extracted_values.filter((value) => value.status === "accepted").length,
-      reviewStatus: review?.status ?? "unreviewed",
+      reviewStatus: effectiveReviewStatus(review),
     };
   });
 }
@@ -376,7 +397,7 @@ function publicRun(record: RunRecord): ProductAutoRun {
     selectedCount: record.selectedFiles.length,
     documents: record.documents.map((document) => ({
       ...document,
-      reviewStatus: readReview(record.jobId, record.runId, document.docId)?.status ?? "unreviewed",
+      reviewStatus: effectiveReviewStatus(readReview(record.jobId, record.runId, document.docId)),
     })),
     error: record.error,
   };
@@ -492,11 +513,12 @@ export function getProductAutoDocument(jobId: string, runId: string, docId: stri
   const document = run.documents.find((item) => item.docId === docId);
   if (run.status !== "success" || !document) throw new AccessError("Document result not found.", 404);
   const candidate = readCandidate(runId, docId);
+  const sourcePages = readSourcePages(runId, docId);
   const auditTrail = readAuditTrail(jobId, runId, docId);
   const review = auditTrail.at(-1)?.review_snapshot ?? null;
   return {
     runId, fileId: document.fileId, fileName: document.fileName,
-    candidate, review, auditTrail,
+    candidate, sourcePages, review, auditTrail,
     correctedResult: deriveProductAutoCorrectedResult(candidate, review),
   };
 }
@@ -540,12 +562,16 @@ export function deriveProductAutoCorrectedResult(
         ...(machine?.evidence ? { evidence: machine.evidence } : {}) });
     }
   }
+  let unsafeAddedReview = false;
   for (const added of [...(review?.added_fields ?? [])].sort((left, right) => left.field_id.localeCompare(right.field_id))) {
+    const grounded = hasEvidenceShape(added.evidence);
+    if (!grounded) unsafeAddedReview = true;
     fields.push({ field_id: added.field_id, type: added.type, value: added.value,
-      status: "accepted", provenance: "human_added" });
+      status: grounded ? "accepted" : "needs_review", provenance: "human_added",
+      ...(grounded ? { evidence: added.evidence } : {}) });
   }
   return { scope: "document", doc_id: candidate.doc_id, review_revision: review?.revision ?? 0,
-    review_status: unsafeLinkedReview ? "pending" : review?.status ?? "unreviewed", fields, removed_field_ids };
+    review_status: unsafeLinkedReview || unsafeAddedReview ? "pending" : review?.status ?? "unreviewed", fields, removed_field_ids };
 }
 
 function parseCorrectedValue(raw: string, fieldType: string): string | number | boolean {
@@ -607,7 +633,9 @@ function parseCorrectedRows(raw: string): ProductAutoLinkedCorrectionRow[] {
   return rows.sort((left, right) => left.row - right.row);
 }
 
-function parseAddedFields(values: unknown, proposedIds: Set<string>): ProductAutoAddedField[] {
+function parseAddedFields(
+  values: unknown, proposedIds: Set<string>, sourcePages: Array<{ page: number; text: string }>,
+): ProductAutoAddedField[] {
   if (!Array.isArray(values)) throw new AccessError("Added fields must be a list.", 400);
   if (values.length > MAX_ADDED_FIELDS) throw new AccessError("Too many added fields.", 400);
   const seen = new Set<string>();
@@ -626,7 +654,27 @@ function parseAddedFields(values: unknown, proposedIds: Set<string>): ProductAut
     if (note && note.length > MAX_REVIEW_NOTE) throw new AccessError("Added field note is too long.", 400);
     if (typeof item.value !== "string") throw new AccessError("Invalid added field value.", 400);
     const parsedValue = parseCorrectedValue(item.value, type as string);
-    return { field_id: fieldId, type: type as ProductAutoAddedField["type"], value: parsedValue, note };
+    const source = item.evidence;
+    if (!source || typeof source !== "object" || Array.isArray(source)) {
+      throw new AccessError("Added field needs a source page and exact OCR quote.", 400);
+    }
+    const evidenceInput = source as Record<string, unknown>;
+    if (Object.keys(evidenceInput).some((key) => key !== "page" && key !== "quote") ||
+      !Number.isSafeInteger(evidenceInput.page) || typeof evidenceInput.page !== "number" ||
+      typeof evidenceInput.quote !== "string" || !evidenceInput.quote.trim() ||
+      [...evidenceInput.quote].length > MAX_ADDED_QUOTE) {
+      throw new AccessError("Invalid added field source quote.", 400);
+    }
+    const page = sourcePages.find((item) => item.page === evidenceInput.page);
+    const quote = evidenceInput.quote;
+    const offset = page?.text.indexOf(quote) ?? -1;
+    if (!page || offset < 0 || !linkedValueMatchesQuote(item.value.trim(), quote)) {
+      throw new AccessError("Added field value and quote must match the OCR source page.", 400);
+    }
+    const start = [...page.text.slice(0, offset)].length;
+    const evidence = { page: page.page, start, end: start + [...quote].length, quote };
+    assertSourceEvidence(evidence, sourcePages);
+    return { field_id: fieldId, type: type as ProductAutoAddedField["type"], value: parsedValue, evidence, note };
   });
 }
 
@@ -652,7 +700,6 @@ function saveProductAutoReviewWithRevision(
   const allowed = new Set(detail.candidate.proposed_schema.map((field) => field.field_id));
   const fieldTypes = new Map(detail.candidate.proposed_schema.map((field) => [field.field_id, field.type]));
   const machineValueByField = new Map(detail.candidate.extracted_values.map((field) => [field.field_id, field.value]));
-  const parsedAdded = parseAddedFields(addedFields, allowed);
   const seen = new Set<string>();
   const parsed: ProductAutoReviewField[] = [];
   for (const value of fields) {
@@ -685,6 +732,11 @@ function saveProductAutoReviewWithRevision(
     parsed.push({ field_id: fieldId, decision: decision as ProductAutoReviewDecision,
       corrected_value: storedCorrection, note });
     seen.add(fieldId);
+  }
+  const parsedAdded = parseAddedFields(addedFields, allowed, detail.sourcePages);
+  const removedCount = parsed.filter((field) => field.decision === "not_present" || field.decision === "remove").length;
+  if (allowed.size - removedCount + parsedAdded.length > MAX_SCHEMA_FIELDS) {
+    throw new AccessError("Reviewed schema exceeds the 24-field limit.", 400);
   }
   const previous = detail.review;
   const eventId = randomUUID().replace(/-/g, "");

@@ -62,7 +62,9 @@ export function ProductAutoDocumentPage() {
       setLinkedDraft(Object.fromEntries(data.candidate.proposed_schema.filter((field) => field.type === "array[object]")
         .map((field) => [field.field_id, linkedCorrectionRows(reviews.get(field.field_id)?.corrected_value,
           machine.get(field.field_id))])));
-      setAddedDraft((data.review?.added_fields ?? []).map((field) => ({ ...field, value: String(field.value), clientId: field.field_id })));
+      setAddedDraft((data.review?.added_fields ?? []).map((field) => ({ ...field, value: String(field.value),
+        evidence: { page: field.evidence?.page ?? data.sourcePages[0]?.page ?? 1, quote: field.evidence?.quote ?? "" },
+        clientId: field.field_id })));
     }).catch((cause) => {
       if (current) setError(cause instanceof Error ? cause.message : "Failed to load extraction result.");
     }).finally(() => { if (current) setLoading(false); });
@@ -115,11 +117,14 @@ export function ProductAutoDocumentPage() {
     setSaving(true);
     setError("");
     try {
-      const addedFields: ProductAutoAddedFieldInput[] = addedDraft.map(({ field_id, type, value, note }) => ({ field_id, type, value, note }));
+      const addedFields: ProductAutoAddedFieldInput[] = addedDraft.map(({ field_id, type, value, evidence, note }) =>
+        ({ field_id, type, value, evidence, note }));
       const result = await idpoApi.saveProductAutoReview(jobId, runId, docId, detail.review?.revision ?? 0, fields, addedFields);
       const refreshed = await idpoApi.getProductAutoDocument(jobId, runId, docId);
       setDetail(refreshed);
-      setAddedDraft((refreshed.review?.added_fields ?? []).map((field) => ({ ...field, value: String(field.value), clientId: field.field_id })));
+      setAddedDraft((refreshed.review?.added_fields ?? []).map((field) => ({ ...field, value: String(field.value),
+        evidence: { page: field.evidence?.page ?? refreshed.sourcePages[0]?.page ?? 1, quote: field.evidence?.quote ?? "" },
+        clientId: field.field_id })));
       setMessage(result.review.status === "completed" ? "Human review completed." : "Partial human review saved.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Failed to save review.");
@@ -133,6 +138,9 @@ export function ProductAutoDocumentPage() {
 
   const { candidate } = detail;
   const values = new Map(candidate.extracted_values.map((item) => [item.field_id, item]));
+  const removedProposals = candidate.proposed_schema.filter((field) =>
+    draft[field.field_id]?.decision === "remove" || draft[field.field_id]?.decision === "not_present").length;
+  const atFieldLimit = candidate.proposed_schema.length - removedProposals + addedDraft.length >= 24;
   const originalUrl = `/api/jobs/${encodeURIComponent(jobId)}/docs/${encodeURIComponent(detail.fileId)}/content`;
   const previewable = /\.(pdf|png|jpe?g|txt|json)$/i.test(detail.fileName);
 
@@ -143,7 +151,7 @@ export function ProductAutoDocumentPage() {
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="break-all text-2xl font-semibold text-slate-900 dark:text-white">{detail.fileName}</h1>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Document status: {candidate.document_status.replaceAll("_", " ")} · Human review: {detail.review?.status ?? "unreviewed"}</p>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Document status: {candidate.document_status.replaceAll("_", " ")} · Human review: {detail.correctedResult.review_status}</p>
           </div>
           <a href={originalUrl} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Open original</a>
         </div>
@@ -170,6 +178,16 @@ export function ProductAutoDocumentPage() {
             This file type has no in-page preview. Open the original to inspect it.
           </p>
         )}
+        <details className="mt-4 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+          <summary className="cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-200">OCR text by page · copy exact quotes for added fields</summary>
+          {detail.sourcePages.length === 0 ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">No OCR text is available for source-backed additions.</p> : null}
+          <div className="mt-3 max-h-80 space-y-3 overflow-auto">
+            {detail.sourcePages.map((page) => <section key={page.page}>
+              <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-200">Page {page.page}</h3>
+              <pre className="mt-1 whitespace-pre-wrap break-words text-xs text-slate-600 dark:text-slate-300">{page.text || "No text extracted."}</pre>
+            </section>)}
+          </div>
+        </details>
       </IdpoCard>
 
       <IdpoCard>
@@ -280,10 +298,12 @@ export function ProductAutoDocumentPage() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className="font-semibold text-slate-900 dark:text-white">Missed scalar fields</h3>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Added values come from your document review. They have no machine evidence span.</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Each value needs a page and an exact quote from the OCR text. The typed value must appear in that quote.</p>
             </div>
-            <button type="button" onClick={() => setAddedDraft((current) => [...current, { clientId: crypto.randomUUID(), field_id: "", type: "string", value: "", note: "" }])}
-              className="rounded-lg border border-cyan-600 px-3 py-2 text-sm font-medium text-cyan-700 hover:bg-cyan-50 dark:text-cyan-300 dark:hover:bg-cyan-900/20">Add field</button>
+            <button type="button" disabled={atFieldLimit || detail.sourcePages.length === 0}
+              onClick={() => setAddedDraft((current) => [...current, { clientId: crypto.randomUUID(), field_id: "", type: "string", value: "",
+                evidence: { page: detail.sourcePages[0]?.page ?? 1, quote: "" }, note: "" }])}
+              className="rounded-lg border border-cyan-600 px-3 py-2 text-sm font-medium text-cyan-700 hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-cyan-300 dark:hover:bg-cyan-900/20">Add field</button>
           </div>
           <div className="mt-3 space-y-3">
             {addedDraft.map((field) => (
@@ -312,6 +332,20 @@ export function ProductAutoDocumentPage() {
                       className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950" />
                   )}
                 </label>
+                <div className="mt-3 grid gap-3 sm:grid-cols-[110px,minmax(0,1fr)]">
+                  <label className="text-sm text-slate-700 dark:text-slate-200">OCR page
+                    <select value={field.evidence.page} onChange={(event) => updateAdded(field.clientId,
+                      { evidence: { ...field.evidence, page: Number(event.target.value) } })}
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950">
+                      {detail.sourcePages.map((page) => <option key={page.page} value={page.page}>{page.page}</option>)}
+                    </select>
+                  </label>
+                  <label className="text-sm text-slate-700 dark:text-slate-200">Exact OCR quote
+                    <textarea value={field.evidence.quote} onChange={(event) => updateAdded(field.clientId,
+                      { evidence: { ...field.evidence, quote: event.target.value } })} rows={2} maxLength={500}
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950" />
+                  </label>
+                </div>
                 <label className="mt-3 block text-sm text-slate-700 dark:text-slate-200">Review note
                   <textarea value={field.note ?? ""} onChange={(event) => updateAdded(field.clientId, { note: event.target.value })} rows={2} maxLength={2000}
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950" />
@@ -353,7 +387,8 @@ export function ProductAutoDocumentPage() {
                     </li>;
                   })}
                   {(event.review_added_fields ?? event.review_snapshot.added_fields ?? []).map((field) => (
-                    <li key={`added-${field.field_id}`} className="break-words"><span className="font-medium">{field.field_id}</span>: added {field.type} value {displayValue(field.value)}</li>
+                    <li key={`added-${field.field_id}`} className="break-words"><span className="font-medium">{field.field_id}</span>: added {field.type} value {displayValue(field.value)}
+                      {field.evidence ? <> · page {field.evidence.page}: <q>{field.evidence.quote}</q></> : " · no source evidence"}</li>
                   ))}
                 </ul>
               </li>

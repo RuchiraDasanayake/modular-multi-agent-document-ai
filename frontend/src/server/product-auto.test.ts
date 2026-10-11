@@ -67,7 +67,8 @@ async function withStorage(run: (dataDir: string) => Promise<void>): Promise<voi
 
 test("automatic extraction keeps source access private and rejects conflicting reviews", async () => withStorage(async (dataDir) => {
   const job = createWorkspaceJob({ ownerUserId: "alice-id" });
-  const updated = await addDocumentsToJob(job.jobId, [new File(["Invoice\nTotal: 100"], "invoice.txt", { type: "text/plain" })]);
+  const sourceText = "Invoice\nTotal: 100\nInvoice number: INV-7\nPaid: false\nTax: 12.50\nUnits: 0\nDate: 2026-02-10";
+  const updated = await addDocumentsToJob(job.jobId, [new File([sourceText], "invoice.txt", { type: "text/plain" })]);
   const source = updated.documents![0];
   const sha256 = createHash("sha256").update(fs.readFileSync(path.join(updated.uploadsPath!, source.storedName))).digest("hex");
   const runId = `auto_${"a".repeat(32)}`;
@@ -82,7 +83,7 @@ test("automatic extraction keeps source access private and rejects conflicting r
   };
   const privatePath = path.join(dataDir, "frontend", "auto_inputs", runId, source.storedName);
   fs.writeFileSync(path.join(sidecarDir, "result.json"), JSON.stringify({ source_path: privatePath,
-    pages: [{ page: 1, text: "Invoice\nTotal: 100" }], candidate }));
+    pages: [{ page: 1, text: sourceText }], candidate }));
   fs.writeFileSync(path.join(dataDir, "product_runs", runId, "run.json"), JSON.stringify({ contract_version: 1, run_id: runId, doc_count: 1 }));
   fs.writeFileSync(path.join(dataDir, "product_runs", runId, "manifest.jsonl"), JSON.stringify({
     contract_version: 1, run_id: runId, doc_id: docId, source_path: privatePath,
@@ -105,7 +106,7 @@ test("automatic extraction keeps source access private and rejects conflicting r
   assert.equal((await listAutoRoute(request(collectionUrl, "bob"), collectionParams)).status, 404);
   assert.equal((await getAutoDocRoute(request(docUrl, "bob"), detailParams)).status, 404);
   assert.equal((await getOriginalContentRoute(request(sourceUrl, "bob"), sourceParams)).status, 404);
-  assert.equal(await (await getOriginalContentRoute(request(sourceUrl, "alice"), sourceParams)).text(), "Invoice\nTotal: 100");
+  assert.equal(await (await getOriginalContentRoute(request(sourceUrl, "alice"), sourceParams)).text(), sourceText);
 
   const list = await listAutoRoute(request(collectionUrl, "alice"), collectionParams);
   assert.equal(list.status, 200);
@@ -117,6 +118,7 @@ test("automatic extraction keeps source access private and rejects conflicting r
   const detailBody = await detail.text();
   assert.equal(detailBody.includes(privatePath), false);
   assert.equal(JSON.parse(detailBody).candidate.extracted_values[0].evidence.quote, "100");
+  assert.equal(JSON.parse(detailBody).sourcePages[0].text, sourceText);
   assert.equal(JSON.parse(detailBody).correctedResult.fields[0].status, "needs_review");
   assert.equal(JSON.parse(detailBody).correctedResult.fields[0].provenance, "machine");
 
@@ -166,12 +168,30 @@ test("automatic extraction keeps source access private and rejects conflicting r
     [{ field_id: "invoice_number", type: "decimal", value: "not a number" }])).status, 400);
   assert.equal((await post("alice", 2, [{ field_id: "total", decision: "remove" }],
     [{ field_id: "invoice_date", type: "date", value: "2026-02-30" }])).status, 400);
+  assert.equal((await post("alice", 2, [{ field_id: "total", decision: "remove" }],
+    [{ field_id: "invoice_number", type: "string", value: "INV-7" }])).status, 400);
+  assert.equal((await post("alice", 2, [{ field_id: "total", decision: "remove" }],
+    [{ field_id: "invoice_number", type: "string", value: "INV-7",
+      evidence: { page: 2, quote: "Invoice number: INV-7" } }])).status, 400);
+  assert.equal((await post("alice", 2, [{ field_id: "total", decision: "remove" }],
+    [{ field_id: "invoice_number", type: "string", value: "INV-7",
+      evidence: { page: 1, quote: "Invoice number: INV-8" } }])).status, 400);
+  assert.equal((await post("alice", 2, [{ field_id: "total", decision: "remove" }],
+    [{ field_id: "invoice_number", type: "string", value: "OTHER",
+      evidence: { page: 1, quote: "Invoice number: INV-7" } }])).status, 400);
+  assert.equal((await post("alice", 2, [{ field_id: "total", decision: "remove" }],
+    [{ field_id: "invoice_number", type: "string", value: "INV-7",
+      evidence: { page: 1, start: 0, quote: "Invoice number: INV-7" } }])).status, 400);
+  assert.equal((await post("alice", 2, [{ field_id: "total", decision: "remove" }],
+    Array.from({ length: 25 }, (_, index) => ({ field_id: `missed_${index}`, type: "string", value: "Invoice",
+      evidence: { page: 1, quote: "Invoice" } })))).status, 400);
+  const quoteSource = (quote: string) => ({ page: 1, quote });
   const adjudicated = await post("alice", 2, [{ field_id: "total", decision: "remove", note: "This is a subtotal" }],
-    [{ field_id: "invoice_number", type: "string", value: "INV-7", note: "Visible on page one" },
-      { field_id: "paid", type: "boolean", value: "false" },
-      { field_id: "tax", type: "decimal", value: "12.50" },
-      { field_id: "units", type: "integer", value: "0" },
-      { field_id: "invoice_date", type: "date", value: "2026-02-10" }]);
+    [{ field_id: "invoice_number", type: "string", value: "INV-7", evidence: quoteSource("Invoice number: INV-7"), note: "Visible on page one" },
+      { field_id: "paid", type: "boolean", value: "false", evidence: quoteSource("Paid: false") },
+      { field_id: "tax", type: "decimal", value: "12.50", evidence: quoteSource("Tax: 12.50") },
+      { field_id: "units", type: "integer", value: "0", evidence: quoteSource("Units: 0") },
+      { field_id: "invoice_date", type: "date", value: "2026-02-10", evidence: quoteSource("Date: 2026-02-10") }]);
   assert.equal(adjudicated.status, 200);
   const adjudicatedBody = await adjudicated.json();
   assert.equal(adjudicatedBody.review.status, "completed");
@@ -181,6 +201,10 @@ test("automatic extraction keeps source access private and rejects conflicting r
   assert.equal(adjudicatedBody.correctedResult.fields[2].value, false);
   assert.equal(adjudicatedBody.correctedResult.fields[3].value, 12.5);
   assert.equal(adjudicatedBody.correctedResult.fields[4].value, 0);
+  assert.deepEqual(adjudicatedBody.correctedResult.fields[1].evidence,
+    { page: 1, start: [...sourceText.slice(0, sourceText.indexOf("Invoice number: INV-7"))].length,
+      end: [...sourceText.slice(0, sourceText.indexOf("Invoice number: INV-7"))].length + "Invoice number: INV-7".length,
+      quote: "Invoice number: INV-7" });
   assert.equal((await post("alice", 2, [{ field_id: "total", decision: "correct" }])).status, 409);
   assert.equal(fs.readdirSync(auditDir).length, 3);
   assert.deepEqual(fs.readFileSync(path.join(auditDir, firstEvent)), firstBytes);
@@ -193,7 +217,8 @@ test("automatic extraction keeps source access private and rejects conflicting r
   assert.equal((await getAutoDocRoute(request(docUrl, "bob"), detailParams)).status, 404);
 
   const afterDelete = await post("alice", 3, [{ field_id: "total", decision: "remove" }],
-    [{ field_id: "paid", type: "boolean", value: "false" }, { field_id: "tax", type: "decimal", value: "12.5" }]);
+    [{ field_id: "paid", type: "boolean", value: "false", evidence: quoteSource("Paid: false") },
+      { field_id: "tax", type: "decimal", value: "12.50", evidence: quoteSource("Tax: 12.50") }]);
   assert.equal(afterDelete.status, 200);
   assert.deepEqual((await afterDelete.json()).correctedResult.fields.map((field: { field_id: string }) => field.field_id), ["paid", "tax"]);
   assert.equal(fs.readdirSync(auditDir).length, 4);
@@ -215,6 +240,19 @@ test("legacy not-present reviews derive a removal without added-field metadata",
   assert.deepEqual(result.fields, []);
   assert.deepEqual(result.removed_field_ids, ["old_field"]);
   assert.equal(result.scope, "document");
+});
+
+test("legacy added values without source evidence remain pending", () => {
+  const candidate: ProductAutoCandidate = { contract_version: 1, doc_id: "legacy", document_status: "processed",
+    proposed_schema: [], extracted_values: [] };
+  const review: ProductAutoReview = { review_version: 1, job_id: "job", run_id: "run", doc_id: "legacy",
+    status: "completed", reviewer_user_id: "reviewer", updated_at: "2026-01-01T00:00:00Z",
+    fields: [], added_fields: [{ field_id: "invoice_id", type: "string", value: "INV-7" }],
+    revision: 1, audit_event_id: "event" };
+  const result = deriveProductAutoCorrectedResult(candidate, review);
+  assert.equal(result.review_status, "pending");
+  assert.equal(result.fields[0].status, "needs_review");
+  assert.equal(result.fields[0].evidence, undefined);
 });
 
 test("a machine proposal stays pending until a reviewer verifies it", () => {
@@ -349,7 +387,7 @@ test("legacy linked-row approval stays pending when a cell is unverified", () =>
 
 test("machine schema artifacts enforce normalized IDs, types, field limits, and bounded groups", async () => withStorage(async (dataDir) => {
   const job = createWorkspaceJob({ ownerUserId: "alice-id" });
-  const updated = await addDocumentsToJob(job.jobId, [new File(["Café"], "source.txt")]);
+  const updated = await addDocumentsToJob(job.jobId, [new File(["😀 Café"], "source.txt")]);
   const source = updated.documents![0];
   const sha256 = createHash("sha256").update(fs.readFileSync(path.join(updated.uploadsPath!, source.storedName))).digest("hex");
   const runId = `auto_${"c".repeat(32)}`;
@@ -373,7 +411,7 @@ test("machine schema artifacts enforce normalized IDs, types, field limits, and 
   const params = { params: Promise.resolve({ jobId: job.jobId, runId, docId }) };
   const readSchema = async (schema: Array<Record<string, unknown>>) => {
     fs.writeFileSync(path.join(sidecarDir, "result.json"), JSON.stringify({
-      pages: [{ page: 1, text: "Café" }],
+      pages: [{ page: 1, text: "😀 Café" }],
       candidate: { contract_version: 1, doc_id: docId, document_status: "needs_review",
         proposed_schema: schema, extracted_values: schema.map((field) => ({
           field_id: field.field_id, value: null, status: "missing", review_state: "pending",
@@ -404,6 +442,14 @@ test("machine schema artifacts enforce normalized IDs, types, field limits, and 
   for (const schema of invalidSchemas) {
     assert.equal((await readSchema(schema)).status, 500, JSON.stringify(schema));
   }
+  assert.equal((await readSchema([])).status, 200);
+  const humanAdded = await reviewAutoDocRoute(request(docUrl, "alice", { method: "POST",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: 0, fields: [],
+      added_fields: [{ field_id: "vendor_name", type: "string", value: "Café",
+        evidence: { page: 1, quote: "Café" } }] }) }), params);
+  assert.equal(humanAdded.status, 200);
+  assert.deepEqual((await humanAdded.json()).correctedResult.fields[0].evidence,
+    { page: 1, start: 2, end: 6, quote: "Café" });
 }));
 
 test("a viewer cannot trigger operator configured model calls", async () => withStorage(async () => {

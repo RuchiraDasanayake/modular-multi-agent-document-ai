@@ -56,6 +56,8 @@ export interface ProductAutoAddedField {
   field_id: string;
   type: ProductAutoScalarType;
   value: string | number | boolean;
+  // Optional only for audit events saved before source-backed additions.
+  evidence?: ProductAutoEvidence;
   note?: string | null;
 }
 
@@ -63,6 +65,7 @@ export interface ProductAutoAddedFieldInput {
   field_id: string;
   type: ProductAutoScalarType;
   value: string;
+  evidence: Pick<ProductAutoEvidence, "page" | "quote">;
   note?: string | null;
 }
 
@@ -148,6 +151,7 @@ export interface ProductAutoDocumentDetail {
   fileId: string;
   fileName: string;
   candidate: ProductAutoCandidate;
+  sourcePages: Array<{ page: number; text: string }>;
   correctedResult: ProductAutoCorrectedResult;
   review: ProductAutoReview | null;
   auditTrail: ProductAutoAuditEvent[];
