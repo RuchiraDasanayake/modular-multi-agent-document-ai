@@ -183,3 +183,26 @@ def test_malformed_saved_parser_output_stays_in_denominator(
     assert score["missing_or_invalid_parser_outputs"] == 1
     assert score["metrics"]["gold_rows"] == 1
     assert score["metrics"]["complete_rows_exact_cells_one_to_one"] == 0
+
+
+def test_saved_scoring_rejects_changed_raw_docling_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    selected = [{"doc_id": "one", "source_sha256": "a" * 64}]
+    gold = tmp_path / "gold.jsonl"
+    gold.write_text("synthetic\n", encoding="utf-8")
+    monkeypatch.setattr(tables, "GOLD_SHA256", tables.sha256_file(gold))
+    monkeypatch.setattr(tables, "load_jsonl", lambda _path, kind: {"one": {}})
+    folder = tmp_path / "docs" / "one"
+    folder.mkdir(parents=True)
+    document = folder / "document.json"
+    document.write_text('{"tables": []}', encoding="utf-8")
+    original_hash = tables.sha256_file(document)
+    (folder / "conversion.json").write_text(json.dumps({
+        "source_sha256": "a" * 64, "status": "success", "duration_ms": 1,
+        "document_sha256": original_hash,
+    }), encoding="utf-8")
+    document.write_text('{"tables": [{"data": {}}]}', encoding="utf-8")
+
+    with pytest.raises(tables.ContractError, match="differs from conversion receipt"):
+        tables.score_saved(tmp_path, gold, selected)

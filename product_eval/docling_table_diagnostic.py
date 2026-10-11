@@ -334,6 +334,11 @@ def score_saved(output_dir: Path, gold_path: Path, selected: list[dict[str, Any]
         if receipt["source_sha256"] != row["source_sha256"]:
             raise ContractError("conversion source hash differs from frozen selection")
         document_path = output_dir / "docs" / doc_id / "document.json"
+        expected_document_hash = receipt.get("document_sha256")
+        if expected_document_hash is not None and (
+            not document_path.exists() or sha256_file(document_path) != expected_document_hash
+        ):
+            raise ContractError("saved Docling document differs from conversion receipt")
         try:
             document = json.loads(document_path.read_text(encoding="utf-8")) if document_path.exists() else None
             cells, rows, parser_stats = parsed_tables(document)
@@ -414,7 +419,9 @@ def run(*, selection: Path, cohort: Path, corpus_root: Path, gold: Path,
                 receipt["status"] = str(getattr(result.status, "value", result.status)).lower()
                 receipt["error_count"] = len(result.errors)
                 if result.document is not None:
-                    _write_json(directory / "document.json", result.document.export_to_dict())
+                    document_path = directory / "document.json"
+                    _write_json(document_path, result.document.export_to_dict())
+                    receipt["document_sha256"] = sha256_file(document_path)
         # A malformed PDF must remain in the twelve-document denominator.
         except Exception as exc:  # noqa: BLE001
             receipt["status"] = "exception"
