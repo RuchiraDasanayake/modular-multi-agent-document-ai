@@ -60,8 +60,9 @@ OpenAI-compatible chat model for scalar or bounded repeated-column schema discov
 Local loopback HTTP servers may run without an API key; remote providers require an HTTPS URL and server-side key. The model can replace the
 heuristic schema. Proposed values require exact text-span evidence and a matching, JSON-round-trippable typed value
 for machine acceptance. Ambiguous boolean quotes and partial identifier matches stay pending review. A newly
-discovered schema is unapproved, so every document remains `needs_review` until an operator reviews it. There is no
-approved recipe or automatic release policy yet. A model can propose repeated columns as `array[object]` values with
+discovered schema is unapproved, so every document remains `needs_review` until an operator reviews it. A separate
+owner-scoped registry can save a completed review as a draft schema and explicitly approve it as `approved_shadow`;
+the extraction path does not read or match that registry, and there is no automatic release policy. A model can propose repeated columns as `array[object]` values with
 shared row ordinals and per-cell text evidence; row links remain pending human review. This is not a visual table
 parser, stable row identity across versions, or a guarantee of useful fields on unfamiliar documents.
 
@@ -71,14 +72,16 @@ reason. Cost fields exist but remain null until provider prices, compute rates a
 frontend checks source hashes and artifact consistency before displaying a completed run. Owner-scoped result and
 source routes lead to a field review page. A reviewer can correct or remove proposed scalar fields, add missing
 scalar fields, and inspect or correct bounded linked cells by row. The server checks each machine cell's text evidence
-and accepts a human row correction only as a typed array. The API derives a document-scoped `correctedResult` from the
+and requires an exact source quote for a newly added scalar. It accepts a human row correction only as a typed array.
+The API derives a document-scoped `correctedResult` from the
 immutable machine candidate and latest review snapshot. Undecided machine values remain in review; human corrections
-are assertions and have no machine evidence. Review changes append revisioned events and reject stale saves. This is
-one-document adjudication, not an approved reusable recipe or geometric table annotation.
+are assertions and have no machine evidence. Review changes append revisioned events and reject stale saves. The
+job-scoped recipe API separately records owner-scoped draft, approval, and disable events from completed reviews; it
+requires explicit linked-row group confirmation and does not yet configure extraction. This is not geometric table annotation.
 
 The single-host path runs as a child process of the frontend server; Docker sends it to one private worker that admits
-one active run and returns a busy error for another. It has no durable queue, cancellation, approved schema registry,
-reusable row recipe, per-user cloud quota, or verified live Docker execution. Model-backed
+one active run and returns a busy error for another. It has no durable queue, cancellation, runtime recipe matcher,
+reusable row extraction policy, per-user cloud quota, or verified live Docker execution. Model-backed
 UI runs are admin-only until cloud data and spend controls exist. It does not use the AHMN policy router, Guardrails
 service, or the separate XAI-HITL service. Its benchmarks and outputs must never be represented as the submitted paper's
 results or as the canonical research runtime's outputs.

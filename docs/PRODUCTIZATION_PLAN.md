@@ -24,8 +24,10 @@ every possible router or the reported accepted submission.
 
 - The opt-in `idpo.cli process-auto` path and owner-scoped review UI now exist as a pilot. They propose scalar fields,
   and a configured model can propose bounded repeated columns with row ordinals; the review UI can inspect cells and
-  save typed row corrections. They verify exact OCR text spans and keep unapproved schemas in review. They have no
-  durable queue, approved recipe, visual table structure, priced cost meter, or demonstrated arbitrary-family accuracy. The first
+  save typed row corrections. They verify exact OCR text spans and keep unapproved schemas in review. A separate
+  owner-scoped registry now stores review-derived schema drafts, explicit `approved_shadow` revisions, and disable
+  events; extraction does not match or use them yet. They have no durable queue, runtime recipe reuse, visual table
+  structure, priced cost meter, or demonstrated arbitrary-family accuracy. The first
   2,000-document no-model development baseline failed the quality gate; see
   [the measured v1 report](evaluations/VRDU_2000_NO_MODEL_V1.md). The [v2 safety run](evaluations/VRDU_2000_NO_MODEL_V2.md)
   verified 2,000 distinct sources and eliminated automatic release of unapproved schemas, while strict schema F1
