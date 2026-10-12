@@ -131,7 +131,7 @@ def _assign_splits(sources: list[dict[str, Any]]) -> tuple[dict[int, str], dict[
     }
 
 
-def _annotation(row: Any, source_index: int) -> dict[str, Any]:
+def _annotation(row: Any, source_index: int, *, expected_split: str = "test") -> dict[str, Any]:
     if not isinstance(row, str):
         raise CordSliceError(f"CORD row {source_index} lacks ground_truth JSON")
     try:
@@ -141,7 +141,7 @@ def _annotation(row: Any, source_index: int) -> dict[str, Any]:
     if not isinstance(payload, dict) or not isinstance(payload.get("gt_parse"), dict):
         raise CordSliceError(f"CORD row {source_index} lacks gt_parse")
     meta = payload.get("meta")
-    if not isinstance(meta, dict) or meta.get("split") != "test" or meta.get("version") != "2.0.0":
+    if not isinstance(meta, dict) or meta.get("split") != expected_split or meta.get("version") != "2.0.0":
         raise CordSliceError(f"CORD row {source_index} has unexpected split/version")
     return payload
 

@@ -1,5 +1,18 @@
 # Product evaluation datasets
 
+## Mixed VRDU + CORD v2 train volume gate
+
+`mixed_vrdu_cord_train.py` builds a source-distinct, exactly 2,000-document
+evaluation bundle from the pinned CORD v2 **train** Parquet shards and the
+existing VRDU cohort, using only train images plus VRDU PDFs. It excludes raw
+source overlap with all local CORD test images, including the 40 reserved
+holdout, and reads CORD labels only after source selection. The output is
+ready for `product_eval.run_gate`; building it does not execute the gate.
+`mixed_cord_positive.py` scores CORD positives only after verifying a complete
+hash-bound mixed-gate receipt.
+See the [frozen protocol](../../docs/evaluations/MIXED_VRDU_CORD_TRAIN_2000_GATE_PROTOCOL_20261013.md)
+for pins, commands, score interpretation, and remaining leakage limits.
+
 ## Secondary CORD v2 receipt slice
 
 `cord_test.py` freezes all 100 creator-hosted CORD v2 test images from one
