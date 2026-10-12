@@ -63,9 +63,10 @@ the pipeline output; do not score general Markdown or OCR lines as table
 rows. Use the existing exact one-to-one cell and complete-row scorer, record
 table-region boxes separately, and report per-document page count, latency,
 peak host resources, malformed HTML, and all 219 gold-row outcomes. Keep raw
-output outside Git and pin every runtime/model hash. The current parser
-comparators recovered at most 4/219 exact complete rows; a new candidate
-must exceed that on the same denominator and justify its runtime cost.
+output outside Git and pin every runtime/model hash. The current
+[MinerU Basic comparator](MINERU_4_BASIC_ADBUY12_RESULT_20261012.md) recovered
+6/219 exact complete rows, versus Docling's 3 and pdfplumber `text`'s 4; a
+new candidate must improve on that denominator and justify its runtime cost.
 
 Successful parser rows would still need semantic column mapping, normalized
 field values, source-backed evidence, and HITL before product promotion. Any
