@@ -72,8 +72,9 @@ def _verified_local_files(model_file: Path, mmproj_file: Path, server_exe: Path)
     for path, digest in expected:
         if not path.is_file() or sha256_file(path) != digest:
             raise ContractError(f"missing or changed pinned local file: {path.name}")
-    version = subprocess.run([str(server_exe), "--version"], capture_output=True, text=True,
-                             check=True, timeout=15).stdout
+    version_result = subprocess.run([str(server_exe), "--version"], capture_output=True, text=True,
+                                    check=True, timeout=15)
+    version = version_result.stdout + version_result.stderr
     if "build 11425" not in version:
         raise ContractError("pinned llama.cpp build differs")
     return {"revision": MODEL_REVISION, "model_sha256": MODEL_SHA256,
