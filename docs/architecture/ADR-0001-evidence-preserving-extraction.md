@@ -23,10 +23,13 @@ owned upload -> immutable source -> bounded parse/OCR -> ParsedDocument v2
 ```
 
 **Docling remains a mixed-format adapter candidate**, because its documented representation includes page provenance
-and table cells with row/column offsets and spans, and its supported inputs include PDF, Office documents, and images
+where available and table cells with row/column offsets and spans, and its supported inputs include PDF, Office
+documents, and images
 ([formats](https://docling-project.github.io/docling/usage/supported_formats/),
-[document model](https://docling-project.github.io/docling/reference/docling_document/)). This is a **spike**, not a
-decision to replace the current PDF parser: its frozen table run recovered only
+[document model](https://docling-project.github.io/docling/reference/docling_document/)). A measured
+[five-file synthetic conversion spike](../evaluations/DOCLING_MIXED_FORMAT_DEV_RESULT_20261012.md) retained table
+grids for DOCX, XLSX, HTML and PPTX but lost a multipart EML table and supplied no cell-level boxes. This adapter
+does not replace the current PDF parser: its frozen table run recovered only
 [3/219 exact rows](../evaluations/VRDU_ADBUY12_TABLE_PARSER_COMPARISON_20261012.md). Keep native PDF text plus
 PDFium-first rendering and bounded Tesseract as the measured product baseline. The smaller
 [MinerU Basic challenge](../evaluations/MINERU_4_BASIC_ADBUY12_RESULT_20261012.md) reached only 6/219 exact rows;
