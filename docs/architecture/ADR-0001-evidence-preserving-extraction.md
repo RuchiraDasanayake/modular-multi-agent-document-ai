@@ -74,6 +74,9 @@ against 30,133 gold cells; it also lacked the OCR executable, so it is not a val
    [provenance](https://docling-project.github.io/docling/reference/docling_document/) and
    [span-preserving table model](https://docling-project.github.io/docling/concepts/serialization/) can map into this
    contract; serializing a table only as Markdown loses important structure.
+   A small parser-neutral [contract module](../../idpo/product_auto/parsed_document.py) now defines source units,
+   native/text/box anchors and table grids with validation. It is staging code only: no parser adapter or product
+   worker uses it, so it creates no extraction-quality result and does not satisfy the integration gate.
 2. **SchemaProposal and approved Recipe:** document-family hypothesis, typed fields, grouping, cardinality, nested or
    repeated-record shape, table-column mapping, label evidence, and version. Auto mode proposes a schema and values in
    one job. Reviewers can add, remove, rename, type, and group fields before approving a reusable recipe. A one-off
