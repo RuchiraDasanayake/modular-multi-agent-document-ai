@@ -43,15 +43,18 @@ fallback.
 | Timeout and concurrency | 60 seconds; one call at a time |
 | SDK retries | 0 |
 
-Every request will have a source hash, model ID/hash, phase, credential-free
-canonical request hash, elapsed time, safe error class/category, finish reason,
+Every request will have a source hash, requested model ID, phase,
+credential-free canonical request hash and response hash, elapsed time, safe
+error class/category, finish reason,
 and reported token usage. A transport timeout, ambiguous connection failure,
-missing token usage, aggregate token-cap breach, or second consecutive
-transport failure stops further calls. A model response truncated at the
+missing token usage, or aggregate token-cap breach stops further calls. A
+model response truncated at the
 1,536-token cap remains a failure in the document denominator. No request is
 retried when its charge is uncertain. ICORE has no verified rate card,
 settled-charge ledger, or enforceable account hard cap available to this
 project; actual USD cost remains unknown and is reported as `null`.
+ICORE does not expose a verifiable remote model-weights hash, so model ID and
+request/response hashes do not identify the model revision.
 
 ## Scoring and decision
 
@@ -63,6 +66,13 @@ CORD, the existing `score_cord_positive` scorer reports exact positive-only
 summary scalar, menu cell, and complete-row recall; extra CORD fields are
 unjudged, so precision and F1 are undefined. Missing, failed, truncated,
 unsupported, and stopped cells stay in their denominators.
+
+A secondary schema view uses the already frozen
+[`graph_schema_aliases_v1.json`](../../product_eval/fixtures/graph_schema_aliases_v1.json)
+ontology. It preserves raw proposed names, maps only predeclared aliases, and
+reports unmatched proposals separately. No post-hoc synonym expansion changes
+the primary exact score; source-grounded accepted values are reported
+separately from raw proposals.
 
 Report source-level success, transport and provider failures, OCR status,
 known token totals, model latency, review-required documents, and source
