@@ -129,3 +129,13 @@ def test_worker_only_accepts_expected_model_node(tmp_path):
     assert config["SubModules"]["LayoutDetection"]["model_dir"] == str(tmp_path / "PP-DocLayout-L")
     with pytest.raises(RuntimeError, match="default changed"):
         _model(config, ("SubModules", "LayoutDetection"), tmp_path, "wrong")
+
+
+def test_amended_arm_rejects_any_other_output_directory(tmp_path):
+    from product_eval.tablemagic_v2_pilot import run
+
+    with pytest.raises(ContractError, match="new locked E: directory"):
+        run(selection=tmp_path / "selection.jsonl", cohort=tmp_path / "cohort.jsonl",
+            corpus_root=tmp_path, gold=tmp_path / "gold.jsonl",
+            models_root=tmp_path, worker_python=tmp_path / "python.exe",
+            output_dir=tmp_path / "new-output")

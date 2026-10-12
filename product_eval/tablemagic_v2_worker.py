@@ -90,6 +90,7 @@ def main() -> None:
         use_ocr_model=True,
         device="cpu",
         engine="paddle_static",
+        enable_mkldnn=False,
     )
     _write_json(args.output_dir / "startup.json", {"status": "ready"})
     page_count = 0

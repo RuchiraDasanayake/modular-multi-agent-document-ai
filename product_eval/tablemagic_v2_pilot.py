@@ -33,8 +33,10 @@ RUNTIME_LOCK = Path(__file__).parent / "fixtures" / "paddleocr_vl_16_runtime.jso
 RUNTIME_LOCK_SHA256 = "43661458b1d981f046b616903c2190457b7abfb6545bf357eae67f1a69653b79"
 WORKER = Path(__file__).parent / "tablemagic_v2_worker.py"
 SCORER = Path(__file__).parent / "tablemagic_v2_table_diagnostic.py"
-WORKER_SHA256 = "0286e5909597e31d8e3ee05a78bb8f3f94152dc4643bdf2a5d9ca09e75955f44"
+WORKER_SHA256 = "db3cb931e84e93f9d9f6e7c46516d923495e400323db213437a3048578aa1d2c"
 SCORER_SHA256 = "bd9cbfdb33fd5b8e18cfb846aa8df845efc48596c44dd56fba481de06c87dcec"
+OUTPUT_DIR = Path(r"E:\DocAI-Benchmarks\tablemagic-v2-adbuy12-xet2-no-onednn")
+NO_ONEDNN_ENV = {"PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT": "False"}
 MAX_DOCUMENTS = 12
 MAX_PAGES = 20
 MAX_FILE_BYTES = 2_000_000
@@ -169,9 +171,33 @@ def verify_runtime(worker_python: Path) -> dict[str, Any]:
     manifest = json.loads(MODEL_MANIFEST.read_text(encoding="utf-8"))
     if sha256_file(config_path) != manifest["installed_default_config_sha256"]:
         raise ContractError("installed PaddleX default table config differs")
+    backend_script = (
+        "import json;"
+        "from paddleocr._common_args import parse_common_args,prepare_common_init_args;"
+        "from paddlex.inference.models.runners.paddle_static.config.pp_option "
+        "import get_default_run_mode;"
+        "from paddlex.utils.flags import ENABLE_MKLDNN_BYDEFAULT;"
+        "args=parse_common_args({'device':'cpu','engine':'paddle_static',"
+        "'enable_mkldnn':False,'cpu_threads':4},default_enable_hpi=None);"
+        "cfg=prepare_common_init_args(None,args);"
+        "print(json.dumps({'wrapper_run_mode':cfg['engine_config']['run_mode'],"
+        "'default_run_mode':get_default_run_mode('PP-OCRv4_server_det','cpu'),"
+        "'mkldnn_default_enabled':ENABLE_MKLDNN_BYDEFAULT}))"
+    )
+    backend_env = os.environ.copy()
+    backend_env.update(NO_ONEDNN_ENV)
+    backend_result = subprocess.run(
+        [str(worker_python), "-c", backend_script], env=backend_env,
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+    backend = json.loads(backend_result.stdout.strip().splitlines()[-1])
+    if backend != {"wrapper_run_mode": "paddle", "default_run_mode": "paddle",
+                   "mkldnn_default_enabled": False}:
+        raise ContractError("isolated Paddle CPU backend does not disable oneDNN")
     return {"runtime_lock_sha256": sha256_file(RUNTIME_LOCK),
             "core_versions": versions, "pip_freeze_sha256": lock["pip_freeze_sha256"],
-            "package_count": len(packages), "default_config_sha256": sha256_file(config_path)}
+            "package_count": len(packages), "default_config_sha256": sha256_file(config_path),
+            "cpu_backend": backend}
 
 
 def _sample(process: subprocess.Popen[Any] | None) -> dict[str, int]:
@@ -235,6 +261,7 @@ def _run_worker(worker_python: Path, source: Path, source_sha256: str,
                 "PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK": "True",
                 "OMP_NUM_THREADS": "4", "MKL_NUM_THREADS": "4",
                 "OPENBLAS_NUM_THREADS": "4", "FLAGS_cpu_num_threads": "4"})
+    env.update(NO_ONEDNN_ENV)
     command = [str(worker_python), str(WORKER), "--source", str(source),
                "--models-root", str(models_root), "--output-dir", str(raw)]
     started = time.perf_counter()
@@ -279,8 +306,8 @@ def run(*, selection: Path, cohort: Path, corpus_root: Path, gold: Path,
         models_root: Path, worker_python: Path, output_dir: Path) -> dict[str, Any]:
     repo = Path(__file__).resolve().parents[1]
     if (output_dir.exists() or output_dir.resolve().is_relative_to(repo)
-            or output_dir.resolve().drive.upper() != "E:"):
-        raise ContractError("raw TableMagic output must be a new E: directory outside Git")
+            or output_dir.resolve() != OUTPUT_DIR.resolve()):
+        raise ContractError("amended TableMagic output must be the new locked E: directory")
     if (_normalized_source_sha256(WORKER) != WORKER_SHA256
             or _normalized_source_sha256(SCORER) != SCORER_SHA256):
         raise ContractError("TableMagic worker or scorer differs from frozen source")
@@ -319,6 +346,10 @@ def run(*, selection: Path, cohort: Path, corpus_root: Path, gold: Path,
             "worker_normalized_sha256": WORKER_SHA256,
             "scorer_normalized_sha256": SCORER_SHA256,
             "runner_sha256": sha256_file(Path(__file__)), "initial_resources": initial,
+            "cpu_backend": {"paddleocr_enable_mkldnn": False,
+                            "paddlex_enable_mkldnn_bydefault": NO_ONEDNN_ENV[
+                                "PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT"],
+                            "run_mode": "paddle"},
             "limits": {"max_file_bytes": MAX_FILE_BYTES, "max_pages": MAX_PAGES,
                        "startup_timeout_seconds": STARTUP_TIMEOUT_SECONDS,
                        "smoke_timeout_seconds": SMOKE_TIMEOUT_SECONDS,
