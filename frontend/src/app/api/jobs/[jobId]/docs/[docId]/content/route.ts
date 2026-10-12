@@ -41,6 +41,14 @@ function guessContentType(filename: string): string {
       return "application/json; charset=utf-8";
     case ".docx":
       return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case ".xlsx":
+      return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    case ".pptx":
+      return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+    case ".html":
+      return "text/html; charset=utf-8";
+    case ".eml":
+      return "message/rfc822";
     default:
       return "application/octet-stream";
   }
@@ -80,7 +88,8 @@ export async function GET(request: Request, { params }: Params) {
     }
 
     const url = new URL(request.url);
-    const download = url.searchParams.get("download") === "1";
+    const nativeFormat = /\.(docx|xlsx|pptx|html|eml)$/i.test(document.fileName);
+    const download = nativeFormat || url.searchParams.get("download") === "1";
     const body = fs.readFileSync(target);
 
     return new Response(body, {
@@ -88,6 +97,8 @@ export async function GET(request: Request, { params }: Params) {
       headers: {
         ...NO_STORE_HEADERS,
         "Content-Type": guessContentType(document.fileName),
+        "X-Content-Type-Options": "nosniff",
+        ...(nativeFormat ? { "Content-Security-Policy": "sandbox" } : {}),
         "Content-Length": String(body.byteLength),
         "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${encodeURIComponent(document.fileName)}"`,
       },

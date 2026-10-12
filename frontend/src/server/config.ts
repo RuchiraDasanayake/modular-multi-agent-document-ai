@@ -98,7 +98,7 @@ export function loadRunnerConfig(): RunnerConfig {
     jobsDir: storageDir(raw.jobsDir, "frontend", "jobs"),
     demoSampleRunsDir: resolvePath(appRoot, raw.demoSampleRunsDir ?? "./demo_sample_runs"),
     maxUploadMb: raw.maxUploadMb ?? 20,
-    allowedExtensions: (raw.allowedExtensions ?? [".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".txt", ".json"]).map((ext) =>
+    allowedExtensions: (raw.allowedExtensions ?? [".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".txt", ".json", ".docx", ".xlsx", ".pptx", ".html", ".eml"]).map((ext) =>
       ext.toLowerCase(),
     ),
     defaultCommandId: raw.defaultCommandId,

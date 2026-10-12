@@ -10,6 +10,23 @@ export interface ProductAutoEvidence {
   quote: string;
 }
 
+export interface ProductAutoParsedDocument {
+  contract_version: 2;
+  source_sha256: string;
+  source_format: string;
+  parser_id: string;
+  parser_version: string;
+  units: Array<{ unit_id: string; kind: string; ordinal: number; text: string; label: string | null }>;
+  tables: Array<{ table_id: string; cells: Array<{
+    row: number;
+    column: number;
+    text: string;
+    anchors: Array<{ unit_id: string; native_locator: string | null;
+      text_span: [number, number] | null; quote: string | null;
+      raw_box: null; display_box: null }>;
+  }> }>;
+}
+
 export interface ProductAutoLinkedCell {
   row: number;
   value: string;
@@ -185,6 +202,7 @@ export interface ProductAutoDocumentDetail {
   fileName: string;
   candidate: ProductAutoCandidate;
   sourcePages: Array<{ page: number; text: string }>;
+  parsedDocument?: ProductAutoParsedDocument;
   correctedResult: ProductAutoCorrectedResult;
   review: ProductAutoReview | null;
   auditTrail: ProductAutoAuditEvent[];

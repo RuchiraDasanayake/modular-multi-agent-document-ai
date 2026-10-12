@@ -51,8 +51,14 @@ docker compose exec frontend node /app/scripts/product-worker-client.mjs --healt
 ```
 
 In the UI, create a job, upload a document, then open **Automatic extraction**. With no model configured, the local
-heuristic proposes fields and leaves them for review. To opt into a hosted OpenAI-compatible model, set
-`IDPO_AUTO_MODEL`, `IDPO_AUTO_API_BASE_URL` (HTTPS), and `ICORE_API_KEY` in a local `.env` file before starting Compose.
+heuristic proposes fields and leaves them for review.
+The product worker also accepts DOCX, XLSX, PPTX, HTML and EML through bounded source-native adapters; upload limits
+and review-only outcomes still apply. These formats require the worker's pinned python-docx, openpyxl, python-pptx and
+lxml packages. Native text and cell addresses appear in the result sidecar; the source download route forces these
+formats to attachment disposition. The research `process-inbox` runner has not gained those formats.
+
+To opt into a hosted OpenAI-compatible model, set `IDPO_AUTO_MODEL`, `IDPO_AUTO_API_BASE_URL` (HTTPS), and
+`ICORE_API_KEY` in a local `.env` file before starting Compose.
 Model runs remain admin-only. The key is passed to the frontend server and worker containers as an environment
 variable; it is never stored in the runner config or browser bundle. Do not send private documents to a provider
 until its data handling terms are confirmed. A loopback model endpoint in the host is not reachable as worker

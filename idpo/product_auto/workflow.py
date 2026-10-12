@@ -27,11 +27,13 @@ from idpo.product_auto.logic import (
     schema_prompt,
     values_prompt,
 )
+from idpo.product_auto.native_formats import NATIVE_EXTENSIONS, NativeLimitError, parse_native_document
+from idpo.product_auto.parsed_document import ParsedDocument
 from idpo.product_auto.provider import ModelReply
 from idpo.product_auto.resource_telemetry import ResourceProbe, elapsed_cpu_ms
 
 CONTRACT_VERSION = 1
-SUPPORTED_INPUT_EXTS = {".json", ".txt", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
+SUPPORTED_INPUT_EXTS = {".json", ".txt", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"} | NATIVE_EXTENSIONS
 MAX_INPUT_BYTES = 20 * 1024 * 1024
 MAX_PAGES = 50
 MAX_MODEL_CHARS = 24_000
@@ -110,13 +112,17 @@ def process_auto(
         file_resources_started = resource_probe.snapshot()
         container_hash = _sha256_file(file_path)
         container_size = file_path.stat().st_size
+        native_parsed: ParsedDocument | None = None
         if file_path.suffix.lower() not in SUPPORTED_INPUT_EXTS:
             rows = [(_doc_id(file_path.name, container_hash, 0), None, "unsupported_file_type", 0, container_hash, container_size, "raw_file")]
         elif container_size > MAX_INPUT_BYTES:
             rows = [(_doc_id(file_path.name, container_hash, 0), None, "file_too_large", 0, container_hash, container_size, "raw_file")]
         else:
             try:
-                if file_path.suffix.lower() == ".pdf":
+                if file_path.suffix.lower() in NATIVE_EXTENSIONS:
+                    document, native_parsed = parse_native_document(file_path, container_hash)
+                    documents = [document]
+                elif file_path.suffix.lower() == ".pdf":
                     from pypdf import PdfReader
 
                     if len(PdfReader(str(file_path)).pages) > MAX_PAGES:
@@ -145,6 +151,11 @@ def process_auto(
                     ]
                     if not rows:
                         rows = [(_doc_id(file_path.name, container_hash, 0), None, "no_documents_parsed", 0, container_hash, container_size, "raw_file")]
+            except NativeLimitError:
+                rows = [(_doc_id(file_path.name, container_hash, 0), None, "native_limit_exceeded", 0, container_hash, container_size, "raw_file")]
+            except ImportError:
+                reason = "native_parser_unavailable" if file_path.suffix.lower() in NATIVE_EXTENSIONS else "parse_failed"
+                rows = [(_doc_id(file_path.name, container_hash, 0), None, reason, 0, container_hash, container_size, "raw_file")]
             except Exception:  # noqa: BLE001 - a bad input must not abort the batch
                 rows = [(_doc_id(file_path.name, container_hash, 0), None, "parse_failed", 0, container_hash, container_size, "raw_file")]
         shared_prepare_ms = (time.perf_counter() - file_started) * 1000 / len(rows)
@@ -153,7 +164,7 @@ def process_auto(
         for doc_id, document, initial_reason, source_index, source_hash, source_size, hash_kind in rows:
             started = time.perf_counter()
             doc_resources_started = resource_probe.snapshot()
-            candidate, sidecar = _process_document(doc_id, document, ctx, ocr, model, initial_reason)
+            candidate, sidecar = _process_document(doc_id, document, ctx, ocr, model, initial_reason, native_parsed)
             doc_resources_ended = resource_probe.snapshot()
             duration_ms = round(shared_prepare_ms + (time.perf_counter() - started) * 1000, 3)
             resource_usage = {
@@ -251,11 +262,12 @@ def _process_document(
     ocr: OcrAgent,
     model: ChatModel | None,
     initial_reason: str | None,
+    native_parsed: ParsedDocument | None = None,
 ) -> tuple[dict[str, object], dict[str, object]]:
     candidate: dict[str, object] = {
         "contract_version": CONTRACT_VERSION,
         "doc_id": doc_id,
-        "document_status": "unsupported" if initial_reason in {"unsupported_file_type", "file_too_large", "too_many_pages"} else "failed" if initial_reason else "needs_review",
+        "document_status": "unsupported" if initial_reason in {"unsupported_file_type", "file_too_large", "too_many_pages", "native_limit_exceeded"} else "failed" if initial_reason else "needs_review",
         "proposed_schema": [],
         "extracted_values": [],
     }
@@ -274,40 +286,52 @@ def _process_document(
     sidecar["source_document_id"] = document.doc_id
     document.doc_id = doc_id
     ocr_started = time.perf_counter()
-    try:
-        ocr_result = ocr.run({"document": document}, ctx)
-        processed_doc = ocr_result.artifacts.get("document", document)
-        signal = ocr_result.artifacts.get("signal")
-        ocr_failure = getattr(signal, "failure_reason", None)
-        pages: list[dict[str, object]] = [{"page": page.number, "text": page.text} for page in processed_doc.pages]
+    if native_parsed is not None:
+        # OCR normalizes whitespace. Keep the parser's exact text so each
+        # table-cell span still points into the source view shown to reviewers.
+        processed_doc = document
+        ocr_failure = None
+        pages = [{"page": page.number, "text": page.text} for page in processed_doc.pages]
         sidecar["pages"] = pages
-        sidecar["ocr_pages"] = [
-            {
-                "page": page.number,
-                "engine": page.metadata.get("ocr_engine_used"),
-                "psm": page.metadata.get("ocr_psm"),
-                "variant": page.metadata.get("ocr_variant"),
-                "confidence": page.metadata.get("ocr_confidence"),
-                "rerun_attempted": page.metadata.get("ocr_rerun_attempted", False),
-                "rerun_used": page.metadata.get("ocr_rerun_used", False),
-                "rerun_reason": page.metadata.get("ocr_rerun_reason"),
-                "retry_path": page.metadata.get("ocr_retry_path"),
-                "candidate_count": page.metadata.get("ocr_candidate_count"),
-                "failure_reason": page.metadata.get("ocr_failure_reason"),
-                "pdf_renderer": page.metadata.get("pdf_renderer"),
-                "pdf_renderer_fallback_reason": page.metadata.get("pdf_renderer_fallback_reason"),
-                "pdf_page_index": page.metadata.get("pdf_page_index"),
-                "pdf_page_rotation_deg": page.metadata.get("pdf_page_rotation_deg"),
-                "pdf_rendered_dpi": page.metadata.get("pdf_rendered_dpi"),
-                "pdf_render_size_px": page.metadata.get("pdf_render_size_px"),
-            }
-            for page in processed_doc.pages
-        ]
-    except Exception:  # noqa: BLE001 - isolate OCR errors to this document
-        sidecar["stage_timings_ms"]["ocr"] = round((time.perf_counter() - ocr_started) * 1000, 3)
-        sidecar["reason"] = "ocr_failed"
-        candidate["document_status"] = "failed"
-        return candidate, sidecar
+        sidecar["parsed_document"] = native_parsed.to_dict()
+        sidecar["ocr_pages"] = [{"page": page.number, "engine": "native_source",
+                                 "native_unit_id": page.metadata["native_unit_id"],
+                                 "parser_id": native_parsed.parser_id} for page in processed_doc.pages]
+    else:
+        try:
+            ocr_result = ocr.run({"document": document}, ctx)
+            processed_doc = ocr_result.artifacts.get("document", document)
+            signal = ocr_result.artifacts.get("signal")
+            ocr_failure = getattr(signal, "failure_reason", None)
+            pages = [{"page": page.number, "text": page.text} for page in processed_doc.pages]
+            sidecar["pages"] = pages
+            sidecar["ocr_pages"] = [
+                {
+                    "page": page.number,
+                    "engine": page.metadata.get("ocr_engine_used"),
+                    "psm": page.metadata.get("ocr_psm"),
+                    "variant": page.metadata.get("ocr_variant"),
+                    "confidence": page.metadata.get("ocr_confidence"),
+                    "rerun_attempted": page.metadata.get("ocr_rerun_attempted", False),
+                    "rerun_used": page.metadata.get("ocr_rerun_used", False),
+                    "rerun_reason": page.metadata.get("ocr_rerun_reason"),
+                    "retry_path": page.metadata.get("ocr_retry_path"),
+                    "candidate_count": page.metadata.get("ocr_candidate_count"),
+                    "failure_reason": page.metadata.get("ocr_failure_reason"),
+                    "pdf_renderer": page.metadata.get("pdf_renderer"),
+                    "pdf_renderer_fallback_reason": page.metadata.get("pdf_renderer_fallback_reason"),
+                    "pdf_page_index": page.metadata.get("pdf_page_index"),
+                    "pdf_page_rotation_deg": page.metadata.get("pdf_page_rotation_deg"),
+                    "pdf_rendered_dpi": page.metadata.get("pdf_rendered_dpi"),
+                    "pdf_render_size_px": page.metadata.get("pdf_render_size_px"),
+                }
+                for page in processed_doc.pages
+            ]
+        except Exception:  # noqa: BLE001 - isolate OCR errors to this document
+            sidecar["stage_timings_ms"]["ocr"] = round((time.perf_counter() - ocr_started) * 1000, 3)
+            sidecar["reason"] = "ocr_failed"
+            candidate["document_status"] = "failed"
+            return candidate, sidecar
     sidecar["stage_timings_ms"]["ocr"] = round((time.perf_counter() - ocr_started) * 1000, 3)
 
     if not pages or not any(str(page["text"]).strip() for page in pages):

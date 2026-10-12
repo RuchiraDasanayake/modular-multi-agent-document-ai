@@ -29,7 +29,7 @@ const MODE_OPTIONS: { value: JobExecutionMode; label: string }[] = [
   { value: "strict", label: "Strict: default policy only" },
   { value: "both", label: "Both: run each and compare" },
 ];
-const ACCEPTED_FILE_TYPES = ".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.txt,.json";
+const ACCEPTED_FILE_TYPES = ".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.txt,.json,.docx,.xlsx,.pptx,.html,.eml";
 
 const secondaryButton =
   "inline-flex items-center gap-2 rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800";
@@ -889,6 +889,9 @@ export function JobDetailPage() {
                 {documents.length === 0
                   ? "Drop files here or use Upload files."
                   : `${documents.length} file${documents.length === 1 ? "" : "s"}, ${selectedDocuments.length} selected. Drop more files here to add them.`}
+              </p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                DOCX, XLSX, PPTX, HTML and EML run through Automatic extraction only; the research runner does not process them.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">

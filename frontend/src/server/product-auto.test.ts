@@ -284,6 +284,58 @@ test("automatic extraction keeps source access private and rejects conflicting r
   assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 200);
 }));
 
+test("native source downloads safely and exposes only a hash-matched parsed artifact", async () => withStorage(async (dataDir) => {
+  const job = createWorkspaceJob({ ownerUserId: "alice-id" });
+  const updated = await addDocumentsToJob(job.jobId, [new File(["<p>Order: A1</p>"], "order.html", { type: "text/html" })]);
+  const source = updated.documents![0];
+  const sourcePath = path.join(updated.uploadsPath!, source.storedName);
+  const sha256 = createHash("sha256").update(fs.readFileSync(sourcePath)).digest("hex");
+  const sourceUrl = `/api/jobs/${job.jobId}/docs/${source.fileId}/content`;
+  const sourceParams = { params: Promise.resolve({ jobId: job.jobId, docId: source.fileId }) };
+  const download = await getOriginalContentRoute(request(sourceUrl, "alice"), sourceParams);
+  assert.equal(download.status, 200);
+  assert.match(download.headers.get("Content-Disposition") ?? "", /^attachment;/);
+  assert.equal(download.headers.get("Content-Security-Policy"), "sandbox");
+  assert.equal(download.headers.get("X-Content-Type-Options"), "nosniff");
+  assert.equal((await getOriginalContentRoute(request(sourceUrl, "bob"), sourceParams)).status, 404);
+
+  const runId = `auto_${"b".repeat(32)}`;
+  const docId = "native1";
+  const inputPath = path.join(dataDir, "frontend", "auto_inputs", runId, source.storedName);
+  const runDir = path.join(dataDir, "product_runs", runId);
+  const sidecarDir = path.join(runDir, "docs", docId);
+  fs.mkdirSync(sidecarDir, { recursive: true });
+  const parsed = { contract_version: 2, source_sha256: sha256, source_format: "html", parser_id: "lxml-html",
+    parser_version: "test", units: [{ unit_id: "html-1", kind: "html", ordinal: 0, text: "Order: A1", label: "HTML document" }],
+    tables: [] };
+  fs.writeFileSync(path.join(sidecarDir, "result.json"), JSON.stringify({ source_path: inputPath,
+    source_container_sha256: sha256, pages: [{ page: 1, text: "Order: A1" }], parsed_document: parsed,
+    candidate: { contract_version: 1, doc_id: docId, document_status: "needs_review",
+      proposed_schema: [], extracted_values: [] } }));
+  fs.writeFileSync(path.join(runDir, "run.json"), JSON.stringify({ contract_version: 1, run_id: runId, doc_count: 1 }));
+  fs.writeFileSync(path.join(runDir, "manifest.jsonl"), JSON.stringify({ contract_version: 1, run_id: runId,
+    doc_id: docId, source_path: inputPath, source_file: source.storedName,
+    source_container_sha256: sha256, document_status: "needs_review" }) + "\n");
+  const metadataDir = path.join(dataDir, "frontend", "auto_runs", job.jobId);
+  fs.mkdirSync(metadataDir, { recursive: true });
+  fs.writeFileSync(path.join(metadataDir, `${runId}.json`), JSON.stringify({ runId, jobId: job.jobId,
+    status: "running", createdAt: new Date().toISOString(), serverInstanceId: "previous-server",
+    selectedFiles: [{ fileId: source.fileId, fileName: source.fileName, storedName: source.storedName, sha256 }],
+    documents: [] }));
+  const detailUrl = `/api/jobs/${job.jobId}/auto/${runId}/docs/${docId}`;
+  const detailParams = { params: Promise.resolve({ jobId: job.jobId, runId, docId }) };
+  const detail = await getAutoDocRoute(request(detailUrl, "alice"), detailParams);
+  assert.equal(detail.status, 200);
+  assert.equal((await detail.json()).parsedDocument.source_sha256, sha256);
+  assert.equal((await getAutoDocRoute(request(detailUrl, "bob"), detailParams)).status, 404);
+  fs.writeFileSync(path.join(sidecarDir, "result.json"), JSON.stringify({ source_path: inputPath,
+    source_container_sha256: sha256, pages: [{ page: 1, text: "Order: A1" }],
+    parsed_document: { ...parsed, source_sha256: "a".repeat(64) },
+    candidate: { contract_version: 1, doc_id: docId, document_status: "needs_review",
+      proposed_schema: [], extracted_values: [] } }));
+  assert.equal((await getAutoDocRoute(request(detailUrl, "alice"), detailParams)).status, 500);
+}));
+
 test("reading a run owned by another live server does not mark it failed", async () => withStorage(async (dataDir) => {
   const job = createWorkspaceJob({ ownerUserId: "alice-id" });
   const runId = `auto_${"f".repeat(32)}`;

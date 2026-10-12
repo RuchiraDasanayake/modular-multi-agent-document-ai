@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { IdpoCard } from "@/components/idpo/card";
 import { idpoApi } from "@/lib/idpo-api";
-import type { ProductAutoAddedFieldInput, ProductAutoAddedLinkedFieldInput, ProductAutoAddedScalarFieldInput, ProductAutoDocumentDetail, ProductAutoLinkedCell, ProductAutoLinkedCorrectionRow, ProductAutoReviewDecision, ProductAutoReviewField, ProductAutoScalarType } from "@/types/product-auto";
+import type { ProductAutoAddedFieldInput, ProductAutoAddedLinkedFieldInput, ProductAutoAddedScalarFieldInput, ProductAutoDocumentDetail, ProductAutoEvidence, ProductAutoLinkedCell, ProductAutoLinkedCorrectionRow, ProductAutoReviewDecision, ProductAutoReviewField, ProductAutoScalarType } from "@/types/product-auto";
 
 type Draft = Record<string, { decision: ProductAutoReviewDecision | ""; corrected_value: string; note: string }>;
 type AddedScalarDraft = ProductAutoAddedScalarFieldInput & { clientId: string };
@@ -23,6 +23,35 @@ function linkedCells(value: unknown): ProductAutoLinkedCell[] {
   return value.filter((item): item is ProductAutoLinkedCell => item && typeof item === "object" &&
     Number.isInteger(item.row) && typeof item.value === "string" &&
     (item.status === "accepted" || item.status === "needs_review")).sort((left, right) => left.row - right.row);
+}
+
+function nativeContext(detail: ProductAutoDocumentDetail, evidence: ProductAutoEvidence): string | null {
+  const parsed = detail.parsedDocument;
+  const unit = parsed?.units[evidence.page - 1];
+  if (!unit) return null;
+  const cell = parsed?.tables.flatMap((table) => table.cells).find((item) => item.anchors.some((anchor) =>
+    anchor.unit_id === unit.unit_id && anchor.text_span &&
+    anchor.text_span[0] <= evidence.start && evidence.end <= anchor.text_span[1]));
+  const locator = cell?.anchors.find((anchor) => anchor.unit_id === unit.unit_id)?.native_locator;
+  if (!locator) return unit.label ?? unit.unit_id;
+  try {
+    const value = JSON.parse(locator) as Record<string, unknown>;
+    const row = typeof value.row === "number" ? value.row + 1 : null;
+    const column = typeof value.column === "number" ? value.column + 1 : null;
+    if (value.kind === "xlsx_cell" && typeof value.address === "string") {
+      return `${unit.label ?? "Sheet"} · cell ${value.address}${value.formula === true ? " (formula, not evaluated)" : ""}`;
+    }
+    if (value.kind === "docx_table_cell" && typeof value.table_index === "number" && row && column) {
+      return `Word table ${value.table_index + 1} · row ${row}, column ${column}`;
+    }
+    if (value.kind === "pptx_table_cell" && typeof value.shape_id === "number" && row && column) {
+      return `Slide ${value.slide}, table shape ${value.shape_id} · row ${row}, column ${column}`;
+    }
+    if ((value.kind === "html_dom_cell" || value.kind === "eml_html_cell") && typeof value.xpath === "string") {
+      return `${unit.label ?? unit.unit_id} · DOM cell ${value.xpath}`;
+    }
+  } catch { /* A malformed locator leaves the source unit label available. */ }
+  return unit.label ?? unit.unit_id;
 }
 
 function linkedCorrectionRows(value: string | null | undefined, machine: unknown): ProductAutoLinkedCorrectionRow[] {
@@ -188,6 +217,7 @@ export function ProductAutoDocumentPage() {
   const atFieldLimit = candidate.proposed_schema.length - removedProposals + addedDraft.length >= 24;
   const originalUrl = `/api/jobs/${encodeURIComponent(jobId)}/docs/${encodeURIComponent(detail.fileId)}/content`;
   const previewable = /\.(pdf|png|jpe?g|txt|json)$/i.test(detail.fileName);
+  const nativeFormat = /\.(docx|xlsx|pptx|html|eml)$/i.test(detail.fileName);
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
@@ -198,7 +228,7 @@ export function ProductAutoDocumentPage() {
             <h1 className="break-all text-2xl font-semibold text-slate-900 dark:text-white">{detail.fileName}</h1>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Document status: {candidate.document_status.replaceAll("_", " ")} · Human review: {detail.correctedResult.review_status}</p>
           </div>
-          <a href={originalUrl} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Open original</a>
+          <a href={originalUrl} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">{nativeFormat ? "Download original" : "Open original"}</a>
         </div>
       </div>
 
@@ -220,15 +250,16 @@ export function ProductAutoDocumentPage() {
           />
         ) : (
           <p className="mt-4 rounded-xl border border-slate-200 p-4 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
-            This file type has no in-page preview. Open the original to inspect it.
+            This file type has no in-page preview. Download the original to inspect it.
           </p>
         )}
         <details className="mt-4 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-          <summary className="cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-200">OCR text by page · copy exact quotes for added fields</summary>
+          <summary className="cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-200">{detail.parsedDocument ? "Native source text by unit" : "OCR text by page"} · copy exact quotes for added fields</summary>
+          {detail.parsedDocument ? <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">Native cell addresses point into the unchanged uploaded file. Embedded images, slide notes and email attachments are not read. No cell pixel boxes or field meaning are verified.</p> : null}
           {detail.sourcePages.length === 0 ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">No OCR text is available for source-backed additions.</p> : null}
           <div className="mt-3 max-h-80 space-y-3 overflow-auto">
             {detail.sourcePages.map((page) => <section key={page.page}>
-              <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-200">Page {page.page}</h3>
+              <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-200">{detail.parsedDocument?.units[page.page - 1]?.label ?? `Page ${page.page}`}</h3>
               <pre className="mt-1 whitespace-pre-wrap break-words text-xs text-slate-600 dark:text-slate-300">{page.text || "No text extracted."}</pre>
             </section>)}
           </div>
@@ -272,7 +303,8 @@ export function ProductAutoDocumentPage() {
                           <td className="px-2 py-2 break-words">{cell.value}</td>
                           <td className="px-2 py-2">{cell.status.replaceAll("_", " ")}</td>
                           <td className="px-2 py-2 break-words">{cell.evidence
-                            ? <><span className="font-medium">Page {cell.evidence.page}:</span> <q>{cell.evidence.quote}</q></>
+                            ? <><span className="font-medium">{detail.parsedDocument?.units[cell.evidence.page - 1]?.label ?? `Page ${cell.evidence.page}`}:</span> <q>{cell.evidence.quote}</q>
+                              {nativeContext(detail, cell.evidence) ? <code className="mt-1 block break-all text-[11px]">{nativeContext(detail, cell.evidence)}</code> : null}</>
                             : <span className="text-amber-700 dark:text-amber-300">No verified source span</span>}</td>
                         </tr>)}</tbody>
                       </table>
@@ -287,7 +319,8 @@ export function ProductAutoDocumentPage() {
                   ) : null}
                   {!linked && value?.evidence ? (
                     <div className="mt-3 rounded-lg border-l-4 border-cyan-500 bg-cyan-50 p-3 text-sm dark:bg-cyan-900/20">
-                      <div className="text-xs font-medium text-cyan-800 dark:text-cyan-200">Evidence · page {value.evidence.page}</div>
+                      <div className="text-xs font-medium text-cyan-800 dark:text-cyan-200">Evidence · {detail.parsedDocument?.units[value.evidence.page - 1]?.label ?? `page ${value.evidence.page}`}</div>
+                      {nativeContext(detail, value.evidence) ? <code className="mt-1 block break-all text-[11px]">{nativeContext(detail, value.evidence)}</code> : null}
                       <blockquote className="mt-1 whitespace-pre-wrap break-words text-slate-700 dark:text-slate-200">{value.evidence.quote}</blockquote>
                     </div>
                   ) : !linked ? <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">No verified source span.</p> : null}

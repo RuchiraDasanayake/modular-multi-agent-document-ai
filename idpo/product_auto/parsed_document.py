@@ -1,8 +1,9 @@
 """Parser-neutral, source-linked document structure for product adapters.
 
-This contract is deliberately independent of any OCR or layout package. It is
-not wired into ``process_auto`` yet; adapters must preserve unavailable source
-locations as unavailable rather than manufacturing page geometry.
+This contract is deliberately independent of any OCR or layout package. The
+product native-format adapter writes it beside the v1 extraction result;
+adapters must preserve unavailable source locations as unavailable rather
+than manufacturing page geometry.
 """
 
 from __future__ import annotations

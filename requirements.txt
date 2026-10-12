@@ -26,6 +26,7 @@ decorator==5.2.1
 imgaug==0.4.0
 albumentations==1.4.10
 python-docx==1.2.0
+python-pptx==1.0.2
 
 # PDF (PDFium renders scanned pages; Poppler remains an optional fallback)
 pypdf==6.10.2

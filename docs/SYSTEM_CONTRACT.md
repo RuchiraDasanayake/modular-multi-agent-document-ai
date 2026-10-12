@@ -56,8 +56,19 @@ The default Compose profile starts PostgreSQL, Redis, gateway, product worker, a
 research services start only with `--profile research`; they are not used by this product path. The canonical
 research job runner is explicitly unavailable in Docker.
 
-The CLI accepts one file or a directory. It supports PDF, common raster images, text, and the existing JSON document
-format. It uses local OCR/text extraction and either a deterministic label/value proposal or an optional
+The CLI accepts one file or a directory. It supports PDF, common raster images, text, the existing JSON document
+format, and source-native DOCX, XLSX, PPTX, HTML, and EML. The five native adapters preserve parser-derived text
+offsets and table-cell source locators in an optional `parsed_document` v2 sidecar; the current extraction candidate
+and review contract stay v1. A native address is not a pixel box or proof of business meaning. Native source units map
+to the existing one-based `pages` evidence interface, and the reviewer sees the unit label and matching native cell
+address where available. Native formats bypass OCR normalization. Office ZIP, sheet-grid, HTML-tree, MIME-tree,
+derived-text, table-cell, and existing input-byte limits produce unsupported or parse-failed outcomes. The native
+view covers Word top-level paragraphs/tables, worksheet cells with formulas unevaluated, slide native text/tables,
+HTML DOM text/tables without CSS rendering or network fetches, and one preferred non-attachment EML text body.
+Embedded images, presentation notes, email attachments, nested Word/HTML tables and grouped slide shapes are not
+extracted; the latter three structural cases explicitly abstain when encountered.
+The research `process-inbox` intake retains its narrower format support. The product path uses local OCR/text extraction
+and either a deterministic label/value proposal or an optional
 OpenAI-compatible chat model for scalar or bounded repeated-column schema discovery followed by value extraction.
 Product-auto Tesseract calls now have a 30-second default timeout and a 120-second per-image-page search budget;
 these limits are configurable in the CLI and do not alter the canonical research OCR route. A timeout with no text is
@@ -79,8 +90,8 @@ shared row ordinals and per-cell text evidence; row links remain pending human r
 parser, stable row identity across versions, or a guarantee of useful fields on unfamiliar documents.
 
 `product_runs/<run_id>` contains `run.json` as the completion marker, `manifest.jsonl` with source hashes and per-document
-receipts, `candidates.jsonl`, and `docs/<doc_id>/result.json` with OCR pages, per-page PDF renderer provenance,
-the proposal, model-call telemetry and reason. Worker process CPU and boundary RSS snapshots are recorded where
+receipts, `candidates.jsonl`, and `docs/<doc_id>/result.json` with source-text units, per-page PDF renderer provenance
+or native parser identity and locators, the proposal, model-call telemetry and reason. Worker process CPU and boundary RSS snapshots are recorded where
 available; they exclude OCR child processes and remote model compute, and RSS is not peak memory. Cost fields exist
 but remain null until provider prices, compute rates and review work are recorded. The
 frontend checks source hashes and artifact consistency before displaying a completed run. Owner-scoped result and

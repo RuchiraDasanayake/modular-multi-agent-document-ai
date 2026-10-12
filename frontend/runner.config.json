@@ -14,7 +14,12 @@
     ".tiff",
     ".bmp",
     ".txt",
-    ".json"
+    ".json",
+    ".docx",
+    ".xlsx",
+    ".pptx",
+    ".html",
+    ".eml"
   ],
   "defaultCommandId": "idpo_process_inbox",
   "commands": [

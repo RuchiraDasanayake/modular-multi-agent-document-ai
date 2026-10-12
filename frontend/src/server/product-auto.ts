@@ -15,6 +15,7 @@ import type {
   ProductAutoEvidence,
   ProductAutoLinkedCell,
   ProductAutoLinkedCorrectionRow,
+  ProductAutoParsedDocument,
   ProductAutoReview,
   ProductAutoReviewDecision,
   ProductAutoReviewField,
@@ -417,6 +418,22 @@ function readSourcePages(runId: string, docId: string): Array<{ page: number; te
   });
 }
 
+function readParsedDocument(runId: string, docId: string): ProductAutoParsedDocument | undefined {
+  requireSafeId(docId);
+  const result = parseJsonObject(path.join(outputDir(runId), "docs", docId, "result.json"));
+  const parsed = result.parsed_document;
+  if (parsed === undefined) return undefined;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Invalid native source artifact.");
+  const value = parsed as Record<string, unknown>;
+  if (value.contract_version !== 2 || typeof value.source_sha256 !== "string" ||
+    value.source_sha256 !== result.source_container_sha256 || typeof value.source_format !== "string" ||
+    typeof value.parser_id !== "string" || typeof value.parser_version !== "string" ||
+    !Array.isArray(value.units) || !Array.isArray(value.tables)) {
+    throw new Error("Invalid native source artifact.");
+  }
+  return parsed as ProductAutoParsedDocument;
+}
+
 function readReview(jobId: string, runId: string, docId: string): ProductAutoReview | null {
   return readAuditTrail(jobId, runId, docId).at(-1)?.review_snapshot ?? null;
 }
@@ -725,6 +742,7 @@ export function getProductAutoDocument(jobId: string, runId: string, docId: stri
   if (run.status !== "success" || !document) throw new AccessError("Document result not found.", 404);
   const candidate = readCandidate(runId, docId);
   const sourcePages = readSourcePages(runId, docId);
+  const parsedDocument = readParsedDocument(runId, docId);
   const auditTrail = readAuditTrail(jobId, runId, docId);
   const review = auditTrail.at(-1)?.review_snapshot ?? null;
   if (review?.source_container_sha256 &&
@@ -737,7 +755,7 @@ export function getProductAutoDocument(jobId: string, runId: string, docId: stri
   }
   return {
     runId, fileId: document.fileId, fileName: document.fileName,
-    candidate, sourcePages, review, auditTrail,
+    candidate, sourcePages, ...(parsedDocument ? { parsedDocument } : {}), review, auditTrail,
     correctedResult: deriveProductAutoCorrectedResult(candidate, review),
   };
 }

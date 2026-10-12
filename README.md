@@ -39,6 +39,10 @@ row corrections. Model-backed runs currently require an admin. The command-line 
 python -m idpo.cli process-auto --input path/to/document.pdf
 ```
 
+The opt-in product path accepts PDF, common raster images, TXT, JSON, DOCX, XLSX, PPTX, HTML, and EML. The last five
+use source-native text and table-cell locators; they have no invented pixel boxes. The separate research `process-inbox`
+runtime has a narrower input list. New formats remain review-only and have no measured accuracy claim.
+
 Add `--model MODEL_ID --api-base-url HTTPS_OR_LOCAL_URL` to use a configured OpenAI-compatible model; the server reads
 the key from `ICORE_API_KEY` by default for remote providers. A loopback HTTP model server can run without an API key.
 The local, no-model route is a weak label/value baseline, not an accuracy

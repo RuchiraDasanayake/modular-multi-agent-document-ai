@@ -22,11 +22,11 @@ rights and labeling decision before provider calls.
 ## Next coverage, without moving the holdout
 
 1. Freeze a **mixed-format, adjudicated development set** for PDF, image,
-   DOCX, XLSX, PPTX, HTML and EML before admitting new file types. Use real,
+   DOCX, XLSX, PPTX, HTML and EML before treating the native-format path as validated. Use real,
    rights-cleared files with useful scalar and repeated fields, source regions
    or explicit no-geometry markers, failures and ambiguous cases. Select by
-   source hash before inspecting candidate results. The current product accepts
-   only PDF, common raster images, TXT and its existing JSON input.
+   source hash before inspecting candidate results. The product now parses the five native formats in review-only
+   mode with explicit resource bounds and source locators; synthetic tests are not real-document quality evidence.
 2. Add independent structured datasets only after verifying exact source
    revisions and use rights. [DocILE](https://github.com/rossumai/docile)
    supplies field-localization and line-item grouping evaluation, but its
