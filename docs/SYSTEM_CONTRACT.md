@@ -67,7 +67,8 @@ also completed 2,000 distinct sources with no OCR failures; it had 23 more false
 zero linked rows. The [v8 provenance gate](evaluations/VRDU_2000_NO_MODEL_V8_PROVENANCE.md) checked another
 2,000-source execution at the same source hashes: all 831 scanned PDF pages actually used PDFium, and strict
 schema F1 remained 4.2423% with zero linked rows. RapidOCR outperformed Tesseract on fixed CORD development
-text-box crops in a separate diagnostic; the product default remains Tesseract pending a full-page extraction gate.
+text-box crops and full pages in separate diagnostics, but the unchanged product schema/row layer still mapped
+zero exact CORD fields or linked rows from either engine. The product default remains Tesseract.
 Local loopback HTTP servers may run without an API key; remote providers require an HTTPS URL and server-side key. The model can replace the
 heuristic schema. Proposed values require exact text-span evidence and a matching, JSON-round-trippable typed value
 for machine acceptance. Ambiguous boolean quotes and partial identifier matches stay pending review. A newly

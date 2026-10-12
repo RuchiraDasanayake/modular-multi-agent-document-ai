@@ -52,7 +52,10 @@ every possible router or the reported accepted submission.
   occurred, and schema F1 and linked-row counts were unchanged. All 2,000 still required review. A separate
   [CORD development crop diagnostic](evaluations/CORD_DEVELOPMENT_TEXT_BOX_OCR_RESULT_20261012.md) found
   88.265% exact recognition with RapidOCR PP-OCRv6 small versus 52.772% with Tesseract on 1,389 fixed annotated
-  text boxes; this does not measure full-page detection or downstream extraction.
+  text boxes. The [paired full-page diagnostic](evaluations/CORD_FULL_PAGE_OCR_DEV_RESULT_20261012.md) on those
+  60 development receipts exposed 1,311/1,389 annotated strings in RapidOCR page text versus 791/1,389 with
+  Tesseract, yet exact mapped product proposals remained zero for both; the current schema/row layer is the
+  bottleneck. These results do not establish a lower total cost or justify changing the OCR default.
 
 - Current job execution is `frontend job API -> frontend runner -> python -m idpo.cli process-inbox -> IDPO_DATA_DIR`.
   IDPO runs `ingest/inbox -> orchestrator -> executor -> exports`. AHMN direct advice is in process. Guardrails and
