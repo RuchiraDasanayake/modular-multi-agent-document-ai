@@ -2,7 +2,7 @@
   "manifest_version": 1,
   "frozen_utc_date": "2026-10-12",
   "purpose": "Small, real-source native-format development corpus; source availability only, with no extraction gold or accuracy claim",
-  "local_directory": "E:/DocAI-Benchmarks/native-real-public-dev-20261012",
+  "directory_parameter": "NATIVE_DEV_CORPUS_DIR (outside the repository)",
   "source_file_count": 10,
   "holdout": false,
   "sources": [

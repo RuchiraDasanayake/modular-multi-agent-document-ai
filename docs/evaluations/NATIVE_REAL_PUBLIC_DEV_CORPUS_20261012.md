@@ -2,7 +2,7 @@
 
 **Status:** ten local source files frozen for development; no extraction, gold annotation, model call, or accuracy score. This is `research_evidence` with the primary action **keep**. The acceptance check for this acquisition is exact source/rights/hash reproducibility, not extraction quality.
 
-The files are outside Git at `E:/DocAI-Benchmarks/native-real-public-dev-20261012`. The companion [machine-readable manifest](NATIVE_REAL_PUBLIC_DEV_MANIFEST_20261012.json) records every publication URL, direct asset URL or API request, byte count, SHA-256 hash, and rights note. No file from the reserved ExtractBench PDF holdout or a user document was opened. These ten are a development set and must never be reported as an independent holdout or as the paper's measured results.
+The files are outside Git in a local directory selected through `NATIVE_DEV_CORPUS_DIR`. The companion [machine-readable manifest](NATIVE_REAL_PUBLIC_DEV_MANIFEST_20261012.json) records every publication URL, direct asset URL or API request, byte count, SHA-256 hash, and rights note. No file from the reserved ExtractBench PDF holdout or a user document was opened. These ten are a development set and must never be reported as an independent holdout or as the paper's measured results.
 
 ## Selection and frozen bytes
 
