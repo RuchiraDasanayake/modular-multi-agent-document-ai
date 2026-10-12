@@ -12,9 +12,9 @@ from idpo.core.preflight import run_preflight
 from idpo.core.provenance import export_provenance
 from idpo.core.storage import migrate_legacy_runtime_data
 from idpo.evaluation.runner import evaluate_documents
+from idpo.pipeline.inbox import process_inbox
 from idpo.pipeline.orchestrator import Pipeline
 from idpo.pipeline.serialization import document_to_dict, result_to_dict
-from idpo.pipeline.inbox import process_inbox
 from idpo.retrieval.index_bundle import IndexBundle
 
 SUPPORTED_INPUT_EXTS = {".json", ".txt", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}

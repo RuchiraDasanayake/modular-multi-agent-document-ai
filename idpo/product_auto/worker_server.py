@@ -30,7 +30,7 @@ _run_slot = threading.BoundedSemaphore(value=1)
 def validate_request(payload: object, *, root: Path | None = None) -> tuple[Path, str, str | None, str | None, ApprovedRecipe | None]:
     """Allow only a staged frontend run, never an arbitrary host path."""
     if not isinstance(payload, dict):
-        raise ValueError("Invalid worker request")
+        raise TypeError("Invalid worker request")
     run_id = payload.get("run_id")
     input_dir = payload.get("input_dir")
     model = payload.get("model")
