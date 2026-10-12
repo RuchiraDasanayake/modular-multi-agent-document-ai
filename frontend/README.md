@@ -8,7 +8,7 @@ This project adds:
 - Artifact discovery over the external IDPO runtime data root.
 
 ## Stack
-- Next.js 15 (App Router) + React + TypeScript
+- Next.js 16 (App Router) + React + TypeScript
 - Tailwind CSS
 - Node runtime API routes for runner/artifact endpoints
 

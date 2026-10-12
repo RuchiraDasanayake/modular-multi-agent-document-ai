@@ -3,7 +3,7 @@
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg?logo=docker&logoColor=white)](docker-compose.yml)
 [![Python 3.10](https://img.shields.io/badge/Python-3.10-3776AB.svg?logo=python&logoColor=white)](SETUP.md)
-[![Next.js 15](https://img.shields.io/badge/Next.js-15-000000.svg?logo=next.js&logoColor=white)](frontend/package.json)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-000000.svg?logo=next.js&logoColor=white)](frontend/package.json)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.114+-009485.svg?logo=fastapi&logoColor=white)](gateway/requirements.txt)
 
 A microservices-based research system for adaptive document extraction. A document goes in; structured key-value fields come out. The IDPO pipeline (OCR, preprocessing, local-LLM extraction, validation, recovery) is governed by a policy that the AHMN layer selects per document with Thompson Sampling. Guardrails and XAI-HITL are separate services with their own dashboard pages.
@@ -99,7 +99,7 @@ call AHMN, Guardrails, XAI-HITL, or the legacy IDPO HTTP service.
 
 ```
                         ┌──────────────────────────────────┐
-                        │    frontend/  (Next.js 15)        │
+                        │    frontend/  (Next.js 16)        │
                         │   User: XAI │ HITL │ Guardrails   │
                         │          │ Doc Processing          │
                         │   Admin: Overview │ Experiments    │
@@ -194,7 +194,7 @@ AHMN routing runs in-process (`ahmn_core/direct_advisor.py`), so no AHMN server 
 
 - **Docker** & **Docker Compose** v2+ for the supporting services
 - Python 3.10 (for local development; the document pipeline is tested on 3.10.10 with PaddlePaddle 2.6.2)
-- Node.js 18+ (for frontend development)
+- Node.js 20.9+ (for frontend development)
 - [Ollama](https://ollama.com) with `qwen3.5:9b` and Tesseract 5 (for document extraction; see [docs/REPRODUCING_RESULTS.md](docs/REPRODUCING_RESULTS.md))
 
 ### Start the supporting services with Docker
@@ -426,7 +426,7 @@ An admin can create viewer accounts through `/api/auth/register`.
 │   ├── database.py             # PostgreSQL pool (auth tables)
 │   └── deps.py                 # FastAPI dependencies (JWT, DB)
 │
-├── frontend/                   # Next.js 15 + React 19 web app
+├── frontend/                   # Next.js 16 + React 19 web app
 │   └── src/
 │       ├── app/dashboard/      # All dashboard pages (XAI, HITL, Guardrails, IDPO, admin)
 │       ├── components/         # Sidebar (role-based), toast, stat cards

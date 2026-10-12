@@ -252,7 +252,7 @@ The current runtime remains run-centric underneath, but the frontend now treats 
 ## Access Control
 
 The job API and the dashboard pages are served by the frontend server, so the gateway never sees those requests.
-`frontend/src/middleware.ts` checks their session, and the job API routes resolve the current user before accessing
+`frontend/src/proxy.ts` checks their session, and the job API routes resolve the current user before accessing
 stored resources:
 
 - Public without a session: `/`, `/features`, `/about`, `/docs`, `/contact`, `/login`, `/signup`, `/forgot-password`,
@@ -263,7 +263,7 @@ stored resources:
   that the gateway accepts at `GET /api/auth/me`; accepted tokens are cached for 60 seconds.
 - Without a valid session the job API answers 401 and pages redirect to `/login`, deleting a rejected cookie. When the
   gateway cannot be reached, both answer 503.
-- The middleware reaches the gateway at `INTERNAL_API_URL`, then `NEXT_PUBLIC_API_URL`, then `http://localhost:8000`.
+- The proxy reaches the gateway at `INTERNAL_API_URL`, then `NEXT_PUBLIC_API_URL`, then `http://localhost:8000`.
 
 The gateway creates the first admin account at startup from `ADMIN_PASSWORD` (with `ADMIN_USERNAME` and `ADMIN_EMAIL`)
 when no admin exists, and never changes existing users.

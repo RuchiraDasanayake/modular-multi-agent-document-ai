@@ -20,7 +20,7 @@ It matches the current runtime path:
 `frontend job (POST /api/jobs/<job_id>/documents, then POST /api/jobs/<job_id>/runs) -> frontend job runner -> idpo.cli process-inbox -> IDPO_DATA_DIR/runs/<run_id>`
 
 The job API (`/api/jobs`, `/api/runs`, `/api/benchmarks`) and the dashboard pages run on the frontend server, so the
-frontend middleware checks every request against the gateway's `/api/auth/me` before serving it. A request without a
+Next.js proxy checks those protected requests against the gateway's `/api/auth/me` before serving them. A request without a
 session the gateway accepts gets `401` (API) or a redirect to `/login` (pages); if the gateway is unreachable it gets
 `503`. The frontend server must therefore reach the gateway at `INTERNAL_API_URL` (default `http://localhost:8000`).
 

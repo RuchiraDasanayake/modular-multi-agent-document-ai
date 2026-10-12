@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import test from "node:test";
+import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { NextRequest } from "next/server";
-import { middleware } from "../middleware";
+import { config, proxy } from "../proxy";
 
 interface FakeGateway {
   baseUrl: string;
@@ -43,27 +44,36 @@ function passedThrough(response: Response): boolean {
   return response.headers.get("x-middleware-next") === "1";
 }
 
+test("auth proxy matcher covers protected routes and skips static assets", () => {
+  for (const path of ["/dashboard/idpo", "/api/jobs/job-1/auto", "/api/runs/run-1", "/api/benchmarks"]) {
+    assert.equal(unstable_doesMiddlewareMatch({ config, url: `http://localhost:3000${path}` }), true, path);
+  }
+  for (const path of ["/_next/static/chunk.js", "/_next/image", "/favicon.ico", "/icon.svg"]) {
+    assert.equal(unstable_doesMiddlewareMatch({ config, url: `http://localhost:3000${path}` }), false, path);
+  }
+});
+
 test("job API requires a session the gateway accepts", async () => {
   const valid = jwtShapedToken("valid-user");
   const forged = jwtShapedToken("forged-user");
   const gateway = await startFakeGateway([valid]);
   process.env.INTERNAL_API_URL = gateway.baseUrl;
   try {
-    const anonymous = await middleware(new NextRequest("http://localhost:3000/api/jobs"));
+    const anonymous = await proxy(new NextRequest("http://localhost:3000/api/jobs"));
     assert.equal(anonymous.status, 401);
 
-    const withBearer = await middleware(
+    const withBearer = await proxy(
       new NextRequest("http://localhost:3000/api/jobs/job-1/documents", { headers: { authorization: `Bearer ${valid}` } }),
     );
     assert.ok(passedThrough(withBearer));
 
-    const withForgedCookie = await middleware(
+    const withForgedCookie = await proxy(
       new NextRequest("http://localhost:3000/api/runs/run-1/summary", { headers: { cookie: `ahmn_token=${forged}` } }),
     );
     assert.equal(withForgedCookie.status, 401);
 
     const callsBefore = gateway.meCalls();
-    const cached = await middleware(
+    const cached = await proxy(
       new NextRequest("http://localhost:3000/api/benchmarks", { headers: { cookie: `ahmn_token=${valid}` } }),
     );
     assert.ok(passedThrough(cached));
@@ -79,14 +89,14 @@ test("dashboard pages redirect a forged cookie to login and clear it", async () 
   const gateway = await startFakeGateway([valid]);
   process.env.INTERNAL_API_URL = gateway.baseUrl;
   try {
-    const forgedPage = await middleware(
+    const forgedPage = await proxy(
       new NextRequest("http://localhost:3000/dashboard/idpo/runs/run-1", { headers: { cookie: `ahmn_token=${forged}` } }),
     );
     assert.equal(forgedPage.status, 307);
     assert.equal(new URL(forgedPage.headers.get("location") ?? "").pathname, "/login");
     assert.match(forgedPage.headers.get("set-cookie") ?? "", /ahmn_token=;/);
 
-    const validPage = await middleware(
+    const validPage = await proxy(
       new NextRequest("http://localhost:3000/dashboard/idpo", { headers: { cookie: `ahmn_token=${valid}` } }),
     );
     assert.ok(passedThrough(validPage));
@@ -100,12 +110,12 @@ test("public routes need no session and an unreachable gateway fails closed", as
   await gateway.close();
   process.env.INTERNAL_API_URL = gateway.baseUrl;
 
-  assert.ok(passedThrough(await middleware(new NextRequest("http://localhost:3000/api/health"))));
-  assert.ok(passedThrough(await middleware(new NextRequest("http://localhost:3000/login"))));
+  assert.ok(passedThrough(await proxy(new NextRequest("http://localhost:3000/api/health"))));
+  assert.ok(passedThrough(await proxy(new NextRequest("http://localhost:3000/login"))));
 
   const token = jwtShapedToken("offline-user");
-  const jobs = await middleware(new NextRequest("http://localhost:3000/api/jobs", { headers: { authorization: `Bearer ${token}` } }));
+  const jobs = await proxy(new NextRequest("http://localhost:3000/api/jobs", { headers: { authorization: `Bearer ${token}` } }));
   assert.equal(jobs.status, 503);
-  const page = await middleware(new NextRequest("http://localhost:3000/dashboard", { headers: { cookie: `ahmn_token=${token}` } }));
+  const page = await proxy(new NextRequest("http://localhost:3000/dashboard", { headers: { cookie: `ahmn_token=${token}` } }));
   assert.equal(page.status, 503);
 });
