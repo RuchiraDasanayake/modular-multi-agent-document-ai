@@ -31,6 +31,23 @@ services:
     networks:
       - internal
 
+  # Explicit one-shot metadata upgrade; never runs as part of app startup.
+  product-migrations:
+    profiles: [maintenance]
+    build:
+      context: .
+      dockerfile: scripts/product_migrations/Dockerfile
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-ahmn_db}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal
+
   # ── Cache ──
   redis:
     image: redis:alpine
