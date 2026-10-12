@@ -22,8 +22,10 @@ The existing local `llama-server.exe` is build 11425, SHA256
 `4fdc1a67a8c1333429ea82186087a77db202fb588c2442dcdfa442b2182d0306`.
 Its CLI exposes `--mmproj` and `--chat-template-kwargs`; **successful model
 loading and template-kwarg behavior still require an empirical check**.
-Start this pinned build with `--reasoning off` as well as `--jinja` and the
-verified projector. Before the first scored completion, require `/props` to
+Start this pinned build with `--reasoning off`, `--jinja`,
+`--image-min-tokens 1024`, `--image-max-tokens 1024`, and the verified
+projector. The model loader warns that Qwen-VL grounding tasks need at least
+1,024 image tokens. Before the first scored completion, require `/props` to
 report vision support and `/apply-template` to show different rendered prompts
 for generic, `template-generation`, and JSON-template settings. This probe
 contains no document or gold data and performs no model inference. A failed
