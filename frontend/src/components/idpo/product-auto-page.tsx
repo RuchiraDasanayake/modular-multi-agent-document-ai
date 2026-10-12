@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { IdpoCard } from "@/components/idpo/card";
 import { idpoApi } from "@/lib/idpo-api";
 import type { ProductAutoRun, ProductAutoSourceDocument } from "@/types/product-auto";
+import type { ProductAutoRecipeRevision } from "@/types/product-auto-recipes";
 
 function statusClass(status: string): string {
   if (status === "processed" || status === "success" || status === "completed") return "text-emerald-700 dark:text-emerald-300";
@@ -22,6 +23,8 @@ export function ProductAutoPage() {
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [available, setAvailable] = useState(false);
   const [modelConfigured, setModelConfigured] = useState(false);
+  const [approvedRecipes, setApprovedRecipes] = useState<ProductAutoRecipeRevision[]>([]);
+  const [selectedRecipeId, setSelectedRecipeId] = useState("");
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
@@ -39,6 +42,9 @@ export function ProductAutoPage() {
     }).catch((cause) => {
       if (current) setError(cause instanceof Error ? cause.message : "Failed to load automatic extraction.");
     }).finally(() => { if (current) setLoading(false); });
+    void idpoApi.listProductAutoRecipes(jobId).then((data) => {
+      if (current) setApprovedRecipes(data.recipes.filter((recipe) => recipe.state === "approved_shadow"));
+    }).catch(() => { if (current) setApprovedRecipes([]); });
     return () => { current = false; };
   }, [jobId]);
 
@@ -60,7 +66,9 @@ export function ProductAutoPage() {
     setStarting(true);
     setError("");
     try {
-      const run = await idpoApi.startProductAutoRun(jobId, selected);
+      const recipe = approvedRecipes.find((item) => item.recipe_id === selectedRecipeId);
+      const run = await idpoApi.startProductAutoRun(jobId, selected, recipe
+        ? { recipeId: recipe.recipe_id, expectedRevision: recipe.revision } : undefined);
       setRuns((current) => [run, ...current]);
       setActiveRunId(run.runId);
     } catch (cause) {
@@ -78,7 +86,7 @@ export function ProductAutoPage() {
         <Link href={`/dashboard/idpo/jobs/${encodeURIComponent(jobId)}`} className="text-sm font-medium text-cyan-700 dark:text-cyan-300">← Back to job</Link>
         <h1 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">Automatic schema extraction</h1>
         <p className="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-300">
-          Discover fields from each document, verify exact text evidence, then review proposed values. This workflow is opt in and keeps its results separate from research policy runs.
+          Discover fields from each document or explicitly select an approved schema. Verify source evidence and review every proposed value.
         </p>
       </div>
 
@@ -98,6 +106,22 @@ export function ProductAutoPage() {
           </button>
         </div>
         {!available ? <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">This deployment has no automatic extraction runner configured.</p> : null}
+        {approvedRecipes.length > 0 ? (
+          <label className="mt-4 block max-w-md text-sm font-medium text-slate-700 dark:text-slate-200">
+            Schema for this run
+            <select value={selectedRecipeId} disabled={running || starting || !modelConfigured}
+              onChange={(event) => setSelectedRecipeId(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+              <option value="">Discover fields from each document</option>
+              {approvedRecipes.map((recipe) => (
+                <option key={recipe.recipe_id} value={recipe.recipe_id}>
+                  {recipe.family_name} · revision {recipe.revision}
+                </option>
+              ))}
+            </select>
+            {selectedRecipeId ? <span className="mt-1 block font-normal text-slate-500">This choice is explicit for the selected files. Results still require review.</span> : null}
+          </label>
+        ) : null}
         {documents.length === 0 ? <p className="mt-4 text-sm text-slate-500">Upload documents on the job page first.</p> : (
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             {documents.map((document) => (
@@ -121,6 +145,7 @@ export function ProductAutoPage() {
                 <span className="font-mono">{run.runId.slice(0, 13)}</span>
                 <span className={`ml-2 font-semibold ${statusClass(run.status)}`}>{run.status}</span>
                 <span className="ml-2 text-slate-500">{run.selectedCount} files</span>
+                {run.approvedRecipe ? <span className="ml-2 text-slate-500">{run.approvedRecipe.familyName} r{run.approvedRecipe.revision}</span> : null}
               </button>
             ))}
           </div>

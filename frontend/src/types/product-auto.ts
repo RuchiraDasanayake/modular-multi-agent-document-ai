@@ -196,6 +196,7 @@ export interface ProductAutoRun {
   endedAt?: string;
   selectedCount: number;
   documents: ProductAutoRunDocument[];
+  approvedRecipe?: { recipeId: string; revision: number; familyName: string; snapshotSha256: string };
   error?: string;
 }
 

@@ -28,7 +28,9 @@ every possible router or the reported accepted submission.
   active reviewer seconds are stored per save; measured total reviewer cost is still unavailable. They verify exact
   OCR text spans and keep unapproved schemas in review. A separate
   owner-scoped registry now stores review-derived schema drafts, explicit `approved_shadow` revisions, and disable
-  events; extraction does not match or use them yet. They have no durable queue, runtime recipe reuse, visual table
+  events; an operator can explicitly select one current approved revision for a model-backed run,
+  skipping schema induction while keeping every value in review. Automatic recipe matching and
+  release remain unimplemented. They have no durable queue, visual table
   structure, priced cost meter, or demonstrated arbitrary-family accuracy. The first
   2,000-document no-model development baseline failed the quality gate; see
   [the measured v1 report](evaluations/VRDU_2000_NO_MODEL_V1.md). The [v2 safety run](evaluations/VRDU_2000_NO_MODEL_V2.md)

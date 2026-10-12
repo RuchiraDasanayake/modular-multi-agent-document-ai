@@ -21,7 +21,7 @@ def staged_run(tmp_path: Path) -> tuple[str, Path]:
 def test_worker_accepts_only_matching_staged_run(tmp_path: Path) -> None:
     run_id, staged = staged_run(tmp_path)
     assert validate_request({"run_id": run_id, "input_dir": str(staged)}, root=tmp_path) == (
-        staged, run_id, None, None,
+        staged, run_id, None, None, None,
     )
 
     with pytest.raises(ValueError, match="staging area"):

@@ -60,6 +60,10 @@ interface RunRecord {
   endedAt?: string;
   serverInstanceId: string;
   selectedFiles: SelectedFile[];
+  approvedRecipe?: {
+    recipeId: string; revision: number; auditEventId: string; ownerUserId: string;
+    familyName: string; snapshotSha256: string;
+  };
   documents: Array<ProductAutoRunDocument & { machineResultSha256?: string }>;
   error?: string;
 }
@@ -103,6 +107,27 @@ function stagedInputDir(runId: string): string {
   const target = path.resolve(root, runId);
   if (path.dirname(target) !== root) throw new Error("Invalid staging directory.");
   return target;
+}
+
+function stagedRecipeFile(runId: string): string {
+  return path.join(path.dirname(stagedInputDir(runId)), `${runId}.recipe.json`);
+}
+
+function recipeReceipt(record: RunRecord): Record<string, string | number> | null {
+  const recipe = record.approvedRecipe;
+  return recipe ? {
+    recipe_id: recipe.recipeId, revision: recipe.revision,
+    audit_event_id: recipe.auditEventId, snapshot_sha256: recipe.snapshotSha256,
+  } : null;
+}
+
+function matchesRecipeReceipt(value: unknown, record: RunRecord): boolean {
+  const expected = recipeReceipt(record);
+  if (expected === null) return value == null;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const actual = value as Record<string, unknown>;
+  return Object.keys(actual).length === Object.keys(expected).length &&
+    Object.entries(expected).every(([key, wanted]) => actual[key] === wanted);
 }
 
 function auditDir(jobId: string, runId: string, docId: string): string {
@@ -539,6 +564,10 @@ function validatedDocuments(record: RunRecord, targetDocId?: string): RunRecord[
   if (marker.contract_version !== 1 || marker.run_id !== record.runId) {
     throw new Error("Run completion marker does not match this run.");
   }
+  if (!matchesRecipeReceipt(marker.approved_recipe, record) ||
+    record.approvedRecipe && getJobOrThrow(record.jobId).ownerUserId !== record.approvedRecipe.ownerUserId) {
+    throw new Error("Run recipe receipt does not match its owner-scoped selection.");
+  }
   const receipts = parseJsonLines(path.join(runDir, "manifest.jsonl"));
   if (receipts.length !== marker.doc_count) throw new Error("Incomplete extraction manifest.");
   const byStoredName = new Map(record.selectedFiles.map((file) => [file.storedName, file]));
@@ -556,12 +585,18 @@ function validatedDocuments(record: RunRecord, targetDocId?: string): RunRecord[
     if (typeof receipt.result_sha256 !== "string" || !/^[a-f0-9]{64}$/.test(receipt.result_sha256)) {
       throw new Error("Machine result receipt is missing or invalid.");
     }
+    if (!matchesRecipeReceipt(receipt.approved_recipe, record)) {
+      throw new Error("Document recipe receipt differs from the selected recipe.");
+    }
     if (targetDocId && docId !== targetDocId) return [];
     const { bytes, sha256: machineResultHash } = readResultBytes(record.runId, docId);
     if (receipt.result_sha256 !== machineResultHash) {
       throw new Error("Machine result and extraction receipt differ.");
     }
     const result = parseResultBytes(bytes);
+    if (!matchesRecipeReceipt(result.approved_recipe, record)) {
+      throw new Error("Machine result recipe differs from the selected recipe.");
+    }
     const candidate = candidateFromArtifact(result.candidate, docId, result.pages);
     if (candidate.document_status !== receipt.document_status) throw new Error("Candidate and receipt status differ.");
     const review = readReview(record.jobId, record.runId, docId);
@@ -597,6 +632,7 @@ function finishRun(jobId: string, runId: string, exitCode: number | null, leaseE
   }
   if (publishTerminalRecord(record) && !leaseExpiredFailure) {
     fs.rmSync(stagedInputDir(runId), { recursive: true, force: true });
+    if (fs.existsSync(stagedRecipeFile(runId))) fs.unlinkSync(stagedRecipeFile(runId));
   }
   stopHeartbeat(runId);
 }
@@ -670,6 +706,10 @@ function publicRun(record: RunRecord): ProductAutoRun {
     createdAt: record.createdAt,
     endedAt: record.endedAt,
     selectedCount: record.selectedFiles.length,
+    ...(record.approvedRecipe ? { approvedRecipe: {
+      recipeId: record.approvedRecipe.recipeId, revision: record.approvedRecipe.revision,
+      familyName: record.approvedRecipe.familyName, snapshotSha256: record.approvedRecipe.snapshotSha256,
+    } } : {}),
     documents: record.documents.map((document) => ({
       docId: document.docId, fileId: document.fileId, fileName: document.fileName,
       status: document.status, fieldCount: document.fieldCount, acceptedCount: document.acceptedCount,
@@ -720,7 +760,10 @@ export function getProductAutoRun(jobId: string, runId: string): ProductAutoRun 
   return publicRun(runForDisplay(jobId, runId));
 }
 
-export function startProductAutoRun(jobId: string, selectedFileIds: string[], admin: boolean): ProductAutoRun {
+export async function startProductAutoRun(
+  jobId: string, selectedFileIds: string[], admin: boolean,
+  approvedRecipeSelection?: { recipeId: string; expectedRevision: number },
+): Promise<ProductAutoRun> {
   const config = loadRunnerConfig();
   if (!productAutoAvailability().available) throw new AccessError("Automatic extraction is unavailable on this deployment.", 503);
   const job = getJobOrThrow(jobId);
@@ -738,6 +781,31 @@ export function startProductAutoRun(jobId: string, selectedFileIds: string[], ad
     throw new AccessError("The server model key is missing.", 503);
   }
   if (model && !admin) throw new AccessError("Admin access is required to start model-backed extraction.", 403);
+  if (approvedRecipeSelection && !model) {
+    throw new AccessError("An approved recipe requires a configured value extraction model.", 503);
+  }
+  let recipeSnapshot: Record<string, unknown> | undefined;
+  let recipeMeta: RunRecord["approvedRecipe"];
+  if (approvedRecipeSelection) {
+    const { selectApprovedProductAutoRecipe } = await import("@/server/product-auto-recipes");
+    const recipe = selectApprovedProductAutoRecipe(jobId, approvedRecipeSelection.recipeId,
+      approvedRecipeSelection.expectedRevision);
+    if (recipe.owner_user_id !== job.ownerUserId) {
+      throw new AccessError("Recipe owner does not match this job.", 409);
+    }
+    recipeSnapshot = {
+      contract_version: 1, recipe_id: recipe.recipe_id, revision: recipe.revision,
+      audit_event_id: recipe.audit_event_id, state: recipe.state,
+      owner_user_id: recipe.owner_user_id, family_name: recipe.family_name,
+      source_review_digest_sha256: recipe.source_review.source_digest_sha256,
+      fields: recipe.fields, row_groups: recipe.row_groups,
+    };
+    recipeMeta = {
+      recipeId: recipe.recipe_id, revision: recipe.revision, auditEventId: recipe.audit_event_id,
+      ownerUserId: recipe.owner_user_id, familyName: recipe.family_name,
+      snapshotSha256: createHash("sha256").update(JSON.stringify(recipeSnapshot)).digest("hex"),
+    };
+  }
   const documents = selectedFileIds.map((fileId) => job.documents?.find((document) => document.fileId === fileId));
   if (documents.some((document) => !document)) throw new AccessError("A selected document was not found.", 400);
   const runId = `auto_${randomUUID().replace(/-/g, "")}`;
@@ -747,6 +815,15 @@ export function startProductAutoRun(jobId: string, selectedFileIds: string[], ad
   const selectedFiles: SelectedFile[] = [];
   fs.mkdirSync(inputDir, { recursive: true });
   try {
+    if (recipeSnapshot && recipeMeta) {
+      const handle = fs.openSync(stagedRecipeFile(runId), "wx", 0o600);
+      try {
+        fs.writeFileSync(handle, JSON.stringify(recipeSnapshot), "utf8");
+        fs.fsyncSync(handle);
+      } finally {
+        fs.closeSync(handle);
+      }
+    }
     for (const document of documents) {
       if (!document) continue;
       const source = path.resolve(sourceDir, document.storedName);
@@ -765,12 +842,15 @@ export function startProductAutoRun(jobId: string, selectedFileIds: string[], ad
     const record: RunRecord = {
       runId, jobId, status: "running", createdAt: new Date().toISOString(),
       serverInstanceId: instanceId, selectedFiles, documents: [],
+      ...(recipeMeta ? { approvedRecipe: recipeMeta } : {}),
     };
     saveRunRecord(record);
     writeLease(jobId, runId);
     const command = getCommandConfig("idpo_process_auto");
     const args = command.args.map((arg) => arg.replaceAll("{input_dir}", inputDir).replaceAll("{run_id}", runId));
     if (model && baseUrl) args.push("--model", model, "--api-base-url", baseUrl);
+    if (recipeMeta) args.push("--approved-recipe-file", stagedRecipeFile(runId),
+      "--approved-recipe-sha256", recipeMeta.snapshotSha256);
     const child = spawn(command.program, args, {
       cwd: command.cwd,
       env: { ...process.env, ...command.env, IDPO_DATA_DIR: storageRoot() },
@@ -783,7 +863,10 @@ export function startProductAutoRun(jobId: string, selectedFileIds: string[], ad
     return publicRun(record);
   } catch (error) {
     if (fs.existsSync(runFile(jobId, runId))) finishRun(jobId, runId, null);
-    else fs.rmSync(inputDir, { recursive: true, force: true });
+    else {
+      fs.rmSync(inputDir, { recursive: true, force: true });
+      if (fs.existsSync(stagedRecipeFile(runId))) fs.unlinkSync(stagedRecipeFile(runId));
+    }
     throw error;
   }
 }

@@ -8,6 +8,7 @@ import type {
   BenchmarkEvidencePayload,
 } from "@/types/idpo";
 import type { ProductAutoAddedFieldInput, ProductAutoCorrectedResult, ProductAutoDocumentDetail, ProductAutoReview, ProductAutoReviewField, ProductAutoRun, ProductAutoSourceDocument } from "@/types/product-auto";
+import type { ProductAutoRecipeRevision } from "@/types/product-auto-recipes";
 
 async function localRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
@@ -43,11 +44,16 @@ export const idpoApi = {
     return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto`);
   },
 
-  startProductAutoRun(jobId: string, selectedFileIds: string[]): Promise<ProductAutoRun> {
+  listProductAutoRecipes(jobId: string): Promise<{ recipes: ProductAutoRecipeRevision[] }> {
+    return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto/recipes`);
+  },
+
+  startProductAutoRun(jobId: string, selectedFileIds: string[],
+    approvedRecipe?: { recipeId: string; expectedRevision: number }): Promise<ProductAutoRun> {
     return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ selectedFileIds }),
+      body: JSON.stringify({ selectedFileIds, ...(approvedRecipe ? { approvedRecipe } : {}) }),
     });
   },
 

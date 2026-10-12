@@ -1,14 +1,17 @@
 import http from "node:http";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const socketPath = process.env.PRODUCT_WORKER_SOCKET || "/idpo-data/product-worker.sock";
 const args = process.argv.slice(2);
 
-function parseArguments(values) {
+export function parseArguments(values) {
   if (values.length === 1 && values[0] === "--health") return { health: true };
   if (values.length === 1 && values[0] === "--unsupported-research-runner") {
     throw new Error("Research job execution is unavailable in this Docker deployment. Use Automatic extraction or the single-host research runner.");
   }
-  const allowed = new Set(["--input", "--run-id", "--model", "--api-base-url"]);
+  const allowed = new Set(["--input", "--run-id", "--model", "--api-base-url",
+    "--approved-recipe-file", "--approved-recipe-sha256"]);
   const parsed = {};
   for (let index = 0; index < values.length; index += 2) {
     const flag = values[index];
@@ -21,11 +24,17 @@ function parseArguments(values) {
   if (!parsed["--input"] || !parsed["--run-id"] || Boolean(parsed["--model"]) !== Boolean(parsed["--api-base-url"])) {
     throw new Error("Product worker requires an input directory, run id, and complete model settings.");
   }
+  if (Boolean(parsed["--approved-recipe-file"]) !== Boolean(parsed["--approved-recipe-sha256"]) ||
+    (parsed["--approved-recipe-file"] && !parsed["--model"])) {
+    throw new Error("Approved recipe requires a snapshot, digest, and value model.");
+  }
   return {
     input_dir: parsed["--input"],
     run_id: parsed["--run-id"],
     model: parsed["--model"] ?? null,
     api_base_url: parsed["--api-base-url"] ?? null,
+    approved_recipe_file: parsed["--approved-recipe-file"] ?? null,
+    approved_recipe_sha256: parsed["--approved-recipe-sha256"] ?? null,
   };
 }
 
@@ -63,9 +72,11 @@ function callWorker(payload) {
   request.end(body);
 }
 
-try {
-  callWorker(parseArguments(args));
-} catch (error) {
-  process.stderr.write(`${error.message}\n`);
-  process.exitCode = 1;
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  try {
+    callWorker(parseArguments(args));
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+  }
 }

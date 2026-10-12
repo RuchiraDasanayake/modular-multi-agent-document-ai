@@ -1,6 +1,6 @@
 # ADR-0002: Owner-scoped product recipe approval foundation
 
-Status: implemented as a single-host metadata pilot. Recipe matching and automatic release are not implemented.
+Status: implemented as a single-host metadata pilot with explicit recipe selection. Automatic recipe matching and release are not implemented.
 
 ## Decision
 
@@ -37,15 +37,25 @@ record, avoiding a separate audit write.
 - The current review UI can add missed scalar fields. The recipe schema can represent linked
   columns, but adding a missed linked column in review and adjudicating full table geometry remain
   future work.
-- No extraction run reads this catalog. Recipe matching, calibration, and release policy require
-  separate implementation and held-out evaluation. A document's existing `needs_review` state is
-  unchanged.
+- A user can explicitly select one approved recipe and its current revision for a model-backed run.
+  Selection rechecks the source review and owner, freezes the exact schema in a SHA-256-bound
+  snapshot, and records the recipe revision, audit event, and snapshot digest in the run, document,
+  and result receipts. The worker validates the snapshot and skips schema induction; it makes at
+  most one value call per supported document. A stale, disabled, changed, or cross-owner recipe
+  fails before the run starts. Invalid or ungrounded model values abstain with the selected schema
+  preserved. Every output remains `needs_review`; an approved schema does not approve any value or
+  linked row on a new document.
+- A selected family name is an operator assertion, not a tested document classifier. There is no
+  automatic family match or automatic release. Held-out extraction and review-cost evaluation is
+  required before treating recipe reuse as a quality or cost improvement. Disabling a recipe after
+  a run starts does not revoke that run's already frozen snapshot.
 
 ## Limits before multi-host use
 
 The event store relies on a shared single-host filesystem. It fsyncs each event file before
 publication, but a review update and a recipe approval are not one cross-resource transaction.
-Each approval records a source digest; any future matcher must verify the source still matches or
+Each approval records a source digest; explicit selection rechecks the source before freezing the
+run snapshot. Any future automatic matcher must also verify the source still matches or
 move reviews and recipes into transactional metadata. Before multi-host deployment, move jobs,
 reviews, and recipe revisions into the planned PostgreSQL store with owner-scoped queries and
 transactional audit/outbox writes. Do not treat this registry as an extraction quality result.

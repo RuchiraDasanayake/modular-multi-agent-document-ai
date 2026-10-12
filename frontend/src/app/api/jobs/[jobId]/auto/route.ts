@@ -41,7 +41,18 @@ export async function POST(request: Request, { params }: Params) {
     if (!selectedFileIds.every((item): item is string => typeof item === "string")) {
       return NextResponse.json({ error: "Selected document IDs must be strings." }, { status: 400, headers: noStore });
     }
-    const run = startProductAutoRun(jobId, selectedFileIds, user.role === "admin");
+    const rawSelection = body && typeof body === "object" && !Array.isArray(body)
+      ? (body as Record<string, unknown>).approvedRecipe : undefined;
+    let approvedRecipe: { recipeId: string; expectedRevision: number } | undefined;
+    if (rawSelection !== undefined) {
+      if (!rawSelection || typeof rawSelection !== "object" || Array.isArray(rawSelection) ||
+        typeof (rawSelection as Record<string, unknown>).recipeId !== "string" ||
+        !Number.isSafeInteger((rawSelection as Record<string, unknown>).expectedRevision)) {
+        throw new AccessError("Choose an approved recipe and its current revision.", 400);
+      }
+      approvedRecipe = rawSelection as { recipeId: string; expectedRevision: number };
+    }
+    const run = await startProductAutoRun(jobId, selectedFileIds, user.role === "admin", approvedRecipe);
     return NextResponse.json(run, { status: 202, headers: noStore });
   } catch (error) {
     if (error instanceof AccessError) return apiError(error);

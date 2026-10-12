@@ -91,8 +91,13 @@ Local loopback HTTP servers may run without an API key; remote providers require
 heuristic schema. Proposed values require exact text-span evidence and a matching, JSON-round-trippable typed value
 for machine acceptance. Ambiguous boolean quotes and partial identifier matches stay pending review. A newly
 discovered schema is unapproved, so every document remains `needs_review` until an operator reviews it. A separate
-owner-scoped registry can save a completed review as a draft schema and explicitly approve it as `approved_shadow`;
-the extraction path does not read or match that registry, and there is no automatic release policy. A model can propose repeated columns as `array[object]` values with
+owner-scoped registry can save a completed review as a draft schema and explicitly approve it as `approved_shadow`.
+The operator may select a current approved revision for one run. The frontend rechecks its source
+review and owner, freezes a SHA-256-bound schema snapshot, and the worker skips schema induction
+and calls the model only for values. A stale or disabled selection fails closed; an invalid response
+leaves the selected fields missing and pending review. Receipts identify the exact recipe revision,
+event, and snapshot hash. Family selection is explicit; there is no automatic matching or release.
+A model can propose repeated columns as `array[object]` values with
 shared row ordinals and per-cell text evidence; row links remain pending human review. This is not a visual table
 parser, stable row identity across versions, or a guarantee of useful fields on unfamiliar documents.
 
@@ -113,7 +118,8 @@ presence but not semantic correctness. Review changes append revisioned events a
 record 1 to 14,400 seconds of self-reported active work for an individual save; the system does not infer this time
 and older events have no such field. The
 job-scoped recipe API separately records owner-scoped draft, approval, and disable events from completed reviews; it
-requires explicit linked-row group confirmation and does not yet configure extraction. This is not geometric table annotation.
+requires explicit linked-row group confirmation and can configure one explicitly selected run.
+This is not geometric table annotation.
 
 The single-host path runs as a child process of the frontend server; Docker sends it to one private worker that admits
 one active run and returns a busy error for another. It has no durable queue, cancellation, runtime recipe matcher,

@@ -7,7 +7,9 @@ import test from "node:test";
 import { GET as listRecipes, POST as createDraft } from "@/app/api/jobs/[jobId]/auto/recipes/route";
 import { GET as getRecipe, POST as changeRecipe } from "@/app/api/jobs/[jobId]/auto/recipes/[recipeId]/route";
 import { POST as saveReview } from "@/app/api/jobs/[jobId]/auto/[runId]/docs/[docId]/route";
-import { resetConfigCacheForTests } from "./config";
+import { POST as startAuto } from "@/app/api/jobs/[jobId]/auto/route";
+import { getProductAutoDocument, getProductAutoRun } from "@/server/product-auto";
+import { loadRunnerConfig, resetConfigCacheForTests } from "./config";
 import { addDocumentsToJob, createWorkspaceJob } from "./jobs";
 import type { ProductAutoCandidate } from "@/types/product-auto";
 
@@ -156,6 +158,114 @@ test("approved shadow recipes are owner scoped, immutable, and audited with the 
   assert.equal(body.auditTrail[1].previous_event_id, body.auditTrail[0].audit_event_id);
   assert.equal(body.auditTrail[2].previous_event_id, body.auditTrail[1].audit_event_id);
   assert.deepEqual(body.auditTrail[0].fields, body.auditTrail[2].fields);
+}));
+
+test("explicit recipe selection rejects stale, disabled, and another owner's revision", async () => withStorage(async (dataDir) => {
+  const { jobId, runId, docId, sourcePath } = await fixture(dataDir, scalarCandidate(), "Invoice\nTotal: 100");
+  const fileId = (await getProductAutoDocument(jobId, runId, docId)).fileId;
+  assert.equal((await reviewFields(jobId, runId, docId, [{ field_id: "total", decision: "correct" }])).status, 200);
+  const created = await draft(jobId, runId, docId);
+  assert.equal(created.status, 201);
+  const recipeId: string = (await created.json()).recipe.recipe_id;
+  const approved = await changeRecipe(request(`/api/jobs/${jobId}/auto/recipes/${recipeId}`, "alice", {
+    action: "approve", expectedRevision: 1, confirmedRowGroups: [],
+  }), { params: Promise.resolve({ jobId, recipeId }) });
+  assert.equal(approved.status, 200);
+
+  const originalModel = process.env.IDPO_AUTO_MODEL;
+  const originalUrl = process.env.IDPO_AUTO_API_BASE_URL;
+  process.env.IDPO_AUTO_MODEL = "test-model";
+  process.env.IDPO_AUTO_API_BASE_URL = "http://127.0.0.1:1/v1";
+  try {
+    const selected = (targetJob: string, targetFileId: string, expectedRevision: number) =>
+      startAuto(request(`/api/jobs/${targetJob}/auto`, "admin", {
+        selectedFileIds: [targetFileId], approvedRecipe: { recipeId, expectedRevision },
+      }), { params: Promise.resolve({ jobId: targetJob }) });
+    assert.equal((await selected(jobId, fileId, 1)).status, 409);
+
+    const bobJob = createWorkspaceJob({ ownerUserId: "bob-id" });
+    const bobUpload = await addDocumentsToJob(bobJob.jobId, [new File(["Total: 100"], "bob.txt")]);
+    assert.equal((await selected(bobJob.jobId, bobUpload.documents![0].fileId, 2)).status, 404);
+
+    const originalSource = fs.readFileSync(sourcePath);
+    fs.writeFileSync(sourcePath, "Total: 999");
+    assert.equal((await selected(jobId, fileId, 2)).status, 409);
+    fs.writeFileSync(sourcePath, originalSource);
+
+    const disabled = await changeRecipe(request(`/api/jobs/${jobId}/auto/recipes/${recipeId}`, "alice", {
+      action: "disable", expectedRevision: 2,
+    }), { params: Promise.resolve({ jobId, recipeId }) });
+    assert.equal(disabled.status, 200);
+    assert.equal((await selected(jobId, fileId, 2)).status, 409);
+  } finally {
+    if (originalModel === undefined) delete process.env.IDPO_AUTO_MODEL;
+    else process.env.IDPO_AUTO_MODEL = originalModel;
+    if (originalUrl === undefined) delete process.env.IDPO_AUTO_API_BASE_URL;
+    else process.env.IDPO_AUTO_API_BASE_URL = originalUrl;
+  }
+}));
+
+test("selected recipe is frozen in a hashed run snapshot before worker dispatch", async () => withStorage(async (dataDir) => {
+  const { jobId, runId, docId } = await fixture(dataDir, scalarCandidate(), "Invoice\nTotal: 100");
+  const fileId = getProductAutoDocument(jobId, runId, docId).fileId;
+  assert.equal((await reviewFields(jobId, runId, docId, [{ field_id: "total", decision: "correct" }])).status, 200);
+  const created = await draft(jobId, runId, docId);
+  assert.equal(created.status, 201);
+  const recipeId: string = (await created.json()).recipe.recipe_id;
+  const approved = await changeRecipe(request(`/api/jobs/${jobId}/auto/recipes/${recipeId}`, "alice", {
+    action: "approve", expectedRevision: 1, confirmedRowGroups: [],
+  }), { params: Promise.resolve({ jobId, recipeId }) });
+  assert.equal(approved.status, 200);
+
+  const originalModel = process.env.IDPO_AUTO_MODEL;
+  const originalUrl = process.env.IDPO_AUTO_API_BASE_URL;
+  process.env.IDPO_AUTO_MODEL = "test-model";
+  process.env.IDPO_AUTO_API_BASE_URL = "http://127.0.0.1:1/v1";
+  const capture = path.join(dataDir, "captured-worker.json");
+  const script = path.join(dataDir, "capture-worker.cjs");
+  fs.writeFileSync(script, `const fs = require("node:fs");
+const crypto = require("node:crypto");
+const args = process.argv.slice(2);
+const file = args[args.indexOf("--approved-recipe-file") + 1];
+const bytes = fs.readFileSync(file);
+fs.writeFileSync(process.env.CAPTURE_PATH, JSON.stringify({ args, snapshot: JSON.parse(bytes),
+  digest: crypto.createHash("sha256").update(bytes).digest("hex") }));`);
+  const command = loadRunnerConfig().commands.find((item) => item.id === "idpo_process_auto")!;
+  const originalCommand = { program: command.program, args: command.args, cwd: command.cwd, env: command.env };
+  command.program = process.execPath;
+  command.args = [script, "--input", "{input_dir}", "--run-id", "{run_id}"];
+  command.cwd = process.cwd();
+  command.env = { CAPTURE_PATH: capture };
+  try {
+    const response = await startAuto(request(`/api/jobs/${jobId}/auto`, "admin", {
+      selectedFileIds: [fileId], approvedRecipe: { recipeId, expectedRevision: 2 },
+    }), { params: Promise.resolve({ jobId }) });
+    assert.equal(response.status, 202);
+    const started = await response.json();
+    for (let attempt = 0; !fs.existsSync(capture) && attempt < 100; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    assert.equal(fs.existsSync(capture), true);
+    const captured = JSON.parse(fs.readFileSync(capture, "utf8"));
+    assert.equal(captured.snapshot.recipe_id, recipeId);
+    assert.equal(captured.snapshot.state, "approved_shadow");
+    assert.deepEqual(captured.snapshot.fields, [{ field_id: "total", type: "string" }]);
+    assert.equal(captured.digest, started.approvedRecipe.snapshotSha256);
+    assert.equal(captured.args[captured.args.indexOf("--approved-recipe-sha256") + 1], captured.digest);
+    for (let attempt = 0; getProductAutoRun(jobId, started.runId).status === "running" && attempt < 100; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    assert.equal(getProductAutoRun(jobId, started.runId).status, "failed");
+  } finally {
+    command.program = originalCommand.program;
+    command.args = originalCommand.args;
+    command.cwd = originalCommand.cwd;
+    command.env = originalCommand.env;
+    if (originalModel === undefined) delete process.env.IDPO_AUTO_MODEL;
+    else process.env.IDPO_AUTO_MODEL = originalModel;
+    if (originalUrl === undefined) delete process.env.IDPO_AUTO_API_BASE_URL;
+    else process.env.IDPO_AUTO_API_BASE_URL = originalUrl;
+  }
 }));
 
 test("approval rejects a source review updated after the draft", async () => withStorage(async (dataDir) => {

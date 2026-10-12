@@ -307,6 +307,28 @@ export function getProductAutoRecipe(jobId: string, recipeId: string): ProductAu
   return { recipe: auditTrail.at(-1)!, auditTrail };
 }
 
+/** Resolve only the current approved revision and recheck its reviewed source at selection time. */
+export function selectApprovedProductAutoRecipe(
+  jobId: string, recipeId: string, expectedRevision: number,
+): ProductAutoRecipeRevision {
+  const owner = ownerForJob(jobId);
+  const recipe = readTrail(owner, recipeId).at(-1)!;
+  if (recipe.state !== "approved_shadow" || recipe.revision !== expectedRevision) {
+    throw new AccessError("Recipe approval changed. Reload the catalog before extracting.", 409);
+  }
+  if (ownerForJob(recipe.source_review.job_id) !== owner) {
+    throw new AccessError("Recipe source owner changed.", 409);
+  }
+  const checked = sourceReview(recipe.source_review.job_id, recipe.source_review.run_id,
+    recipe.source_review.doc_id, recipe.source_review.review_revision);
+  if (JSON.stringify(checked.source) !== JSON.stringify(recipe.source_review) ||
+    JSON.stringify(checked.fields) !== JSON.stringify(recipe.fields) ||
+    JSON.stringify(checked.rowGroups) !== JSON.stringify(recipe.row_groups)) {
+    throw new AccessError("Recipe source review changed. Approve a new recipe.", 409);
+  }
+  return recipe;
+}
+
 export function createProductAutoRecipeDraft(
   jobId: string, runId: string, docId: string, actorUserId: string,
   expectedReviewRevision: number, familyName: unknown,
