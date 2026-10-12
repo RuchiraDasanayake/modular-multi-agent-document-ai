@@ -60,11 +60,14 @@ against 30,133 gold cells; it also lacked the OCR executable, so it is not a val
 
 ## Product contracts to introduce
 
-1. **ParsedDocument v2:** immutable source hash and format; parser/model version; pages with width, height, rotation,
-   source coordinate system, text/word spans, reading order, and elements. A table has an ID, page region, cells with
-   row/column indices and spans, text, and evidence. Store both raw parser coordinates and one normalized top-left
-   coordinate transform for the viewer. Preserve the original file and page render. A parser element is evidence of
-   content, not proof that the content belongs to a business field. Docling's
+1. **ParsedDocument v2:** immutable source hash and format; parser/model version; ordered source units and elements.
+   A unit may be a PDF page, spreadsheet sheet, presentation slide, HTML section, or email MIME part. It has a stable
+   format-native locator and text spans; page width, height, rotation, reading order, and coordinates are present only
+   when the converter actually supplies them. A table has an ID, containing unit, cells with row/column indices and
+   spans, text, and available source locators. Preserve raw parser coordinates and a normalized top-left transform
+   for page-based viewers, plus the original file and any page render. A sheet/cell, slide/shape, DOM/text, or MIME-part
+   locator can support review without inventing pixel geometry; the viewer must expose that source context. A parser
+   element is evidence of content, not proof that the content belongs to a business field. Docling's
    [provenance](https://docling-project.github.io/docling/reference/docling_document/) and
    [span-preserving table model](https://docling-project.github.io/docling/concepts/serialization/) can map into this
    contract; serializing a table only as Markdown loses important structure.
@@ -73,13 +76,15 @@ against 30,133 gold cells; it also lacked the OCR executable, so it is not a val
    one job. Reviewers can add, remove, rename, type, and group fields before approving a reusable recipe. A one-off
    key found on a document remains distinct from a stable customer business field. Never auto-promote an unreviewed
    correction or mutate an approved recipe in place.
-3. **ExtractionResult:** values reference schema version and one or more page elements/regions or exact text spans;
+3. **ExtractionResult:** values reference schema version and one or more source-unit elements/regions, format-native
+   locators, or exact text spans;
    preserve raw and normalized values, missing versus zero, derivation, parser/model version, and accept/review/reject
    state. Repeated records contain a `table_id`, `row_id`, ordered cells, and explicit `continuation_of` for a row
    continued on another page. Link only where headers, geometry, and values support the relation; otherwise leave the
    relation pending review. Stable IDs are scoped to source hash plus parser/recipe revision, not generated field names.
 4. **ReviewEvent:** immutable machine proposal, reviewer edits to fields, rows, links and evidence, actor, time,
-   revision, reason, and adjudication state. Side-by-side page rendering highlights the exact region; if a parser
+   revision, reason, and adjudication state. The viewer highlights the exact page region when available, or shows the
+   sheet/table cell, slide/shape, DOM context, or MIME part identified by a format-native locator. If a parser
    supplies text only, the UI must disclose that limitation. A value may be accepted automatically only under a
    predeclared policy that has passed holdout tests for that field/family. Exact quoted text alone cannot establish
    semantic correctness, as the existing invoice-to-healthcare-key smoke failure shows in
