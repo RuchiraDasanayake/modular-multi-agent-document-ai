@@ -14,6 +14,7 @@ from openpyxl.worksheet.table import Table as ExcelTable
 
 from idpo.product_auto.native_formats import parse_native_document
 from idpo.product_auto.native_table_proposals import propose_native_tables
+from idpo.product_auto.provider import ModelReply
 from idpo.product_auto.workflow import process_auto
 from product_eval.mixed_format_docling_diagnostic import FIXTURE_NAMES
 from product_eval.mixed_format_native_diagnostic import resolve_locator, verify_fixtures
@@ -29,6 +30,40 @@ EXPECTED = {
     "qty": ["2", "1"],
     "amount": ["12.00", "7.50"],
 }
+
+
+class _Model:
+    model = "fixture-model"
+
+    def __init__(self, fields: list[dict[str, object]], values: list[dict[str, object]]) -> None:
+        self.replies = [
+            ModelReply(text=json.dumps({"fields": fields}), latency_ms=1, finish_reason="stop"),
+            ModelReply(text=json.dumps({"values": values}), latency_ms=1, finish_reason="stop"),
+        ]
+        self.calls = 0
+
+    def complete_json(self, *, system: str, prompt: str) -> ModelReply:
+        self.calls += 1
+        return self.replies.pop(0)
+
+
+def _model_candidate(
+    source: Path,
+    tmp_path: Path,
+    fields: list[dict[str, object]],
+    values: list[dict[str, object]],
+) -> tuple[dict, dict, _Model]:
+    model = _Model(fields, values)
+    outcome = process_auto(
+        source, run_id=f"model-table-{source.stem}", model=model,
+        output_root=tmp_path / "model-runs",
+    )
+    run_dir = Path(outcome["run_dir"])
+    candidate = json.loads((run_dir / "candidates.jsonl").read_text(encoding="utf-8"))
+    sidecar = json.loads(
+        (run_dir / "docs" / candidate["doc_id"] / "result.json").read_text(encoding="utf-8")
+    )
+    return candidate, sidecar, model
 
 
 def _parsed(path: Path):
@@ -121,6 +156,84 @@ def test_five_native_formats_propose_exact_review_only_rows(
                 resolve_locator(source, json.loads(receipt["native_locator"]))
                 == cell["value"]
             )
+
+
+@pytest.mark.parametrize("name", ("order.docx", "order.html", "order.xlsx"))
+def test_model_values_keep_source_backed_native_rows_for_review(
+    name: str, tmp_path: Path,
+) -> None:
+    manifest = verify_fixtures(FIXTURES)
+    source = FIXTURES / name
+    candidate, sidecar, model = _model_candidate(
+        source, tmp_path,
+        [{"field_id": "item_label", "type": "string", "group": "header"}],
+        [{"field_id": "item_label", "value": "Widget A", "page": 1, "quote": "Widget A"}],
+    )
+    assert model.calls == 2
+    assert len(sidecar["model_calls"]) == 2
+    assert candidate["document_status"] == "needs_review"
+    assert sidecar["reason"] == "unapproved_dynamic_schema"
+    assert sidecar["source_sha256"] == manifest["files"][name]
+    schema = {field["field_id"]: field for field in candidate["proposed_schema"]}
+    assert set(schema) == {"item_label", "item", "qty", "amount"}
+    assert len({schema[field_id]["group"] for field_id in EXPECTED}) == 1
+    values = {value["field_id"]: value for value in candidate["extracted_values"]}
+    assert values["item_label"]["value"] == "Widget A"
+    assert values["item_label"]["review_state"] == "pending"
+    report = sidecar["native_table_proposals"]
+    assert [table["status"] for table in report["tables"]] == ["proposed"]
+    for field_id, expected in EXPECTED.items():
+        assert schema[field_id]["type"] == "array[object]"
+        assert values[field_id]["status"] == "needs_review"
+        assert values[field_id]["review_state"] == "pending"
+        assert [cell["row"] for cell in values[field_id]["value"]] == [0, 1]
+        assert [cell["value"] for cell in values[field_id]["value"]] == expected
+        for cell in values[field_id]["value"]:
+            evidence = cell["evidence"]
+            assert sidecar["pages"][evidence["page"] - 1]["text"][
+                evidence["start"] : evidence["end"]
+            ] == evidence["quote"] == cell["value"]
+            receipt = report["cell_provenance"][field_id][str(cell["row"])]
+            assert receipt["source_sha256"] == manifest["files"][name]
+            assert receipt["evidence"] == evidence
+            assert resolve_locator(source, json.loads(receipt["native_locator"])) == cell["value"]
+
+
+def test_model_field_collision_abstains_whole_native_table(tmp_path: Path) -> None:
+    candidate, sidecar, model = _model_candidate(
+        FIXTURES / "order.docx", tmp_path,
+        [{"field_id": "item", "type": "string"}],
+        [{"field_id": "item", "value": "Widget A", "page": 1, "quote": "Widget A"}],
+    )
+    assert model.calls == 2
+    assert [field["field_id"] for field in candidate["proposed_schema"]] == ["item"]
+    assert sidecar["native_table_proposals"]["tables"][0]["reason"] == "field_id_collision"
+    assert sidecar["native_table_proposals"]["cell_provenance"] == {}
+
+
+def test_model_group_collision_abstains_whole_native_table(tmp_path: Path) -> None:
+    source = FIXTURES / "order.html"
+    parsed, pages = _parsed(source)
+    proposed, _, _ = propose_native_tables(parsed, source, pages, set(), 24)
+    native_group = proposed[0]["group"]
+    candidate, sidecar, _ = _model_candidate(
+        source, tmp_path,
+        [{"field_id": "model_note", "type": "string", "group": native_group.upper()}], [],
+    )
+    assert [field["field_id"] for field in candidate["proposed_schema"]] == ["model_note"]
+    assert sidecar["native_table_proposals"]["tables"][0]["reason"] == "group_id_collision_or_invalid"
+    assert sidecar["native_table_proposals"]["cell_provenance"] == {}
+
+
+def test_model_schema_budget_abstains_without_partial_native_columns(tmp_path: Path) -> None:
+    fields = [{"field_id": f"meta_{index}", "type": "string"} for index in range(22)]
+    candidate, sidecar, _ = _model_candidate(
+        FIXTURES / "order.xlsx", tmp_path, fields, [],
+    )
+    assert len(candidate["proposed_schema"]) == 22
+    assert all(field["type"] == "string" for field in candidate["proposed_schema"])
+    assert sidecar["native_table_proposals"]["tables"][0]["reason"] == "schema_budget"
+    assert sidecar["native_table_proposals"]["cell_provenance"] == {}
 
 
 @pytest.mark.parametrize(

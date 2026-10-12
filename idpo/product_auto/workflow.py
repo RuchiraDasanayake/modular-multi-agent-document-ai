@@ -23,6 +23,7 @@ from idpo.product_auto.approved_recipe import ApprovedRecipe
 from idpo.product_auto.logic import (
     MAX_FIELDS,
     baseline_proposals,
+    normalize_field_id,
     parse_schema_reply,
     parse_values_reply,
     schema_prompt,
@@ -430,6 +431,21 @@ def _process_document(
                 sidecar["reason"] = "values_provider_error" if provider_failed else "invalid_values_model_response"
             else:
                 values.update(proposed_values)
+                if native_parsed is not None:
+                    table_fields, table_values, table_receipt = propose_native_tables(
+                        native_parsed,
+                        Path(processed_doc.path),
+                        pages,
+                        {str(field["field_id"]) for field in schema},
+                        MAX_FIELDS - len(schema),
+                        existing_group_ids={
+                            normalize_field_id(str(field["group"]))
+                            for field in schema if isinstance(field.get("group"), str)
+                        },
+                    )
+                    schema.extend(table_fields)
+                    values.update({str(item["field_id"]): item for item in table_values})
+                    sidecar["native_table_proposals"] = table_receipt
 
     for field in schema:
         field_id = str(field["field_id"])

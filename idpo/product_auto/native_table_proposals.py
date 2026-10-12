@@ -380,6 +380,8 @@ def propose_native_tables(
     pages: list[dict[str, object]],
     existing_field_ids: set[str],
     remaining_fields: int,
+    *,
+    existing_group_ids: set[str] | None = None,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]], dict[str, object]]:
     """Return v1 linked-column proposals and v2 locator receipts; never release them."""
     report: dict[str, object] = {"tables": [], "cell_provenance": {}}
@@ -528,7 +530,9 @@ def propose_native_tables(
             )
             continue
         group = normalize_field_id(f"{grid[0][0].anchors[0].unit_id}_{segment_id}")
-        if not group or groups[group] > 1:
+        if not group or groups[group] > 1 or (
+            existing_group_ids is not None and group in existing_group_ids
+        ):
             report["tables"].append(
                 {
                     "table_id": parser_table_id,
