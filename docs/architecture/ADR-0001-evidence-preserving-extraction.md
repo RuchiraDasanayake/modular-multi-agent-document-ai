@@ -28,12 +28,15 @@ documents, and images
 ([formats](https://docling-project.github.io/docling/usage/supported_formats/),
 [document model](https://docling-project.github.io/docling/reference/docling_document/)). A measured
 [five-file synthetic conversion spike](../evaluations/DOCLING_MIXED_FORMAT_DEV_RESULT_20261012.md) retained table
-grids for DOCX, XLSX, HTML and PPTX but lost a multipart EML table and supplied no cell-level boxes. This adapter
+grids for DOCX, XLSX, HTML and PPTX but lost a multipart EML table and supplied no cell-level boxes. On the
+same locked sources, [native parsers](../evaluations/MIXED_FORMAT_NATIVE_DEV_RESULT_20261012.md) recovered all 45
+known cells with resolvable source locators, including the EML HTML part. Neither diagnostic measures real files.
+This adapter
 does not replace the current PDF parser: its frozen table run recovered only
 [3/219 exact rows](../evaluations/VRDU_ADBUY12_TABLE_PARSER_COMPARISON_20261012.md). Keep native PDF text plus
 PDFium-first rendering and bounded Tesseract as the measured product baseline. The smaller
 [MinerU Basic challenge](../evaluations/MINERU_4_BASIC_ADBUY12_RESULT_20261012.md) reached only 6/219 exact rows;
-the full PP-StructureV3 profile fails this host's current RAM guard. A stronger
+the full PP-StructureV3 profile fails this host's current RAM guard.
 The completed [PaddleOCR-VL 1.6 full-pipeline challenge](../evaluations/PADDLEOCR_VL16_ADBUY12_RESULT_20261012.md)
 reached 14/219 on that parser-row metric and 0/219 strict exact rows, with no cell-level boxes. No parser has passed
 the linked-row promotion gate.
@@ -43,6 +46,9 @@ The pinned [NuExtract3 local development run](../evaluations/NUEXTRACT3_LOCAL_DE
 reference-schema arm matched 24/43 exact complete rows on six development documents, with no verified source boxes
 or spans and substantial source-to-source variance. Therefore a specialist model remains a conditional extractor
 candidate behind an independently approved recipe and the evidence verifier; it is not an automatic-schema default.
+A separate [12-source self-template follow-on](../evaluations/NUEXTRACT3_GROUP_LEAF_DEV12_RESULT_20261012.md)
+matched only 2/52 linked field pairs under a tuned grouped-leaf rule and 0/30 strict complete rows before its
+predeclared RAM guard stopped value calls. It did not revise the original six-source score.
 
 | Current evidence in this checkout | Consequence for the target |
 | --- | --- |
@@ -101,7 +107,7 @@ against 30,133 gold cells; it also lacked the OCR executable, so it is not a val
 
 | Boundary | Lean choice | Reason / alternative gate |
 | --- | --- | --- |
-| Parse/OCR | Current native PDF/PDFium/Tesseract baseline; Docling for mixed-format conversion tests; stronger layout/table parser only after a paired win | Docling colocated the exact gold cells of 3/219 rows, MinerU Basic 6/219 and [PaddleOCR-VL 1.6](../evaluations/PADDLEOCR_VL16_ADBUY12_RESULT_20261012.md) 14/219, allowing extra parser cells. Paddle supplied no cell-level boxes, and none maps business field IDs or justifies automatic row acceptance. Benchmark native PDF, scan, multi-page, and table cases separately; pin code and model weights and inspect licenses. Code licenses do not settle model-weight or dataset rights. |
+| Parse/OCR | Current native PDF/PDFium/Tesseract baseline; source-native and Docling mixed-format comparisons; stronger layout/table parser only after a paired win | Native libraries retained 45/45 source-resolvable cells on five tiny synthetic files versus Docling's 36/45, but neither proves real-file extraction. On ad-buy PDFs, Docling colocated the exact gold cells of 3/219 rows, MinerU Basic 6/219 and [PaddleOCR-VL 1.6](../evaluations/PADDLEOCR_VL16_ADBUY12_RESULT_20261012.md) 14/219, allowing extra parser cells. Paddle supplied no cell-level boxes, and none maps business field IDs or justifies automatic row acceptance. Benchmark native PDF, scan, multi-page, and table cases separately; pin code and model weights and inspect licenses. Code licenses do not settle model-weight or dataset rights. |
 | Schema/value model | Provider-neutral interface over local CPU, local GPU, and approved cloud API; fixed two-step schema then values | Compare each under identical parsing, prompt budgets, and held-out documents. Strict JSON/schema validation and source evidence are required but cannot prove field meaning. Keep bounded fallback only if it lowers total reviewed cost. |
 | Queue and metadata | For release beyond one host, PostgreSQL for jobs, owners, recipe/review revisions, and an outbox; Redis-backed Celery workers for bounded parse and inference tasks | Compose already includes PostgreSQL/Redis. Celery documents that late-ack tasks may execute more than once, so worker outputs need idempotent keys and atomic publish ([tasks](https://docs.celeryq.dev/en/stable/userguide/tasks.html)). Do not add Temporal until human waits/replay cannot be managed with this smaller design. |
 | Bytes and tenants | Keep content-addressed originals/derived artifacts behind a storage interface; single-host files first, object storage when workers span hosts. Every metadata row, object reference, cache key, retrieval query and review action carries tenant/owner scope. | Authorize in the API and test indirect artifact URLs. PostgreSQL row-level security can provide defense in depth, but owners/superusers can bypass it, so role design and tests still matter ([PostgreSQL](https://www.postgresql.org/docs/current/ddl-rowsecurity.html)). Cloud egress requires explicit tenant policy, provider terms, regional processing, redaction if needed, and hard spend caps. |
@@ -117,7 +123,8 @@ after a no-memory/static-route ablation improves the same holdout without critic
    blank cells, missing values, and zero. Split by source/layout family and keep the holdout untouched. Record source
    hash, parser/model versions, reviewer minutes, CPU/GPU time, API spend, retries, latency and failure reasons.
 2. **Parser contract spike:** adapt the current parser and any measured candidate into ParsedDocument v2 without
-   changing the extractor. Use Docling first for mixed-file intake, not automatic linked-row release. Inspect overlays
+   changing the extractor. Compare source-native libraries and Docling for mixed-file intake before choosing one;
+   neither is an automatic linked-row release path. Inspect overlays
    for page/rotation/coordinate correctness and compare text, cells, rows, headers and table spans against adjudicated
    gold. The full PaddleOCR-VL layout/table pipeline completed the frozen hard-table slice but failed the row/evidence
    promotion gate; defer full PP-StructureV3 until a host can safely run it. Reject an adapter that improves text but degrades
