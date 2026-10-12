@@ -33,6 +33,16 @@ rights and labeling decision before provider calls.
    official download requires an access token; the MIT code license must not
    be assumed to cover document redistribution. Its predeclared labels make
    it a known-schema cross-check, not a direct test of arbitrary AI schemas.
+   The creator's [CORD v2 card](https://huggingface.co/datasets/naver-clova-ix/cord-v2)
+   lists 800 train, 100 validation and 100 test receipts under CC BY 4.0; this
+   host currently holds only the 100-test Parquet, so a broader local gate
+   needs a separately frozen download and fresh source-hash overlap check.
+   [XFUND](https://github.com/doc-analysis/XFUND) adds seven-language form
+   relations but is CC BY-NC-SA 4.0, and the original
+   [FUNSD](https://github.com/crcresearch/FUNSD) has 199 forms for
+   non-commercial research/education. Neither is a default commercial product
+   corpus, and neither supplies Office/email documents. Dataset code licenses
+   must not be mistaken for source-document rights.
 3. Maintain source-disjoint induction examples, development scores and a final
    holdout. Any generated schema/recipe is versioned and reviewed. Do not pass
    gold field names, values or reviewer corrections for a scored document into
