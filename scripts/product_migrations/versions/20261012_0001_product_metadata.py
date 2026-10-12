@@ -100,6 +100,7 @@ def upgrade() -> None:
         sa.CheckConstraint("idempotency_key ~ '^[0-9a-f]{64}$'", name="ck_product_idempotency_key"),
         sa.CheckConstraint("request_sha256 ~ '^[0-9a-f]{64}$'", name="ck_product_request_hash"),
         sa.CheckConstraint("(status = 'running') = (ended_at IS NULL)", name="ck_product_run_terminal_time"),
+        sa.CheckConstraint("ended_at IS NULL OR ended_at >= created_at", name="ck_product_run_timestamps"),
         _json_object("snapshot"),
         schema="product",
     )
