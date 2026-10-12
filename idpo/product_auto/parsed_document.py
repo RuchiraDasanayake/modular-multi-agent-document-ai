@@ -16,6 +16,7 @@ UnitKind = Literal["pdf_page", "image", "sheet", "slide", "html", "mime_part", "
 BoxSpace = Literal["pdf_points_bottom_left", "points_top_left", "pixels_top_left", "normalized_top_left"]
 _BOX_SPACES = {"pdf_points_bottom_left", "points_top_left", "pixels_top_left", "normalized_top_left"}
 _UNIT_KINDS = {"pdf_page", "image", "sheet", "slide", "html", "mime_part", "text"}
+MAX_TABLE_GRID_CELLS = 1_000_000
 
 
 @dataclass(frozen=True)
@@ -111,7 +112,11 @@ class Table:
         if not self.table_id:
             raise ValueError("table ID is required")
         occupied: set[tuple[int, int]] = set()
+        covered_count = 0
         for cell in self.cells:
+            covered_count += cell.row_span * cell.column_span
+            if covered_count > MAX_TABLE_GRID_CELLS:
+                raise ValueError("table grid exceeds the parser contract limit")
             for row in range(cell.row, cell.row + cell.row_span):
                 for column in range(cell.column, cell.column + cell.column_span):
                     if (row, column) in occupied:

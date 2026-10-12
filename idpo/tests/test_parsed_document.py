@@ -57,3 +57,5 @@ def test_missing_geometry_is_allowed_but_false_geometry_is_rejected() -> None:
 def test_merged_grid_cells_cannot_overlap() -> None:
     with pytest.raises(ValueError, match="overlap"):
         Table("t", (TableCell(0, 0, "merged", column_span=2), TableCell(0, 1, "duplicate")))
+    with pytest.raises(ValueError, match="contract limit"):
+        Table("t", (TableCell(0, 0, "oversized", row_span=1_000_001),))
