@@ -41,6 +41,11 @@ maximum 5,444 MiB GPU memory use; the final eligible value call was blocked
 when available host RAM fell below the frozen 2 GiB guard. No retry or
 replacement occurred.
 All twelve locked sources remain in every score denominator.
+The last sampler record at `2026-10-12T16:59:02.321943Z` was
+**2,152,189,952 available RAM bytes** and 2,756 MiB free GPU memory. The
+guard's subsequent read was below its 2,147,483,648-byte RAM threshold, but
+the exact value of that read was not persisted; the blocked source's outcome
+records the guard error. This is a telemetry gap, not a model-call failure.
 
 ## Outcomes
 
@@ -50,6 +55,24 @@ duplicate JSON keys. Of the eight eligible self-template value calls, seven
 were attempted: six completed and one returned malformed JSON. The eighth was
 blocked by the RAM guard. The other four were correctly skipped because their
 schemas were invalid. All raw replies and failures remain in the run bundle.
+Both schema duplicate-key failures came from the strict JSON parser, which
+rejects repeated keys in nested model content and in the outer API reply
+instead of silently retaining the last value.
+
+| Locked source ID | Schema reply | Self-template value model call |
+| --- | --- | --- |
+| `7ba35933944eee89ee43b3bbba803dfb` | Valid | Completed |
+| `7303ec881d6845a40d9fc020e8cfa15c` | Valid | Completed |
+| `fe2fcccf130fd38bdeb28b8597861ee9` | Valid | Completed |
+| `d7a30914d32c62df019b55f2a3c2d834` | Invalid template | Skipped |
+| `0dca9c23dfeca2163c12090aed497513` | Duplicate key | Skipped |
+| `645db4e6afd7e00a1c1119e98538d3bf` | Valid | Completed |
+| `929eece3330db1c63ad9df29c72e916b` | Valid | Malformed JSON reply |
+| `f14d0a9762d099d3ceb7f0bfbf146281` | Duplicate key | Skipped |
+| `9f2a6408e8b64f9e159d5f59c73ad88d` | Valid | Completed |
+| `80d127023b7175e317489afd7b25eca5` | Valid | Completed |
+| `baa00097fb7bd54a5416ca363359fcc6` | Invalid template | Skipped |
+| `1c88826dce03cbb09c428b1750f595a2` | Valid | Blocked by RAM guard; no call |
 
 | Schema mode, all 12 sources | Matched annotated fields | Linked pairs |
 | --- | ---: | ---: |
