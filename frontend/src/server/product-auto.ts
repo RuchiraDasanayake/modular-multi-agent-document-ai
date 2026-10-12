@@ -745,13 +745,16 @@ export function getProductAutoDocument(jobId: string, runId: string, docId: stri
   const parsedDocument = readParsedDocument(runId, docId);
   const auditTrail = readAuditTrail(jobId, runId, docId);
   const review = auditTrail.at(-1)?.review_snapshot ?? null;
-  if (review?.source_container_sha256 &&
-    verifiedReviewSourceHash(jobId, runId, document.fileId) !== review.source_container_sha256) {
-    throw new AccessError("The reviewed source no longer matches its audit receipt.", 409);
-  }
-  if (review?.source_pages_sha256 &&
-    createHash("sha256").update(JSON.stringify(sourcePages)).digest("hex") !== review.source_pages_sha256) {
-    throw new AccessError("The reviewed OCR text no longer matches its audit receipt.", 409);
+  const receipts = auditTrail.flatMap((event) => [event, event.review_snapshot]);
+  if (receipts.some((receipt) => receipt.source_container_sha256 || receipt.source_pages_sha256)) {
+    const sourceHash = verifiedReviewSourceHash(jobId, runId, document.fileId);
+    if (receipts.some((receipt) => receipt.source_container_sha256 && receipt.source_container_sha256 !== sourceHash)) {
+      throw new AccessError("The reviewed source no longer matches its audit receipt.", 409);
+    }
+    const sourcePagesHash = createHash("sha256").update(JSON.stringify(sourcePages)).digest("hex");
+    if (receipts.some((receipt) => receipt.source_pages_sha256 && receipt.source_pages_sha256 !== sourcePagesHash)) {
+      throw new AccessError("The reviewed OCR text no longer matches its audit receipt.", 409);
+    }
   }
   return {
     runId, fileId: document.fileId, fileName: document.fileName,
@@ -1054,7 +1057,13 @@ function saveProductAutoReviewWithRevision(
     seen.add(fieldId);
   }
   const parsedAdded = parseAddedFields(addedFields, allowed, detail.sourcePages);
-  const sourceHash = parsedAdded.some((field) => field.type === "array[object]")
+  const sourceReceiptRequired = detail.auditTrail.some((event) =>
+    Boolean(event.source_container_sha256 || event.source_pages_sha256 ||
+      event.review_snapshot.source_container_sha256 || event.review_snapshot.source_pages_sha256)) ||
+    parsedAdded.some((field) => field.type === "array[object]") ||
+    parsed.some((field) => fieldTypes.get(field.field_id) === "array[object]" &&
+      (field.decision === "correct" || field.decision === "corrected"));
+  const sourceHash = sourceReceiptRequired
     ? verifiedReviewSourceHash(jobId, runId, detail.fileId) : undefined;
   const sourcePagesHash = sourceHash
     ? createHash("sha256").update(JSON.stringify(detail.sourcePages)).digest("hex") : undefined;

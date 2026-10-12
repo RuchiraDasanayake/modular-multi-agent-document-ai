@@ -123,7 +123,7 @@ export interface ProductAutoReview {
   fields: ProductAutoReviewField[];
   // Optional so review events written before human-added fields remain readable.
   added_fields?: ProductAutoAddedField[];
-  // Present on new source-verified linked additions; absent in older review artifacts.
+  // Present on source-verified linked reviews; absent in older review artifacts.
   source_container_sha256?: string;
   source_pages_sha256?: string;
   revision: number;

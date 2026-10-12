@@ -481,7 +481,8 @@ test("linked rows require inspectable cell evidence or a typed human correction"
   const job = createWorkspaceJob({ ownerUserId: "alice-id" });
   const updated = await addDocumentsToJob(job.jobId, [new File(["Widget 3\nGadget 4"], "items.txt")]);
   const source = updated.documents![0];
-  const sha256 = createHash("sha256").update(fs.readFileSync(path.join(updated.uploadsPath!, source.storedName))).digest("hex");
+  const sourcePath = path.join(updated.uploadsPath!, source.storedName);
+  const sha256 = createHash("sha256").update(fs.readFileSync(sourcePath)).digest("hex");
   const runId = `auto_${"b".repeat(32)}`;
   const docId = "linked1";
   const sidecarDir = path.join(dataDir, "product_runs", runId, "docs", docId);
@@ -534,6 +535,14 @@ test("linked rows require inspectable cell evidence or a typed human correction"
     assert.equal((await post(0, [{ field_id: "item_name", decision: "correct" },
       { field_id: "quantity", decision: "corrected", corrected_value: invalid }])).status, 400, invalid);
   }
+  fs.writeFileSync(sourcePath, "changed source bytes");
+  const changedOnApproval = await post(0, [{ field_id: "item_name", decision: "correct" }]);
+  assert.equal(changedOnApproval.status, 409);
+  assert.match((await changedOnApproval.json()).error, /original source changed/);
+  const changedOnCorrection = await post(0, [{ field_id: "quantity", decision: "corrected",
+    corrected_value: JSON.stringify([{ row: 0, value: "3" }, { row: 1, value: "4" }]) }]);
+  assert.equal(changedOnCorrection.status, 409);
+  fs.writeFileSync(sourcePath, "Widget 3\nGadget 4");
   const corrected = await post(0, [{ field_id: "item_name", decision: "correct" },
     { field_id: "quantity", decision: "corrected", corrected_value: JSON.stringify([
       { row: 1, value: "4" }, { row: 0, value: "3" },
@@ -545,10 +554,50 @@ test("linked rows require inspectable cell evidence or a typed human correction"
   assert.deepEqual(body.correctedResult.fields[1].value, [{ row: 0, value: "3" }, { row: 1, value: "4" }]);
   assert.equal(body.correctedResult.fields[1].provenance, "human_correction");
   assert.equal(body.review.fields[1].corrected_value, '[{"row":0,"value":"3"},{"row":1,"value":"4"}]');
+  assert.equal(body.review.source_container_sha256, sha256);
+  assert.equal(body.review.source_pages_sha256, createHash("sha256")
+    .update(JSON.stringify([{ page: 1, text: "Widget 3\nGadget 4" }])).digest("hex"));
   assert.equal((await getAutoDocRoute(request(docUrl, "alice"), params)).status, 200);
   const audited = await (await getAutoDocRoute(request(docUrl, "alice"), params)).json();
   assert.equal(audited.auditTrail.length, 1);
   assert.equal(audited.auditTrail[0].machine_fields[1].value[1].status, "needs_review");
+  assert.equal(audited.auditTrail[0].source_container_sha256, sha256);
+  assert.equal(audited.auditTrail[0].source_pages_sha256, body.review.source_pages_sha256);
+
+  fs.writeFileSync(sourcePath, "changed source bytes");
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), params)).status, 409);
+  fs.writeFileSync(sourcePath, "Widget 3\nGadget 4");
+  const originalSidecar = fs.readFileSync(sidecarPath);
+  const changedPages = JSON.parse(originalSidecar.toString("utf8"));
+  changedPages.pages[0].text += "\nUnreviewed text";
+  fs.writeFileSync(sidecarPath, JSON.stringify(changedPages));
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), params)).status, 409);
+  fs.writeFileSync(sidecarPath, originalSidecar);
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), params)).status, 200);
+  const removed = await post(1, [{ field_id: "item_name", decision: "remove" },
+    { field_id: "quantity", decision: "remove" }]);
+  assert.equal(removed.status, 200);
+  const removedReview = (await removed.json()).review;
+  assert.equal(removedReview.source_container_sha256, sha256);
+  assert.equal(removedReview.source_pages_sha256, body.review.source_pages_sha256);
+  fs.writeFileSync(sourcePath, "changed source bytes");
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), params)).status, 409);
+  fs.writeFileSync(sourcePath, "Widget 3\nGadget 4");
+  const secondEventPath = path.join(dataDir, "frontend", "auto_reviews", job.jobId,
+    runId, "events", docId, "000000000002.json");
+  const legacySecondEvent = JSON.parse(fs.readFileSync(secondEventPath, "utf8"));
+  delete legacySecondEvent.source_container_sha256;
+  delete legacySecondEvent.source_pages_sha256;
+  delete legacySecondEvent.review_snapshot.source_container_sha256;
+  delete legacySecondEvent.review_snapshot.source_pages_sha256;
+  fs.writeFileSync(secondEventPath, JSON.stringify(legacySecondEvent));
+  fs.writeFileSync(sourcePath, "changed source bytes");
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), params)).status, 409);
+  fs.writeFileSync(sourcePath, "Widget 3\nGadget 4");
+  const carriedFromHistory = await post(2, [{ field_id: "item_name", decision: "remove" },
+    { field_id: "quantity", decision: "remove" }]);
+  assert.equal(carriedFromHistory.status, 200);
+  assert.equal((await carriedFromHistory.json()).review.source_container_sha256, sha256);
 
   const nameCells = candidate.extracted_values[0].value as Array<{ evidence: { quote: string }; value: string }>;
   nameCells[0].evidence.quote = "Tampered";
