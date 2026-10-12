@@ -1,0 +1,343 @@
+{
+  "version": 1,
+  "kind": "oracle_schema_text_only_development",
+  "source_lock_sha256": "61bef64cafb35739eba3a087fe5a742c57e68c340834325a8f77e49f63c5b047",
+  "gold_manifest_sha256": {
+    "vrdu": "8a631bffbf439ccc8376f84cbf7d4af25c86d35c0ccc7996ce3b23e6085138bf",
+    "cord": "84a097116eaad75fb66265447d1b831f5a2ffa98792e10e9ad7edb517cb8e318"
+  },
+  "model": {
+    "id": "fastino/gliner2.5-small-v1",
+    "revision": "df5910e44bc4ffdb0d95399a83b0ca4516349aa5",
+    "weight_file": "model.safetensors",
+    "weight_sha256": "4ee982787ace270d4bf15dbcb28ced38e0aa201372347114ceedd6336055de2b",
+    "weight_bytes": 295567700,
+    "gliner2_version": "2.1.0"
+  },
+  "settings": {
+    "device": "cpu",
+    "threads": 4,
+    "chunk_size": 384,
+    "chunk_overlap": 64,
+    "include_spans": true,
+    "include_confidence": true,
+    "max_worker_seconds": 240,
+    "scalar_multiple_distinct_values": "abstain",
+    "linked_rows": "natural_anchor_first_linked_field_in_reference_order",
+    "cross_chunk_join": false
+  },
+  "sources": [
+    {
+      "doc_id": "1a9efac5c954664cf9992d1ab452fb5b",
+      "family": "registration-form",
+      "source_sha256": "008a35460c861cc80105e4b795cc774ad6766670894108e3cfb0900e99eaba03",
+      "ocr_text_sha256": "278770cc9676eb7145a82e1a79d11a38c05bd27fd466645102507e8ec45654c6",
+      "sidecar_sha256": "744864e26ceccede790c9f667ff46b8709fc561dde150ff8be0c7827301a387a",
+      "fields": [
+        {
+          "field_id": "file_date",
+          "type": "string"
+        },
+        {
+          "field_id": "foreign_principle_name",
+          "type": "string"
+        },
+        {
+          "field_id": "registrant_name",
+          "type": "string"
+        },
+        {
+          "field_id": "registration_num",
+          "type": "string"
+        },
+        {
+          "field_id": "signer_name",
+          "type": "string"
+        },
+        {
+          "field_id": "signer_title",
+          "type": "string"
+        }
+      ],
+      "record": null
+    },
+    {
+      "doc_id": "1a3330dba507d1eadd5c2c027af46c4d",
+      "family": "registration-form",
+      "source_sha256": "00942d7dd9affb784d4d4c1f407263dff4aa4b3ae4ca65ffee5d3110ad2273eb",
+      "ocr_text_sha256": "014c71db8b53c694c2038de9ea4b75481e4acfd4b09d98c44609d551a9427ec1",
+      "sidecar_sha256": "b4eaf91fe1edc4fbc7314d5852418cb1e04c12b9fdeadac567902a6cf59bf8be",
+      "fields": [
+        {
+          "field_id": "file_date",
+          "type": "string"
+        },
+        {
+          "field_id": "foreign_principle_name",
+          "type": "string"
+        },
+        {
+          "field_id": "registrant_name",
+          "type": "string"
+        },
+        {
+          "field_id": "registration_num",
+          "type": "string"
+        },
+        {
+          "field_id": "signer_name",
+          "type": "string"
+        },
+        {
+          "field_id": "signer_title",
+          "type": "string"
+        }
+      ],
+      "record": null
+    },
+    {
+      "doc_id": "1bf0c61dbd517c9d5c1d2684c2788497",
+      "family": "ad-buy-form",
+      "source_sha256": "0112d54415d968cd438207ddbd423fb64b636354f29c72f0c6defe3cef14729a",
+      "ocr_text_sha256": "c9cdf3639f55b9f60f1e8f1acf323232dea43aad32cbf306bb8e30152bbab31f",
+      "sidecar_sha256": "a7dc82b1d0949b94a2a2bbf2cc46e6ef9066b840c2156d029d625fbbd7810f72",
+      "fields": [
+        {
+          "field_id": "advertiser",
+          "type": "string"
+        },
+        {
+          "field_id": "agency",
+          "type": "string"
+        },
+        {
+          "field_id": "contract_num",
+          "type": "string"
+        },
+        {
+          "field_id": "flight_from",
+          "type": "string"
+        },
+        {
+          "field_id": "flight_to",
+          "type": "string"
+        },
+        {
+          "field_id": "gross_amount",
+          "type": "string"
+        },
+        {
+          "field_id": "product",
+          "type": "string"
+        },
+        {
+          "field_id": "tv_address",
+          "type": "string"
+        },
+        {
+          "field_id": "property",
+          "type": "string"
+        },
+        {
+          "field_id": "channel",
+          "type": "array[object]"
+        },
+        {
+          "field_id": "program_desc",
+          "type": "array[object]"
+        },
+        {
+          "field_id": "program_start_date",
+          "type": "array[object]"
+        },
+        {
+          "field_id": "program_end_date",
+          "type": "array[object]"
+        },
+        {
+          "field_id": "sub_amount",
+          "type": "array[object]"
+        }
+      ],
+      "record": {
+        "name": "line_items",
+        "mode": "natural",
+        "anchor": "channel",
+        "fields": [
+          "channel",
+          "program_desc",
+          "program_start_date",
+          "program_end_date",
+          "sub_amount"
+        ]
+      }
+    },
+    {
+      "doc_id": "b83458ce56e8dad30aed9999f769f52d",
+      "family": "ad-buy-form",
+      "source_sha256": "0141622de02458269027bb180986f0db2382762b5b5beb2bd06b4329e30ba27b",
+      "ocr_text_sha256": "9b00edc53dd75418c9a5df93415d89981ebe7649f72122f63c7c86693267244d",
+      "sidecar_sha256": "10744978f5c53cc9a48f983e970c3378f2423a2300ec00bea37e4b67b76c80fe",
+      "fields": [
+        {
+          "field_id": "advertiser",
+          "type": "string"
+        },
+        {
+          "field_id": "agency",
+          "type": "string"
+        },
+        {
+          "field_id": "contract_num",
+          "type": "string"
+        },
+        {
+          "field_id": "flight_from",
+          "type": "string"
+        },
+        {
+          "field_id": "flight_to",
+          "type": "string"
+        },
+        {
+          "field_id": "gross_amount",
+          "type": "string"
+        },
+        {
+          "field_id": "product",
+          "type": "string"
+        },
+        {
+          "field_id": "tv_address",
+          "type": "array[string]"
+        },
+        {
+          "field_id": "property",
+          "type": "array[string]"
+        },
+        {
+          "field_id": "channel",
+          "type": "array[object]"
+        },
+        {
+          "field_id": "program_desc",
+          "type": "array[object]"
+        },
+        {
+          "field_id": "program_start_date",
+          "type": "array[object]"
+        },
+        {
+          "field_id": "program_end_date",
+          "type": "array[object]"
+        },
+        {
+          "field_id": "sub_amount",
+          "type": "array[object]"
+        }
+      ],
+      "record": {
+        "name": "line_items",
+        "mode": "natural",
+        "anchor": "channel",
+        "fields": [
+          "channel",
+          "program_desc",
+          "program_start_date",
+          "program_end_date",
+          "sub_amount"
+        ]
+      }
+    },
+    {
+      "doc_id": "eb053d7caa8fe79a8c410269eca5ca23",
+      "family": "receipt",
+      "source_sha256": "28a8c9e154f9971aaae01212e395618460e610da9eca8f82d05b9b5277eb8c7c",
+      "ocr_text_sha256": "a98c3f77e0ad499949870d7a49e553d72925c20c08c8f095944606b987286f93",
+      "sidecar_sha256": "6ef580db01aa91c9be3a0c184c7c6b5cfb129dd2dcac5d6a08856ef0a90d8729",
+      "fields": [
+        {
+          "field_id": "total_amount",
+          "type": "string"
+        },
+        {
+          "field_id": "cash_amount",
+          "type": "string"
+        },
+        {
+          "field_id": "change_amount",
+          "type": "string"
+        },
+        {
+          "field_id": "subtotal_amount",
+          "type": "string"
+        },
+        {
+          "field_id": "tax_amount",
+          "type": "string"
+        },
+        {
+          "field_id": "item_name",
+          "type": "array[object]"
+        },
+        {
+          "field_id": "item_quantity",
+          "type": "array[object]"
+        },
+        {
+          "field_id": "item_price",
+          "type": "array[object]"
+        }
+      ],
+      "record": {
+        "name": "line_items",
+        "mode": "natural",
+        "anchor": "item_name",
+        "fields": [
+          "item_name",
+          "item_quantity",
+          "item_price"
+        ]
+      }
+    },
+    {
+      "doc_id": "10bb0bc78b323e60ce130c26de192848",
+      "family": "receipt",
+      "source_sha256": "4322ab5ec4f0b1365e08af0c31288e65e8cbd2c8eb5241adfb329244acbbb30b",
+      "ocr_text_sha256": "aaa3776a64d4c01ba42ea934213398bb9058afb94621debf6500f6e3017bf213",
+      "sidecar_sha256": "0a4f56bd2efa7fef9275d92c6b52401df5c93c55cc919216e8d535c3ddfdca64",
+      "fields": [
+        {
+          "field_id": "total_amount",
+          "type": "string"
+        },
+        {
+          "field_id": "subtotal_amount",
+          "type": "string"
+        },
+        {
+          "field_id": "item_name",
+          "type": "array[object]"
+        },
+        {
+          "field_id": "item_quantity",
+          "type": "array[object]"
+        },
+        {
+          "field_id": "item_price",
+          "type": "array[object]"
+        }
+      ],
+      "record": {
+        "name": "line_items",
+        "mode": "natural",
+        "anchor": "item_name",
+        "fields": [
+          "item_name",
+          "item_quantity",
+          "item_price"
+        ]
+      }
+    }
+  ]
+}
