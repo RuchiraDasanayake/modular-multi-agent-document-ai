@@ -1,0 +1,30 @@
+From: sender@example.invalid
+To: recipient@example.invalid
+Subject: Synthetic order SYN-1001
+Date: Wed, 01 Jan 2020 00:00:00 +0000
+Message-ID: <syn-1001@example.invalid>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="docai-synthetic-boundary-v1"
+
+--docai-synthetic-boundary-v1
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Synthetic order SYN-1001
+Order date: 2020-01-01
+
+--docai-synthetic-boundary-v1
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<!doctype html>
+<html lang=3D"en"><head><meta charset=3D"utf-8"><title>Synthetic order</title=
+></head>
+<body><h1>Synthetic order SYN-1001</h1><p>Order date: 2020-01-01</p>
+<table><thead><tr><th>Item</th><th>Qty</th><th>Amount</th></tr></thead>
+<tbody><tr><td>Widget A</td><td>2</td><td>12.00</td></tr>
+<tr><td>Widget B</td><td>1</td><td>7.50</td></tr></tbody></table></body></htm=
+l>
+
+--docai-synthetic-boundary-v1--

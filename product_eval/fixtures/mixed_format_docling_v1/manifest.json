@@ -1,0 +1,13 @@
+{
+  "fixture_set": "mixed_format_docling_v1",
+  "synthetic": true,
+  "expected_table_rows_per_source": 3,
+  "expected_table_cells_per_source": 9,
+  "files": {
+    "order.docx": "c962e87d75ad90335e44ec71a07b024e299d8b8c02b0a17e8922f5cd53a57f27",
+    "order.xlsx": "37b84b250ed69ca869dfd50e575432c918e35ca8fa71baab7552155e2ce6f3a3",
+    "order.html": "dcec615260752fd5e58886ed9e2cdb8d44f241fcf7376aadfc9d9f0afcd236af",
+    "order.eml": "289ab4ac838620f80f1742e066e70d41b1d9ef91d8a300469d657dd7818a2193",
+    "order.pptx": "770cf664027c555c0e7beba08d3ef8777c7efe20fd1db8f58b3c002a800f1257"
+  }
+}

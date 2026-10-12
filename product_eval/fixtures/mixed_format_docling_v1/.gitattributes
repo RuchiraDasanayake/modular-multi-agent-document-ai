@@ -1,0 +1,2 @@
+# Preserve generated source bytes, including RFC 5322 CRLF in the email fixture.
+order.* -text -diff
