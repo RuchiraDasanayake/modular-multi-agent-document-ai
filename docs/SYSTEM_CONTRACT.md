@@ -64,7 +64,10 @@ these limits are configurable in the CLI and do not alter the canonical research
 an execution failure, while partial text remains in review. The [pinned v6 gate](evaluations/VRDU_2000_NO_MODEL_V6.md)
 completed 2,000 sources with no timeout events. The [PDFium-first v7 gate](evaluations/VRDU_2000_NO_MODEL_V7_PDFIUM.md)
 also completed 2,000 distinct sources with no OCR failures; it had 23 more false schema fields and still produced
-zero linked rows.
+zero linked rows. The [v8 provenance gate](evaluations/VRDU_2000_NO_MODEL_V8_PROVENANCE.md) checked another
+2,000-source execution at the same source hashes: all 831 scanned PDF pages actually used PDFium, and strict
+schema F1 remained 4.2423% with zero linked rows. RapidOCR outperformed Tesseract on fixed CORD development
+text-box crops in a separate diagnostic; the product default remains Tesseract pending a full-page extraction gate.
 Local loopback HTTP servers may run without an API key; remote providers require an HTTPS URL and server-side key. The model can replace the
 heuristic schema. Proposed values require exact text-span evidence and a matching, JSON-round-trippable typed value
 for machine acceptance. Ambiguous boolean quotes and partial identifier matches stay pending review. A newly

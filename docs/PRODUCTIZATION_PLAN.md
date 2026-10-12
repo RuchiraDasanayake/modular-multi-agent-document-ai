@@ -47,7 +47,12 @@ every possible router or the reported accepted submission.
   unchanged. Focused tests and a forced-timeout smoke cover the limit branch; v6 establishes no quality gain. The
   [v7 PDFium-first gate](evaluations/VRDU_2000_NO_MODEL_V7_PDFIUM.md) completed the same 2,000 source hashes with
   zero releases and zero linked rows; strict schema F1 changed from 4.2448% to 4.2423%. Page-level renderer
-  provenance was added after v7 and needs a fresh 2,000-source gate.
+  provenance was added after v7. The [v8 provenance gate](evaluations/VRDU_2000_NO_MODEL_V8_PROVENANCE.md)
+  verified the same 2,000 distinct source hashes: all 831 OCR PDF pages used PDFium, no fallback or OCR failure
+  occurred, and schema F1 and linked-row counts were unchanged. All 2,000 still required review. A separate
+  [CORD development crop diagnostic](evaluations/CORD_DEVELOPMENT_TEXT_BOX_OCR_RESULT_20261012.md) found
+  88.265% exact recognition with RapidOCR PP-OCRv6 small versus 52.772% with Tesseract on 1,389 fixed annotated
+  text boxes; this does not measure full-page detection or downstream extraction.
 
 - Current job execution is `frontend job API -> frontend runner -> python -m idpo.cli process-inbox -> IDPO_DATA_DIR`.
   IDPO runs `ingest/inbox -> orchestrator -> executor -> exports`. AHMN direct advice is in process. Guardrails and
