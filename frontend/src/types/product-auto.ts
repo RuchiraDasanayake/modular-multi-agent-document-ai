@@ -123,9 +123,11 @@ export interface ProductAutoReview {
   fields: ProductAutoReviewField[];
   // Optional so review events written before human-added fields remain readable.
   added_fields?: ProductAutoAddedField[];
-  // Present on source-verified linked reviews; absent in older review artifacts.
+  // Present on source-verified reviews; absent in older review artifacts.
   source_container_sha256?: string;
   source_pages_sha256?: string;
+  // Binds the review to the exact extraction artifact bytes, including the machine candidate.
+  machine_result_sha256?: string;
   revision: number;
   audit_event_id: string;
 }
@@ -149,6 +151,7 @@ export interface ProductAutoAuditEvent {
   review_added_fields?: ProductAutoAddedField[];
   source_container_sha256?: string;
   source_pages_sha256?: string;
+  machine_result_sha256?: string;
 }
 
 export interface ProductAutoCorrectedField {

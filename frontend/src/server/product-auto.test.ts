@@ -90,6 +90,7 @@ test("automatic extraction keeps source access private and rejects conflicting r
   fs.writeFileSync(path.join(dataDir, "product_runs", runId, "manifest.jsonl"), JSON.stringify({
     contract_version: 1, run_id: runId, doc_id: docId, source_path: privatePath,
     source_file: source.storedName, source_container_sha256: sha256, document_status: "processed",
+    result_sha256: createHash("sha256").update(fs.readFileSync(path.join(sidecarDir, "result.json"))).digest("hex"),
   }) + "\n");
   const metadataDir = path.join(dataDir, "frontend", "auto_runs", job.jobId);
   fs.mkdirSync(metadataDir, { recursive: true });
@@ -260,7 +261,7 @@ test("automatic extraction keeps source access private and rejects conflicting r
   candidate.proposed_schema[0].type = "integer";
   candidate.extracted_values[0].value = 100;
   writeCandidate();
-  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 200);
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 409);
   candidate.extracted_values[0].value = 999;
   writeCandidate();
   assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 500);
@@ -271,17 +272,17 @@ test("automatic extraction keeps source access private and rejects conflicting r
   candidate.extracted_values[0].value = 12.5;
   candidate.extracted_values[0].evidence = evidenceFor("12.50");
   writeCandidate();
-  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 200);
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 409);
   candidate.proposed_schema[0].type = "boolean";
   candidate.extracted_values[0].value = false;
   candidate.extracted_values[0].evidence = evidenceFor("false");
   writeCandidate();
-  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 200);
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 409);
   candidate.proposed_schema[0].type = "date";
   candidate.extracted_values[0].value = "2026-02-10";
   candidate.extracted_values[0].evidence = evidenceFor("2026-02-10");
   writeCandidate();
-  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 200);
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 409);
 }));
 
 test("native source downloads safely and exposes only a hash-matched parsed artifact", async () => withStorage(async (dataDir) => {
@@ -328,6 +329,12 @@ test("native source downloads safely and exposes only a hash-matched parsed arti
   assert.equal(detail.status, 200);
   assert.equal((await detail.json()).parsedDocument.source_sha256, sha256);
   assert.equal((await getAutoDocRoute(request(detailUrl, "bob"), detailParams)).status, 404);
+  const legacyReview = await reviewAutoDocRoute(request(detailUrl, "alice", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ expected_revision: 0, fields: [] }),
+  }), detailParams);
+  assert.equal(legacyReview.status, 409);
+  assert.match((await legacyReview.json()).error, /predates sealed artifacts/);
   fs.writeFileSync(path.join(sidecarDir, "result.json"), JSON.stringify({ source_path: inputPath,
     source_container_sha256: sha256, pages: [{ page: 1, text: "Order: A1" }],
     parsed_document: { ...parsed, source_sha256: "a".repeat(64) },
@@ -509,6 +516,7 @@ test("linked rows require inspectable cell evidence or a typed human correction"
   fs.writeFileSync(path.join(dataDir, "product_runs", runId, "manifest.jsonl"), JSON.stringify({
     contract_version: 1, run_id: runId, doc_id: docId, source_file: source.storedName,
     source_container_sha256: sha256, document_status: "needs_review",
+    result_sha256: createHash("sha256").update(fs.readFileSync(sidecarPath)).digest("hex"),
   }) + "\n");
   const metadataDir = path.join(dataDir, "frontend", "auto_runs", job.jobId);
   fs.mkdirSync(metadataDir, { recursive: true });
@@ -526,6 +534,17 @@ test("linked rows require inspectable cell evidence or a typed human correction"
   const original = await getAutoDocRoute(request(docUrl, "alice"), params);
   assert.equal(original.status, 200);
   assert.equal((await original.json()).candidate.extracted_values[0].value[0].evidence.quote, "Widget");
+  const originalResultBytes = fs.readFileSync(sidecarPath);
+  const initialCell = (candidate.extracted_values[0].value as Array<{
+    value: string; evidence: { page: number; start: number; end: number; quote: string };
+  }>)[0];
+  initialCell.value = "Gadget";
+  initialCell.evidence = { page: 1, start: 9, end: 15, quote: "Gadget" };
+  writeSidecar();
+  assert.equal((await post(0, [{ field_id: "item_name", decision: "correct" }])).status, 409);
+  initialCell.value = "Widget";
+  initialCell.evidence = { page: 1, start: 0, end: 6, quote: "Widget" };
+  fs.writeFileSync(sidecarPath, originalResultBytes);
   assert.equal((await post(0, [{ field_id: "item_name", decision: "correct" },
     { field_id: "quantity", decision: "correct" }])).status, 400);
   for (const invalid of ["not rows", "[]", JSON.stringify([{ row: 0, value: "3" }, { row: 0, value: "4" }]),
@@ -564,8 +583,33 @@ test("linked rows require inspectable cell evidence or a typed human correction"
   assert.equal(audited.auditTrail[0].source_container_sha256, sha256);
   assert.equal(audited.auditTrail[0].source_pages_sha256, body.review.source_pages_sha256);
 
+  const reviewedCandidateBytes = fs.readFileSync(sidecarPath);
+  const approvedCell = (candidate.extracted_values[0].value as Array<{
+    value: string; evidence: { page: number; start: number; end: number; quote: string };
+  }>)[0];
+  approvedCell.value = "Gadget";
+  approvedCell.evidence = { page: 1, start: 9, end: 15, quote: "Gadget" };
+  writeSidecar();
+  const manifestPath = path.join(dataDir, "product_runs", runId, "manifest.jsonl");
+  const originalManifestBytes = fs.readFileSync(manifestPath);
+  const replacedManifest = JSON.parse(originalManifestBytes.toString("utf8"));
+  replacedManifest.result_sha256 = createHash("sha256").update(fs.readFileSync(sidecarPath)).digest("hex");
+  fs.writeFileSync(manifestPath, JSON.stringify(replacedManifest) + "\n");
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), params)).status, 409);
+  assert.equal((await post(1, [{ field_id: "item_name", decision: "correct" }])).status, 409);
+  const tamperedList = await listAutoRoute(request(`/api/jobs/${job.jobId}/auto`, "alice"),
+    { params: Promise.resolve({ jobId: job.jobId }) });
+  assert.equal((await tamperedList.json()).runs[0].documents[0].reviewStatus, "pending");
+  fs.writeFileSync(manifestPath, originalManifestBytes);
+  approvedCell.value = "Widget";
+  approvedCell.evidence = { page: 1, start: 0, end: 6, quote: "Widget" };
+  fs.writeFileSync(sidecarPath, reviewedCandidateBytes);
+
   fs.writeFileSync(sourcePath, "changed source bytes");
   assert.equal((await getAutoDocRoute(request(docUrl, "alice"), params)).status, 409);
+  const changedSourceList = await listAutoRoute(request(`/api/jobs/${job.jobId}/auto`, "alice"),
+    { params: Promise.resolve({ jobId: job.jobId }) });
+  assert.equal((await changedSourceList.json()).runs[0].documents[0].reviewStatus, "pending");
   fs.writeFileSync(sourcePath, "Widget 3\nGadget 4");
   const originalSidecar = fs.readFileSync(sidecarPath);
   const changedPages = JSON.parse(originalSidecar.toString("utf8"));
@@ -585,11 +629,26 @@ test("linked rows require inspectable cell evidence or a typed human correction"
   fs.writeFileSync(sourcePath, "Widget 3\nGadget 4");
   const secondEventPath = path.join(dataDir, "frontend", "auto_reviews", job.jobId,
     runId, "events", docId, "000000000002.json");
+  const firstEventPath = path.join(dataDir, "frontend", "auto_reviews", job.jobId,
+    runId, "events", docId, "000000000001.json");
+  const originalFirstEventBytes = fs.readFileSync(firstEventPath);
+  const originalSecondEventBytes = fs.readFileSync(secondEventPath);
+  for (const eventPath of [firstEventPath, secondEventPath]) {
+    const unsealed = JSON.parse(fs.readFileSync(eventPath, "utf8"));
+    delete unsealed.machine_result_sha256;
+    delete unsealed.review_snapshot.machine_result_sha256;
+    fs.writeFileSync(eventPath, JSON.stringify(unsealed));
+  }
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), params)).status, 409);
+  fs.writeFileSync(firstEventPath, originalFirstEventBytes);
+  fs.writeFileSync(secondEventPath, originalSecondEventBytes);
   const legacySecondEvent = JSON.parse(fs.readFileSync(secondEventPath, "utf8"));
   delete legacySecondEvent.source_container_sha256;
   delete legacySecondEvent.source_pages_sha256;
+  delete legacySecondEvent.machine_result_sha256;
   delete legacySecondEvent.review_snapshot.source_container_sha256;
   delete legacySecondEvent.review_snapshot.source_pages_sha256;
+  delete legacySecondEvent.review_snapshot.machine_result_sha256;
   fs.writeFileSync(secondEventPath, JSON.stringify(legacySecondEvent));
   fs.writeFileSync(sourcePath, "changed source bytes");
   assert.equal((await getAutoDocRoute(request(docUrl, "alice"), params)).status, 409);
@@ -680,6 +739,11 @@ test("machine schema artifacts enforce normalized IDs, types, field limits, and 
     assert.equal((await readSchema(schema)).status, 500, JSON.stringify(schema));
   }
   assert.equal((await readSchema([])).status, 200);
+  const schemaArtifactPath = path.join(sidecarDir, "result.json");
+  const schemaManifestPath = path.join(output, "manifest.jsonl");
+  const schemaReceipt = JSON.parse(fs.readFileSync(schemaManifestPath, "utf8"));
+  schemaReceipt.result_sha256 = createHash("sha256").update(fs.readFileSync(schemaArtifactPath)).digest("hex");
+  fs.writeFileSync(schemaManifestPath, JSON.stringify(schemaReceipt) + "\n");
   const humanAdded = await reviewAutoDocRoute(request(docUrl, "alice", { method: "POST",
     headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: 0, fields: [],
       added_fields: [{ field_id: "vendor_name", type: "string", value: "Café",

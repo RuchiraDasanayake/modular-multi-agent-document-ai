@@ -60,7 +60,7 @@ interface RunRecord {
   endedAt?: string;
   serverInstanceId: string;
   selectedFiles: SelectedFile[];
-  documents: ProductAutoRunDocument[];
+  documents: Array<ProductAutoRunDocument & { machineResultSha256?: string }>;
   error?: string;
 }
 
@@ -122,7 +122,12 @@ function writeJsonAtomic(filePath: string, value: unknown): void {
 }
 
 function parseJsonObject(filePath: string): Record<string, unknown> {
-  const parsed: unknown = JSON.parse(fs.readFileSync(filePath, "utf8"));
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    throw new Error("Invalid extraction artifact.");
+  }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("Invalid extraction artifact.");
   }
@@ -131,7 +136,12 @@ function parseJsonObject(filePath: string): Record<string, unknown> {
 
 function parseJsonLines(filePath: string): Record<string, unknown>[] {
   return fs.readFileSync(filePath, "utf8").split(/\r?\n/).filter(Boolean).map((line) => {
-    const value: unknown = JSON.parse(line);
+    let value: unknown;
+    try {
+      value = JSON.parse(line);
+    } catch {
+      throw new Error("Invalid extraction artifact.");
+    }
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       throw new Error("Invalid extraction artifact.");
     }
@@ -397,15 +407,24 @@ function candidateFromArtifact(value: unknown, docId: string, pages: unknown): P
   };
 }
 
-function readCandidate(runId: string, docId: string): ProductAutoCandidate {
+function readResultArtifact(runId: string, docId: string): {
+  result: Record<string, unknown>; sha256: string;
+} {
   requireSafeId(docId);
-  const result = parseJsonObject(path.join(outputDir(runId), "docs", docId, "result.json"));
-  return candidateFromArtifact(result.candidate, docId, result.pages);
+  const bytes = fs.readFileSync(path.join(outputDir(runId), "docs", docId, "result.json"));
+  let result: unknown;
+  try {
+    result = JSON.parse(bytes.toString("utf8"));
+  } catch {
+    throw new Error("Invalid extraction artifact.");
+  }
+  if (!result || typeof result !== "object" || Array.isArray(result)) {
+    throw new Error("Invalid extraction artifact.");
+  }
+  return { result: result as Record<string, unknown>, sha256: createHash("sha256").update(bytes).digest("hex") };
 }
 
-function readSourcePages(runId: string, docId: string): Array<{ page: number; text: string }> {
-  requireSafeId(docId);
-  const result = parseJsonObject(path.join(outputDir(runId), "docs", docId, "result.json"));
+function readSourcePages(result: Record<string, unknown>): Array<{ page: number; text: string }> {
   if (!Array.isArray(result.pages)) throw new Error("Invalid source pages.");
   const seen = new Set<number>();
   return result.pages.map((value) => {
@@ -418,9 +437,7 @@ function readSourcePages(runId: string, docId: string): Array<{ page: number; te
   });
 }
 
-function readParsedDocument(runId: string, docId: string): ProductAutoParsedDocument | undefined {
-  requireSafeId(docId);
-  const result = parseJsonObject(path.join(outputDir(runId), "docs", docId, "result.json"));
+function readParsedDocument(result: Record<string, unknown>): ProductAutoParsedDocument | undefined {
   const parsed = result.parsed_document;
   if (parsed === undefined) return undefined;
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Invalid native source artifact.");
@@ -443,6 +460,27 @@ function effectiveReviewStatus(review: ProductAutoReview | null): "unreviewed" |
   return review.added_fields?.some((field) => field.type === "array[object]"
     ? !field.value.length || field.value.some((cell) => !hasEvidenceShape(cell.evidence))
     : !hasEvidenceShape(field.evidence)) ? "pending" : review.status;
+}
+
+function recordedReviewStatus(record: RunRecord, document: RunRecord["documents"][number]):
+  "unreviewed" | "pending" | "completed" {
+  const trail = readAuditTrail(record.jobId, record.runId, document.docId);
+  const review = trail.at(-1)?.review_snapshot ?? null;
+  if (!review) return "unreviewed";
+  const hashes = trail.flatMap((event) => [event.machine_result_sha256, event.review_snapshot.machine_result_sha256])
+    .filter((hash): hash is string => typeof hash === "string" && hash.length > 0);
+  const sourceHashes = trail.flatMap((event) => [event.source_container_sha256, event.review_snapshot.source_container_sha256])
+    .filter((hash): hash is string => typeof hash === "string" && hash.length > 0);
+  if (!document.machineResultSha256 || !hashes.length || !sourceHashes.length) return "pending";
+  try {
+    const resultHash = sha256File(path.join(outputDir(record.runId), "docs", document.docId, "result.json"));
+    const sourceHash = verifiedReviewSourceHash(record.jobId, record.runId, document.fileId);
+    if (resultHash !== document.machineResultSha256 || hashes.some((hash) => hash !== resultHash) ||
+      sourceHashes.some((hash) => hash !== sourceHash)) return "pending";
+  } catch {
+    return "pending";
+  }
+  return effectiveReviewStatus(review);
 }
 
 function readAuditTrail(jobId: string, runId: string, docId: string): ProductAutoAuditEvent[] {
@@ -492,7 +530,7 @@ function publishAuditEvent(directory: string, event: ProductAutoAuditEvent): voi
   }
 }
 
-function validatedDocuments(record: RunRecord): ProductAutoRunDocument[] {
+function validatedDocuments(record: RunRecord): RunRecord["documents"] {
   const runDir = outputDir(record.runId);
   const marker = parseJsonObject(path.join(runDir, "run.json"));
   if (marker.contract_version !== 1 || marker.run_id !== record.runId) {
@@ -512,8 +550,13 @@ function validatedDocuments(record: RunRecord): ProductAutoRunDocument[] {
       throw new Error("Document receipt does not match the selected source.");
     }
     seen.add(docId);
-    const candidate = readCandidate(record.runId, docId);
+    const { result, sha256: machineResultHash } = readResultArtifact(record.runId, docId);
+    const candidate = candidateFromArtifact(result.candidate, docId, result.pages);
     if (candidate.document_status !== receipt.document_status) throw new Error("Candidate and receipt status differ.");
+    if (receipt.result_sha256 !== undefined &&
+      (!/^[a-f0-9]{64}$/.test(String(receipt.result_sha256)) || receipt.result_sha256 !== machineResultHash)) {
+      throw new Error("Machine result and extraction receipt differ.");
+    }
     const review = readReview(record.jobId, record.runId, docId);
     return {
       docId,
@@ -523,12 +566,13 @@ function validatedDocuments(record: RunRecord): ProductAutoRunDocument[] {
       fieldCount: candidate.proposed_schema.length,
       acceptedCount: candidate.extracted_values.filter((value) => value.status === "accepted").length,
       reviewStatus: effectiveReviewStatus(review),
+      ...(receipt.result_sha256 ? { machineResultSha256: machineResultHash } : {}),
     };
   });
 }
 
 function finishRun(jobId: string, runId: string, exitCode: number | null, leaseExpiredFailure = false,
-  verifiedDocuments?: ProductAutoRunDocument[]): void {
+  verifiedDocuments?: RunRecord["documents"]): void {
   const record = readRunRecord(jobId, runId);
   if (record.status !== "running") return;
   record.endedAt = new Date().toISOString();
@@ -576,7 +620,7 @@ export function recoverProductAutoRuns(jobId?: string): { recovered: number; exa
         if (record.status !== "running") continue;
         const expired = leaseExpired(record, Date.now());
         if (fs.existsSync(path.join(outputDir(runId), "run.json"))) {
-          let documents: ProductAutoRunDocument[];
+          let documents: RunRecord["documents"];
           try {
             documents = validatedDocuments(record);
           } catch {
@@ -620,8 +664,9 @@ function publicRun(record: RunRecord): ProductAutoRun {
     endedAt: record.endedAt,
     selectedCount: record.selectedFiles.length,
     documents: record.documents.map((document) => ({
-      ...document,
-      reviewStatus: effectiveReviewStatus(readReview(record.jobId, record.runId, document.docId)),
+      docId: document.docId, fileId: document.fileId, fileName: document.fileName,
+      status: document.status, fieldCount: document.fieldCount, acceptedCount: document.acceptedCount,
+      reviewStatus: recordedReviewStatus(record, document),
     })),
     error: record.error,
   };
@@ -736,16 +781,31 @@ export function startProductAutoRun(jobId: string, selectedFileIds: string[], ad
   }
 }
 
-export function getProductAutoDocument(jobId: string, runId: string, docId: string): ProductAutoDocumentDetail {
+function loadProductAutoDocument(jobId: string, runId: string, docId: string): {
+  detail: ProductAutoDocumentDetail; machineResultHash: string;
+} {
   const run = getProductAutoRun(jobId, runId);
   const document = run.documents.find((item) => item.docId === docId);
   if (run.status !== "success" || !document) throw new AccessError("Document result not found.", 404);
-  const candidate = readCandidate(runId, docId);
-  const sourcePages = readSourcePages(runId, docId);
-  const parsedDocument = readParsedDocument(runId, docId);
+  const { result, sha256: machineResultHash } = readResultArtifact(runId, docId);
+  const candidate = candidateFromArtifact(result.candidate, docId, result.pages);
+  const sourcePages = readSourcePages(result);
+  const parsedDocument = readParsedDocument(result);
+  const terminalDocument = readRunRecord(jobId, runId).documents.find((item) => item.docId === docId);
+  if (terminalDocument?.machineResultSha256 && terminalDocument.machineResultSha256 !== machineResultHash) {
+    throw new AccessError("The machine result no longer matches the completed run receipt.", 409);
+  }
   const auditTrail = readAuditTrail(jobId, runId, docId);
   const review = auditTrail.at(-1)?.review_snapshot ?? null;
   const receipts = auditTrail.flatMap((event) => [event, event.review_snapshot]);
+  if (review && (!terminalDocument?.machineResultSha256 ||
+    !receipts.some((receipt) => receipt.machine_result_sha256))) {
+    throw new AccessError("This review predates sealed extraction artifacts. Start a new run.", 409);
+  }
+  if (receipts.some((receipt) => receipt.machine_result_sha256 &&
+    receipt.machine_result_sha256 !== machineResultHash)) {
+    throw new AccessError("The machine result no longer matches its audit receipt.", 409);
+  }
   if (receipts.some((receipt) => receipt.source_container_sha256 || receipt.source_pages_sha256)) {
     const sourceHash = verifiedReviewSourceHash(jobId, runId, document.fileId);
     if (receipts.some((receipt) => receipt.source_container_sha256 && receipt.source_container_sha256 !== sourceHash)) {
@@ -757,10 +817,17 @@ export function getProductAutoDocument(jobId: string, runId: string, docId: stri
     }
   }
   return {
-    runId, fileId: document.fileId, fileName: document.fileName,
-    candidate, sourcePages, ...(parsedDocument ? { parsedDocument } : {}), review, auditTrail,
-    correctedResult: deriveProductAutoCorrectedResult(candidate, review),
+    machineResultHash,
+    detail: {
+      runId, fileId: document.fileId, fileName: document.fileName,
+      candidate, sourcePages, ...(parsedDocument ? { parsedDocument } : {}), review, auditTrail,
+      correctedResult: deriveProductAutoCorrectedResult(candidate, review),
+    },
   };
+}
+
+export function getProductAutoDocument(jobId: string, runId: string, docId: string): ProductAutoDocumentDetail {
+  return loadProductAutoDocument(jobId, runId, docId).detail;
 }
 
 export function deriveProductAutoCorrectedResult(
@@ -1015,7 +1082,12 @@ function saveProductAutoReviewWithRevision(
   jobId: string, runId: string, docId: string, reviewerUserId: string, expectedRevision: number, fields: unknown,
   addedFields: unknown, reportedActiveReviewSeconds: number | undefined,
 ): ProductAutoReview {
-  const detail = getProductAutoDocument(jobId, runId, docId);
+  if (readRunRecord(jobId, runId).status === "running") recoverProductAutoRuns(jobId);
+  const runDocument = readRunRecord(jobId, runId).documents.find((item) => item.docId === docId);
+  if (!runDocument?.machineResultSha256) {
+    throw new AccessError("This extraction predates sealed artifacts or has not completed. Start a new run.", 409);
+  }
+  const { detail, machineResultHash } = loadProductAutoDocument(jobId, runId, docId);
   if ((detail.review?.revision ?? 0) !== expectedRevision) {
     throw new AccessError("Review changed since you opened it. Reload before saving.", 409);
   }
@@ -1057,16 +1129,8 @@ function saveProductAutoReviewWithRevision(
     seen.add(fieldId);
   }
   const parsedAdded = parseAddedFields(addedFields, allowed, detail.sourcePages);
-  const sourceReceiptRequired = detail.auditTrail.some((event) =>
-    Boolean(event.source_container_sha256 || event.source_pages_sha256 ||
-      event.review_snapshot.source_container_sha256 || event.review_snapshot.source_pages_sha256)) ||
-    parsedAdded.some((field) => field.type === "array[object]") ||
-    parsed.some((field) => fieldTypes.get(field.field_id) === "array[object]" &&
-      (field.decision === "correct" || field.decision === "corrected"));
-  const sourceHash = sourceReceiptRequired
-    ? verifiedReviewSourceHash(jobId, runId, detail.fileId) : undefined;
-  const sourcePagesHash = sourceHash
-    ? createHash("sha256").update(JSON.stringify(detail.sourcePages)).digest("hex") : undefined;
+  const sourceHash = verifiedReviewSourceHash(jobId, runId, detail.fileId);
+  const sourcePagesHash = createHash("sha256").update(JSON.stringify(detail.sourcePages)).digest("hex");
   const removedCount = parsed.filter((field) => field.decision === "not_present" || field.decision === "remove").length;
   if (allowed.size - removedCount + parsedAdded.length > MAX_SCHEMA_FIELDS) {
     throw new AccessError("Reviewed schema exceeds the 24-field limit.", 400);
@@ -1080,8 +1144,9 @@ function saveProductAutoReviewWithRevision(
     status: seen.size === allowed.size && (seen.size > 0 || parsedAdded.length > 0) &&
       parsed.every((field) => field.decision !== "incorrect") ? "completed" : "pending",
     reviewer_user_id: reviewerUserId, updated_at: createdAt, fields: parsed, added_fields: parsedAdded,
-    ...(sourceHash ? { source_container_sha256: sourceHash } : {}),
-    ...(sourcePagesHash ? { source_pages_sha256: sourcePagesHash } : {}),
+    source_container_sha256: sourceHash,
+    source_pages_sha256: sourcePagesHash,
+    machine_result_sha256: machineResultHash,
     revision, audit_event_id: eventId,
   };
   const machineValues = new Map(detail.candidate.extracted_values.map((item) => [item.field_id, item]));
@@ -1097,8 +1162,9 @@ function saveProductAutoReviewWithRevision(
     }),
     review_fields: parsed,
     review_added_fields: parsedAdded,
-    ...(sourceHash ? { source_container_sha256: sourceHash } : {}),
-    ...(sourcePagesHash ? { source_pages_sha256: sourcePagesHash } : {}),
+    source_container_sha256: sourceHash,
+    source_pages_sha256: sourcePagesHash,
+    machine_result_sha256: machineResultHash,
   };
   const directory = auditDir(jobId, runId, docId);
   publishAuditEvent(directory, event);

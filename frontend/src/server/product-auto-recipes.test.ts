@@ -75,6 +75,7 @@ async function fixture(dataDir: string, candidate: ProductAutoCandidate, text: s
   fs.writeFileSync(path.join(dataDir, "product_runs", runId, "manifest.jsonl"), JSON.stringify({
     contract_version: 1, run_id: runId, doc_id: docId, source_file: source.storedName,
     source_container_sha256: sha256, document_status: candidate.document_status,
+    result_sha256: createHash("sha256").update(fs.readFileSync(resultPath)).digest("hex"),
   }) + "\n");
   const runMetaDir = path.join(dataDir, "frontend", "auto_runs", job.jobId);
   fs.mkdirSync(runMetaDir, { recursive: true });
@@ -370,7 +371,7 @@ test("human-added linked columns require unique source-backed cells and aligned 
   fs.writeFileSync(resultPath, JSON.stringify(alteredResult));
   const changedOcr = await post("alice", 2, [name, alignedCount]);
   assert.equal(changedOcr.status, 409);
-  assert.match((await changedOcr.json()).error, /OCR text no longer matches/);
+  assert.match((await changedOcr.json()).error, /machine result no longer matches/);
   fs.writeFileSync(resultPath, originalResult);
   fs.writeFileSync(sourcePath, "changed source bytes");
   const changed = await post("alice", 2, [name, alignedCount]);

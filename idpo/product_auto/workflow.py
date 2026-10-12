@@ -199,6 +199,7 @@ def process_auto(
             doc_dir = run_dir / "docs" / doc_id
             doc_dir.mkdir(parents=True, exist_ok=False)
             _write_json(doc_dir / "result.json", sidecar)
+            result_sha256 = hashlib.sha256((doc_dir / "result.json").read_bytes()).hexdigest()
             counts[str(candidate["document_status"])] += 1
             candidates.append(candidate)
             receipts.append({
@@ -212,6 +213,7 @@ def process_auto(
                 "source_size_bytes": source_size,
                 "source_hash_kind": hash_kind,
                 "source_container_sha256": container_hash,
+                "result_sha256": result_sha256,
                 "document_status": candidate["document_status"],
                 "duration_ms": duration_ms,
                 "page_count": len(sidecar["pages"]),

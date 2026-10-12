@@ -81,6 +81,9 @@ def test_invoice_baseline_preserves_zero_and_exact_spans(tmp_path: Path) -> None
     receipt = manifest[0]
     assert receipt["doc_id"] == candidate["doc_id"]
     assert receipt["source_sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
+    assert receipt["result_sha256"] == hashlib.sha256(
+        (Path(run["run_dir"]) / "docs" / candidate["doc_id"] / "result.json").read_bytes()
+    ).hexdigest()
     assert receipt["source_hash_kind"] == "raw_file"
     assert receipt["document_status"] == "needs_review"
     assert receipt["run_id"] == "invoice"
