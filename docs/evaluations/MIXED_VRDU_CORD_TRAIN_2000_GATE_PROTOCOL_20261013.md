@@ -1,6 +1,6 @@
 # Mixed VRDU + CORD v2 train 2,000-source gate protocol
 
-Status: **builder implemented; full gate not run**. This is an evaluation-only
+Status: **bundle built and source bytes verified; full gate not run**. This is an evaluation-only
 development cohort. It is not the ICTAR paper's dataset or an untouched product
 holdout. The touched surface is `research_evidence`; its primary action is
 `keep` until a sealed run and separate quality analysis exist.
@@ -82,18 +82,18 @@ python -m product_eval.datasets.mixed_vrdu_cord_train `
   --cord-train-root 'I:\DocAI-Benchmarks\cord-v2-train-7f0115a' `
   --vrdu-cohort-dir 'E:\DocAI-Benchmarks\vrdu-cohort-04a4df7' `
   --cord-test-cohort-dir 'E:\DocAI-Benchmarks\cord-v2-test-100-7f0115a' `
-  --output-dir 'I:\DocAI-Benchmarks\mixed-vrdu-cord-train-gate-v1'
+  --output-dir 'I:\DocAI-Benchmarks\mixed-vrdu-cord-train-2000-v1'
 ```
 
 After reviewing `metadata.json`, run from a clean product checkout with a new
 gate ID, a working English Tesseract preflight, and a new report directory:
 
 ```powershell
-$bundle = 'I:\DocAI-Benchmarks\mixed-vrdu-cord-train-gate-v1'
+$bundle = 'I:\DocAI-Benchmarks\mixed-vrdu-cord-train-2000-v1'
 $shards = Get-ChildItem -LiteralPath "$bundle\shards" -Directory | Sort-Object Name | Select-Object -ExpandProperty FullName
 python -m product_eval.run_gate $shards `
   --gold "$bundle\gold.jsonl" --cohort "$bundle\cohort.jsonl" `
-  --data-dir 'E:\DocAI-Benchmarks\runtime' `
+  --data-dir 'I:\DocAI-Benchmarks\runtime' `
   --report-dir 'I:\DocAI-Benchmarks\mixed-vrdu-cord-train-run-v1' `
   --gate-id mixed_vrdu_cord_train_v1 --min-unique 2000 --workers 4
 ```
@@ -102,12 +102,21 @@ Only after that gate completes and its receipt is sealed:
 
 ```powershell
 python -m product_eval.datasets.mixed_cord_positive `
-  --bundle-dir 'I:\DocAI-Benchmarks\mixed-vrdu-cord-train-gate-v1' `
+  --bundle-dir 'I:\DocAI-Benchmarks\mixed-vrdu-cord-train-2000-v1' `
   --gate-report-dir 'I:\DocAI-Benchmarks\mixed-vrdu-cord-train-run-v1' `
   --output 'I:\DocAI-Benchmarks\mixed-vrdu-cord-train-run-v1\cord-positive.json'
 ```
 
-The builder has **not** run on the full train Parquet download, and no mixed
+The builder ran on all four pinned train Parquet shards and produced **798
+distinct CORD train images and 1,202 distinct VRDU PDFs**, totaling 2,000
+distinct raw source SHA-256s. An independent pass rehashed all 2,000 staged
+files and four JSONL outputs: zero mismatches. The bundle metadata is at
+`I:\DocAI-Benchmarks\mixed-vrdu-cord-train-2000-v1\metadata.json`; cohort/gold
+SHA-256s are `3de27807196afa0aa37365f733d2d30903ffa1824420f8684922d355ea7c831d`
+/ `b3eb6d705e435caf07d495b450a312a84214abc44378df894fc79e18d90b0440`.
+Two CORD train images with duplicate raw bytes were excluded. The positive gold
+contains 2,654 scalar values, 6,066 linked cells and 2,098 published menu
+rows; one repeated subtotal field with two ambiguous values was excluded. No mixed
 2,000-source product run or CORD train accuracy result exists yet. The
 acceptance receipt must verify 2,000 distinct original-source hashes, exact
 gold/candidate IDs, source-byte integrity, and no automatic releases before
