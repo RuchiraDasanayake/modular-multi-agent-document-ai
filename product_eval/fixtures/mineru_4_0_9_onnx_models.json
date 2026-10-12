@@ -1,0 +1,86 @@
+{
+  "files": [
+    {
+      "sha256": "11ad7efa24975ee4b0c3c3a38ed18737f0658a5f75a0a96787b576a78a023361",
+      "size": 1519,
+      "path": ".gitattributes"
+    },
+    {
+      "sha256": "cd540dc296ff3115fe78efa65b68501e6a8dc74b198acc9834a725ffaa095aac",
+      "size": 213963712,
+      "path": "Layout/PP-DocLayoutV2/inference.onnx"
+    },
+    {
+      "sha256": "93100e0fb2cd76b9d246a853deea85e191d8333b2cfca7be76e82e4c4ebfa819",
+      "size": 1482,
+      "path": "Layout/PP-DocLayoutV2/inference.yml"
+    },
+    {
+      "sha256": "d1610c0de099706ad09a41121e3e495cb0c5acb220609963d53905b4e40623d0",
+      "size": 12920,
+      "path": "manifest.json"
+    },
+    {
+      "sha256": "87b5f3d7f2b2fe553627d77b37f496608ca150ebd0ef62d362591edca47b5538",
+      "size": 2244564,
+      "path": "MFR/pp_formulanet_plus_m/PP-FormulaNet_plus-M_inference.yml"
+    },
+    {
+      "sha256": "20a32595c2b30282dcd069e6295e9fad96115697beb66acb9b681b814006d193",
+      "size": 591263297,
+      "path": "MFR/pp_formulanet_plus_m/PP-FormulaNet_plus-M.onnx"
+    },
+    {
+      "sha256": "5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634",
+      "size": 21159378,
+      "path": "OCR/paddleocr/ch_PP-OCRv6_small_rec_infer.onnx"
+    },
+    {
+      "sha256": "c0541b06832948d7d3052e9ac6b572c6063d79ecd800493f4ec14d1b901c16d7",
+      "size": 150752,
+      "path": "OCR/paddleocr/ch_PP-OCRv6_small_rec_inference.yml"
+    },
+    {
+      "sha256": "193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8",
+      "size": 1780590,
+      "path": "OCR/paddleocr/ch_PP-OCRv6_tiny_det_infer.onnx"
+    },
+    {
+      "sha256": "a1fa68ab31e29252936328e728633180908f997023d9eacb81f175e326676554",
+      "size": 1068,
+      "path": "OCR/paddleocr/ch_PP-OCRv6_tiny_det_inference.yml"
+    },
+    {
+      "sha256": "3e190df84542c2756975febe8f73603b587a23c7f7badfdd3fc8a986540d5bc0",
+      "size": 4769171,
+      "path": "OCR/paddleocr/seal_PP-OCRv4_det_infer.onnx"
+    },
+    {
+      "sha256": "e5b8dd5a727602bdd526d9db152cc767bc761198c453460df7c8f7ae59d2ea3c",
+      "size": 711,
+      "path": "OCR/paddleocr/seal_PP-OCRv4_det_inference.yml"
+    },
+    {
+      "sha256": "bb03afa9a76c3ccec9ecf0c92e99129eca3e0049f0c9269e8ec63446768e2449",
+      "size": 1298,
+      "path": "README.md"
+    },
+    {
+      "sha256": "c84bf1d79c1c74d534b5b12adb14dd12151c42f7ae3e4be4f1042b830f80b949",
+      "size": 6776877,
+      "path": "Table/PP-LCNet_x1_0_table_cls.onnx"
+    },
+    {
+      "sha256": "d57a942af6a2f57d6a4a0372573c696a2379bf5857c45e2ac69993f3b334514b",
+      "size": 7758305,
+      "path": "Table/slanet-plus.onnx"
+    },
+    {
+      "sha256": "0ea48d3a17e35ef5c2e498a5e799566073234d39b1079ca21d9f4fafe73c6d20",
+      "size": 8335007,
+      "path": "Table/unet.onnx"
+    }
+  ],
+  "revision": "358310b4f64b95f9fefc372ad899356e4111f376",
+  "repo": "opendatalab/MinerU-4_models_onnx"
+}
