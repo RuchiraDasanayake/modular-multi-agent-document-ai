@@ -22,14 +22,17 @@ owned upload -> immutable source -> bounded parse/OCR -> ParsedDocument v2
              -> accept under policy / abstain / human adjudication -> versioned export
 ```
 
-The first parser candidate is **Docling**, because its documented representation includes page provenance and table
-cells with row/column offsets and spans, and its supported inputs include PDF, Office documents, and images
+**Docling remains a mixed-format adapter candidate**, because its documented representation includes page provenance
+and table cells with row/column offsets and spans, and its supported inputs include PDF, Office documents, and images
 ([formats](https://docling-project.github.io/docling/usage/supported_formats/),
 [document model](https://docling-project.github.io/docling/reference/docling_document/)). This is a **spike**, not a
-decision to replace the current parser. Keep [pypdf](https://pypdf.readthedocs.io/en/stable/user/extract-text.html)
-plus Tesseract/PaddleOCR as the measured baseline. Try [PaddleOCR PP-StructureV3](https://github.com/PaddlePaddle/PaddleOCR/blob/main/docs/version3.x/pipeline_usage/PP-StructureV3.en.md)
-only on scan/table slices where it adds value: its documented output includes reading-order blocks, OCR polygons,
-table HTML, and cell boxes. Conversion quality and deployment cost are unmeasured in this repository.
+decision to replace the current PDF parser: its frozen table run recovered only
+[3/219 exact rows](../evaluations/VRDU_ADBUY12_TABLE_PARSER_COMPARISON_20261012.md). Keep native PDF text plus
+PDFium-first rendering and bounded Tesseract as the measured product baseline. The smaller
+[MinerU Basic challenge](../evaluations/MINERU_4_BASIC_ADBUY12_RESULT_20261012.md) reached only 6/219 exact rows;
+the full PP-StructureV3 profile fails this host's current RAM guard. A stronger
+[PaddleOCR-VL 1.6 full-pipeline challenge](../evaluations/PADDLEOCR_VL_1_6_FULL_PIPELINE_FEASIBILITY_20261012.md)
+remains unmeasured. No parser has passed the linked-row promotion gate.
 
 | Current evidence in this checkout | Consequence for the target |
 | --- | --- |
@@ -41,7 +44,9 @@ table HTML, and cell boxes. Conversion quality and deployment cost are unmeasure
 The [2,000-document VRDU no-model development baseline](../evaluations/VRDU_2000_NO_MODEL_V1.md) reported 4.33%
 strict schema F1 and 0.95% strict value F1 across two families; all 2,500 ad-buy linked-row field records were
 missing or unresolved. It made no model calls, so it is not a test of AI-generated schemas or these parser candidates.
-Its cost and human-review fields had zero coverage, so it cannot establish cost per accepted document. These results
+Its cost and human-review fields had zero coverage, so it cannot establish cost per accepted document. The later
+[v8 provenance gate](../evaluations/VRDU_2000_NO_MODEL_V8_PROVENANCE.md) verified 2,000 distinct PDF sources and
+PDFium rendering for all 831 OCR pages, but still had 4.2423% strict schema F1 and zero proposed linked rows. These results
 motivate the row/schema gates; they do not predict performance on arbitrary document families. That archived run's
 `processed` status also predates the current review-only behavior in `process-auto` and must not be interpreted as
 approved, correct output. The [v4 run](../evaluations/VRDU_2000_NO_MODEL_V4.md) found zero proposed linked cells
@@ -78,7 +83,7 @@ against 30,133 gold cells; it also lacked the OCR executable, so it is not a val
 
 | Boundary | Lean choice | Reason / alternative gate |
 | --- | --- | --- |
-| Parse/OCR | Current pypdf/Tesseract/Paddle baseline; Docling adapter first; PP-StructureV3 for measured hard slices | Docling documents configurable table recognition and PDF cell mapping ([options](https://docling-project.github.io/docling/usage/advanced_options/)); Paddle exposes cell boxes and OCR output. Benchmark native PDF, scan, multi-page, and table cases separately. Pin code and model weights and inspect licenses. Docling code is MIT; PaddleOCR and Tesseract code are Apache-2.0 ([Docling](https://github.com/docling-project/docling), [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR), [Tesseract](https://tesseract-ocr.github.io/tessdoc/)). Code licenses do not settle model-weight or dataset rights. |
+| Parse/OCR | Current native PDF/PDFium/Tesseract baseline; Docling for mixed-format conversion tests; stronger layout/table parser only after a paired win | Docling's 3/219 and MinerU Basic's 6/219 exact-row outcomes do not justify automatic row acceptance. [PaddleOCR-VL 1.6](../evaluations/PADDLEOCR_VL_1_6_FULL_PIPELINE_FEASIBILITY_20261012.md) is a feasible but untested full-pipeline candidate. Benchmark native PDF, scan, multi-page, and table cases separately; pin code and model weights and inspect licenses. Code licenses do not settle model-weight or dataset rights. |
 | Schema/value model | Provider-neutral interface over local CPU, local GPU, and approved cloud API; fixed two-step schema then values | Compare each under identical parsing, prompt budgets, and held-out documents. Strict JSON/schema validation and source evidence are required but cannot prove field meaning. Keep bounded fallback only if it lowers total reviewed cost. |
 | Queue and metadata | For release beyond one host, PostgreSQL for jobs, owners, recipe/review revisions, and an outbox; Redis-backed Celery workers for bounded parse and inference tasks | Compose already includes PostgreSQL/Redis. Celery documents that late-ack tasks may execute more than once, so worker outputs need idempotent keys and atomic publish ([tasks](https://docs.celeryq.dev/en/stable/userguide/tasks.html)). Do not add Temporal until human waits/replay cannot be managed with this smaller design. |
 | Bytes and tenants | Keep content-addressed originals/derived artifacts behind a storage interface; single-host files first, object storage when workers span hosts. Every metadata row, object reference, cache key, retrieval query and review action carries tenant/owner scope. | Authorize in the API and test indirect artifact URLs. PostgreSQL row-level security can provide defense in depth, but owners/superusers can bypass it, so role design and tests still matter ([PostgreSQL](https://www.postgresql.org/docs/current/ddl-rowsecurity.html)). Cloud egress requires explicit tenant policy, provider terms, regional processing, redaction if needed, and hard spend caps. |
@@ -93,10 +98,12 @@ after a no-memory/static-route ablation improves the same holdout without critic
    born-digital/scanned PDFs, DOCX and images, rotated pages, unfamiliar families, repeated tables, cross-page rows,
    blank cells, missing values, and zero. Split by source/layout family and keep the holdout untouched. Record source
    hash, parser/model versions, reviewer minutes, CPU/GPU time, API spend, retries, latency and failure reasons.
-2. **Parser contract spike:** adapt current parser and Docling into ParsedDocument v2 without changing the extractor.
-   Inspect overlays for page/rotation/coordinate correctness and compare text, cells, rows, headers and table spans
-   against adjudicated gold. Test PP-StructureV3 only on preselected failed scan/table slices. Reject an adapter that
-   improves text but degrades evidence or linked rows beyond predeclared margins.
+2. **Parser contract spike:** adapt the current parser and any measured candidate into ParsedDocument v2 without
+   changing the extractor. Use Docling first for mixed-file intake, not automatic linked-row release. Inspect overlays
+   for page/rotation/coordinate correctness and compare text, cells, rows, headers and table spans against adjudicated
+   gold. Challenge the full PaddleOCR-VL layout/table pipeline on the frozen hard-table slice if it passes resource
+   guards; defer full PP-StructureV3 until a host can safely run it. Reject an adapter that improves text but degrades
+   evidence or linked rows beyond predeclared margins.
 3. **Schema and row slice:** add nested/repeated schema proposals and one line-item family through the fixed route.
    Score schema induction separately from extraction against a gold schema, then score end-to-end auto mode on unseen
    families. Report field/type/group precision and recall, row grouping and cross-page link accuracy, cell-level
