@@ -34,6 +34,12 @@ the full PP-StructureV3 profile fails this host's current RAM guard. A stronger
 [PaddleOCR-VL 1.6 full-pipeline challenge](../evaluations/PADDLEOCR_VL_1_6_FULL_PIPELINE_FEASIBILITY_20261012.md)
 remains unmeasured. No parser has passed the linked-row promotion gate.
 
+The pinned [NuExtract3 local development run](../evaluations/NUEXTRACT3_LOCAL_DEV_RESULT_20261012.md) fit this
+8 GB GPU, but blind schema discovery matched zero of 26 linked field pairs under the frozen mapping. Its separate
+reference-schema arm matched 24/43 exact complete rows on six development documents, with no verified source boxes
+or spans and substantial source-to-source variance. Therefore a specialist model remains a conditional extractor
+candidate behind an independently approved recipe and the evidence verifier; it is not an automatic-schema default.
+
 | Current evidence in this checkout | Consequence for the target |
 | --- | --- |
 | [Intake](../../idpo/agents/intake.py) supports JSON, TXT, PDF, and common raster images; PDF text comes from pypdf. [Page](../../idpo/core/types.py) stores text and optional image path/metadata. | Add a parser adapter and explicit format outcomes; do not make downstream code depend on Docling classes. |
