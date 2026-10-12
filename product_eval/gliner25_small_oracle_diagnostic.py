@@ -32,11 +32,22 @@ from product_eval.nuextract3_dev_diagnostic import score_values
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_LOCK = Path(__file__).with_name("fixtures") / "gliner25_small_oracle_six.json"
 SOURCE_LOCK_SHA256 = "61bef64cafb35739eba3a087fe5a742c57e68c340834325a8f77e49f63c5b047"
-SCHEMA_LOCK_SHA256 = "6b1ac33bc4b514c129074b69f064b827e7f4da7c8330bc92384083b18603790b"
+SCHEMA_LOCK_SHA256 = "1871cf55460944e748257c4e5de8832870250a581158126aba8b90f51ca5e77b"
 MODEL_ID = "fastino/gliner2.5-small-v1"
 MODEL_REVISION = "df5910e44bc4ffdb0d95399a83b0ca4516349aa5"
 MODEL_WEIGHT_SHA256 = "4ee982787ace270d4bf15dbcb28ced38e0aa201372347114ceedd6336055de2b"
 MODEL_WEIGHT_BYTES = 295_567_700
+MODEL_FILES = {
+    "model.safetensors": {"bytes": MODEL_WEIGHT_BYTES, "sha256": MODEL_WEIGHT_SHA256},
+    "config.json": {"bytes": 4104,
+                    "sha256": "1b4e63ac964dc4204165bd1420735cd4c2e4bce97394d0b69fa3f7ea192a8e97"},
+    "encoder_config/config.json": {"bytes": 856,
+                                   "sha256": "db837d0dc587f5858687ef860c1f400de10f3c3e44f88daef8cbda80d74e4c9c"},
+    "tokenizer.json": {"bytes": 8341713,
+                       "sha256": "cbc8ae6037812709c9c26f2a160f8dc48b0440bcb79c8141804259ae2d6adac3"},
+    "tokenizer_config.json": {"bytes": 645,
+                              "sha256": "0bf3ea0873234bd9bfdd3853c440395009ac6365a925b91654daed5396d655e1"},
+}
 GLINER2_VERSION = "2.1.0"
 CHUNK_SIZE = 384
 CHUNK_OVERLAP = 64
@@ -92,8 +103,7 @@ def freeze(paths: dict[str, Path], runs_root: Path, output: Path) -> dict[str, A
         "gold_manifest_sha256": {"vrdu": sha256_file(paths["vrdu_gold"]),
                                  "cord": sha256_file(paths["cord_gold"])},
         "model": {"id": MODEL_ID, "revision": MODEL_REVISION,
-                  "weight_file": "model.safetensors", "weight_sha256": MODEL_WEIGHT_SHA256,
-                  "weight_bytes": MODEL_WEIGHT_BYTES, "gliner2_version": GLINER2_VERSION},
+                  "files": MODEL_FILES, "gliner2_version": GLINER2_VERSION},
         "settings": {"device": "cpu", "threads": CPU_THREADS, "chunk_size": CHUNK_SIZE,
                      "chunk_overlap": CHUNK_OVERLAP, "include_spans": True,
                      "include_confidence": True, "max_worker_seconds": MAX_WORKER_SECONDS,
@@ -128,17 +138,14 @@ def verified_inputs(paths: dict[str, Path], runs_root: Path) -> tuple[dict[str, 
 
 
 def _model_files(model_dir: Path) -> dict[str, str]:
-    required = ("model.safetensors", "config.json", "encoder_config/config.json",
-                "tokenizer.json", "tokenizer_config.json")
     files = {}
-    for name in required:
+    for name, expected in MODEL_FILES.items():
         path = model_dir / name
         if not path.is_file():
             raise ContractError(f"pinned local model lacks {name}")
         files[name] = sha256_file(path)
-    weight = model_dir / "model.safetensors"
-    if weight.stat().st_size != MODEL_WEIGHT_BYTES or files["model.safetensors"] != MODEL_WEIGHT_SHA256:
-        raise ContractError("GLiNER2.5 Small weight bytes differ from model pin")
+        if path.stat().st_size != expected["bytes"] or files[name] != expected["sha256"]:
+            raise ContractError(f"pinned GLiNER model file differs: {name}")
     return files
 
 

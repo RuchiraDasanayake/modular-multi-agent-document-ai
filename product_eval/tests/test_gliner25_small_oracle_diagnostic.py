@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from product_eval import gliner25_small_oracle_diagnostic as pilot
 
@@ -67,6 +69,21 @@ class OracleProtocolTests(unittest.TestCase):
             "$10 and $20")
         self.assertIsNone(reply["amount"])
         self.assertEqual(spans["ambiguous_scalar_fields"], 1)
+
+    def test_every_model_file_digest_is_enforced(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            files = {"model.safetensors": b"weight", "config.json": b"config"}
+            expected = {name: {"bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+                        for name, data in files.items()}
+            for name, data in files.items():
+                (root / name).write_bytes(data)
+            with patch.object(pilot, "MODEL_FILES", expected):
+                self.assertEqual(pilot._model_files(root),
+                                 {name: item["sha256"] for name, item in expected.items()})
+                (root / "config.json").write_bytes(b"changed")
+                with self.assertRaisesRegex(Exception, "config.json"):
+                    pilot._model_files(root)
 
 
 if __name__ == "__main__":
