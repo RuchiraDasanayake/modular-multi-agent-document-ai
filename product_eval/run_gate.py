@@ -16,7 +16,7 @@ from typing import Any
 
 from idpo.core.preflight import find_tesseract_cmd
 from product_eval.contracts import ContractError, load_jsonl
-from product_eval.execution import verify_runs
+from product_eval.execution import verify_result_receipts, verify_runs
 from product_eval.scorer import score_records
 
 _SAFE_ID = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
@@ -235,6 +235,9 @@ def run_gate(
         raise RuntimeError("a shard failed; inspect the per-shard logs and use a new gate ID")
 
     execution = verify_runs(run_dirs, min_unique=min_unique)
+    if verify_result_receipts(run_dirs) != execution["documents"]:
+        raise ContractError("sealed product result count differs from verified document count")
+    execution["result_hashes_and_candidates_verified"] = True
     _write_json(report_dir / "execution-report.json", execution)
     candidate_path = report_dir / "candidates.jsonl"
     with candidate_path.open("w", encoding="utf-8", newline="\n") as output:

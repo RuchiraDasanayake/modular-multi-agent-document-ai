@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from product_eval.contracts import ContractError
-from product_eval.execution import verify_run, verify_runs
+from product_eval.execution import verify_result_receipts, verify_run, verify_runs
 
 
 def _write_run(tmp_path: Path, source: Path, *, source_hash_kind: str = "raw_file") -> Path:
@@ -51,6 +51,24 @@ def _write_run(tmp_path: Path, source: Path, *, source_hash_kind: str = "raw_fil
     (run_dir / "candidates.jsonl").write_text(json.dumps(candidate) + "\n", encoding="utf-8")
     (run_dir / "run.json").write_text(json.dumps(run), encoding="utf-8")
     return run_dir
+
+
+def _seal_result(run_dir: Path) -> None:
+    manifest_path = run_dir / "manifest.jsonl"
+    receipt = json.loads(manifest_path.read_text(encoding="utf-8"))
+    candidate = json.loads((run_dir / "candidates.jsonl").read_text(encoding="utf-8"))
+    result = {
+        "run_id": receipt["run_id"],
+        "source_sha256": receipt["source_sha256"],
+        "document_status": receipt["document_status"],
+        "candidate": candidate,
+    }
+    result_path = run_dir / "docs" / receipt["doc_id"] / "result.json"
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    result_bytes = json.dumps(result, sort_keys=True).encode("utf-8")
+    result_path.write_bytes(result_bytes)
+    receipt["result_sha256"] = hashlib.sha256(result_bytes).hexdigest()
+    manifest_path.write_text(json.dumps(receipt) + "\n", encoding="utf-8")
 
 
 def test_verify_run_checks_bytes_and_release_floor(tmp_path: Path) -> None:
@@ -125,3 +143,32 @@ def test_verify_runs_counts_distinct_sources_across_shards(tmp_path: Path) -> No
     second_receipt_path.write_text(json.dumps(second_receipt) + "\n", encoding="utf-8")
     with pytest.raises(ContractError, match="requires 2"):
         verify_runs([run_one, run_two], min_unique=2)
+
+
+def test_result_receipts_bind_exact_bytes_and_scored_candidate(tmp_path: Path) -> None:
+    source = tmp_path / "source.txt"
+    source.write_text("Invoice number: I-1\n", encoding="utf-8")
+    run_dir = _write_run(tmp_path, source)
+    _seal_result(run_dir)
+    assert verify_result_receipts([run_dir]) == 1
+
+    result_path = run_dir / "docs" / "doc-1" / "result.json"
+    result_path.write_bytes(result_path.read_bytes() + b" ")
+    with pytest.raises(ContractError, match="SHA-256 differs"):
+        verify_result_receipts([run_dir])
+
+    _seal_result(run_dir)
+    candidate_path = run_dir / "candidates.jsonl"
+    candidate = json.loads(candidate_path.read_text(encoding="utf-8"))
+    candidate["measurements"] = {"latency_ms": 1}
+    candidate_path.write_text(json.dumps(candidate) + "\n", encoding="utf-8")
+    with pytest.raises(ContractError, match="scored candidate"):
+        verify_result_receipts([run_dir])
+
+
+def test_result_receipts_fail_closed_without_digest(tmp_path: Path) -> None:
+    source = tmp_path / "source.txt"
+    source.write_text("x", encoding="utf-8")
+    run_dir = _write_run(tmp_path, source)
+    with pytest.raises(ContractError, match="result_sha256"):
+        verify_result_receipts([run_dir])

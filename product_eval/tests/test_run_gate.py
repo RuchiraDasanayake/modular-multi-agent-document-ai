@@ -52,6 +52,7 @@ def test_gate_runs_distinct_shards_and_scores_only_after_source_verification(tmp
     assert result["execution"]["documents"] == 2
     assert result["execution"]["distinct_sources"] == 2
     assert result["execution"]["source_hashes_verified"] is True
+    assert result["execution"]["result_hashes_and_candidates_verified"] is True
     assert result["quality"]["schema"]["tp"] == 2
     assert result["provenance"]["model_configured"] is False
     assert result["provenance"]["ocr_required"] is False

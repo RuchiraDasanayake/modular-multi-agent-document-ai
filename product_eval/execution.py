@@ -18,6 +18,7 @@ from product_eval.contracts import (
 )
 
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
+_SAFE_DOC_ID = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
 
 
 def _read_json(path: Path) -> Any:
@@ -207,3 +208,54 @@ def verify_runs(run_dirs: list[str | Path], *, min_unique: int = 0) -> dict[str,
         "status_counts": {status: counts[status] for status in sorted(DOCUMENT_STATUSES)},
         "sum_document_duration_ms": round(sum(report["sum_document_duration_ms"] for report in reports), 3),
     }
+
+
+def verify_result_receipts(run_dirs: list[str | Path]) -> int:
+    """Bind each scored candidate to the exact sealed product result bytes."""
+    verified = 0
+    for raw_run_dir in run_dirs:
+        run_dir = Path(raw_run_dir)
+        candidates = load_jsonl(run_dir / "candidates.jsonl", kind="candidate")
+        manifest_path = run_dir / "manifest.jsonl"
+        try:
+            lines = manifest_path.read_text(encoding="utf-8").splitlines()
+        except OSError as exc:
+            raise ContractError(f"{manifest_path}: cannot read manifest: {exc}") from exc
+        seen: set[str] = set()
+        for line_number, line in enumerate(lines, 1):
+            if not line.strip():
+                continue
+            label = f"{manifest_path}:{line_number}"
+            try:
+                receipt = json.loads(line)
+            except ValueError as exc:
+                raise ContractError(f"{label}: invalid JSON: {exc}") from exc
+            if not isinstance(receipt, dict):
+                raise ContractError(f"{label}: invalid manifest receipt")
+            doc_id = receipt.get("doc_id")
+            digest = receipt.get("result_sha256")
+            if not isinstance(doc_id, str) or not _SAFE_DOC_ID.fullmatch(doc_id) or doc_id in seen:
+                raise ContractError(f"{label}: unsafe or duplicate doc_id")
+            if not isinstance(digest, str) or not _SHA256.fullmatch(digest):
+                raise ContractError(f"{label}: missing or invalid result_sha256")
+            seen.add(doc_id)
+            result_path = run_dir / "docs" / doc_id / "result.json"
+            try:
+                resolved_result = result_path.resolve(strict=True)
+            except OSError as exc:
+                raise ContractError(f"{doc_id}: sealed product result is missing") from exc
+            if not resolved_result.is_relative_to((run_dir / "docs").resolve()):
+                raise ContractError(f"{doc_id}: sealed product result escapes the run")
+            if _sha256_file(result_path) != digest:
+                raise ContractError(f"{doc_id}: product result SHA-256 differs from manifest")
+            result = _read_json(result_path)
+            if not isinstance(result, dict) or result.get("run_id") != receipt.get("run_id") or (
+                result.get("source_sha256") != receipt.get("source_sha256")
+                or result.get("document_status") != receipt.get("document_status")
+                or result.get("candidate") != candidates.get(doc_id)
+            ):
+                raise ContractError(f"{doc_id}: product result differs from manifest or scored candidate")
+            verified += 1
+        if seen != candidates.keys():
+            raise ContractError(f"{run_dir}: result receipts and scored candidates differ")
+    return verified
