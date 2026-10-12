@@ -1,177 +1,62 @@
-# Dataset Plan
+# Product evaluation datasets and split discipline
 
-This document defines the practical dataset path for the current phase.
+Status: active product plan, 12 October 2026. The [system contract](SYSTEM_CONTRACT.md)
+describes the implemented runtime; [productization gates](PRODUCTIZATION_PLAN.md)
+define promotion. The accepted-paper evidence and the later internal October
+study remain separate from the product results below.
 
-The phase is no longer centered only on the tiny starter pack.
+## What the current data can establish
 
-The active goal is to use one serious external labeled dataset to harden the runtime, expose repeated failures, and build evidence without widening the claim carelessly.
+| Cohort | Locked role | Labels and limit |
+| --- | --- | --- |
+| [VRDU](https://github.com/google-research-datasets/vrdu) | 2,000 distinct public PDFs, 500 ad-buy and 1,500 registration, for repeatable execution and paired quality gates. Source and gold hashes are in the [v8 report](evaluations/VRDU_2000_NO_MODEL_V8_PROVENANCE.md). | Field and linked-row gold; only two families. The no-model v8 gate had 4.2423% strict schema F1 and zero linked rows, so its successful execution is not a general extraction claim. |
+| [CORD v2](https://github.com/clovaai/cord) | Creator test Parquet frozen to 60 development receipts and 40 reserved receipts. Source/split hashes and CC BY 4.0 attribution are in the [CORD slice](evaluations/CORD_SECONDARY_SLICE.md). | Receipt totals, menu rows, text boxes and geometry. Tune candidate components on the 60 development sources only. The 40 reserved sources are for one final locked evaluation after choices freeze; do not use them for prompts, examples, routing thresholds or error inspection during selection. |
+| Ten-case internal research pack | Preserve canonical-runtime regression only. | Small and partly synthetic; never use it as product accuracy evidence. |
 
-## Active Dataset Ladder
+The historical October CORD-100 result used a different CORD validation split,
+known receipt fields, pipeline and scorer. It cannot be pooled with the product
+CORD test split or described as automatic schema discovery. Public documents
+used in pilots remain public; private team documents require a separate data
+rights and labeling decision before provider calls.
 
-Use datasets in this order.
+## Next coverage, without moving the holdout
 
-### 1. Internal Regression Pack
+1. Freeze a **mixed-format, adjudicated development set** for PDF, image,
+   DOCX, XLSX, PPTX, HTML and EML before admitting new file types. Use real,
+   rights-cleared files with useful scalar and repeated fields, source regions
+   or explicit no-geometry markers, failures and ambiguous cases. Select by
+   source hash before inspecting candidate results. The current product accepts
+   only PDF, common raster images, TXT and its existing JSON input.
+2. Add independent structured datasets only after verifying exact source
+   revisions and use rights. [DocILE](https://github.com/rossumai/docile)
+   supplies field-localization and line-item grouping evaluation, but its
+   official download requires an access token; the MIT code license must not
+   be assumed to cover document redistribution. Its predeclared labels make
+   it a known-schema cross-check, not a direct test of arbitrary AI schemas.
+3. Maintain source-disjoint induction examples, development scores and a final
+   holdout. Any generated schema/recipe is versioned and reviewed. Do not pass
+   gold field names, values or reviewer corrections for a scored document into
+   that document's model prompt. Count model errors and unsupported inputs in
+   the original denominator.
+4. After **every substantive extraction implementation**, run at least 2,000
+   distinct raw-source extractions with frozen parser/model versions and verify
+   the source hashes, all receipts, failure denominator and budget. Add a
+   disjoint diverse holdout; 2,000 VRDU PDFs alone cannot prove arbitrary
+   document-type quality. Avoid rerunning the reserved CORD 40 while tuning.
 
-Use:
+## Metrics required for a promotion decision
 
-- `idpo/benchmark/benchmark_pack.json`
-- `idpo/benchmark/data/*`
+Report per family and overall: schema field meaning/type and repeated grouping;
+exact typed scalar precision/recall; exact linked-cell and complete-row
+precision/recall; page/quote/box evidence correctness; critical false
+acceptances; abstentions and failures; reviewer corrections and active minutes;
+wall/CPU/GPU, peak memory, provider tokens and priced cost per correctly
+released document. A recognition-only OCR score, valid JSON, or a successful
+2,000-document process exit does not satisfy these metrics. Retain both raw
+candidate and corrected human result so review never rewrites machine history.
 
-Current size:
-
-- `10` labeled benchmark cases
-
-Purpose:
-
-- smoke-test the canonical benchmark runner
-- preserve exact regression checks for existing repo behavior
-- catch obvious breakage quickly
-
-This pack stays useful, but it is too small and too synthetic to drive the main reliability loop by itself.
-
-### 2. Primary External Labeled Dataset
-
-Use:
-
-- `datasets/external/cord-v2`
-
-Observed local structure:
-
-- `train`: `800`
-- `validation`: `100`
-- `test`: `100`
-
-Observed label surfaces:
-
-- image input
-- `ground_truth` JSON payload
-- `gt_parse.menu`
-- `gt_parse.total`
-- optional `gt_parse.sub_total`
-- word-level `valid_line` categories such as:
-  - `menu.nm`
-  - `menu.cnt`
-  - `menu.price`
-  - `total.total_price`
-  - `total.cashprice`
-  - `total.changeprice`
-  - `sub_total.subtotal_price`
-  - `sub_total.tax_price`
-
-Purpose:
-
-- first real external labeled testing loop
-- repeated receipt extraction debugging
-- high-ROI fix discovery
-- exact scoring on mapped receipt fields
-
-This is the current primary dataset for system hardening.
-
-### 3. Pilot Real Unlabeled Set
-
-Use:
-
-- `inputs/inbox/*.pdf`
-
-Current size:
-
-- `10` real PDFs already staged in the repo
-
-Purpose:
-
-- OCR-path validation
-- UI sanity checks
-- manual inspection of non-synthetic outputs
-
-These files help operational testing, but they do not provide exact accuracy evidence yet.
-
-### 4. Future Labeled Real Dataset
-
-Not yet active.
-
-Purpose:
-
-- stronger final research evidence on real documents owned by the team
-- broader claim support after annotation rules are stable
-
-Recommended path:
-
-1. `pilot labeled`
-   `50-100` docs
-2. `research labeled`
-   `200+` docs minimum
-3. larger unlabeled throughput sets only after the exact evaluation protocol is stable
-
-## Strict Evaluation Rule
-
-Separate these claims:
-
-- `exact extraction quality`
-  Needs labeled truth and a frozen field mapping
-
-- `throughput and operational behavior`
-  Can use larger unlabeled processing sets after the evaluation protocol is fixed
-
-- `adaptive-safe behavior`
-  Must come from canonical run artifacts showing policy choice, fallback, rollback, and defer
-
-Do not mix them.
-
-## Current Dataset Strategy
-
-Use the datasets with different roles:
-
-- internal regression pack
-  protects the current benchmark path
-- `CORD v2`
-  drives the main labeled testing and high-ROI fix loop
-- real unlabeled PDFs
-  validate OCR and runtime behavior outside the synthetic pack
-
-Do not add more external datasets until `CORD v2` staging, mapping, and scoring are stable.
-
-## Field Scope Rule
-
-Do not try to score everything in `CORD v2` immediately.
-
-Start with a small, strict field set that the runtime can reasonably emit and the labels clearly support.
-
-Recommended first mapped fields:
-
-- `total_amount` from `gt_parse.total.total_price`
-- `cash_amount` from `gt_parse.total.cashprice` when present
-- `change_amount` from `gt_parse.total.changeprice` when present
-- `subtotal_amount` from `gt_parse.sub_total.subtotal_price` when present
-- `tax_amount` from `gt_parse.sub_total.tax_price` when present
-
-Defer line-item claims until flat receipt totals are stable and the mapping logic is frozen.
-
-## Immediate Dataset Work
-
-1. keep the internal regression pack running
-2. stage `CORD v2` into a deterministic evaluation flow
-3. define and freeze the first receipt-field mapping
-4. run a small manually reviewed subset first
-5. fix only repeated high-ROI failures
-6. scale to larger validation runs only after the small loop is stable
-7. use the real unlabeled PDFs for OCR-path and UI sanity checks in parallel
-
-## Dataset Freeze Discipline
-
-Before writing the final results section, freeze:
-
-- dataset path and version
-- subset manifests
-- field mapping version
-- config file
-- commit hash
-- exact metrics tables
-- run ids and artifact locations
-
-Do not keep moving the target while collecting evidence.
-
-## Related Plan
-
-For the active execution plan, use:
-
-- [docs/CORD_EVALUATION_PLAN.md](./CORD_EVALUATION_PLAN.md)
+Every report must name the creator source, license, revision, cohort and gold
+hashes, raw output location/hash, code commit, runtime/model hashes, selection
+rule, leakage controls and scoring limitations. This is the same standard used
+by the existing [v8 execution gate](evaluations/VRDU_2000_NO_MODEL_V8_PROVENANCE.md)
+and [CORD OCR result](evaluations/CORD_DEVELOPMENT_TEXT_BOX_OCR_RESULT_20261012.md).
