@@ -27,7 +27,12 @@ from idpo.product_auto.logic import (
     schema_prompt,
     values_prompt,
 )
-from idpo.product_auto.native_formats import NATIVE_EXTENSIONS, NativeLimitError, parse_native_document
+from idpo.product_auto.native_formats import (
+    NATIVE_EXTENSIONS,
+    NativeLimitError,
+    parse_native_document,
+)
+from idpo.product_auto.native_table_proposals import propose_native_tables
 from idpo.product_auto.parsed_document import ParsedDocument
 from idpo.product_auto.provider import ModelReply
 from idpo.product_auto.resource_telemetry import ResourceProbe, elapsed_cpu_ms
@@ -361,6 +366,14 @@ def _process_document(
             baseline_values = baseline_values[:MAX_FIELDS]
             sidecar["reason"] = "too_many_detected_fields"
         values = {str(item["field_id"]): item for item in baseline_values}
+        if native_parsed is not None:
+            table_fields, table_values, table_receipt = propose_native_tables(
+                native_parsed, Path(processed_doc.path), pages,
+                {str(field["field_id"]) for field in schema}, MAX_FIELDS - len(schema),
+            )
+            schema.extend(table_fields)
+            values.update({str(item["field_id"]): item for item in table_values})
+            sidecar["native_table_proposals"] = table_receipt
     elif not force_review:
         schema_reply = _complete_model(model, schema_prompt(pages))
         _record_model_call(sidecar, "schema", schema_reply)

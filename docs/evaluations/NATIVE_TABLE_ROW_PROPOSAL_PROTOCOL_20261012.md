@@ -2,6 +2,8 @@
 
 **Decision, 12 October 2026:** Add a bounded, deterministic, **review-only** proposal arm for the five source-native formats after the current native-intake 2,000-source gate is sealed. It should reuse `ParsedDocument` v2 table cells, not infer rows from flattened page text or add a model call. This is a design, not an implemented accuracy claim. The five synthetic sources currently yield 45/45 exact, source-resolvable cells, while the no-model product run proposes no linked fields or rows ([native diagnostic](MIXED_FORMAT_NATIVE_DEV_RESULT_20261012.md), [fixture manifest](../../product_eval/fixtures/mixed_format_docling_v1/manifest.json)).
 
+**Implementation status:** the isolated `codex/native-table-proposals` branch implements this arm for local validation. It caps rechecked source bytes at 20 MiB, declines documents with more than 32 table segments, and builds the HTML DOM or opens the workbook once per source. It is not deployed to the main product branch and requires a fresh post-merge 2,000-distinct-source gate plus a rights-cleared real native set. The preceding zero-linked-row observation describes the pre-implementation no-model run. The existing review server does not yet rehash the original source when a reviewer marks only a machine-proposed linked column correct; that follow-up is required before treating completed native linked reviews as source-current receipts.
+
 ## Contract and narrow implementation
 
 1. Run this arm only when `native_parsed` exists and `model is None`. Keep the existing scalar `baseline_proposals`, cap the combined schema at 24 fields, and never overwrite a scalar or another table's field ID. A later paired test can decide whether to merge with model output. Parser text is data, never instructions.

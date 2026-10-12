@@ -70,6 +70,13 @@ extracted; the latter three structural cases explicitly abstain when encountered
 The research `process-inbox` intake retains its narrower format support. The product path uses local OCR/text extraction
 and either a deterministic label/value proposal or an optional
 OpenAI-compatible chat model for scalar or bounded repeated-column schema discovery followed by value extraction.
+With no model, a conservative native-table adapter also proposes linked columns when a complete parser grid has
+credible headers and exact cell anchors. It rechecks the source hash, reads HTML/EML header and visibility structure
+or a declared XLSX table and formula/visibility state, and records each proposed cell's native locator beside the
+v1 candidate. DOCX/PPTX use a stricter row-shape check because the current parsed contract has no semantic header
+flag. Ambiguous, sparse, merged, hidden, or unverified tables abstain; these are literal, review-only proposals,
+not a claim that column meanings or row relations are correct. This arm is limited to source-native files and does
+not alter PDF or image extraction.
 Product-auto Tesseract calls now have a 30-second default timeout and a 120-second per-image-page search budget;
 these limits are configurable in the CLI and do not alter the canonical research OCR route. A timeout with no text is
 an execution failure, while partial text remains in review. The [pinned v6 gate](evaluations/VRDU_2000_NO_MODEL_V6.md)
