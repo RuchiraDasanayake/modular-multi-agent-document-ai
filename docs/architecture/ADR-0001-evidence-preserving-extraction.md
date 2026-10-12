@@ -1,7 +1,7 @@
 # ADR 0001: Evidence-preserving document extraction
 
 Status: **accepted as the staged target architecture**, 2026-10-12. Owner: product extraction. Parser, model, and queue
-adapters remain subject to the stated measurement gates. This is not an implemented contract or a quality claim.
+adapters remain subject to the stated measurement gates. This is a partly implemented target contract, not a validated quality claim.
 [SYSTEM_CONTRACT](../SYSTEM_CONTRACT.md) describes the current runtime;
 [PRODUCTIZATION_PLAN](../PRODUCTIZATION_PLAN.md) owns the broader release gates. The accepted May manuscript, frozen
 October study, and new product benchmark remain separate.
@@ -55,7 +55,7 @@ predeclared RAM guard stopped value calls. It did not revise the original six-so
 | [Intake](../../idpo/agents/intake.py) supports JSON, TXT, PDF, and common raster images; PDF text comes from pypdf. [Page](../../idpo/core/types.py) stores text and optional image path/metadata. | Add a parser adapter and explicit format outcomes; do not make downstream code depend on Docling classes. |
 | [product_auto](../../idpo/product_auto/workflow.py) proposes at most 24 fields, uses at most 50 pages/24,000 model characters, and writes exact page-text offsets. Its configured model can propose `array[object]` columns with bounded row ordinals. A narrow no-model native-table arm now proposes complete parser-backed rows with exact cell spans and locator receipts; it does not operate on PDF/image tables. All discovered schemas remain in review. | Preserve abstention and improve linked-row semantics and visual evidence. Do not call a text match semantic validation. |
 | [TableFormAgent](../../idpo/agents/preprocess.py) detects text lines containing pipes or tabs; the auto path does not consume structured cells. | A table parser and row linker need their own measured slice. Flat keys cannot represent line items reliably. |
-| [Frontend auto runs](../../frontend/src/server/product-auto.ts) use a local child process or a private Compose worker and store run/review JSON on the shared host volume. Review can correct or remove proposed fields, add source-backed missed scalar fields, and inspect or correct linked cells on one document. A separate [owner-scoped recipe registry](../../frontend/src/server/product-auto-recipes.ts) can approve reviewed schemas in shadow mode, but extraction does not yet match or use them. PostgreSQL and Redis exist in Compose but are not this job path's durable queue or metadata store. | Measure recipe matching and row relation adjudication before claiming reusable extraction; move execution state into durable metadata/queue when the pilot advances. |
+| [Frontend auto runs](../../frontend/src/server/product-auto.ts) use a local child process or a private Compose worker and store run/review JSON on the shared host volume. Review can correct or remove proposed fields, add source-backed missed scalar fields, and inspect or correct linked cells on one document. The [owner-scoped recipe registry](../../frontend/src/server/product-auto-recipes.ts) approves reviewed schemas in shadow mode and now supports [explicit selection](ADR-0002-product-auto-recipe-foundation.md) of a current revision for a model-backed run. A hash-bound snapshot fixes the schema and skips schema induction; values remain in review. Automatic recipe matching and release are absent. PostgreSQL and Redis exist in Compose but are not this job path's durable queue or metadata store. | Measure selected-recipe extraction and row relation adjudication before claiming a gain from reuse; move execution state into durable metadata/queue when the pilot advances. |
 
 The [2,000-document VRDU no-model development baseline](../evaluations/VRDU_2000_NO_MODEL_V1.md) reported 4.33%
 strict schema F1 and 0.95% strict value F1 across two families; all 2,500 ad-buy linked-row field records were
@@ -67,6 +67,12 @@ motivate the row/schema gates; they do not predict performance on arbitrary docu
 `processed` status also predates the current review-only behavior in `process-auto` and must not be interpreted as
 approved, correct output. The [v4 run](../evaluations/VRDU_2000_NO_MODEL_V4.md) found zero proposed linked cells
 against 30,133 gold cells; it also lacked the OCR executable, so it is not a valid bounded-OCR comparison.
+The [v10 native-row/HTML regression](../evaluations/VRDU_2000_NO_MODEL_V10_NATIVE_ROWS_HTML.md) and
+[v11 review-result receipt gate](../evaluations/VRDU_2000_NO_MODEL_V11_REVIEW_RESULT_RECEIPT.md) each completed
+2,000 distinct PDFs from the same two VRDU families. Both had 4.2423% strict schema F1, zero proposed linked rows,
+zero automatic releases, and zero model calls; v11 also verified the hashes of all 2,000 saved results. These are
+no-model PDF execution and integrity gates, not measurements of selected-recipe model quality or native-format
+field/row accuracy.
 
 ## Product contracts to introduce
 
@@ -84,8 +90,11 @@ against 30,133 gold cells; it also lacked the OCR executable, so it is not a val
    A small parser-neutral [contract module](../../idpo/product_auto/parsed_document.py) defines source units,
    native/text/box anchors and table grids with validation. The product path now writes this v2 contract for five
    native formats using bounded python-docx, openpyxl, python-pptx, lxml and standard-email adapters. Its synthetic
-   fixture check covers 45 exact, independently resolvable cells; real-document extraction quality and the separate
-   2,000-source post-change gate remain unmeasured. PDF and image parsing still use the existing v1 result path.
+   fixture check covers 45 exact, independently resolvable cells. The
+   [ten-file real native development diagnostic](../evaluations/NATIVE_REAL_PRODUCT_NO_MODEL_V1_20261012.md)
+   proposed zero linked rows and had no gold labels for quality scoring. The completed v10/v11 2,000-source gates
+   above used PDFs, so real native-format extraction quality remains unmeasured. PDF and image parsing still use
+   the existing v1 result path.
 2. **SchemaProposal and approved Recipe:** document-family hypothesis, typed fields, grouping, cardinality, nested or
    repeated-record shape, table-column mapping, label evidence, and version. Auto mode proposes a schema and values in
    one job. Reviewers can add, remove, rename, type, and group fields before approving a reusable recipe. A one-off
@@ -115,8 +124,9 @@ against 30,133 gold cells; it also lacked the OCR executable, so it is not a val
 | Bytes and tenants | Keep content-addressed originals/derived artifacts behind a storage interface; single-host files first, object storage when workers span hosts. Every metadata row, object reference, cache key, retrieval query and review action carries tenant/owner scope. | Authorize in the API and test indirect artifact URLs. PostgreSQL row-level security can provide defense in depth, but owners/superusers can bypass it, so role design and tests still matter ([PostgreSQL](https://www.postgresql.org/docs/current/ddl-rowsecurity.html)). Cloud egress requires explicit tenant policy, provider terms, regional processing, redaction if needed, and hard spend caps. |
 
 No retrieval memory, vector index, agent loop, or extra service is required for the first useful extractor. Approved
-recipes and examples can be retrieved by exact tenant/family filters. Add semantic retrieval or adaptive routing only
-after a no-memory/static-route ablation improves the same holdout without critical-field regressions.
+recipes enter extraction by explicit owner-scoped selection; examples are not retrieved automatically. If automatic
+matching is added, start with exact owner/family filters. Add semantic retrieval or adaptive routing only after a
+no-memory/static-route ablation improves the same holdout without critical-field regressions.
 
 ## Migration and acceptance gates
 
