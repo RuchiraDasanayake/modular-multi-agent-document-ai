@@ -44,6 +44,8 @@ def main() -> None:
     )
     pages = list(pipeline.predict(input=str(args.source), layout_shape_mode="rect",
                                   temperature=0.0, max_new_tokens=3072))
+    for page_number, result in enumerate(pages):
+        result.save_to_json(save_path=str(args.output_dir / f"premerge-page-{page_number:02d}.json"))
     rebuilt = list(pipeline.restructure_pages(pages, merge_tables=True,
                                               relevel_titles=False, concatenate_pages=False))
     if len(rebuilt) != len(pages):

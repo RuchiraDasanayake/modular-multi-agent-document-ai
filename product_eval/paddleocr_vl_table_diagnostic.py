@@ -6,6 +6,7 @@ Table-region boxes are tracked separately; they are not cell-level evidence.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -42,6 +43,7 @@ def table_strings(page_outputs: list[dict[str, Any]]) -> tuple[list[str], list[l
     cells: list[str] = []
     rows: list[list[str]] = []
     table_blocks = valid_tables = invalid_tables = valid_boxes = invalid_boxes = 0
+    merged_continuations = 0
     for expected_page, output in enumerate(page_outputs):
         page = output.get("res", output)
         if not isinstance(page, dict) or page.get("page_index") != expected_page:
@@ -61,6 +63,11 @@ def table_strings(page_outputs: list[dict[str, Any]]) -> tuple[list[str], list[l
             else:
                 valid_boxes += 1
             content = block.get("block_content")
+            if (content == "" and block.get("global_group_id") is not None
+                    and block.get("global_block_id") is not None
+                    and block.get("global_group_id") != block.get("global_block_id")):
+                merged_continuations += 1
+                continue
             if not isinstance(content, str) or "<table" not in content.lower():
                 invalid_tables += 1
                 continue
@@ -85,12 +92,36 @@ def table_strings(page_outputs: list[dict[str, Any]]) -> tuple[list[str], list[l
                 invalid_tables += 1
     return cells, rows, {"table_blocks": table_blocks, "valid_tables": valid_tables,
                          "invalid_tables": invalid_tables, "valid_region_boxes": valid_boxes,
-                         "invalid_region_boxes": invalid_boxes, "rows": len(rows),
+                         "invalid_region_boxes": invalid_boxes,
+                         "merged_continuations": merged_continuations, "rows": len(rows),
                          "nonempty_cells": len(cells)}
 
 
-def score_saved(output_dir: Path, gold_path: Path, selected: list[dict[str, Any]]) -> dict[str, Any]:
-    """Score immutable saved page JSON; all 12 gold sources remain in denominator."""
+def table_regions(page_outputs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Preserve table-region evidence separately from recognized table cells."""
+    regions = []
+    for page_number, output in enumerate(page_outputs):
+        page = output.get("res", output)
+        for block in page["parsing_res_list"]:
+            if not isinstance(block, dict) or block.get("block_label") != "table":
+                continue
+            content = block.get("block_content")
+            regions.append({
+                "page_index": page_number,
+                "block_bbox": _rectangle(block.get("block_bbox")),
+                "global_block_id": block.get("global_block_id"),
+                "global_group_id": block.get("global_group_id"),
+                "content_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest()
+                if isinstance(content, str) else None,
+            })
+    return regions
+
+
+def score_saved(output_dir: Path, gold_path: Path, selected: list[dict[str, Any]],
+                *, page_variant: str = "merged") -> dict[str, Any]:
+    """Score immutable table HTML; all 12 gold sources remain in denominator."""
+    if page_variant not in {"merged", "premerge"}:
+        raise ContractError("unknown Paddle page variant")
     if sha256_file(gold_path) != GOLD_SHA256:
         raise ContractError("frozen VRDU gold hash mismatch")
     gold = load_jsonl(gold_path, kind="gold")
@@ -107,21 +138,24 @@ def score_saved(output_dir: Path, gold_path: Path, selected: list[dict[str, Any]
         parser_status = "missing"
         cells: list[str] = []
         rows: list[list[str]] = []
+        regions: list[dict[str, Any]] = []
         stats = {"table_blocks": 0, "valid_tables": 0, "invalid_tables": 0,
                  "valid_region_boxes": 0, "invalid_region_boxes": 0,
-                 "rows": 0, "nonempty_cells": 0}
+                 "merged_continuations": 0, "rows": 0, "nonempty_cells": 0}
         if receipt.get("status") == "success":
             try:
-                saved = receipt["page_outputs"]
+                saved = receipt["page_outputs" if page_variant == "merged" else "premerge_outputs"]
                 if not isinstance(saved, list) or len(saved) != receipt["page_count"]:
                     raise ContractError("PaddleOCR-VL receipt has incomplete pages")
                 page_outputs = []
                 for page_number, item in enumerate(saved):
-                    path = folder / f"page-{page_number:02d}.json"
+                    prefix = "page" if page_variant == "merged" else "premerge-page"
+                    path = folder / f"{prefix}-{page_number:02d}.json"
                     if item.get("file") != path.name or sha256_file(path) != item.get("sha256"):
                         raise ContractError("PaddleOCR-VL page JSON differs from receipt")
                     page_outputs.append(json.loads(path.read_text(encoding="utf-8")))
                 cells, rows, stats = table_strings(page_outputs)
+                regions = table_regions(page_outputs)
                 parser_status = "valid"
             except (ContractError, OSError, ValueError, TypeError, KeyError, UnicodeError):
                 parser_status = "invalid"
@@ -129,6 +163,7 @@ def score_saved(output_dir: Path, gold_path: Path, selected: list[dict[str, Any]
         per_document.append({"doc_id": source["doc_id"], "source_sha256": source["source_sha256"],
                              "status": receipt.get("status"), "parser_status": parser_status,
                              "duration_ms": receipt.get("duration_ms"), "parser": stats,
+                             "table_regions": regions,
                              "metrics": metrics, "page_count": receipt.get("page_count"),
                              "peak_process_tree_rss_bytes": receipt.get("peak_process_tree_rss_bytes"),
                              "min_host_available_bytes": receipt.get("min_host_available_bytes"),
@@ -137,7 +172,8 @@ def score_saved(output_dir: Path, gold_path: Path, selected: list[dict[str, Any]
                  for key in per_document[0]["metrics"]}
     if aggregate["gold_rows"] != EXPECTED_GOLD_ROWS or aggregate["gold_cells"] != EXPECTED_GOLD_CELLS:
         raise ContractError("frozen ad-buy row/cell denominator changed")
-    return {"selected_documents": len(selected), "metrics": aggregate,
+    return {"selected_documents": len(selected), "page_variant": page_variant,
+            "metrics": aggregate,
             "conversion_successes": sum(item["status"] == "success" for item in per_document),
             "missing_or_invalid_outputs": sum(item["parser_status"] != "valid" for item in per_document),
             "parser_totals": {key: sum(item["parser"][key] for item in per_document)

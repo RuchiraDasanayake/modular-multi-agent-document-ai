@@ -1,0 +1,33 @@
+{
+  "model_revision": "511b09642bb324401f15f97cc23bc67e8f0a291d",
+  "layout_revision": "241f8bdfc77a7c7bee915a5057aaee58c235a8d3",
+  "vlm": [
+    {
+      "name": "PaddleOCR-VL-1.6-GGUF.gguf",
+      "size_bytes": 935769056,
+      "sha256": "f3ae46ec885050acf4b3d31944431e1fd90d50664fb09126af4a3c050ba14ee8"
+    },
+    {
+      "name": "PaddleOCR-VL-1.6-GGUF-mmproj.gguf",
+      "size_bytes": 881770560,
+      "sha256": "204d757d7610d9b3faab10d506d69e5b244e32bf765e2bab2d0167e65e0a058a"
+    }
+  ],
+  "layout": [
+    {
+      "name": "inference.pdiparams",
+      "size_bytes": 130806572,
+      "sha256": "70bd316b0582769ec968829fd1feb1a6a58b7c941b938327e551b6b12b45c137"
+    },
+    {
+      "name": "inference.json",
+      "size_bytes": 1196890,
+      "sha256": "2b68367c5b312a03de5a6e1642c597c8f95165a7e40cd59c6700cf4a5042f4fd"
+    },
+    {
+      "name": "inference.yml",
+      "size_bytes": 1482,
+      "sha256": "506fcfac13b3b546ae40d7886b44126420f392adb694e3f8bb6a6286a1f90fdc"
+    }
+  ]
+}
