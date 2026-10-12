@@ -82,6 +82,11 @@ offline certification, also block the pilot environment's network egress;
 PaddleX's own remote fallback behavior has not been exercised here. Keep the
 lock, config, weights and all raw results outside the repository.
 
+The [CPU preparation note](PPSTRUCTURE_V3_CPU_PREPARATION_20261012.md) pins the
+PaddleX template, all eleven active official model revisions and file digests,
+compatible Windows Python 3.11 wheel metadata, setup commands, and host go/no-go
+checks. Its offline builder verifies model bytes before writing the local YAML.
+
 ```powershell
 python -m product_eval.ppstructure_table_diagnostic --make-lock --config E:\path\PP-StructureV3-local.yaml --model-lock E:\path\ppstructure-model-lock.json
 python -m product_eval.ppstructure_table_diagnostic --check --cohort E:\DocAI-Benchmarks\vrdu-cohort-04a4df7\cohort.jsonl --corpus-root E:\DocAI-Benchmarks\vrdu-extracted\vrdu-04a4df7ac5cc694e51c48115c03fe428f0e240cc --gold E:\DocAI-Benchmarks\vrdu-cohort-04a4df7\gold.jsonl --output-dir E:\path\ppstructure-ad12 --config E:\path\PP-StructureV3-local.yaml --model-lock E:\path\ppstructure-model-lock.json
