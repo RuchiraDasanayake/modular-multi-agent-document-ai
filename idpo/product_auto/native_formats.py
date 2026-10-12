@@ -396,8 +396,11 @@ def _eml(path: Path, source_hash: str) -> ParsedDocument:
     payload = part.get_payload(decode=True)
     if not isinstance(payload, bytes):
         raise TypeError("invalid_text_mime_part")
+    mime_charset = part.get_content_charset()
+    if part.get_content_type() == "text/html" and mime_charset is None:
+        return _html_content(payload, source_hash, mime_path=where)
     try:
-        content = payload.decode(part.get_content_charset() or "utf-8", errors="strict")
+        content = payload.decode(mime_charset or "utf-8", errors="strict")
     except (LookupError, UnicodeError) as exc:
         raise ValueError("invalid_mime_charset") from exc
     if part.get_content_type() == "text/html":

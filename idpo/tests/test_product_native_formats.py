@@ -250,6 +250,16 @@ def test_email_html_mime_charset_controls_decoding_without_matching_meta(tmp_pat
     assert parsed.units[0].text[slice(*anchor.text_span)] == "Café"
 
 
+def test_email_html_uses_legacy_meta_when_mime_charset_absent(tmp_path: Path) -> None:
+    source = tmp_path / "meta-only-charset.eml"
+    html = '<html><head><meta charset="windows-1252"></head><body>' \
+           '<table><tr><td>Café</td></tr></table></body></html>'
+    source.write_bytes(b"MIME-Version: 1.0\r\nContent-Type: text/html\r\n"
+                       b"Content-Transfer-Encoding: 8bit\r\n\r\n" + html.encode("windows-1252"))
+    parsed = parse_native_document(source, hashlib.sha256(source.read_bytes()).hexdigest())[1]
+    assert parsed.tables[0].cells[0].text == "Café"
+
+
 @pytest.mark.parametrize("charset,payload", [("x-unknown-charset", b"ASCII"),
                                                  ("utf-8", b"Caf\xe9")])
 def test_email_invalid_declared_charset_fails_explicitly(
