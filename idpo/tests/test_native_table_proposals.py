@@ -177,10 +177,27 @@ def test_hidden_email_html_table_abstains(tmp_path: Path) -> None:
     assert not any(
         field["type"] == "array[object]" for field in candidate["proposed_schema"]
     )
-    assert (
-        sidecar["native_table_proposals"]["tables"][0]["reason"]
-        == "html_cell_untrusted"
+    assert not sidecar.get("native_table_proposals", {}).get("tables")
+
+
+def test_recovered_html5_table_rechecks_visible_cells(tmp_path: Path) -> None:
+    source = tmp_path / "modern.html"
+    source.write_text(
+        '<html><body><header>Current orders</header><table><thead><tr>'
+        '<th>Item</th><th>Qty</th><th>Amount</th></tr></thead>'
+        '<tbody hidden><tr><td>Hidden</td><td>9</td><td>9.00</td></tr></tbody>'
+        '<tbody><tr><td>A<span hidden>SECRET</span></td><td>1</td><td>2.00</td></tr>'
+        '<tr><td>B</td><td>2</td><td>3.00</td></tr></tbody></table></body></html>',
+        encoding="utf-8",
     )
+    candidate, sidecar = _candidate(source, tmp_path)
+    linked = [field for field in candidate["proposed_schema"] if field["type"] == "array[object]"]
+    assert {field["field_id"] for field in linked} == {"item", "qty", "amount"}
+    assert [cell["value"] for cell in next(
+        value for value in candidate["extracted_values"] if value["field_id"] == "item"
+    )["value"]] == ["A", "B"]
+    assert sidecar["native_table_proposals"]["tables"][0]["status"] == "proposed"
+    assert "SECRET" not in sidecar["pages"][0]["text"]
 
 
 def test_declared_windows_1252_email_uses_mime_charset_for_source_recheck(

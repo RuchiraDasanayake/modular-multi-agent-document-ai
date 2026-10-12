@@ -21,6 +21,7 @@ from idpo.product_auto.logic import (
     infer_type,
     normalize_field_id,
 )
+from idpo.product_auto.native_formats import _html_visible_cell_text
 from idpo.product_auto.parsed_document import ParsedDocument, TableCell
 
 MAX_SOURCE_BYTES = 20 * 1024 * 1024
@@ -64,7 +65,7 @@ def _html_root(source: bytes, *, encoding: str | None = None):
         parser=etree.HTMLParser(
             encoding=encoding,
             no_network=True,
-            recover=False,
+            recover=True,
             huge_tree=False,
         ),
     )
@@ -147,11 +148,7 @@ def _validate_html(cells: list[TableCell], tree, mime_path: list[int] | None) ->
         if len(matches) != 1 or matches[0].tag not in {"th", "td"}:
             raise _Abstain("html_locator_ambiguous")
         element = matches[0]
-        source_text = "".join(
-            element.xpath(
-                ".//text()[not(ancestor::script or ancestor::style or ancestor::template)]"
-            )
-        ).strip()
+        source_text = _html_visible_cell_text(element)
         if source_text != cell.text or _hidden_html(element):
             raise _Abstain("html_cell_untrusted")
         ancestors = element.xpath("ancestor::table[1]")
@@ -163,14 +160,17 @@ def _validate_html(cells: list[TableCell], tree, mime_path: list[int] | None) ->
         elif table_path != current_path:
             raise _Abstain("html_table_mixed")
         parent = element.getparent()
-        source_rows = ancestors[0].xpath("./tr | ./thead/tr | ./tbody/tr | ./tfoot/tr")
+        source_rows = [
+            row for row in ancestors[0].xpath("./tr | ./thead/tr | ./tbody/tr | ./tfoot/tr")
+            if not _hidden_html(row)
+        ]
         if (
             parent is None
             or cell.row >= len(source_rows)
             or tree.getpath(source_rows[cell.row]) != tree.getpath(parent)
         ):
             raise _Abstain("html_grid_row_mismatch")
-        source_cells = parent.xpath("./th | ./td")
+        source_cells = [item for item in parent.xpath("./th | ./td") if not _hidden_html(item)]
         if cell.column >= len(source_cells) or tree.getpath(
             source_cells[cell.column]
         ) != tree.getpath(element):
