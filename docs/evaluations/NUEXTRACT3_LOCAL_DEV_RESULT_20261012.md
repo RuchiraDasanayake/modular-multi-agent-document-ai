@@ -59,6 +59,18 @@ The Graph comparison is directional: Graph received completed OCR text,
 whereas NuExtract3 received images plus that OCR, and their model and prompts
 differed. Both failed the linked-field gate.
 
+**Post-hoc structural check, outside the primary score:** both ad-buy
+templates contained a grouped `line_items` repeated object, and both receipt
+templates contained a grouped `items` or nested `receipt.line_items` object.
+The projection preserved those repeated-object paths. The frozen ontology
+mapped only `channel` in one ad-buy group and `item_name` in each receipt
+group to gold linked IDs. For example, the receipt template's generic
+`quantity` and `unit_price` are not predeclared aliases of the reference
+`item_quantity` and `item_price`. The **0/26** pair score therefore reflects
+insufficient predeclared field-ID alignment, not failure to detect a nested
+repeated object. These inspected names were not used to add aliases or
+recompute the locked score; semantic equivalence would need adjudication.
+
 ## Reference-schema value upper bound
 
 After blind discovery ended, the model received each document's reference
