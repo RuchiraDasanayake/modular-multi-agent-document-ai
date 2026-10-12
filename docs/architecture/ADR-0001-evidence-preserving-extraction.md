@@ -34,8 +34,9 @@ does not replace the current PDF parser: its frozen table run recovered only
 PDFium-first rendering and bounded Tesseract as the measured product baseline. The smaller
 [MinerU Basic challenge](../evaluations/MINERU_4_BASIC_ADBUY12_RESULT_20261012.md) reached only 6/219 exact rows;
 the full PP-StructureV3 profile fails this host's current RAM guard. A stronger
-[PaddleOCR-VL 1.6 full-pipeline challenge](../evaluations/PADDLEOCR_VL_1_6_FULL_PIPELINE_FEASIBILITY_20261012.md)
-remains unmeasured. No parser has passed the linked-row promotion gate.
+The completed [PaddleOCR-VL 1.6 full-pipeline challenge](../evaluations/PADDLEOCR_VL16_ADBUY12_RESULT_20261012.md)
+reached 14/219 on that parser-row metric and 0/219 strict exact rows, with no cell-level boxes. No parser has passed
+the linked-row promotion gate.
 
 The pinned [NuExtract3 local development run](../evaluations/NUEXTRACT3_LOCAL_DEV_RESULT_20261012.md) fit this
 8 GB GPU, but blind schema discovery matched zero of 26 linked field pairs under the frozen mapping. Its separate
@@ -100,7 +101,7 @@ against 30,133 gold cells; it also lacked the OCR executable, so it is not a val
 
 | Boundary | Lean choice | Reason / alternative gate |
 | --- | --- | --- |
-| Parse/OCR | Current native PDF/PDFium/Tesseract baseline; Docling for mixed-format conversion tests; stronger layout/table parser only after a paired win | Docling colocated the exact gold cells of 3/219 rows and MinerU Basic of 6/219 rows, allowing extra parser cells; neither maps business field IDs or justifies automatic row acceptance. [PaddleOCR-VL 1.6](../evaluations/PADDLEOCR_VL_1_6_FULL_PIPELINE_FEASIBILITY_20261012.md) is a feasible but untested full-pipeline candidate. Benchmark native PDF, scan, multi-page, and table cases separately; pin code and model weights and inspect licenses. Code licenses do not settle model-weight or dataset rights. |
+| Parse/OCR | Current native PDF/PDFium/Tesseract baseline; Docling for mixed-format conversion tests; stronger layout/table parser only after a paired win | Docling colocated the exact gold cells of 3/219 rows, MinerU Basic 6/219 and [PaddleOCR-VL 1.6](../evaluations/PADDLEOCR_VL16_ADBUY12_RESULT_20261012.md) 14/219, allowing extra parser cells. Paddle supplied no cell-level boxes, and none maps business field IDs or justifies automatic row acceptance. Benchmark native PDF, scan, multi-page, and table cases separately; pin code and model weights and inspect licenses. Code licenses do not settle model-weight or dataset rights. |
 | Schema/value model | Provider-neutral interface over local CPU, local GPU, and approved cloud API; fixed two-step schema then values | Compare each under identical parsing, prompt budgets, and held-out documents. Strict JSON/schema validation and source evidence are required but cannot prove field meaning. Keep bounded fallback only if it lowers total reviewed cost. |
 | Queue and metadata | For release beyond one host, PostgreSQL for jobs, owners, recipe/review revisions, and an outbox; Redis-backed Celery workers for bounded parse and inference tasks | Compose already includes PostgreSQL/Redis. Celery documents that late-ack tasks may execute more than once, so worker outputs need idempotent keys and atomic publish ([tasks](https://docs.celeryq.dev/en/stable/userguide/tasks.html)). Do not add Temporal until human waits/replay cannot be managed with this smaller design. |
 | Bytes and tenants | Keep content-addressed originals/derived artifacts behind a storage interface; single-host files first, object storage when workers span hosts. Every metadata row, object reference, cache key, retrieval query and review action carries tenant/owner scope. | Authorize in the API and test indirect artifact URLs. PostgreSQL row-level security can provide defense in depth, but owners/superusers can bypass it, so role design and tests still matter ([PostgreSQL](https://www.postgresql.org/docs/current/ddl-rowsecurity.html)). Cloud egress requires explicit tenant policy, provider terms, regional processing, redaction if needed, and hard spend caps. |
@@ -118,8 +119,8 @@ after a no-memory/static-route ablation improves the same holdout without critic
 2. **Parser contract spike:** adapt the current parser and any measured candidate into ParsedDocument v2 without
    changing the extractor. Use Docling first for mixed-file intake, not automatic linked-row release. Inspect overlays
    for page/rotation/coordinate correctness and compare text, cells, rows, headers and table spans against adjudicated
-   gold. Challenge the full PaddleOCR-VL layout/table pipeline on the frozen hard-table slice if it passes resource
-   guards; defer full PP-StructureV3 until a host can safely run it. Reject an adapter that improves text but degrades
+   gold. The full PaddleOCR-VL layout/table pipeline completed the frozen hard-table slice but failed the row/evidence
+   promotion gate; defer full PP-StructureV3 until a host can safely run it. Reject an adapter that improves text but degrades
    evidence or linked rows beyond predeclared margins.
 3. **Schema and row slice:** add nested/repeated schema proposals and one line-item family through the fixed route.
    Score schema induction separately from extraction against a gold schema, then score end-to-end auto mode on unseen
