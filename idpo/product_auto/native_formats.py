@@ -20,7 +20,13 @@ from importlib import metadata
 from pathlib import Path
 
 from idpo.core.types import Document, Page
-from idpo.product_auto.parsed_document import ParsedDocument, SourceAnchor, SourceUnit, Table, TableCell
+from idpo.product_auto.parsed_document import (
+    ParsedDocument,
+    SourceAnchor,
+    SourceUnit,
+    Table,
+    TableCell,
+)
 
 NATIVE_EXTENSIONS = {".docx", ".xlsx", ".pptx", ".html", ".eml"}
 MAX_ARCHIVE_ENTRIES = 1024
@@ -282,12 +288,13 @@ def _pptx(path: Path, source_hash: str) -> ParsedDocument:
                           tuple(units), tuple(tables))
 
 
-def _html_content(source: bytes, source_hash: str, *, mime_path: list[int] | None = None) -> ParsedDocument:
+def _html_content(source: bytes, source_hash: str, *, mime_path: list[int] | None = None,
+                  parser_encoding: str | None = None) -> ParsedDocument:
     from lxml import etree
 
     if len(source) > MAX_HTML_BYTES:
         raise NativeLimitError("html_size_limit")
-    parser = etree.HTMLParser(no_network=True, recover=False, huge_tree=False)
+    parser = etree.HTMLParser(encoding=parser_encoding, no_network=True, recover=False, huge_tree=False)
     root = etree.fromstring(source, parser=parser)
     if root is None:
         raise ValueError("empty_html_document")
@@ -386,14 +393,16 @@ def _eml(path: Path, source_hash: str) -> ParsedDocument:
     if selected is None:
         raise ValueError("no_text_mime_part")
     where, part = selected
+    payload = part.get_payload(decode=True)
+    if not isinstance(payload, bytes):
+        raise TypeError("invalid_text_mime_part")
+    try:
+        content = payload.decode(part.get_content_charset() or "utf-8", errors="strict")
+    except (LookupError, UnicodeError) as exc:
+        raise ValueError("invalid_mime_charset") from exc
     if part.get_content_type() == "text/html":
-        content_bytes = part.get_payload(decode=True)
-        if not isinstance(content_bytes, bytes):
-            raise ValueError("invalid_text_mime_part")
-        return _html_content(content_bytes, source_hash, mime_path=where)
-    content = part.get_content()
-    if not isinstance(content, str):
-        raise ValueError("invalid_text_mime_part")
+        return _html_content(content.encode("utf-8"), source_hash, mime_path=where,
+                             parser_encoding="utf-8")
     if len(content.encode("utf-8")) > MAX_HTML_BYTES or len(content) > MAX_TEXT_CHARS:
         raise NativeLimitError("mime_body_size_limit")
     return ParsedDocument(source_hash, "eml", "python-email", sys.version.split()[0],

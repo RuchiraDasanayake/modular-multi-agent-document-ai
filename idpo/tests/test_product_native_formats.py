@@ -235,6 +235,33 @@ def test_email_html_preserves_declared_legacy_charset(tmp_path: Path) -> None:
     assert parsed.tables[0].cells[0].text == "Café"
 
 
+@pytest.mark.parametrize("meta", ["", '<meta charset="utf-8">'])
+def test_email_html_mime_charset_controls_decoding_without_matching_meta(tmp_path: Path, meta: str) -> None:
+    message = EmailMessage()
+    message.set_content(f"<html><head>{meta}</head><body><table><tr><td>Café</td></tr></table></body></html>",
+                        subtype="html", charset="windows-1252")
+    source = tmp_path / "mime-charset.eml"
+    source.write_bytes(message.as_bytes())
+    parsed = parse_native_document(source, hashlib.sha256(source.read_bytes()).hexdigest())[1]
+    cell = parsed.tables[0].cells[0]
+    assert cell.text == "Café"
+    anchor = cell.anchors[0]
+    assert anchor.text_span is not None
+    assert parsed.units[0].text[slice(*anchor.text_span)] == "Café"
+
+
+@pytest.mark.parametrize("charset,payload", [("x-unknown-charset", b"ASCII"),
+                                                 ("utf-8", b"Caf\xe9")])
+def test_email_invalid_declared_charset_fails_explicitly(
+    tmp_path: Path, charset: str, payload: bytes,
+) -> None:
+    source = tmp_path / "bad-charset.eml"
+    source.write_bytes(b"MIME-Version: 1.0\r\nContent-Type: text/plain; charset=" + charset.encode("ascii") +
+                       b"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n" + payload)
+    with pytest.raises(ValueError, match="invalid_mime_charset"):
+        parse_native_document(source, hashlib.sha256(source.read_bytes()).hexdigest())
+
+
 def test_docx_merged_cell_has_one_resolvable_spanning_anchor(tmp_path: Path) -> None:
     from docx import Document as WordDocument
 
