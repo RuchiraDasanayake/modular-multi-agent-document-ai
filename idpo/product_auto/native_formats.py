@@ -94,6 +94,7 @@ def _preflight_archive(path: Path, required_member: str) -> None:
             if "[Content_Types].xml" not in names or required_member not in names:
                 raise ValueError("invalid_ooxml_package")
             total = 0
+            spreadsheet_cells = 0
             for item in entries:
                 parts = item.filename.replace("\\", "/").split("/")
                 if item.filename.startswith(("/", "\\")) or ":" in parts[0] or any(
@@ -119,16 +120,15 @@ def _preflight_archive(path: Path, required_member: str) -> None:
                 # Reading every member verifies CRC and catches truncated compressed data.
                 with archive.open(item) as member:
                     previous = b""
-                    cell_count = 0
                     while chunk := member.read(1024 * 1024):
                         if is_xml:
                             scan = previous + chunk
                             if b"<!DOCTYPE" in scan.upper() or b"<!ENTITY" in scan.upper():
                                 raise ValueError("ooxml_dtd_forbidden")
                             if member_name.startswith("xl/worksheets/"):
-                                cell_count += sum(match.end() > len(previous) for match in
-                                                  re.finditer(rb"<(?:[A-Za-z0-9_]+:)?c(?:\s|>)", scan))
-                                if cell_count > MAX_TABLE_CELLS:
+                                spreadsheet_cells += sum(match.end() > len(previous) for match in
+                                                         re.finditer(rb"<(?:[A-Za-z0-9_]+:)?c(?:\s|/|>)", scan))
+                                if spreadsheet_cells > MAX_TABLE_CELLS:
                                     raise NativeLimitError("native_cell_limit")
                             previous = chunk[-16:]
     except (zipfile.BadZipFile, RuntimeError, EOFError) as exc:
@@ -142,6 +142,7 @@ def _docx(path: Path, source_hash: str) -> ParsedDocument:
     source = WordDocument(path)
     output = _Text()
     tables: list[Table] = []
+    total_cells = 0
     unit_id = "document-1"
     for block_index, block in enumerate(source.iter_inner_content()):
         if isinstance(block, WordTable):
@@ -169,6 +170,9 @@ def _docx(path: Path, source_hash: str) -> ParsedDocument:
                              table_index=table_index, row=first_row, column=first_col),
                     row_span, col_span))
             rows = [sorted(row_items[index], key=lambda item: item[1]) for index in sorted(row_items)]
+            total_cells += sum(len(row) for row in rows)
+            if total_cells > MAX_TABLE_CELLS:
+                raise NativeLimitError("native_cell_limit")
             tables.append(_emit_table(output, unit_id, f"table-{table_index + 1}", rows))
         else:
             if output.length:
@@ -185,6 +189,8 @@ def _xlsx(path: Path, source_hash: str) -> ParsedDocument:
     workbook = load_workbook(path, read_only=False, data_only=False, keep_links=False, keep_vba=False)
     units: list[SourceUnit] = []
     tables: list[Table] = []
+    total_cells = 0
+    total_text = 0
     try:
         for sheet_index, sheet in enumerate(workbook.worksheets):
             if sheet_index >= 50:
@@ -203,6 +209,9 @@ def _xlsx(path: Path, source_hash: str) -> ParsedDocument:
                                       if r0 <= cell.row <= r1 and c0 <= cell.column <= c1), None)
                     if cell.value is None and belonging is None:
                         continue
+                    total_cells += 1
+                    if total_cells > MAX_TABLE_CELLS:
+                        raise NativeLimitError("native_cell_limit")
                     value = "" if cell.value is None else str(cell.value)
                     items.append((cell.row - 1, cell.column - 1, value,
                         _locator(kind="xlsx_cell", sheet=sheet.title, table=belonging,
@@ -211,6 +220,9 @@ def _xlsx(path: Path, source_hash: str) -> ParsedDocument:
                     rows.append(items)
             unit_id = f"sheet-{sheet_index + 1}"
             tables.append(_emit_table(output, unit_id, f"sheet-grid-{sheet_index + 1}", rows))
+            total_text += output.length
+            if total_text > MAX_TEXT_CHARS:
+                raise NativeLimitError("native_text_limit")
             units.append(SourceUnit(unit_id, "sheet", sheet_index, output.text(), label=sheet.title))
     finally:
         workbook.close()
@@ -227,6 +239,8 @@ def _pptx(path: Path, source_hash: str) -> ParsedDocument:
     presentation = Presentation(path)
     units: list[SourceUnit] = []
     tables: list[Table] = []
+    total_cells = 0
+    total_text = 0
     if len(presentation.slides) > 50:
         raise NativeLimitError("native_unit_limit")
     for slide_index, slide in enumerate(presentation.slides, start=1):
@@ -244,6 +258,9 @@ def _pptx(path: Path, source_hash: str) -> ParsedDocument:
                         cell = grid.cell(row_index, column_index)
                         if cell.is_spanned:
                             continue
+                        total_cells += 1
+                        if total_cells > MAX_TABLE_CELLS:
+                            raise NativeLimitError("native_cell_limit")
                         items.append((row_index, column_index, cell.text,
                             _locator(kind="pptx_table_cell", slide=slide_index,
                                      shape_id=shape.shape_id, row=row_index, column=column_index),
@@ -255,6 +272,9 @@ def _pptx(path: Path, source_hash: str) -> ParsedDocument:
                 if output.length:
                     output.add("\n")
                 output.add(shape.text)
+        total_text += output.length
+        if total_text > MAX_TEXT_CHARS:
+            raise NativeLimitError("native_text_limit")
         units.append(SourceUnit(unit_id, "slide", slide_index - 1, output.text(), label=f"Slide {slide_index}"))
     if not units:
         units.append(SourceUnit("slide-1", "slide", 0, "", label="Empty presentation"))
@@ -280,10 +300,12 @@ def _html_content(source: bytes, source_hash: str, *, mime_path: list[int] | Non
         body = root
     output = _Text()
     tables: list[Table] = []
+    total_cells = 0
     unit_id = "mime-1" if mime_path is not None else "html-1"
     tree = root.getroottree()
 
     def walk(element) -> None:
+        nonlocal total_cells
         tag = str(element.tag).lower()
         if tag in {"script", "style", "noscript", "template"}:
             return
@@ -304,6 +326,9 @@ def _html_content(source: bytes, source_hash: str, *, mime_path: list[int] | Non
                     if not 1 <= row_span <= 128 or not 1 <= column_span <= 128:
                         raise NativeLimitError("html_table_span_limit")
                     if len(occupied) + row_span * column_span > MAX_TABLE_CELLS:
+                        raise NativeLimitError("native_cell_limit")
+                    total_cells += 1
+                    if total_cells > MAX_TABLE_CELLS:
                         raise NativeLimitError("native_cell_limit")
                     for covered_row in range(row_index, row_index + row_span):
                         for covered_column in range(column_index, column_index + column_span):

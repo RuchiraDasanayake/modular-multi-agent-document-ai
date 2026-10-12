@@ -159,6 +159,24 @@ def test_sparse_sheet_is_bounded_and_formulas_are_not_evaluated(tmp_path: Path) 
         parse_native_document(sparse, hashlib.sha256(sparse.read_bytes()).hexdigest())
 
 
+def test_workbook_budgets_accumulate_across_sheets(tmp_path: Path, monkeypatch) -> None:
+    from idpo.product_auto import native_formats
+
+    source = tmp_path / "two_sheets.xlsx"
+    book = Workbook()
+    book.active["A1"] = "A"
+    book.create_sheet()["A1"] = "B"
+    book.save(source)
+    source_hash = hashlib.sha256(source.read_bytes()).hexdigest()
+    monkeypatch.setattr(native_formats, "MAX_TABLE_CELLS", 1)
+    with pytest.raises(NativeLimitError, match="native_cell_limit"):
+        parse_native_document(source, source_hash)
+    monkeypatch.setattr(native_formats, "MAX_TABLE_CELLS", 10_000)
+    monkeypatch.setattr(native_formats, "MAX_TEXT_CHARS", 1)
+    with pytest.raises(NativeLimitError, match="native_text_limit"):
+        parse_native_document(source, source_hash)
+
+
 def test_html_uses_local_text_only_and_rejects_excessive_structure(tmp_path: Path) -> None:
     source = tmp_path / "source.html"
     source.write_text('<html><body><img src="https://example.invalid/remote.png"><script>SECRET</script>'
