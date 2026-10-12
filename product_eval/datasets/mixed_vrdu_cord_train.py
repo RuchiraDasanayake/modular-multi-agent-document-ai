@@ -13,23 +13,27 @@ import json
 import shutil
 import tempfile
 from collections import Counter
+from collections.abc import Iterator
 from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from PIL import Image
 
 from product_eval.contracts import load_jsonl
 from product_eval.datasets.cord_test import (
     DATASET_REVISION,
-    PARQUET_SHA256 as CORD_TEST_PARQUET_SHA256,
+    SCALAR_FIELDS,
     _annotation,
     _doc_id,
     _gold_record,
     _sha256_bytes,
     _sha256_file,
     _write_jsonl,
+)
+from product_eval.datasets.cord_test import (
+    PARQUET_SHA256 as CORD_TEST_PARQUET_SHA256,
 )
 from product_eval.datasets.vrdu import DATASET_COMMIT as VRDU_COMMIT
 
@@ -279,14 +283,48 @@ def _assign_shards(rows: list[dict[str, Any]], shard_count: int) -> dict[str, st
     return assigned
 
 
+def _train_gold_record(doc_id: str, annotation: dict[str, Any]) -> tuple[dict[str, Any], Counter[str]]:
+    """Project repeated summary sections only where their scalar is unambiguous."""
+    parsed = annotation["gt_parse"]
+    normalized = dict(parsed)
+    exclusions: Counter[str] = Counter()
+    for section_name in sorted({section for section, _ in SCALAR_FIELDS.values()}):
+        section = parsed.get(section_name)
+        if not isinstance(section, list):
+            continue
+        if any(not isinstance(item, dict) for item in section):
+            raise MixedGateError(f"CORD train {section_name} list contains a non-object")
+        exclusions["repeated_summary_sections"] += 1
+        unique_values: dict[str, Any] = {}
+        for owner, source_name in SCALAR_FIELDS.values():
+            if owner != section_name:
+                continue
+            present = [
+                raw for item in section
+                if (raw := item.get(source_name)) is not None
+                and (not isinstance(raw, str) or raw.strip())
+            ]
+            if len(present) == 1:
+                unique_values[source_name] = present[0]
+            elif len(present) > 1:
+                exclusions["ambiguous_repeated_summary_fields_excluded"] += 1
+                exclusions["ambiguous_repeated_summary_values_excluded"] += len(present)
+        normalized[section_name] = unique_values
+    projected = dict(annotation)
+    projected["gt_parse"] = normalized
+    record, stats = _gold_record(doc_id, projected)
+    stats.update(exclusions)
+    return record, stats
+
+
 def _train_gold(paths: list[Path], selected: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], Counter[str]]:
     by_index = {row["source_index"]: row for row in selected}
     gold: list[dict[str, Any]] = []
     counts: Counter[str] = Counter()
     for index, payload in _iter_parquet_column(paths, "ground_truth"):
-        annotation = _annotation(payload, index, expected_split="train")
         if index in by_index:
-            record, stats = _gold_record(by_index[index]["doc_id"], annotation)
+            annotation = _annotation(payload, index, expected_split="train")
+            record, stats = _train_gold_record(by_index[index]["doc_id"], annotation)
             gold.append(record)
             counts.update(stats)
     if len(gold) != len(selected):

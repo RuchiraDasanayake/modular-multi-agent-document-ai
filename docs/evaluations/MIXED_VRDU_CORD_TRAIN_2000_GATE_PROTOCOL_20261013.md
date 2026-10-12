@@ -44,6 +44,11 @@ CORD train gold reuses the [positive-only mapping](../../product_eval/datasets/c
 raw-string totals, cash, change, subtotal and tax when present, plus ordered
 `menu.nm`, `cnt`, and `price` cells with shared zero-based row ordinals. Missing,
 non-scalar, and other CORD classes are **unscored**, not negative labels.
+One pinned train annotation contains a two-object `sub_total` list. The train
+adapter preserves a scalar from a repeated summary section only when that
+source key has exactly one nonempty occurrence; it excludes and counts repeated
+ambiguous values. Thus its unique tax stays in positive gold while its two
+different subtotal values are unscored. The test-split adapter is unchanged.
 Image/word boxes are not product OCR text spans. VRDU gold keeps its original
 published field IDs and derived linked rows. No labels influence source choice.
 

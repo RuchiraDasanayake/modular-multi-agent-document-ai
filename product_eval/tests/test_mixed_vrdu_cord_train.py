@@ -24,6 +24,31 @@ def test_pinned_train_manifest_has_four_full_sha256_hashes() -> None:
                and pin.size > 0 and pin.name.startswith("train-") for pin in mixed.TRAIN_FILES)
 
 
+def test_train_repeated_subtotal_omits_ambiguous_scalar_but_keeps_unique_tax() -> None:
+    annotation = {"gt_parse": {
+        "sub_total": [
+            {"subtotal_price": "12.00", "tax_price": "1.00"},
+            {"subtotal_price": "15.00"},
+        ],
+        "total": {"total_price": "16.00"},
+        "menu": [{"nm": "Tea", "price": "16.00"}],
+    }}
+    record, counts = mixed._train_gold_record("train-list-shape", annotation)
+    values = {item["field_id"]: item["value"] for item in record["gold_values"]}
+    assert values["tax_amount"] == "1.00"
+    assert values["total_amount"] == "16.00"
+    assert "subtotal_amount" not in values
+    assert counts["repeated_summary_sections"] == 1
+    assert counts["ambiguous_repeated_summary_fields_excluded"] == 1
+    assert counts["ambiguous_repeated_summary_values_excluded"] == 2
+    assert annotation["gt_parse"]["sub_total"][0]["subtotal_price"] == "12.00"
+
+
+def test_train_repeated_summary_rejects_non_object_item() -> None:
+    with pytest.raises(mixed.MixedGateError, match="non-object"):
+        mixed._train_gold_record("bad-list-shape", {"gt_parse": {"sub_total": [{}, "bad"]}})
+
+
 def _png(color: str) -> bytes:
     buffer = io.BytesIO()
     Image.new("RGB", (8, 8), color).save(buffer, format="PNG")
