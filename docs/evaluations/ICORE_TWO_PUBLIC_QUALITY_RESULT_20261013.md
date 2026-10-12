@@ -1,0 +1,18 @@
+# ICORE Luna 6: two-public-PDF product diagnostic
+
+**Completed 13 October 2026.** The frozen [protocol](ICORE_TWO_PUBLIC_QUALITY_PROTOCOL_20261013.md) processed both original public VRDU PDFs through the unchanged product path. It made **three** authenticated `innobot-luna-6` chat requests (two for the registration form, one for the ad-buy form), all with `finish_reason=stop`, zero SDK retries, and **10,538 provider-reported tokens** (6,846 prompt, 3,692 completion). The fourth permitted request was not needed because the ad-buy schema reply failed local validation. Both documents ended `needs_review`; neither was automatically released. ICORE's settled charge, rate card, hard spend cap, and API data terms remain unverified, so **USD cost is unknown**.
+
+| Frozen exact scorer | Registration (1 PDF) | Ad-buy (1 PDF) | Total interpretation |
+| --- | ---: | ---: | --- |
+| Gold schema fields | 6 | 14 | 20 |
+| Correct schema fields | 0 | 0 | **0/20** |
+| Spurious schema fields | 24 | 0 | 24 |
+| Correct accepted values | 0 | 0 | **0** |
+| False accepted field values | 11 | 0 | 11, but the document remained in review |
+| Gold / proposed complete linked rows | 0 / 1 | 22 / 0 | 1 spurious proposal; **0/22** gold rows proposed |
+
+The registration result had **11/11 exact source-quoted scalar proposals** and one source-quoted linked cell, yet none matched a gold field ID or row relation under the frozen scorer. Its candidate schema contains 24 fields and the document remains in review for `unapproved_dynamic_schema`. This shows why a text quote cannot certify field meaning. The ad-buy route made one schema call and stopped with `invalid_schema_model_response`; it proposed no fields or values. All successful responses reported a normal stop, so the precise structural reason for the invalid schema cannot be determined from the sanitized receipt. The runner saved response hashes and token usage, **not reply bodies**. Fresh ad-buy OCR text also differed from its earlier sidecar hash; this is a diagnostic observation, not evidence of a model defect.
+
+**Decision:** this tiny development test does not justify Luna 6 as an automatic-schema default or any automatic release. It also does not estimate performance on arbitrary documents. The failure is in field meaning/response validity as measured, not network transport. A next model or prompt challenge needs a new frozen, source-disjoint protocol, an exact-output contract, and a review-adjusted cost comparison. Do not rerun these two documents as a fresh quality estimate or silently increase the call cap. No product code changed in this arm, so it does not trigger a new 2,000-source gate.
+
+The source lock is `cfda5a748f8f5b914a9fd63558ae89f5645bd03d5490a97a023c32a8d7129556`; source hashes are `012038abfa3e045b23584aacd91dff687425c1b0933b3558fd51d34f44f1233b` and `022c46dc12f992dd7b632b2c3821f5158979934e7354e01dc4ecaf5c7a39d62c`. Full external receipts remain at `E:\DocAI-Benchmarks\icore-two-public-v1-20261013`. `summary.json` SHA-256 is `e1787123469ffaf950fb10095c0fda0bdca73cdb64f4aaf015a6f351ed85f842`; the append-only `calls.jsonl` SHA-256 is `e46f3cd90798dd5767e460f5cd2d07e64e35e090c7453376574f85975aa69c00`. Neither credential nor raw source/reply was committed.
