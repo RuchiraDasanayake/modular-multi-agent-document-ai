@@ -35,7 +35,7 @@ MAX_ARCHIVE_XML_BYTES = 8 * 1024 * 1024
 MAX_ARCHIVE_MEMBER_BYTES = 32 * 1024 * 1024
 MAX_HTML_BYTES = 2 * 1024 * 1024
 MAX_TEXT_CHARS = 250_000
-MAX_TABLE_CELLS = 10_000
+MAX_TABLE_CELLS = 20_000
 MAX_HTML_ELEMENTS = 20_000
 MAX_MIME_PARTS = 64
 MAX_MIME_DEPTH = 10
@@ -288,13 +288,49 @@ def _pptx(path: Path, source_hash: str) -> ParsedDocument:
                           tuple(units), tuple(tables))
 
 
+_HTML_BLOCK_TAGS = {
+    "address", "article", "aside", "blockquote", "dd", "div", "dl", "dt", "footer",
+    "h1", "h2", "h3", "h4", "h5", "h6", "header", "hr", "li", "main", "nav",
+    "ol", "p", "pre", "section", "ul",
+}
+_HIDDEN_STYLE = re.compile(
+    r"(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*hidden)\s*(?:!important)?\s*(?:;|$)",
+    re.IGNORECASE,
+)
+
+
+def _html_hidden(element) -> bool:
+    if not isinstance(element.tag, str):
+        return True
+    tag = str(element.tag).lower()
+    return (tag in {"script", "style", "noscript", "template", "svg", "canvas"}
+            or element.get("hidden") is not None
+            or (element.get("aria-hidden") or "").lower() == "true"
+            or (tag == "input" and (element.get("type") or "").lower() == "hidden")
+            or bool(_HIDDEN_STYLE.search(element.get("style") or "")))
+
+
+def _html_visible_cell_text(element) -> str:
+    def fragments(node):
+        if _html_hidden(node):
+            return
+        if node.text:
+            yield node.text
+        for child in node:
+            yield from fragments(child)
+            if child.tail:
+                yield child.tail
+
+    return "".join(fragments(element)).strip()
+
+
 def _html_content(source: bytes, source_hash: str, *, mime_path: list[int] | None = None,
                   parser_encoding: str | None = None) -> ParsedDocument:
     from lxml import etree
 
     if len(source) > MAX_HTML_BYTES:
         raise NativeLimitError("html_size_limit")
-    parser = etree.HTMLParser(encoding=parser_encoding, no_network=True, recover=False, huge_tree=False)
+    parser = etree.HTMLParser(encoding=parser_encoding, no_network=True, recover=True, huge_tree=False)
     root = etree.fromstring(source, parser=parser)
     if root is None:
         raise ValueError("empty_html_document")
@@ -310,19 +346,56 @@ def _html_content(source: bytes, source_hash: str, *, mime_path: list[int] | Non
     total_cells = 0
     unit_id = "mime-1" if mime_path is not None else "html-1"
     tree = root.getroottree()
+    pending_space = False
+
+    def last_char() -> str:
+        return output.parts[-1][-1] if output.parts else ""
+
+    def separate() -> None:
+        nonlocal pending_space
+        pending_space = False
+        if output.length and last_char() != "\n":
+            output.add("\n")
+
+    def add_text(value: str | None) -> None:
+        nonlocal pending_space
+        if not value:
+            return
+        normalized = re.sub(r"\s+", " ", value)
+        content = normalized.strip()
+        if not content:
+            pending_space = pending_space or bool(output.length)
+            return
+        if (pending_space or normalized.startswith(" ")) and last_char() not in {"", "\n", " ", "\t"}:
+            output.add(" ")
+        output.add(content)
+        pending_space = normalized.endswith(" ")
 
     def walk(element) -> None:
-        nonlocal total_cells
+        nonlocal total_cells, pending_space
         tag = str(element.tag).lower()
-        if tag in {"script", "style", "noscript", "template"}:
+        if _html_hidden(element):
             return
         if tag == "table":
+            def hidden_under_table(node) -> bool:
+                while node is not None:
+                    if _html_hidden(node):
+                        return True
+                    if node is element:
+                        return False
+                    node = node.getparent()
+                return True
+
             rows = []
             occupied: set[tuple[int, int]] = set()
-            for row_index, row in enumerate(element.xpath("./tr | ./thead/tr | ./tbody/tr | ./tfoot/tr")):
+            visible_rows = [row for row in element.xpath("./tr | ./thead/tr | ./tbody/tr | ./tfoot/tr")
+                            if not hidden_under_table(row)]
+            for row_index, row in enumerate(visible_rows):
                 items = []
                 column_index = 0
                 for cell in row.xpath("./th | ./td"):
+                    if hidden_under_table(cell):
+                        continue
                     while (row_index, column_index) in occupied:
                         column_index += 1
                     try:
@@ -342,31 +415,33 @@ def _html_content(source: bytes, source_hash: str, *, mime_path: list[int] | Non
                             if (covered_row, covered_column) in occupied:
                                 raise ValueError("overlapping_html_table_cells")
                             occupied.add((covered_row, covered_column))
-                    value = "".join(cell.xpath(".//text()[not(ancestor::script or ancestor::style or ancestor::template)]")).strip()
+                    value = _html_visible_cell_text(cell)
                     locator = _locator(kind="eml_html_cell" if mime_path is not None else "html_dom_cell",
                                        xpath=tree.getpath(cell), **({"mime_path": mime_path} if mime_path is not None else {}))
                     items.append((row_index, column_index, value, locator, row_span, column_span))
                     column_index += column_span
                 rows.append(items)
             tables.append(_emit_table(output, unit_id, f"table-{len(tables) + 1}", rows))
+            separate()
             return
-        if element.text and element.text.strip():
-            if output.length:
-                output.add("\n")
-            output.add(element.text.strip())
+        if tag == "br":
+            separate()
+            return
+        if tag in _HTML_BLOCK_TAGS:
+            separate()
+        add_text(element.text)
         for child in element:
             walk(child)
-            if child.tail and child.tail.strip():
-                if output.length:
-                    output.add("\n")
-                output.add(child.tail.strip())
+            add_text(child.tail)
+        if tag in _HTML_BLOCK_TAGS:
+            separate()
 
     walk(body)
     source_format = "eml" if mime_path is not None else "html"
     kind = "mime_part" if mime_path is not None else "html"
     label = f"MIME part {mime_path}" if mime_path is not None else "HTML document"
     return ParsedDocument(source_hash, source_format, "lxml-html", metadata.version("lxml"),
-                          (SourceUnit(unit_id, kind, 0, output.text(), label=label),), tuple(tables))
+                          (SourceUnit(unit_id, kind, 0, output.text().rstrip("\n"), label=label),), tuple(tables))
 
 
 def _eml(path: Path, source_hash: str) -> ParsedDocument:

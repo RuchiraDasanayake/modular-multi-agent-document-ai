@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 import threading
@@ -100,9 +101,31 @@ def _html_cell(root: Any, locator: dict[str, Any]) -> str:
     matches = root.getroottree().xpath(locator["xpath"])
     if len(matches) != 1 or matches[0].tag not in {"th", "td"}:
         raise ValueError("html_locator_not_unique_cell")
-    return "".join(matches[0].xpath(
-        ".//text()[not(ancestor::script or ancestor::style or ancestor::template)]"
-    )).strip()
+
+    def hidden(element: Any) -> bool:
+        if not isinstance(element.tag, str):
+            return True
+        tag = str(element.tag).lower()
+        style = element.get("style") or ""
+        return (tag in {"script", "style", "noscript", "template", "svg", "canvas"}
+                or element.get("hidden") is not None
+                or (element.get("aria-hidden") or "").lower() == "true"
+                or (tag == "input" and (element.get("type") or "").lower() == "hidden")
+                or bool(re.search(
+                    r"(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*hidden)\s*(?:!important)?\s*(?:;|$)",
+                    style, re.IGNORECASE,
+                )))
+
+    def text(node: Any) -> str:
+        if hidden(node):
+            return ""
+        parts = [node.text or ""]
+        for child in node:
+            parts.append(text(child))
+            parts.append(child.tail or "")
+        return "".join(parts)
+
+    return text(matches[0]).strip()
 
 
 def resolve_sample(path: Path, selected: list[tuple[int, dict[str, Any], str]]) -> tuple[int, list[dict[str, Any]]]:
@@ -166,7 +189,7 @@ def resolve_sample(path: Path, selected: list[tuple[int, dict[str, Any], str]]) 
     elif suffix in {".html", ".eml"}:
         from lxml import etree
 
-        parser = etree.HTMLParser(no_network=True, recover=False, huge_tree=False)
+        parser = etree.HTMLParser(no_network=True, recover=True, huge_tree=False)
         if suffix == ".html":
             root = etree.fromstring(path.read_bytes(), parser=parser)
 
@@ -396,7 +419,8 @@ def evaluate(directory: Path, output: Path, *, manifest_path: Path = MANIFEST,
                        "source_sha256": item["sha256"]})
         records.append(record)
     result = {
-        "protocol": "real_native_parser_only_v1", "manifest_sha256": manifest_sha256,
+        "protocol": "real_native_parser_only_html_recover_cap20k_arm_v1",
+        "arm_id": "html_recover_cap20k_20261012", "manifest_sha256": manifest_sha256,
         "diagnostic_sha256": _sha256(Path(__file__)),
         "runtime": {"python": sys.version.split()[0], "platform": platform.platform(),
                     "packages": {name: metadata.version(name) for name in

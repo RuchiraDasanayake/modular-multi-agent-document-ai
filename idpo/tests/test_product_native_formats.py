@@ -177,6 +177,25 @@ def test_workbook_budgets_accumulate_across_sheets(tmp_path: Path, monkeypatch) 
         parse_native_document(source, source_hash)
 
 
+def test_table_cell_budget_is_inclusive_across_sheets(tmp_path: Path, monkeypatch) -> None:
+    from idpo.product_auto import native_formats
+
+    assert native_formats.MAX_TABLE_CELLS == 20_000
+    source = tmp_path / "three_cells.xlsx"
+    book = Workbook()
+    book.active["A1"] = "first"
+    book.active["B1"] = "second"
+    book.create_sheet()["A1"] = "third"
+    book.save(source)
+    source_hash = hashlib.sha256(source.read_bytes()).hexdigest()
+    monkeypatch.setattr(native_formats, "MAX_TABLE_CELLS", 3)
+    parsed = parse_native_document(source, source_hash)[1]
+    assert sum(len(table.cells) for table in parsed.tables) == 3
+    monkeypatch.setattr(native_formats, "MAX_TABLE_CELLS", 2)
+    with pytest.raises(NativeLimitError, match="native_cell_limit"):
+        parse_native_document(source, source_hash)
+
+
 def test_html_uses_local_text_only_and_rejects_excessive_structure(tmp_path: Path) -> None:
     source = tmp_path / "source.html"
     source.write_text('<html><body><img src="https://example.invalid/remote.png"><script>SECRET</script>'
@@ -202,6 +221,41 @@ def test_html_uses_local_text_only_and_rejects_excessive_structure(tmp_path: Pat
     source.write_text("<table><tr><td><table><tr><td>nested</td></tr></table></td></tr></table>", encoding="utf-8")
     with pytest.raises(NativeLimitError, match="nested_html_table_unsupported"):
         parse_native_document(source, hashlib.sha256(source.read_bytes()).hexdigest())
+
+
+def test_html5_recovery_preserves_inline_flow_and_visible_cell_locators(tmp_path: Path) -> None:
+    from lxml import etree
+
+    from product_eval.real_native_parser_diagnostic import _html_cell
+
+    source = tmp_path / "modern.html"
+    source.write_text(
+        '<html><body><header>Header</header><main><p>Invoice <strong>INV-42</strong>'
+        ' due <span>today</span>.</p><p>Second paragraph.</p>'
+        '<div hidden>Hidden text</div><span style="display: none">Invisible</span>'
+        '<table hidden><tr><td>Hidden table</td></tr></table>'
+        '<table><thead><tr><th>Item</th></tr></thead>'
+        '<tbody hidden><tr><td>Hidden section</td></tr></tbody>'
+        '<tbody><tr hidden><td>Hidden row</td></tr><tr><td>Visible'
+        '<span aria-hidden="true">SECRET</span> value</td></tr></tbody></table>'
+        '<script>Script secret</script></main></body></html>',
+        encoding="utf-8",
+    )
+    parsed = parse_native_document(source, hashlib.sha256(source.read_bytes()).hexdigest())[1]
+    text = parsed.units[0].text
+    assert "Invoice INV-42 due today.\nSecond paragraph." in text
+    assert not any(secret in text for secret in (
+        "Hidden text", "Invisible", "Hidden table", "Hidden section", "Hidden row", "SECRET", "Script secret",
+    ))
+    assert len(parsed.tables) == 1
+    assert [cell.text for cell in parsed.tables[0].cells] == ["Item", "Visible value"]
+
+    root = etree.fromstring(source.read_bytes(), etree.HTMLParser(no_network=True, recover=True, huge_tree=False))
+    for cell in parsed.tables[0].cells:
+        anchor = cell.anchors[0]
+        assert anchor.text_span is not None
+        assert text[slice(*anchor.text_span)] == cell.text
+        assert _html_cell(root, json.loads(anchor.native_locator)) == cell.text
 
 
 def test_email_selects_html_body_not_attachment_and_rejects_defects(tmp_path: Path) -> None:
