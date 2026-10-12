@@ -7,35 +7,35 @@ import { SignupLink } from "@/components/signup-link";
 
 const stats = [
     { value: "Zero-shot", label: "No per-template training" },
-    { value: "Per document", label: "Policy selection" },
-    { value: "Local", label: "OCR and LLM inference" },
-    { value: "Open", label: "Research prototype" },
+    { value: "Per document", label: "Schema proposals" },
+    { value: "Local", label: "OCR and evidence checks" },
+    { value: "Human", label: "Field review" },
 ];
 
 const features = [
     {
-        title: "Adaptive Policy Routing",
-        desc: "Thompson Sampling selects a processing policy for each document from its layout, quality, and content signals, and updates from every outcome.",
+        title: "Automatic Schema Proposals",
+        desc: "The opt-in extraction workflow proposes fields for each document with local heuristics or a configured chat model.",
     },
     {
         title: "Grounded Validation",
-        desc: "Extracted values are checked against field rules and must appear in the source text; ungrounded or malformed values are flagged.",
+        desc: "Proposed values need an exact source-text quote and a matching typed value for machine acceptance; uncertain fields remain for review.",
     },
     {
         title: "Human-in-the-Loop Review",
-        desc: "Low-confidence fields are flagged for review, and reviewer corrections are fed back into later runs in the same job.",
+        desc: "Reviewers can correct, remove, or add fields. Their decisions are recorded with the run for later inspection.",
     },
     {
-        title: "Targeted Recovery",
-        desc: "Fields that fail validation are re-extracted with a focused prompt instead of re-running the whole document.",
+        title: "Linked Row Review",
+        desc: "A configured model can propose repeated columns with row links; proposed rows stay pending human review.",
     },
     {
         title: "Scans, Photos, and PDFs",
-        desc: "PaddleOCR with Tesseract fallback handles scanned and photographed pages; digital PDFs use their native text layer.",
+        desc: "Digital PDFs use their text layer when available. Scanned pages and images use local OCR, with Tesseract as the product default.",
     },
     {
         title: "Inspectable Runs",
-        desc: "Every run records the chosen policy, operator stack, validation issues, and per-field confidence for audit.",
+        desc: "Run artifacts retain source hashes, OCR pages, proposals, and review history so operators can inspect each result.",
     },
 ];
 
@@ -43,22 +43,22 @@ const steps = [
     {
         step: "01",
         title: "Upload Documents",
-        desc: "Add PDFs, scans, photos, or text files to a job and name the fields you want extracted.",
+        desc: "Create a job and upload PDFs, images, or text files.",
     },
     {
         step: "02",
-        title: "Adaptive Extraction",
-        desc: "The router picks a policy per document; OCR, preprocessing, and LLM extraction follow that policy.",
+        title: "Propose Fields",
+        desc: "The opt-in workflow reads each document and proposes a schema and values; AI proposals require a configured model.",
     },
     {
         step: "03",
         title: "Validate & Review",
-        desc: "Values are validated against the source, failed fields are recovered, and uncertain ones are sent for review.",
+        desc: "Exact text evidence is checked, and proposed fields remain available for human review.",
     },
     {
         step: "04",
-        title: "Learn & Export",
-        desc: "Outcomes update the routing posteriors. Results export as Excel or CSV.",
+        title: "Review & Inspect",
+        desc: "Save corrections and inspect the resulting structured JSON and review history.",
     },
 ];
 
@@ -107,7 +107,7 @@ export default function HomePage() {
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-violet-500">
                                 documents
                             </span>
-                            <br />with adaptive AI
+                            <br />with structured extraction
                         </motion.h1>
 
                         <motion.p
@@ -116,7 +116,7 @@ export default function HomePage() {
                             transition={{ duration: 0.5, delay: 0.2 }}
                             className="text-lg text-slate-600 dark:text-gray-400 max-w-2xl mx-auto lg:mx-0 leading-relaxed"
                         >
-                            A multi-agent document extraction pipeline that chooses its processing policy per document via contextual bandit learning, validates outputs against schema and source grounding, and learns from reviewer corrections.
+                            Upload documents, get proposed fields and values, check their source evidence, and review the structured result. A configured model can assist with schema discovery.
                         </motion.p>
 
                         <motion.div
@@ -206,9 +206,9 @@ export default function HomePage() {
                             viewport={{ once: true }}
                             className="text-3xl lg:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight"
                         >
-                            Everything you need for{" "}
+                            Tools for{" "}
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-violet-500">
-                                intelligent extraction
+                                structured extraction
                             </span>
                         </motion.h2>
                         <motion.p
@@ -218,7 +218,7 @@ export default function HomePage() {
                             transition={{ delay: 0.1 }}
                             className="text-lg text-slate-600 dark:text-gray-400 mt-4 max-w-2xl mx-auto"
                         >
-                            A research prototype that combines adaptive routing, grounded validation, and human review.
+                            The automatic extraction workflow is separate from the AHMN research policy router.
                         </motion.p>
                     </div>
 
@@ -304,12 +304,12 @@ export default function HomePage() {
                             </span>
                         </h2>
                         <p className="text-lg text-slate-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto">
-                            Upload your own documents to the research demo and see which policy the
-                            router chose, what was extracted, and how each value was validated.
+                            Try automatic schema extraction and inspect proposed fields, source evidence,
+                            and review status for each document.
                         </p>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 flex-wrap">
                             <SignupLink className="w-full sm:w-auto px-8 py-4 glass-button rounded-xl text-lg flex items-center justify-center gap-2">
-                                Try the Demo
+                                Try Extraction
                             </SignupLink>
                             <Link
                                 href="/docs"
