@@ -153,6 +153,7 @@ function readRunRecord(jobId: string, runId: string): RunRecord {
   const filePath = runFile(jobId, runId);
   if (!fs.existsSync(filePath)) throw new AccessError("Run not found.", 404);
   const base = parseJsonObject(filePath) as unknown as RunRecord;
+  if (base.jobId !== jobId || base.runId !== runId) throw new Error("Invalid run record.");
   const terminal = terminalFile(jobId, runId);
   if (!fs.existsSync(terminal)) return base;
   const completed = parseJsonObject(terminal) as unknown as RunRecord;
@@ -407,11 +408,13 @@ function candidateFromArtifact(value: unknown, docId: string, pages: unknown): P
   };
 }
 
-function readResultArtifact(runId: string, docId: string): {
-  result: Record<string, unknown>; sha256: string;
-} {
+function readResultBytes(runId: string, docId: string): { bytes: Buffer; sha256: string } {
   requireSafeId(docId);
   const bytes = fs.readFileSync(path.join(outputDir(runId), "docs", docId, "result.json"));
+  return { bytes, sha256: createHash("sha256").update(bytes).digest("hex") };
+}
+
+function parseResultBytes(bytes: Buffer): Record<string, unknown> {
   let result: unknown;
   try {
     result = JSON.parse(bytes.toString("utf8"));
@@ -421,7 +424,7 @@ function readResultArtifact(runId: string, docId: string): {
   if (!result || typeof result !== "object" || Array.isArray(result)) {
     throw new Error("Invalid extraction artifact.");
   }
-  return { result: result as Record<string, unknown>, sha256: createHash("sha256").update(bytes).digest("hex") };
+  return result as Record<string, unknown>;
 }
 
 function readSourcePages(result: Record<string, unknown>): Array<{ page: number; text: string }> {
@@ -530,7 +533,7 @@ function publishAuditEvent(directory: string, event: ProductAutoAuditEvent): voi
   }
 }
 
-function validatedDocuments(record: RunRecord): RunRecord["documents"] {
+function validatedDocuments(record: RunRecord, targetDocId?: string): RunRecord["documents"] {
   const runDir = outputDir(record.runId);
   const marker = parseJsonObject(path.join(runDir, "run.json"));
   if (marker.contract_version !== 1 || marker.run_id !== record.runId) {
@@ -540,7 +543,7 @@ function validatedDocuments(record: RunRecord): RunRecord["documents"] {
   if (receipts.length !== marker.doc_count) throw new Error("Incomplete extraction manifest.");
   const byStoredName = new Map(record.selectedFiles.map((file) => [file.storedName, file]));
   const seen = new Set<string>();
-  return receipts.map((receipt) => {
+  return receipts.flatMap((receipt): RunRecord["documents"] => {
     const docId = receipt.doc_id;
     const sourceFile = receipt.source_file;
     if (typeof docId !== "string" || typeof sourceFile !== "string") throw new Error("Invalid document receipt.");
@@ -550,15 +553,19 @@ function validatedDocuments(record: RunRecord): RunRecord["documents"] {
       throw new Error("Document receipt does not match the selected source.");
     }
     seen.add(docId);
-    const { result, sha256: machineResultHash } = readResultArtifact(record.runId, docId);
-    const candidate = candidateFromArtifact(result.candidate, docId, result.pages);
-    if (candidate.document_status !== receipt.document_status) throw new Error("Candidate and receipt status differ.");
-    if (receipt.result_sha256 !== undefined &&
-      (!/^[a-f0-9]{64}$/.test(String(receipt.result_sha256)) || receipt.result_sha256 !== machineResultHash)) {
+    if (typeof receipt.result_sha256 !== "string" || !/^[a-f0-9]{64}$/.test(receipt.result_sha256)) {
+      throw new Error("Machine result receipt is missing or invalid.");
+    }
+    if (targetDocId && docId !== targetDocId) return [];
+    const { bytes, sha256: machineResultHash } = readResultBytes(record.runId, docId);
+    if (receipt.result_sha256 !== machineResultHash) {
       throw new Error("Machine result and extraction receipt differ.");
     }
+    const result = parseResultBytes(bytes);
+    const candidate = candidateFromArtifact(result.candidate, docId, result.pages);
+    if (candidate.document_status !== receipt.document_status) throw new Error("Candidate and receipt status differ.");
     const review = readReview(record.jobId, record.runId, docId);
-    return {
+    return [{
       docId,
       fileId: selected.fileId,
       fileName: selected.fileName,
@@ -566,8 +573,8 @@ function validatedDocuments(record: RunRecord): RunRecord["documents"] {
       fieldCount: candidate.proposed_schema.length,
       acceptedCount: candidate.extracted_values.filter((value) => value.status === "accepted").length,
       reviewStatus: effectiveReviewStatus(review),
-      ...(receipt.result_sha256 ? { machineResultSha256: machineResultHash } : {}),
-    };
+      machineResultSha256: machineResultHash,
+    }];
   });
 }
 
@@ -784,21 +791,25 @@ export function startProductAutoRun(jobId: string, selectedFileIds: string[], ad
 function loadProductAutoDocument(jobId: string, runId: string, docId: string): {
   detail: ProductAutoDocumentDetail; machineResultHash: string;
 } {
-  const run = getProductAutoRun(jobId, runId);
-  const document = run.documents.find((item) => item.docId === docId);
-  if (run.status !== "success" || !document) throw new AccessError("Document result not found.", 404);
-  const { result, sha256: machineResultHash } = readResultArtifact(runId, docId);
+  const record = readRunRecord(jobId, runId);
+  const runningWithOutput = record.status === "running" && fs.existsSync(path.join(outputDir(runId), "run.json"));
+  const documents = runningWithOutput ? validatedDocuments(record, docId) : record.documents;
+  const document = documents.find((item) => item.docId === docId);
+  if (!(record.status === "success" || runningWithOutput) || !document) {
+    throw new AccessError("Document result not found.", 404);
+  }
+  const { bytes, sha256: machineResultHash } = readResultBytes(runId, docId);
+  if (document.machineResultSha256 && document.machineResultSha256 !== machineResultHash) {
+    throw new AccessError("The machine result no longer matches the completed run receipt.", 409);
+  }
+  const result = parseResultBytes(bytes);
   const candidate = candidateFromArtifact(result.candidate, docId, result.pages);
   const sourcePages = readSourcePages(result);
   const parsedDocument = readParsedDocument(result);
-  const terminalDocument = readRunRecord(jobId, runId).documents.find((item) => item.docId === docId);
-  if (terminalDocument?.machineResultSha256 && terminalDocument.machineResultSha256 !== machineResultHash) {
-    throw new AccessError("The machine result no longer matches the completed run receipt.", 409);
-  }
   const auditTrail = readAuditTrail(jobId, runId, docId);
   const review = auditTrail.at(-1)?.review_snapshot ?? null;
   const receipts = auditTrail.flatMap((event) => [event, event.review_snapshot]);
-  if (review && (!terminalDocument?.machineResultSha256 ||
+  if (review && (!document.machineResultSha256 ||
     !receipts.some((receipt) => receipt.machine_result_sha256))) {
     throw new AccessError("This review predates sealed extraction artifacts. Start a new run.", 409);
   }

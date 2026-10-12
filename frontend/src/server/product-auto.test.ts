@@ -100,6 +100,18 @@ test("automatic extraction keeps source access private and rejects conflicting r
       fileName: source.fileName, storedName: source.storedName, sha256 }], documents: [],
   }));
 
+  const manifestPath = path.join(dataDir, "product_runs", runId, "manifest.jsonl");
+  const validManifest = fs.readFileSync(manifestPath);
+  for (const invalidDigest of [undefined, "invalid-digest"]) {
+    const receipt = JSON.parse(validManifest.toString("utf8"));
+    if (invalidDigest === undefined) delete receipt.result_sha256;
+    else receipt.result_sha256 = invalidDigest;
+    fs.writeFileSync(manifestPath, JSON.stringify(receipt) + "\n");
+    assert.equal(recoverProductAutoRuns(job.jobId).recovered, 0);
+    assert.equal(fs.existsSync(path.join(metadataDir, `${runId}.terminal.json`)), false);
+  }
+  fs.writeFileSync(manifestPath, validManifest);
+
   const collectionUrl = `/api/jobs/${job.jobId}/auto`;
   const docUrl = `${collectionUrl}/${runId}/docs/${docId}`;
   const collectionParams = { params: Promise.resolve({ jobId: job.jobId }) };
@@ -257,17 +269,17 @@ test("automatic extraction keeps source access private and rejects conflicting r
   };
   candidate.extracted_values[0].value = "999";
   writeCandidate();
-  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 500);
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 409);
   candidate.proposed_schema[0].type = "integer";
   candidate.extracted_values[0].value = 100;
   writeCandidate();
   assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 409);
   candidate.extracted_values[0].value = 999;
   writeCandidate();
-  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 500);
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 409);
   candidate.extracted_values[0].value = "100";
   writeCandidate();
-  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 500);
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 409);
   candidate.proposed_schema[0].type = "decimal";
   candidate.extracted_values[0].value = 12.5;
   candidate.extracted_values[0].evidence = evidenceFor("12.50");
@@ -323,6 +335,11 @@ test("native source downloads safely and exposes only a hash-matched parsed arti
     status: "running", createdAt: new Date().toISOString(), serverInstanceId: "previous-server",
     selectedFiles: [{ fileId: source.fileId, fileName: source.fileName, storedName: source.storedName, sha256 }],
     documents: [] }));
+  fs.writeFileSync(path.join(metadataDir, `${runId}.terminal.json`), JSON.stringify({ runId, jobId: job.jobId,
+    status: "success", createdAt: new Date().toISOString(), serverInstanceId: "previous-server",
+    selectedFiles: [{ fileId: source.fileId, fileName: source.fileName, storedName: source.storedName, sha256 }],
+    documents: [{ docId, fileId: source.fileId, fileName: source.fileName, status: "needs_review",
+      fieldCount: 0, acceptedCount: 0, reviewStatus: "unreviewed" }] }));
   const detailUrl = `/api/jobs/${job.jobId}/auto/${runId}/docs/${docId}`;
   const detailParams = { params: Promise.resolve({ jobId: job.jobId, runId, docId }) };
   const detail = await getAutoDocRoute(request(detailUrl, "alice"), detailParams);
@@ -584,6 +601,27 @@ test("linked rows require inspectable cell evidence or a typed human correction"
   assert.equal(audited.auditTrail[0].source_pages_sha256, body.review.source_pages_sha256);
 
   const reviewedCandidateBytes = fs.readFileSync(sidecarPath);
+  fs.writeFileSync(sidecarPath, "{malformed-json");
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), params)).status, 409);
+  assert.equal((await post(1, [{ field_id: "item_name", decision: "correct" }])).status, 409);
+  const malformedList = await listAutoRoute(request(`/api/jobs/${job.jobId}/auto`, "alice"),
+    { params: Promise.resolve({ jobId: job.jobId }) });
+  assert.equal((await malformedList.json()).runs[0].documents[0].reviewStatus, "pending");
+  fs.writeFileSync(sidecarPath, reviewedCandidateBytes);
+
+  const terminalPath = path.join(metadataDir, `${runId}.terminal.json`);
+  const originalTerminalBytes = fs.readFileSync(terminalPath);
+  const unrelatedAuditDir = path.join(dataDir, "frontend", "auto_reviews", job.jobId, runId, "events", "other");
+  const twoDocumentRecord = JSON.parse(originalTerminalBytes.toString("utf8"));
+  twoDocumentRecord.documents.push({ docId: "other", fileId: "other", fileName: "other.txt", status: "needs_review",
+    fieldCount: 0, acceptedCount: 0, reviewStatus: "unreviewed", machineResultSha256: "0".repeat(64) });
+  fs.writeFileSync(terminalPath, JSON.stringify(twoDocumentRecord));
+  fs.mkdirSync(unrelatedAuditDir, { recursive: true });
+  fs.writeFileSync(path.join(unrelatedAuditDir, "000000000001.json"), "{malformed-json");
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), params)).status, 200);
+  assert.equal((await post(0, [{ field_id: "item_name", decision: "correct" }])).status, 409);
+  fs.writeFileSync(terminalPath, originalTerminalBytes);
+
   const approvedCell = (candidate.extracted_values[0].value as Array<{
     value: string; evidence: { page: number; start: number; end: number; quote: string };
   }>)[0];
@@ -661,11 +699,11 @@ test("linked rows require inspectable cell evidence or a typed human correction"
   const nameCells = candidate.extracted_values[0].value as Array<{ evidence: { quote: string }; value: string }>;
   nameCells[0].evidence.quote = "Tampered";
   writeSidecar();
-  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), params)).status, 500);
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), params)).status, 409);
   nameCells[0].evidence.quote = "Widget";
   nameCells[0].value = "Invented";
   writeSidecar();
-  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), params)).status, 500);
+  assert.equal((await getAutoDocRoute(request(docUrl, "alice"), params)).status, 409);
 }));
 
 test("legacy linked-row approval stays pending when a cell is unverified", () => {
@@ -706,13 +744,18 @@ test("machine schema artifacts enforce normalized IDs, types, field limits, and 
   const docUrl = `/api/jobs/${job.jobId}/auto/${runId}/docs/${docId}`;
   const params = { params: Promise.resolve({ jobId: job.jobId, runId, docId }) };
   const readSchema = async (schema: Array<Record<string, unknown>>) => {
-    fs.writeFileSync(path.join(sidecarDir, "result.json"), JSON.stringify({
+    const schemaArtifactPath = path.join(sidecarDir, "result.json");
+    fs.writeFileSync(schemaArtifactPath, JSON.stringify({
       pages: [{ page: 1, text: "😀 Café" }],
       candidate: { contract_version: 1, doc_id: docId, document_status: "needs_review",
         proposed_schema: schema, extracted_values: schema.map((field) => ({
           field_id: field.field_id, value: null, status: "missing", review_state: "pending",
         })) },
     }));
+    const schemaManifestPath = path.join(output, "manifest.jsonl");
+    const schemaReceipt = JSON.parse(fs.readFileSync(schemaManifestPath, "utf8"));
+    schemaReceipt.result_sha256 = createHash("sha256").update(fs.readFileSync(schemaArtifactPath)).digest("hex");
+    fs.writeFileSync(schemaManifestPath, JSON.stringify(schemaReceipt) + "\n");
     return getAutoDocRoute(request(docUrl, "alice"), params);
   };
 
@@ -739,11 +782,6 @@ test("machine schema artifacts enforce normalized IDs, types, field limits, and 
     assert.equal((await readSchema(schema)).status, 500, JSON.stringify(schema));
   }
   assert.equal((await readSchema([])).status, 200);
-  const schemaArtifactPath = path.join(sidecarDir, "result.json");
-  const schemaManifestPath = path.join(output, "manifest.jsonl");
-  const schemaReceipt = JSON.parse(fs.readFileSync(schemaManifestPath, "utf8"));
-  schemaReceipt.result_sha256 = createHash("sha256").update(fs.readFileSync(schemaArtifactPath)).digest("hex");
-  fs.writeFileSync(schemaManifestPath, JSON.stringify(schemaReceipt) + "\n");
   const humanAdded = await reviewAutoDocRoute(request(docUrl, "alice", { method: "POST",
     headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: 0, fields: [],
       added_fields: [{ field_id: "vendor_name", type: "string", value: "Café",
