@@ -103,12 +103,40 @@ def _verify_server(base: str, model_file: Path) -> dict[str, Any]:
     if ("11425" not in str(props.get("build_info", ""))
             or props.get("total_slots") != 1
             or props.get("default_generation_settings", {}).get("n_ctx") != CONTEXT_TOKENS
+            or props.get("modalities", {}).get("vision") is not True
             or Path(str(props.get("model_path", ""))).resolve() != model_file.resolve()):
-        raise ContractError("local server model/build/context/slot differs from frozen protocol")
+        raise ContractError("local server model/build/context/vision/slot differs from frozen protocol")
     health = _get_json(base + "/health")
     if health.get("status") != "ok":
         raise ContractError("model server is not healthy")
     return {"build_info": props.get("build_info"), "context_tokens": CONTEXT_TOKENS, "slots": 1}
+
+
+def _apply_template(base: str, kwargs: dict[str, Any]) -> str:
+    body = {"messages": [{"role": "user", "content": "NuExtract3 compatibility probe; no document content."}],
+            "chat_template_kwargs": kwargs}
+    request = urllib.request.Request(base + "/apply-template", data=json.dumps(body).encode("utf-8"),
+                                     headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(request, timeout=15) as response:
+        payload = json.load(response)
+    prompt = payload.get("prompt") if isinstance(payload, dict) else None
+    if not isinstance(prompt, str) or not prompt:
+        raise ContractError("/apply-template returned no prompt")
+    return prompt
+
+
+def _verify_template_modes(base: str) -> dict[str, str]:
+    """Check that llama.cpp applies the two NuExtract3 modes without inference."""
+    marker = "nuextract3_probe_field_8b14"
+    baseline = _apply_template(base, {"enable_thinking": False})
+    discovery = _apply_template(base, {"mode": "template-generation", "enable_thinking": False})
+    extraction = _apply_template(base, {"template": json.dumps({marker: TEMPLATE_TYPE}),
+                                        "enable_thinking": False})
+    if discovery == baseline or extraction == baseline or extraction == discovery or marker not in extraction:
+        raise ContractError("llama.cpp ignored NuExtract3 template-generation or JSON-template settings")
+    return {"baseline_sha256": _sha_bytes(baseline.encode("utf-8")),
+            "discovery_sha256": _sha_bytes(discovery.encode("utf-8")),
+            "extraction_sha256": _sha_bytes(extraction.encode("utf-8"))}
 
 
 def _gpu_free_mib() -> int | None:
@@ -436,6 +464,7 @@ def run(paths: dict[str, Path], runs_root: Path, model_file: Path, mmproj_file: 
         raise ContractError("frozen source lock or alias ontology changed")
     model = _verified_local_files(model_file, mmproj_file, server_exe)
     server = _verify_server(base, model_file)
+    server["template_preflight"] = _verify_template_modes(base)
     _resource_guard()
     if output.exists() or output.resolve().is_relative_to(Path(__file__).resolve().parents[1]):
         raise ContractError("raw pilot output must use a new directory outside Git")

@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import pytest
+
+from product_eval import nuextract3_dev_diagnostic as diagnostic
+from product_eval.contracts import ContractError
 from product_eval.graph_schema_diagnostic import project_fields
 from product_eval.nuextract3_dev_diagnostic import (
     reference_template,
@@ -74,3 +78,20 @@ def test_missing_reply_keeps_all_positive_denominators() -> None:
     assert result.get("exact_scalar_positive", 0) == 0
     assert result["gold_linked_cells"] == 1
     assert result["ordinal_exact_linked_cells"] == 0
+
+
+def test_template_preflight_rejects_ignored_kwargs(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(diagnostic, "_apply_template", lambda base, kwargs: "same prompt")
+    with pytest.raises(ContractError, match="ignored"):
+        diagnostic._verify_template_modes("http://127.0.0.1:18127")
+
+
+def test_template_preflight_requires_both_modes(monkeypatch: pytest.MonkeyPatch) -> None:
+    def format_prompt(base: str, kwargs: dict[str, object]) -> str:
+        if "template" in kwargs:
+            return str(kwargs["template"])
+        return "schema mode" if kwargs.get("mode") == "template-generation" else "baseline"
+
+    monkeypatch.setattr(diagnostic, "_apply_template", format_prompt)
+    result = diagnostic._verify_template_modes("http://127.0.0.1:18127")
+    assert len(set(result.values())) == 3
