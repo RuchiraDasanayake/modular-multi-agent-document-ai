@@ -57,6 +57,9 @@ def test_gate_runs_distinct_shards_and_scores_only_after_source_verification(tmp
     assert result["provenance"]["model_configured"] is False
     assert result["provenance"]["ocr_required"] is False
     assert result["provenance"]["ocr_preflight"] is None
+    assert result["provenance"]["data_dir"] == str(data_dir.resolve())
+    assert result["provenance"]["exit_codes_sha256"] == hashlib.sha256(
+        (report_dir / "exit-codes.json").read_bytes()).hexdigest()
     family = json.loads((report_dir / "family-report.json").read_text(encoding="utf-8"))
     assert set(family["by_family"]) == {"shard_a", "shard_b"}
     assert len((report_dir / "candidates.jsonl").read_text(encoding="utf-8").splitlines()) == 2

@@ -125,7 +125,7 @@ def _verify_source(row: dict[str, Any]) -> None:
 
 
 def _verify_inputs(train_root: Path, vrdu_dir: Path, cord_test_dir: Path) -> tuple[
-    list[Path], list[dict[str, Any]], dict[str, dict[str, Any]], set[str],
+    list[Path], list[dict[str, Any]], Path, set[str],
 ]:
     data_dir = train_root / "data"
     if not data_dir.is_dir() or {path.name for path in data_dir.iterdir()} != {pin.name for pin in TRAIN_FILES}:
@@ -150,9 +150,6 @@ def _verify_inputs(train_root: Path, vrdu_dir: Path, cord_test_dir: Path) -> tup
            Path(row["source_path"]).suffix.lower() != ".pdf" for row in vrdu):
         raise MixedGateError("VRDU source family or PDF format changed")
     _require_pinned_file(vrdu_dir / "gold.jsonl", VRDU_GOLD_SHA256)
-    vrdu_gold = load_jsonl(vrdu_dir / "gold.jsonl", kind="gold")
-    if set(vrdu_gold) != {row["doc_id"] for row in vrdu}:
-        raise MixedGateError("VRDU gold does not cover exactly the frozen source cohort")
 
     test_meta = _read_metadata(cord_test_dir / "metadata.json")
     test_file_hashes = test_meta.get("files_sha256")
@@ -167,7 +164,7 @@ def _verify_inputs(train_root: Path, vrdu_dir: Path, cord_test_dir: Path) -> tup
             any(row.get("evaluation_split") not in {"development", "reserved"} or
                 Path(row["source_path"]).suffix.lower() != ".png" for row in test)):
         raise MixedGateError("CORD test/reserved split changed")
-    return train_paths, vrdu, vrdu_gold, {row["source_sha256"] for row in test}
+    return train_paths, vrdu, vrdu_dir / "gold.jsonl", {row["source_sha256"] for row in test}
 
 
 def _iter_parquet_column(paths: list[Path], column: str) -> Iterator[tuple[int, Any]]:
@@ -305,9 +302,12 @@ def build_mixed_gate(train_root: Path, vrdu_dir: Path, cord_test_dir: Path, outp
     )
     if output_dir.exists():
         raise MixedGateError(f"Output directory already exists: {output_dir}")
-    paths, vrdu, vrdu_gold, test_hashes = _verify_inputs(train_root, vrdu_dir, cord_test_dir)
+    paths, vrdu, vrdu_gold_path, test_hashes = _verify_inputs(train_root, vrdu_dir, cord_test_dir)
     train, source_counts = _scan_train(paths)
     selected_cord, selected_vrdu, excluded = _select_sources(train, vrdu, test_hashes, target)
+    vrdu_gold = load_jsonl(vrdu_gold_path, kind="gold")
+    if set(vrdu_gold) != {row["doc_id"] for row in vrdu}:
+        raise MixedGateError("VRDU gold does not cover exactly the frozen source cohort")
     assignment = _assign_shards(selected_cord + selected_vrdu, shard_count)
     cord_gold, annotation_counts = _train_gold(paths, selected_cord)
     selected_cord_by_index = {row["source_index"]: row for row in selected_cord}

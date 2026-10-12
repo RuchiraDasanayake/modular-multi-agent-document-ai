@@ -209,6 +209,7 @@ def run_gate(
         "cohort_path": str(cohort_path) if cohort_path else None,
         "cohort_sha256": _sha256_file(cohort_path) if cohort_path else None,
         "shard_dirs": [str(shard) for shard in shards],
+        "data_dir": str(data_dir),
         "run_ids": run_ids,
         "model_configured": False,
         "ocr_required": ocr_required,
@@ -264,6 +265,7 @@ def run_gate(
         _write_json(report_dir / "family-report.json", family)
         provenance["family_report_sha256"] = _sha256_file(report_dir / "family-report.json")
     provenance["candidate_sha256"] = _sha256_file(candidate_path)
+    provenance["exit_codes_sha256"] = _sha256_file(report_dir / "exit-codes.json")
     provenance["execution_report_sha256"] = _sha256_file(report_dir / "execution-report.json")
     provenance["quality_report_sha256"] = _sha256_file(report_dir / "quality-report.json")
     _write_json(report_dir / "provenance.json", provenance)

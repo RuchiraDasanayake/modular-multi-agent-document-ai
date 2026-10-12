@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,8 @@ from product_eval.datasets import mixed_vrdu_cord_train as mixed
 from product_eval.datasets.cord_test import _doc_id
 from product_eval.datasets.mixed_cord_positive import score_mixed_cord_positive
 from product_eval.datasets.vrdu_analysis import analyze_vrdu
+from product_eval.execution import verify_runs
+from product_eval.scorer import score_records
 
 
 def test_pinned_train_manifest_has_four_full_sha256_hashes() -> None:
@@ -177,6 +180,100 @@ def test_source_only_selection_excludes_holdout_overlap_and_deduplicates() -> No
     assert counts == {"overlap_cord_test": 1, "overlap_vrdu": 1, "duplicate_train_bytes": 1}
 
 
+def test_vrdu_gold_is_parsed_after_source_selection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    train_root, vrdu, test = _fixture(tmp_path, monkeypatch)
+    loaded = False
+    original_load = mixed.load_jsonl
+    original_select = mixed._select_sources
+
+    def tracking_load(path: Path, *, kind: str):
+        nonlocal loaded
+        if Path(path) == vrdu / "gold.jsonl":
+            loaded = True
+        return original_load(path, kind=kind)
+
+    def checking_select(*args, **kwargs):
+        assert loaded is False
+        return original_select(*args, **kwargs)
+
+    monkeypatch.setattr(mixed, "load_jsonl", tracking_load)
+    monkeypatch.setattr(mixed, "_select_sources", checking_select)
+    mixed.build_mixed_gate(train_root, vrdu, test, tmp_path / "bundle", target=4, shard_count=2)
+    assert loaded is True
+
+
+def _sealed_gate(bundle: Path, gate: Path) -> dict[str, object]:
+    gate.mkdir()
+    data_dir = gate / "data"
+    metadata = json.loads((bundle / "metadata.json").read_text(encoding="utf-8"))
+    cohort = [json.loads(line) for line in (bundle / "cohort.jsonl").read_text(encoding="utf-8").splitlines()]
+    run_ids: list[str] = []
+    run_dirs: list[Path] = []
+    all_candidates: list[dict[str, object]] = []
+    for shard_dir in metadata["shard_dirs"]:
+        shard = Path(shard_dir).name
+        run_id = f"fixture_{shard}"
+        run_dir = data_dir / "product_runs" / run_id
+        run_dir.mkdir(parents=True)
+        rows = [row for row in cohort if row["gate_shard"] == shard]
+        manifest = []
+        candidates = []
+        for row in rows:
+            candidate = {"contract_version": 1, "doc_id": row["doc_id"],
+                         "document_status": "needs_review", "proposed_schema": [],
+                         "extracted_values": []}
+            result = {"run_id": run_id, "source_sha256": row["source_sha256"],
+                      "document_status": "needs_review", "candidate": candidate}
+            result_path = run_dir / "docs" / row["doc_id"] / "result.json"
+            result_path.parent.mkdir(parents=True)
+            result_path.write_text(json.dumps(result), encoding="utf-8")
+            manifest.append({
+                "contract_version": 1, "run_id": run_id, "doc_id": row["doc_id"],
+                "source_path": row["source_path"], "source_file": Path(row["source_path"]).name,
+                "source_index": 0, "source_hash_kind": "raw_file",
+                "source_sha256": row["source_sha256"], "source_size_bytes": row["source_size_bytes"],
+                "document_status": "needs_review", "duration_ms": 1.0, "page_count": 1,
+                "model_call_count": 0,
+                "result_sha256": hashlib.sha256(result_path.read_bytes()).hexdigest(),
+            })
+            candidates.append(candidate)
+        _write_jsonl(run_dir / "manifest.jsonl", manifest)
+        _write_jsonl(run_dir / "candidates.jsonl", candidates)
+        (run_dir / "run.json").write_text(json.dumps({
+            "contract_version": 1, "run_id": run_id, "mode": "product_auto",
+            "doc_count": len(rows),
+            "status_counts": {"processed": 0, "needs_review": len(rows),
+                              "unsupported": 0, "failed": 0},
+        }), encoding="utf-8")
+        run_ids.append(run_id)
+        run_dirs.append(run_dir)
+        all_candidates.extend(candidates)
+    candidate_hash = _write_jsonl(gate / "candidates.jsonl", all_candidates)
+    execution = verify_runs(run_dirs, min_unique=4)
+    execution["result_hashes_and_candidates_verified"] = True
+    (gate / "execution-report.json").write_text(json.dumps(execution), encoding="utf-8")
+    quality = score_records(load_jsonl(bundle / "gold.jsonl", kind="gold"),
+                            load_jsonl(gate / "candidates.jsonl", kind="candidate"))
+    (gate / "quality-report.json").write_text(json.dumps(quality), encoding="utf-8")
+    (gate / "exit-codes.json").write_text(json.dumps(dict.fromkeys(run_ids, 0)), encoding="utf-8")
+    provenance: dict[str, object] = {
+        "gate_id": "fixture", "data_dir": str(data_dir), "run_ids": run_ids,
+        "shard_dirs": metadata["shard_dirs"], "min_unique": 4,
+        "cohort_path": str(bundle / "cohort.jsonl"), "gold_path": str(bundle / "gold.jsonl"),
+        "cohort_sha256": metadata["files_sha256"]["cohort.jsonl"],
+        "gold_sha256": metadata["files_sha256"]["gold.jsonl"],
+        "candidate_sha256": candidate_hash,
+        "exit_codes_sha256": hashlib.sha256((gate / "exit-codes.json").read_bytes()).hexdigest(),
+        "execution_report_sha256": hashlib.sha256((gate / "execution-report.json").read_bytes()).hexdigest(),
+        "quality_report_sha256": hashlib.sha256((gate / "quality-report.json").read_bytes()).hexdigest(),
+        "model_configured": False, "working_tree_dirty": False,
+    }
+    (gate / "provenance.json").write_text(json.dumps(provenance), encoding="utf-8")
+    return provenance
+
+
 def test_cord_positive_score_requires_completed_hash_bound_mixed_gate(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -184,30 +281,12 @@ def test_cord_positive_score_requires_completed_hash_bound_mixed_gate(
     bundle = tmp_path / "bundle"
     mixed.build_mixed_gate(train_root, vrdu, test, bundle, target=4, shard_count=2)
     gate = tmp_path / "gate"
-    gate.mkdir()
-    cohort = [json.loads(line) for line in (bundle / "cohort.jsonl").read_text(encoding="utf-8").splitlines()]
-    candidate_hash = _write_jsonl(gate / "candidates.jsonl", [
-        {"contract_version": 1, "doc_id": row["doc_id"], "document_status": "needs_review",
-         "proposed_schema": [], "extracted_values": []} for row in cohort
-    ])
+    provenance = _sealed_gate(bundle, gate)
     family_report = analyze_vrdu(bundle / "cohort.jsonl", bundle / "gold.jsonl", [gate / "candidates.jsonl"])
     assert set(family_report["by_family"]) == {"receipt", "registration-form"}
-    execution = {"documents": 4, "distinct_sources": 4, "repeated_source_outputs": 0,
-                 "source_hashes_verified": True}
-    (gate / "execution-report.json").write_text(json.dumps(execution), encoding="utf-8")
-    (gate / "quality-report.json").write_text("{}\n", encoding="utf-8")
-    metadata = json.loads((bundle / "metadata.json").read_text(encoding="utf-8"))
-    provenance = {
-        "cohort_sha256": metadata["files_sha256"]["cohort.jsonl"],
-        "gold_sha256": metadata["files_sha256"]["gold.jsonl"],
-        "candidate_sha256": candidate_hash,
-        "execution_report_sha256": hashlib.sha256((gate / "execution-report.json").read_bytes()).hexdigest(),
-        "quality_report_sha256": hashlib.sha256((gate / "quality-report.json").read_bytes()).hexdigest(),
-        "model_configured": False, "working_tree_dirty": False,
-    }
-    (gate / "provenance.json").write_text(json.dumps(provenance), encoding="utf-8")
     report_path = gate / "cord-positive.json"
     report = score_mixed_cord_positive(bundle, gate, report_path, min_unique=4)
+    assert report["dataset_id"] == "cord_v2_train"
     assert report["source_count"] == 2
     assert report["exact_proposed_scalar_recall"] == 0
     assert report["exact_proposed_complete_row_recall"] == 0
@@ -218,3 +297,76 @@ def test_cord_positive_score_requires_completed_hash_bound_mixed_gate(
     with pytest.raises(mixed.MixedGateError, match="changed completed-gate receipt"):
         score_mixed_cord_positive(bundle, gate, gate / "tampered.json", min_unique=4)
     assert not (gate / "tampered.json").exists()
+
+
+def test_cord_positive_score_rejects_reports_without_product_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    train_root, vrdu, test = _fixture(tmp_path, monkeypatch)
+    bundle = tmp_path / "bundle"
+    mixed.build_mixed_gate(train_root, vrdu, test, bundle, target=4, shard_count=2)
+    gate = tmp_path / "gate"
+    _sealed_gate(bundle, gate)
+    shutil.rmtree(gate / "data" / "product_runs")
+    with pytest.raises(OSError, match="product_runs"):
+        score_mixed_cord_positive(bundle, gate, gate / "unverified.json", min_unique=4)
+    assert not (gate / "unverified.json").exists()
+
+
+def test_cord_positive_score_rejects_tampered_result_and_quality(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    train_root, vrdu, test = _fixture(tmp_path, monkeypatch)
+    bundle = tmp_path / "bundle"
+    mixed.build_mixed_gate(train_root, vrdu, test, bundle, target=4, shard_count=2)
+    gate = tmp_path / "gate"
+    provenance = _sealed_gate(bundle, gate)
+    result_path = next((gate / "data" / "product_runs").glob("*/docs/*/result.json"))
+    original = result_path.read_bytes()
+    result_path.write_bytes(original + b" ")
+    with pytest.raises(ValueError, match="SHA-256 differs"):
+        score_mixed_cord_positive(bundle, gate, gate / "tampered-result.json", min_unique=4)
+    result_path.write_bytes(original)
+
+    (gate / "quality-report.json").write_text("{}\n", encoding="utf-8")
+    provenance["quality_report_sha256"] = hashlib.sha256((gate / "quality-report.json").read_bytes()).hexdigest()
+    (gate / "provenance.json").write_text(json.dumps(provenance), encoding="utf-8")
+    with pytest.raises(mixed.MixedGateError, match="quality differs"):
+        score_mixed_cord_positive(bundle, gate, gate / "tampered-quality.json", min_unique=4)
+
+
+def test_cord_positive_score_rejects_same_bytes_outside_frozen_shard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    train_root, vrdu, test = _fixture(tmp_path, monkeypatch)
+    bundle = tmp_path / "bundle"
+    mixed.build_mixed_gate(train_root, vrdu, test, bundle, target=4, shard_count=2)
+    gate = tmp_path / "gate"
+    _sealed_gate(bundle, gate)
+    manifest = next((gate / "data" / "product_runs").glob("*/manifest.jsonl"))
+    receipts = [json.loads(line) for line in manifest.read_text(encoding="utf-8").splitlines()]
+    original = Path(receipts[0]["source_path"])
+    copied = gate / "same-bytes" / original.name
+    copied.parent.mkdir()
+    shutil.copyfile(original, copied)
+    receipts[0]["source_path"] = str(copied)
+    _write_jsonl(manifest, receipts)
+    with pytest.raises(mixed.MixedGateError, match="run/source receipt differs"):
+        score_mixed_cord_positive(bundle, gate, gate / "wrong-source.json", min_unique=4)
+
+
+def test_cord_positive_score_rejects_rehashed_aggregate_candidate_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    train_root, vrdu, test = _fixture(tmp_path, monkeypatch)
+    bundle = tmp_path / "bundle"
+    mixed.build_mixed_gate(train_root, vrdu, test, bundle, target=4, shard_count=2)
+    gate = tmp_path / "gate"
+    provenance = _sealed_gate(bundle, gate)
+    path = gate / "candidates.jsonl"
+    candidates = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    candidates[0]["document_status"] = "processed"
+    provenance["candidate_sha256"] = _write_jsonl(path, candidates)
+    (gate / "provenance.json").write_text(json.dumps(provenance), encoding="utf-8")
+    with pytest.raises(mixed.MixedGateError, match="aggregate candidates differ"):
+        score_mixed_cord_positive(bundle, gate, gate / "wrong-candidate.json", min_unique=4)

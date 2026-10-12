@@ -24,11 +24,12 @@ holdout. The touched surface is `research_evidence`; its primary action is
 - The [VRDU cohort](../../product_eval/datasets/vrdu.py) is pinned to creator
   commit `04a4df7ac5cc694e51c48115c03fe428f0e240cc` and the existing
   2,000-PDF cohort/gold SHA-256s. The builder checks the complete frozen
-  receipts and gold join, then rehashes each selected PDF before and after
-  staging. CORD train images overlapping a VRDU source by raw SHA are excluded.
+  receipts, selects sources, checks the gold join, then rehashes each selected
+  PDF before and after staging. CORD train images overlapping a VRDU source
+  by raw SHA are excluded.
 
-Selection uses image bytes and frozen source receipts **before** reading CORD
-annotations. It retains each eligible distinct train image once, up to 1,999,
+Selection uses image bytes and frozen source receipts **before** reading either
+dataset's annotations. It retains each eligible distinct train image once, up to 1,999,
 then fills to exactly 2,000 with a fixed SHA rank over the pinned VRDU PDF
 cohort. Fewer than one eligible CORD image, insufficient distinct sources,
 unexpected splits/files, missing bytes, changed hashes, or incomplete gold
@@ -54,8 +55,10 @@ precision/F1 mixes VRDU's derived gold with CORD's positive-only gold and is
 **not** a CORD precision estimate or arbitrary-document quality claim. Score
 CORD positive scalar, linked-cell, and complete-row recall separately with
 [`mixed_cord_positive.py`](../../product_eval/datasets/mixed_cord_positive.py),
-which verifies the completed gate's source count and hash-bound receipts,
-filters candidates to CORD train IDs, then calls the existing
+which verifies the completed gate's 2,000-source count, subprocess exits,
+product run manifests, raw source bytes, sealed result files, and exact
+cohort/candidate join. It recomputes the full-cohort quality report before
+filtering candidates to CORD train IDs and calling the existing
 [`cord_positive_score.py`](../../product_eval/datasets/cord_positive_score.py).
 The
 current `run_gate` family report inherits VRDU-specific interpretation text;
