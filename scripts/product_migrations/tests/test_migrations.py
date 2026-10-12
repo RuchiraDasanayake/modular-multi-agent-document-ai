@@ -43,8 +43,12 @@ def test_upgrade_renders_scoped_postgres_constraints() -> None:
     assert "CONSTRAINT uq_product_run_idempotency UNIQUE (owner_user_id, job_id, idempotency_key)" in sql
     assert "idempotency_key TEXT NOT NULL" in sql
     assert "request_sha256 TEXT NOT NULL" in sql
+    assert "CONSTRAINT ck_product_job_name CHECK (length(name) >= 1)" in sql
+    assert "CONSTRAINT ck_product_recipe_name CHECK (length(family_name) BETWEEN 1 AND 100)" in sql
     assert "CREATE TRIGGER review_events_immutable BEFORE UPDATE OR DELETE" in sql
     assert "CREATE TRIGGER recipe_events_immutable BEFORE UPDATE OR DELETE" in sql
+    assert "CREATE TRIGGER review_events_no_truncate BEFORE TRUNCATE" in sql
+    assert "CREATE TRIGGER recipe_events_no_truncate BEFORE TRUNCATE" in sql
     assert "DROP TABLE" not in sql
 
 

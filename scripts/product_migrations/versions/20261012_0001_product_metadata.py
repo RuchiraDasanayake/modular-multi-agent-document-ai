@@ -38,7 +38,7 @@ def upgrade() -> None:
         sa.CheckConstraint("job_id ~ '^[0-9a-f]{32}$'", name="ck_product_job_id"),
         sa.CheckConstraint("revision >= 1", name="ck_product_job_revision"),
         sa.CheckConstraint("status IN ('draft', 'queued', 'running', 'success', 'failed')", name="ck_product_job_status"),
-        sa.CheckConstraint("length(name) BETWEEN 1 AND 200", name="ck_product_job_name"),
+        sa.CheckConstraint("length(name) >= 1", name="ck_product_job_name"),
         sa.CheckConstraint("updated_at >= created_at", name="ck_product_job_timestamps"),
         _json_object("snapshot"),
         schema="product",
@@ -260,7 +260,7 @@ def upgrade() -> None:
             "(revision = 3 AND previous_event_id ~ '^[0-9a-f]{32}$' AND action = 'disabled' "
             "AND state = 'disabled')", name="ck_product_recipe_transition"
         ),
-        sa.CheckConstraint("length(family_name) BETWEEN 2 AND 100", name="ck_product_recipe_name"),
+        sa.CheckConstraint("length(family_name) BETWEEN 1 AND 100", name="ck_product_recipe_name"),
         sa.CheckConstraint("source_digest_sha256 ~ '^[0-9a-f]{64}$'", name="ck_product_recipe_digest"),
         _json_object("event"),
         schema="product",
@@ -285,6 +285,15 @@ def upgrade() -> None:
     op.execute(
         "CREATE TRIGGER recipe_events_immutable BEFORE UPDATE OR DELETE ON product.recipe_events "
         "FOR EACH ROW EXECUTE FUNCTION product.reject_event_mutation()"
+    )
+    # TRUNCATE does not fire DELETE triggers; protect entire audit trails as well.
+    op.execute(
+        "CREATE TRIGGER review_events_no_truncate BEFORE TRUNCATE ON product.review_events "
+        "FOR EACH STATEMENT EXECUTE FUNCTION product.reject_event_mutation()"
+    )
+    op.execute(
+        "CREATE TRIGGER recipe_events_no_truncate BEFORE TRUNCATE ON product.recipe_events "
+        "FOR EACH STATEMENT EXECUTE FUNCTION product.reject_event_mutation()"
     )
 
 

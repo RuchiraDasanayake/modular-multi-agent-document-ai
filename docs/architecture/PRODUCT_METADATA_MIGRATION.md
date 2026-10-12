@@ -25,13 +25,17 @@ until an explicit data import and database cutover is validated.
   stable job/file/run/document IDs, lifecycle states, timestamps, source hashes
   where available, and JSONB snapshots. PostgreSQL keys include the
   owner; composite foreign keys prevent a row from pointing to another owner's
-  job, file, run, document, or source review.
+  job, file, run, document, or source review. The current jobs API permits names
+  longer than 200 characters, so this schema does not impose a new name limit
+  that would block import of otherwise valid old jobs. The recipe-name check
+  permits one PostgreSQL code point because the current JavaScript validator
+  counts one supplementary Unicode symbol as two code units.
 - `product.review_events` and `recipe_events` hold append-only event payloads.
   Unique revision keys and a previous-event foreign key require an unbroken
-  chain for each document review or recipe. Triggers reject `UPDATE` and
-  `DELETE`. Recipe events reference the exact source review event. The current
-  three recipe transitions are constrained; a future recipe lifecycle needs a
-  new migration.
+  chain for each document review or recipe. Triggers reject `UPDATE`,
+  `DELETE`, and `TRUNCATE`. Recipe events reference the exact source review
+  event. The current three recipe transitions are constrained; a future recipe
+  lifecycle needs a new migration.
 - `runs.idempotency_key` is required and unique per owner/job, and each run
   carries a `request_sha256` fingerprint. A future writer must atomically
   compare the request fingerprint when it sees an existing key; a reused key
@@ -45,6 +49,10 @@ event has valid source evidence, that a hash matches an artifact, or that an
 authenticated actor is authorized for a job. The future writer must verify
 those before committing, avoid storing provider secrets in snapshots, and scope
 every query by authenticated owner.
+In particular, a prior-event foreign key does not prevent a later recipe event
+from changing its source review, family name, fields, or row groups. The current
+file reader rejects those changes; the database writer must retain that rule,
+and import verification must compare JSONB identities with the indexed columns.
 The current Compose PostgreSQL account has broad privileges; row security and
 a narrowly privileged product database role are required before treating the
 database as a tenant isolation boundary.
@@ -57,7 +65,7 @@ Use the same Compose file and environment as the deployment:
 
 ```powershell
 docker compose --profile maintenance run --rm product-migrations
-docker compose -f docker-compose.prod.yml --profile maintenance run --rm product-migrations
+docker compose --env-file .env.production -f docker-compose.prod.yml --profile maintenance run --rm product-migrations
 ```
 
 For review without a database:
