@@ -20,6 +20,7 @@
     {
       "declared_license": "MPL-2.0",
       "filename": "certifi-2026.7.22-py3-none-any.whl",
+      "installed_record_sha256": "ddea9025e9dd1871760b65ab1b82b5375644f6f05097cde8040f745755ded57f",
       "notices": [
         {
           "path": "certifi-2026.7.22.dist-info/licenses/LICENSE",
@@ -34,6 +35,7 @@
     {
       "declared_license": "MIT",
       "filename": "charset_normalizer-3.5.2-cp311-cp311-win_amd64.whl",
+      "installed_record_sha256": "e8727ed90d3a39c717da5302658c6d85fd0c9ca2690209960e80038e346daf99",
       "notices": [
         {
           "path": "charset_normalizer-3.5.2.dist-info/licenses/LICENSE",
@@ -48,6 +50,7 @@
     {
       "declared_license": "not_in_metadata",
       "filename": "colorama-0.4.6-py2.py3-none-any.whl",
+      "installed_record_sha256": "d3ed23a108446dcdfcbe96a3f3a4e3650dc7f72410e270114ebae1a4b1ea1da3",
       "notices": [
         {
           "path": "colorama-0.4.6.dist-info/licenses/LICENSE.txt",
@@ -62,6 +65,7 @@
     {
       "declared_license": "MIT License",
       "filename": "colorlog-6.12.0-py3-none-any.whl",
+      "installed_record_sha256": "b4abfeb307d433d43a7b6739dd2b7e5fcea699cf975dc50e29fb5198d11ab89a",
       "notices": [
         {
           "path": "colorlog-6.12.0.dist-info/licenses/LICENSE",
@@ -76,6 +80,7 @@
     {
       "declared_license": "Apache 2.0",
       "filename": "flatbuffers-25.12.19-py2.py3-none-any.whl",
+      "installed_record_sha256": "bb139cf78e36c4e81bcf9662d8713ddb2fafb149731e500d62d49cb02cacd21a",
       "notices": [],
       "package": "flatbuffers",
       "sha256": "7634f50c427838bb021c2d66a3d1168e9d199b0607e6329399f04846d42e20b4",
@@ -85,6 +90,7 @@
     {
       "declared_license": "BSD-3-Clause",
       "filename": "idna-3.20-py3-none-any.whl",
+      "installed_record_sha256": "b115a9b39f83b643c610661d4bf5770c4fa701d7048f49e09d4a3ed509e0ca64",
       "notices": [
         {
           "path": "idna-3.20.dist-info/licenses/LICENSE.md",
@@ -99,6 +105,7 @@
     {
       "declared_license": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
       "filename": "numpy-2.4.6-cp311-cp311-win_amd64.whl",
+      "installed_record_sha256": "4ede72413e1b932fe5baa49dbf5e3397e8d188b38cea6d5a7bce855e56bd4933",
       "notices": [
         {
           "path": "numpy-2.4.6.dist-info/licenses/LICENSE.txt",
@@ -192,6 +199,7 @@
     {
       "declared_license": "not_in_metadata",
       "filename": "omegaconf-2.4.0-py3-none-any.whl",
+      "installed_record_sha256": "522f27a771aa483982d60496822ac3e88006a882f4327098b20fee9f07f15c6e",
       "notices": [
         {
           "path": "omegaconf-2.4.0.dist-info/licenses/LICENSE",
@@ -210,6 +218,7 @@
     {
       "declared_license": "MIT License",
       "filename": "onnxruntime-1.31.0-cp311-cp311-win_amd64.whl",
+      "installed_record_sha256": "9fb750daa5abc7b83a3e2ca366b16438711e3f40872510e862d5527d0fc3c4c5",
       "notices": [
         {
           "path": "onnxruntime/LICENSE",
@@ -230,6 +239,7 @@
     {
       "declared_license": "Apache 2.0",
       "filename": "opencv_python-5.0.0.93-cp37-abi3-win_amd64.whl",
+      "installed_record_sha256": "4682bd7c5897ee4c95fd6b365b1457fc5128483976513d94793553271ab7b02a",
       "notices": [
         {
           "path": "cv2/LICENSE-3RD-PARTY.txt",
@@ -260,6 +270,7 @@
     {
       "declared_license": "Apache-2.0 OR BSD-2-Clause",
       "filename": "packaging-26.3-py3-none-any.whl",
+      "installed_record_sha256": "7074c2b63752a891e4032b7c2043f0d237bc170e33c85c7c1af0d99140469905",
       "notices": [
         {
           "path": "packaging-26.3.dist-info/licenses/LICENSE",
@@ -282,6 +293,7 @@
     {
       "declared_license": "MIT-CMU",
       "filename": "pillow-12.3.0-cp311-cp311-win_amd64.whl",
+      "installed_record_sha256": "b7d966958e9add91411d374c18b9e8ace09c8b12b77e050e8d6d226526a03059",
       "notices": [
         {
           "path": "pillow-12.3.0.dist-info/licenses/LICENSE",
@@ -296,6 +308,7 @@
     {
       "declared_license": "3-Clause BSD License",
       "filename": "protobuf-7.36.2-cp310-abi3-win_amd64.whl",
+      "installed_record_sha256": "4423e16e61feaef1b02e330194358608f00b9b49ee83e3bd159ecb44ca817a81",
       "notices": [
         {
           "path": "protobuf-7.36.2.dist-info/LICENSE",
@@ -311,6 +324,7 @@
     {
       "declared_license": "MIT",
       "filename": "pyyaml-6.0.3-cp311-cp311-win_amd64.whl",
+      "installed_record_sha256": "e3d0d41454bcdcc7680022775725b593b54caa2fa1f8a3fe4bdf5a7e6ad8fff9",
       "notices": [
         {
           "path": "pyyaml-6.0.3.dist-info/licenses/LICENSE",
@@ -325,6 +339,7 @@
     {
       "declared_license": "Apache-2.0",
       "filename": "rapid_table-3.0.2-py3-none-any.whl",
+      "installed_record_sha256": "81ec131d5b0e12cd65dec995dd0546b190e9b2d62f610c326550446a3808f663",
       "notices": [
         {
           "path": "rapid_table-3.0.2.dist-info/licenses/LICENSE",
@@ -339,6 +354,7 @@
     {
       "declared_license": "Apache-2.0",
       "filename": "requests-2.34.2-py3-none-any.whl",
+      "installed_record_sha256": "e0c945f8285cf1abef43fe11fd97e7ef03b8842c241db946ced0ca12af4f8c0e",
       "notices": [
         {
           "path": "requests-2.34.2.dist-info/licenses/LICENSE",
@@ -357,6 +373,7 @@
     {
       "declared_license": "MPL-2.0 AND MIT",
       "filename": "tqdm-4.70.1-py3-none-any.whl",
+      "installed_record_sha256": "dcf9ad20b8f5212e522b8824df621700e2374769c8674f866f79b40e84d01b0f",
       "notices": [
         {
           "path": "tqdm-4.70.1.dist-info/licenses/LICENCE",
@@ -371,6 +388,7 @@
     {
       "declared_license": "MIT",
       "filename": "urllib3-2.8.0-py3-none-any.whl",
+      "installed_record_sha256": "60365e8675983fb51bb912b439c2f96c8b02551dcd51c7900d5ff4fa6aac3ce8",
       "notices": [
         {
           "path": "urllib3-2.8.0.dist-info/licenses/LICENSE.txt",
