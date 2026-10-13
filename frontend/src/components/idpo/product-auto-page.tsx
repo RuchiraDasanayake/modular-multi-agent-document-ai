@@ -90,12 +90,13 @@ export function ProductAutoPage() {
     JSON.stringify({ intent: brief.intent, fields: brief.fields,
       samples: brief.sample_sources.map((source) => source.file_id) });
   const confirmed = brief?.state === "confirmed" && !formDirty && staleSampleFileIds.length === 0;
-  const previewRun = confirmed ? runs.find((run) => run.confirmedBrief?.phase === "preview" &&
+  const matchingPreviews = confirmed ? runs.filter((run) => run.confirmedBrief?.phase === "preview" &&
     run.confirmedBrief.briefId === brief.brief_id && run.confirmedBrief.revision === brief.revision &&
-    run.confirmedBrief.payloadSha256 === brief.payload_sha256) : undefined;
-  const previewReviewed = previewRun?.status === "success" && previewRun.documents.length > 0 &&
-    previewRun.documents.every((document) => document.status === "needs_review" &&
-      document.reviewStatus === "completed");
+    run.confirmedBrief.payloadSha256 === brief.payload_sha256) : [];
+  const previewRun = matchingPreviews[0];
+  const reviewedPreviewRun = matchingPreviews.find((run) => run.status === "success" &&
+    run.documents.length > 0 && run.documents.every((document) => document.status === "needs_review" &&
+      document.reviewStatus === "completed"));
   const remainingSelected = selected.filter((fileId) => !sampleFileIds.includes(fileId));
 
   function updateField(index: number, change: Partial<ProductAutoBriefField>) {
@@ -140,7 +141,7 @@ export function ProductAutoPage() {
     try {
       const run = await idpoApi.startProductAutoRun(jobId, fileIds, undefined, {
         expectedRevision: brief.revision, payloadSha256: brief.payload_sha256, phase,
-        ...(phase === "batch" && previewRun ? { previewRunId: previewRun.runId } : {}),
+        ...(phase === "batch" && reviewedPreviewRun ? { previewRunId: reviewedPreviewRun.runId } : {}),
       });
       setRuns((current) => [run, ...current]);
       setActiveRunId(run.runId);
@@ -292,14 +293,14 @@ export function ProductAutoPage() {
             className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50">
             {starting ? "Starting…" : previewRun ? "Run preview again" : "Preview sample files"}
           </button>
-          <button type="button" disabled={!confirmed || !previewReviewed || remainingSelected.length === 0 ||
+          <button type="button" disabled={!confirmed || !reviewedPreviewRun || remainingSelected.length === 0 ||
             !available || !modelConfigured || running || starting || briefBusy} onClick={() => void startConfirmedRun("batch")}
             className="rounded-lg border border-cyan-600 px-4 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-50 disabled:opacity-50 dark:text-cyan-300">
             Apply to {remainingSelected.length} remaining files
           </button>
         </div>
         {previewRun ? <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
-          Preview {previewRun.status}. {previewReviewed ? "All sample results are reviewed and ready for the batch." :
+          Latest preview {previewRun.status}. {reviewedPreviewRun ? "A reviewed sample preview is ready for the batch." :
             "Review every preview document using the links in Runs below."}
         </p> : null}
         {confirmed ? <div className="mt-4 grid gap-2 sm:grid-cols-2">
