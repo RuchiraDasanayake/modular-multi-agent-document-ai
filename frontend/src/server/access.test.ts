@@ -18,7 +18,7 @@ import { resetConfigCacheForTests } from "./config";
 import { getRunDocument, readRunOcrText } from "./artifacts";
 import { createWorkspaceJob, getJob, mutateJob, updateJob } from "./jobs";
 import { readReviewArtifact, writeReviewArtifact, type ReviewArtifact } from "./review";
-import { sanitizeRunId } from "./paths";
+import { sanitizeDocumentId, sanitizeRunId } from "./paths";
 
 const users: Record<string, { id: string; role: string }> = {
   alice: { id: "alice-id", role: "viewer" },
@@ -167,6 +167,16 @@ test("run artifact paths reject a document-directory link outside the run", asyn
   assert.throws(() => writeReviewArtifact({ runId: "own-run", docId: "linked-doc" } as ReviewArtifact),
     /Path traversal blocked/);
 }));
+
+test("document IDs reject Windows device names and blank aliases while preserving ordinary IDs", () => {
+  for (const docId of ["CON", "con.txt", "NUL.tar.gz", "PrN.json", "AUX", "COM1", "com9.pdf",
+    "LPT1", "lpt9.txt", "COM¹.txt", "lpt²", "CON .txt", " ", "\u00a0", "receipt "]) {
+    assert.throws(() => sanitizeDocumentId(docId), /Invalid docId/, docId);
+  }
+  for (const docId of ["COM10", "LPT0", "invoice_con.txt", "context", " leading-doc", "a".repeat(32)]) {
+    assert.equal(sanitizeDocumentId(docId), docId);
+  }
+});
 
 test("document detail and human review routes enforce the job owner", async () => withStorage(async () => {
   const job = createWorkspaceJob({ ownerUserId: "alice-id", fieldConfigCurrent: [{ name: "invoice_number" }] });

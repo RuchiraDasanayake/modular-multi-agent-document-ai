@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { loadRunnerConfig } from "@/server/config";
 
+const WINDOWS_DEVICE_BASENAME = /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])$/iu;
+
 export function sanitizeRunId(runId: string): string {
   const cleaned = runId.trim();
   if (cleaned === "." || cleaned === ".." || !/^[a-zA-Z0-9_.-]+$/.test(cleaned)) {
@@ -13,8 +15,10 @@ export function sanitizeRunId(runId: string): string {
 export function sanitizeDocumentId(docId: string): string {
   // A document ID is one path segment. Checking both separators matters when
   // artifacts are shared between Windows development and Linux deployment.
-  if (!docId || docId.length > 255 || docId === "." || docId === ".." ||
-    /[\\/\u0000-\u001f\u007f<>:"|?*]/u.test(docId) || /[. ]$/u.test(docId)) {
+  const windowsBaseName = docId.split(".", 1)[0].trimEnd();
+  if (!docId.trim() || docId.length > 255 || docId === "." || docId === ".." ||
+    /[\\/\u0000-\u001f\u007f<>:"|?*]/u.test(docId) || /[. ]$/u.test(docId) ||
+    WINDOWS_DEVICE_BASENAME.test(windowsBaseName)) {
     throw new Error("Invalid docId");
   }
   return docId;
