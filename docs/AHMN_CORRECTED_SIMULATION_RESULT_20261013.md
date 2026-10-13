@@ -24,6 +24,27 @@ boundaries was 189,739,008 bytes. The operational product evaluation was
 active concurrently, so this is not an isolated latency benchmark. There
 were **zero document-model calls, zero OCR runs and no reserved-label access**.
 
+## Executed mechanism details
+
+Each vendor has five policy arms, initially Beta(1,1). The simulator adds
+reward and one-minus-reward as fractional success/failure counts. RABI
+initializes a newly observed vendor from qualifying observed neighbors using
+cosine similarity at least 0.4, at least five samples per neighbor arm,
+softmax temperature 0.5, and a cap of 10 on transferred excess counts.
+Although `RABIInitializer` stores `k=5`, its executed `initialize_prior`
+method neither sorts nor truncates the supplied neighbors to that number.
+It weights **all qualifying supplied neighbors**. Do not describe the
+experiment as enforced top-five retrieval. This clarification describes
+the frozen code; it does not alter the completed experiment.
+
+DAAF uses recent and older per-arm reward windows of 50, minimum sample count
+10, shift thresholds 0.05/0.15 and standardized-gap thresholds 2/3. It shrinks
+excess counts toward Beta(1,1), with extra halving on an abrupt classification,
+before adding the current fractional reward. Decaying epsilon-greedy uses
+`max(0.01, exp(-0.003 * round))`; UCB1 uses exploration coefficient 2.
+The frozen sources and protocol retain the exact update equations and every
+scenario's reward means, vendor weights, arrival times and embeddings.
+
 ## Main comparison
 
 Cumulative pseudo-regret, mean ± population SD over 30 seeds; lower is better.
@@ -98,7 +119,8 @@ window has the lowest mean in this scenario, but the main setting remains
   repeated twice.
 - Rewards, vendor similarity and change points are designed synthetic
   inputs. Rewards are Gaussian samples clipped to [0,1]. The drift scenario
-  applies discrete changes at rounds 500 and 1000; its source's first-change
+  applies discrete changes at rounds 500 and 1000; the combined scenario
+  applies its own discrete change at round 600. The drift source's first-change
   label “gradual” does not implement continuous gradual drift.
 - Simulation uses fractional posterior updates; the historical document
   runtime uses a Bernoulli threshold. Neither the historical measured
