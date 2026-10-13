@@ -10,12 +10,16 @@ It is intentionally shorter and stricter than the long architecture docs.
 The system is a document-processing platform with a canonical research runtime and a separate opt-in product extraction
 path, plus a few legacy or research-facing support surfaces.
 
-The native Windows product launcher runs local PostgreSQL, the authentication gateway and the frontend; extraction
-uses the existing local Python subprocess. Docker and Redis are optional for this product mode. Set
+The native Windows product launcher runs local PostgreSQL, the authentication gateway, a separate extraction worker
+and the frontend. The worker runs the existing local Python extractor. Docker and Redis are optional for this product mode. Set
 `TOKEN_REVOCATION_BACKEND=postgresql` and explicitly apply `gateway/native_auth.sql` to the configured database.
 Refresh rotation uses a durable atomic claim before issuing replacement tokens; storage failures deny refresh.
 The launcher requires persistent explicit secrets and binds only loopback. This is a development runtime with
-process-local rate limits and the existing single-run extraction lease, not a distributed queue. See
+process-local rate limits. Native product extraction uses pg-boss with atomic PostgreSQL admission, per-owner pending
+limits and a single active attempt per job. Sources and schema snapshots are verified before execution; interrupted
+attempts are terminal and never automatically replay paid calls. Queue state survives web restarts. Artifact storage
+is still a configured filesystem shared by web and worker; this does not establish multi-host storage, per-document
+resume, or high availability. The historical direct subprocess mode remains for existing deployments/tests. See
 [`scripts/native_product.md`](../scripts/native_product.md) for setup, startup and ownership-checked shutdown.
 
 The current runtime must remain understandable, stable and auditable while product stabilization proceeds. Its research

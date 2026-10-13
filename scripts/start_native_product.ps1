@@ -23,6 +23,7 @@ if ($Status) {
 if ($state) {
   $summary = Get-NativeSummary -Config $config -State $state
   if ($summary.postgres.portOwned -and $summary.gateway.portOwned -and $summary.frontend.portOwned -and
+    $summary.worker.processVerified -and $summary.worker.healthy -and
     (Wait-NativeHttpHealth -Port $config.gatewayPort -Path '/health' -ExpectedStatus 'healthy' `
       -Identity $state.services.gateway -Seconds 3) -and
     (Wait-NativeHttpHealth -Port $config.frontendPort -Path '/api/health' -ExpectedStatus 'ok' `
@@ -39,7 +40,7 @@ foreach ($port in @($config.postgresPort, $config.gatewayPort, $config.frontendP
 
 New-Item -ItemType Directory -Path $config.runtimeRoot, $config.dataDir, $config.logDir,
   (Split-Path -Parent $config.statePath) -Force | Out-Null
-$state = @{ version = 1; services = @{ }; signature = '' }
+$state = @{ version = 2; services = @{ }; signature = '' }
 
 $pgCtl = Join-Path $config.pgBin 'pg_ctl.exe'
 $postgresExe = [IO.Path]::GetFullPath((Join-Path $config.pgBin 'postgres.exe'))
@@ -103,6 +104,32 @@ try {
     NEXT_PUBLIC_API_URL = "http://127.0.0.1:$($config.gatewayPort)"
     NODE_ENV = 'development'
     NEXT_TELEMETRY_DISABLED = '1'
+    PRODUCT_EXECUTION_MODE = 'postgres'
+    PRODUCT_QUEUE_DATABASE_URL = [string]$config.databaseUrl
+  }
+  foreach ($mapping in @(@('autoModel', 'IDPO_AUTO_MODEL'), @('autoApiBaseUrl', 'IDPO_AUTO_API_BASE_URL'),
+    @('icoreApiKey', 'ICORE_API_KEY'))) {
+    if ($config.ContainsKey($mapping[0]) -and $config[$mapping[0]]) {
+      $frontendEnvironment[$mapping[1]] = [string]$config[$mapping[0]]
+    }
+  }
+  $worker = Start-NativeChild -Executable $config.nodePath `
+    -Arguments @('--import', 'tsx', 'scripts/product-execution-worker.ts') `
+    -WorkingDirectory (Join-Path $config.repoRoot 'frontend') `
+    -LogDirectory $config.logDir -Name 'worker' -Environment $frontendEnvironment
+  $workerIdentity = Get-NativeProcessIdentity -Id $worker.Id
+  if (-not $workerIdentity -or $workerIdentity.executable -ine $config.nodePath) {
+    throw 'Extraction worker identity could not be verified.'
+  }
+  $state.services.worker = $workerIdentity
+  Save-NativeState -Config $config -State $state
+  $workerDeadline = (Get-Date).AddSeconds(45)
+  do {
+    if (Test-NativeWorkerHealth -Config $config -Identity $workerIdentity) { break }
+    Start-Sleep -Milliseconds 300
+  } while ((Get-Date) -lt $workerDeadline)
+  if (-not (Test-NativeWorkerHealth -Config $config -Identity $workerIdentity)) {
+    throw "Extraction worker did not become healthy. See $($config.logDir)\worker.err.log"
   }
   $nextCli = Join-Path $config.repoRoot 'frontend\node_modules\next\dist\bin\next'
   $frontend = Start-NativeChild -Executable $config.nodePath `

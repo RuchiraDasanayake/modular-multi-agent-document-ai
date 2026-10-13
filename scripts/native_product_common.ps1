@@ -129,7 +129,10 @@ function Get-NativeState {
   catch { throw "Native process state is unreadable: $($Config.statePath)" }
   # PowerShell converts ISO JSON strings to DateTime in some versions. Restore
   # the canonical representation used by the receipt and CIM identity checks.
-  foreach ($name in @('postgres', 'gateway', 'frontend')) {
+  if ($state.version -lt 2 -and $state.services['worker']) {
+    throw 'Legacy process receipts cannot authorize a worker process.'
+  }
+  foreach ($name in @('postgres', 'gateway', 'frontend', 'worker')) {
     if ($state.services[$name] -and $state.services[$name].startedUtc -is [datetime]) {
       $state.services[$name].startedUtc = $state.services[$name].startedUtc.ToUniversalTime().ToString('o')
     }
@@ -144,7 +147,9 @@ function Get-NativeStateSignature {
   param($Config, $State)
   $parts = [System.Collections.Generic.List[string]]::new()
   $parts.Add([string]$Config.configPath)
-  foreach ($name in @('postgres', 'gateway', 'frontend')) {
+  $names = @('postgres', 'gateway', 'frontend')
+  if ($State.version -ge 2) { $names += 'worker' }
+  foreach ($name in $names) {
     $identity = if ($State.services) { $State.services[$name] } else { $null }
     $values = if ($identity) {
       @($name, $identity.pid, $identity.executable, $identity.startedUtc)
@@ -229,6 +234,17 @@ function Assert-NativePortFree {
   }
 }
 
+function Test-NativeWorkerHealth {
+  param($Config, $Identity)
+  if (-not (Test-NativeProcessIdentity $Identity)) { return $false }
+  $healthPath = Join-Path $Config.dataDir 'frontend\execution-worker.json'
+  try {
+    $health = Get-Content -LiteralPath $healthPath -Raw | ConvertFrom-Json
+    $age = ((Get-Date).ToUniversalTime() - ([DateTime]$health.heartbeatAt).ToUniversalTime()).TotalSeconds
+    return [int]$health.pid -eq [int]$Identity.pid -and $age -ge 0 -and $age -lt 90
+  } catch { return $false }
+}
+
 function Get-NativeSummary {
   param($Config, $State)
   $services = [ordered]@{}
@@ -243,6 +259,10 @@ function Get-NativeSummary {
       port = $port
     }
   }
+  $workerIdentity = if ($State -and $State.services) { $State.services['worker'] } else { $null }
+  $services.worker = [ordered]@{ tracked = [bool]$workerIdentity
+    processVerified = (Test-NativeProcessIdentity $workerIdentity)
+    healthy = (Test-NativeWorkerHealth -Config $Config -Identity $workerIdentity) }
   return $services
 }
 

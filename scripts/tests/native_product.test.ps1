@@ -70,6 +70,14 @@ try {
   $loaded | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $config.statePath
   Assert-Throws { Get-NativeState -Config $config } 'Tampered process state rejected.'
 
+  $workerState = @{ version = 2; services = @{ worker = $identity }; signature = '' }
+  Save-NativeState -Config $config -State $workerState
+  $loadedWorker = Get-NativeState -Config $config
+  Assert-Test (Test-NativeProcessIdentity $loadedWorker.services.worker) 'Worker identity survives JSON reload.'
+  $loadedWorker.services.worker.pid = $PID + 1
+  $loadedWorker | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $config.statePath
+  Assert-Throws { Get-NativeState -Config $config } 'Worker PID is covered by the receipt signature.'
+
   $wrong = @{ pid = $identity.pid; executable = $identity.executable; startedUtc = '2000-01-01T00:00:00Z' }
   Assert-Test (-not (Test-NativeProcessIdentity $wrong)) 'PID reuse or altered start time rejected.'
 

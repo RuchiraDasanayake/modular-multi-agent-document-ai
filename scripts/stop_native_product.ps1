@@ -15,15 +15,16 @@ $expectedExecutables = @{
   postgres = [IO.Path]::GetFullPath((Join-Path $config.pgBin 'postgres.exe'))
   gateway = $config.gatewayPythonPath
   frontend = $config.nodePath
+  worker = $config.nodePath
 }
-foreach ($name in @('postgres', 'gateway', 'frontend')) {
+foreach ($name in @('postgres', 'gateway', 'frontend', 'worker')) {
   $identity = $state.services[$name]
   if ($identity -and [string]$identity.executable -ine $expectedExecutables[$name]) {
     throw "Tracked $name executable does not match config. No process was stopped."
   }
 }
 
-foreach ($name in @('frontend', 'gateway')) {
+foreach ($name in @('frontend', 'worker', 'gateway')) {
   $identity = $state.services[$name]
   if ($identity) { [void](Stop-NativeOwnedTree -Identity $identity) }
 }
@@ -49,13 +50,13 @@ if ($postgresIdentity -and (Test-NativeProcessIdentity $postgresIdentity)) {
 
 $deadline = (Get-Date).AddSeconds(5)
 do {
-  $remaining = @(@('frontend', 'gateway', 'postgres') | Where-Object {
+  $remaining = @(@('frontend', 'worker', 'gateway', 'postgres') | Where-Object {
     $state.services[$_] -and (Test-NativeProcessIdentity $state.services[$_])
   })
   if ($remaining.Count -eq 0) { break }
   Start-Sleep -Milliseconds 200
 } while ((Get-Date) -lt $deadline)
-foreach ($name in @('frontend', 'gateway', 'postgres')) {
+foreach ($name in @('frontend', 'worker', 'gateway', 'postgres')) {
   if ($state.services[$name] -and (Test-NativeProcessIdentity $state.services[$name])) {
     throw "$name is still running; retained process state for another stop attempt."
   }
