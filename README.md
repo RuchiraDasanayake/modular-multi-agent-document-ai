@@ -36,7 +36,8 @@ It includes a separate research pipeline for studying adaptive document policies
 ## Product Workflow
 
 For Windows without Docker, use the [native setup and launcher](scripts/native_product.md).
-On a configured installation, create a job, upload supported files and open **Automatic extraction**.
+The [product quickstart](docs/PRODUCT_QUICKSTART.md) covers the signed-in workflow and operator handover.
+On a configured installation, create a job, upload supported files and open **Automatic schema extraction**.
 Describe the required information, choose samples, enter or request field suggestions, and confirm field meanings.
 Review the preview before processing the remaining files with that pinned schema. The owner can correct fields and
 rows while inspecting source quotes and the original, then download reviewed JSON. Model-backed runs currently
