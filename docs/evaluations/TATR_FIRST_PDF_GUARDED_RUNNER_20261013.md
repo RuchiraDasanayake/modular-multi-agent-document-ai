@@ -1,6 +1,6 @@
 # Guarded first-PDF TATR runner: source-free integration result
 
-**Status: synthetic integration passed; selected PDF and gold remain unopened.**
+**Status: synthetic integration passed; the first selected PDF was attempted once and failed.**
 This is a research-only runner for the first source in the frozen VRDU ad-buy
 selection. It is not wired into product extraction, human review, or the
 2,000-document quality gate. The owning surfaces are `product_eval/`
@@ -125,11 +125,33 @@ version with a bounded failure receipt. Native-word pages suppress OCR.
 Both `PinnedCpuModels` calls were exercised on a synthetic 512 by 384 white
 image in the pinned CPU interpreter: detection returned 15 raw queries and
 structure returned 125, with the expected three unused detection buffers.
-This verifies this worker's model API call path, not cell quality. No actual
-TATR forward pass on a selected PDF has occurred. Before the first selected
-PDF, merge and independently review this scaffold with the current CPU lock,
-OCR orientation guard, OCR handoff and page-geometry corrections; then rerun
-source-free tests and verify the first-PDF guard on the merged checkout. The
-first selected result then needs a human
-source-pixel overlay verdict. It cannot establish 219-row accuracy, product
-field quality, cost, or 2,000-document performance.
+This verifies this worker's model API call path, not cell quality. The real
+first-PDF outcome and the proposed next gate are recorded below. No source
+overlay, 219-row accuracy, product field quality, cost, or 2,000-document
+improvement has been established.
+
+## Immutable first-PDF attempt, v1
+
+On the clean `2709ab95ecedb4323dc16cb4564a0b6febc938d9` checkout, the
+committed one-document gate SHA-256
+`3fce9f540882f9051dc0a31fa5831967bea2c7f607aa663efa23567c84c62dfc`
+allowed only the first source (SHA-256
+`00af9ec9594520a61f852e0ccfd93441f068b38fc120625a0571e04941eb1060`).
+The new output directory was `I:\DocAI-Benchmarks\tatr-adbuy12-v1`. Model
+startup succeeded offline, but the worker exited after 39.081 seconds with a
+bounded `GeometryError` while projecting native PDF text. The supervisor
+recorded `status: failed`, `reason: worker_failed`; no parsed document or
+overlay exists, gold was not opened, and the other eleven sources were not
+attempted. The immutable `first_pdf_receipt.json` SHA-256 is
+`3e068faa08cd52208674d1772db1075285653e7dd01f896129ca1b952a78bdc5`.
+This attempt provides no table-quality result. The v1 output must remain
+untouched; any corrected trial requires a new profile and directory.
+
+Source-only diagnosis on that same PDF found 2,576 valid non-whitespace PDFium
+character boxes on page one, one character box intersecting the right edge,
+and three boxes wholly outside the rendered page. Pages two and three had
+3,021 and 1,094 valid boxes and no out-of-page boxes. The strict source-word
+projection fails the entire PDF on the first out-of-page character. This
+explains the bounded failure without consulting gold or parser scores. A
+separately frozen rule for visible native characters and an independently
+reviewed v2 gate are required before another model inference.
