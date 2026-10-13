@@ -71,7 +71,7 @@ try {
   Assert-Test ($rapidConfig.rapidOcrTimeoutSeconds -eq 120 -and $rapidConfig.rapidOcrMaxRssMiB -eq 1536) 'RapidOCR bounds default explicitly.'
   foreach ($patch in @(@{ rapidOcrPythonPath = 'relative.exe' }, @{ rapidOcrMaxRssMiB = 2049 },
       @{ rapidOcrTimeoutSeconds = 181 }, @{ autoOcrEngine = 'unavailable' }, @{ autoResponseFormat = 'unknown' },
-      @{ autoLongDocument = 'truncate' })) {
+      @{ autoLongDocument = 'truncate' }, @{ autoVisualDocument = 'unbounded' })) {
     $bad = $rapid.Clone()
     foreach ($key in $patch.Keys) { $bad[$key] = $patch[$key] }
     $bad | ConvertTo-Json | Set-Content -LiteralPath $configPath

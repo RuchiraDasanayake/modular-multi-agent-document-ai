@@ -1144,7 +1144,8 @@ function verifiedDispatch(request: ProductDispatch): { record: RunRecord; prepar
     throw new Error("Invalid queued extraction profile.");
   }
   if ((prepared.extractionProfile?.responseFormat === "strict_confirmed_values_v1" ||
-      prepared.extractionProfile?.longDocument === "bounded_text_segments_v1") &&
+      prepared.extractionProfile?.longDocument === "bounded_text_segments_v1" ||
+      prepared.extractionProfile?.visualDocument === "bounded_visual_v1") &&
       (!record.confirmedBrief || !prepared.model)) throw new Error("Selected extraction profile requires a confirmed schema and model.");
   return { record, prepared };
 }

@@ -29,7 +29,8 @@ async function withQueuedRun(
     admissions: ProductDispatch[];
   }) => Promise<void>,
   options: { schema?: boolean; admissionError?: boolean; holdChild?: boolean;
-    maxOutputTokens?: string; timeoutSeconds?: string; rapidOcr?: boolean; strictFormat?: boolean } = {},
+    maxOutputTokens?: string; timeoutSeconds?: string; rapidOcr?: boolean; strictFormat?: boolean;
+    visual?: boolean; longDocument?: boolean } = {},
 ): Promise<void> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "idpo-queue-dispatch-"));
   const dataDir = path.join(root, "data");
@@ -41,7 +42,8 @@ async function withQueuedRun(
     IDPO_AUTO_TIMEOUT_S: options.timeoutSeconds ?? "",
     IDPO_AUTO_OCR_ENGINE: options.rapidOcr ? "rapidocr" : "tesseract",
     IDPO_AUTO_RESPONSE_FORMAT: options.strictFormat ? "strict_confirmed_values_v1" : "plain_json",
-    IDPO_AUTO_LONG_DOCUMENT: "reject",
+    IDPO_AUTO_LONG_DOCUMENT: options.longDocument ? "bounded_text_segments_v1" : "reject",
+    IDPO_AUTO_VISUAL_DOCUMENT: options.visual ? "bounded_visual_v1" : "disabled",
     IDPO_RAPIDOCR_PYTHON: options.rapidOcr ? process.execPath : "",
     IDPO_RAPIDOCR_WORK_DIR: options.rapidOcr ? root : "",
     IDPO_RAPIDOCR_TIMEOUT_S: "90", IDPO_RAPIDOCR_MAX_RSS_MIB: "1024" };
@@ -115,6 +117,19 @@ ${options.holdChild ? "setInterval(() => {}, 1000);" : "process.exit(1);"}`);
 const readRecord = (file: string) => JSON.parse(fs.readFileSync(file, "utf8")) as StoredRecord;
 
 test("queued execution validates admitted inputs before starting a subprocess", async (t) => {
+  await t.test("pins visual and long-document routing across later server changes", async () => withQueuedRun(async (f) => {
+    const dispatch = JSON.parse(fs.readFileSync(f.recordPath.replace(/\.json$/, ".dispatch.json"), "utf8"));
+    assert.equal(dispatch.extractionProfile.version, 3);
+    assert.equal(dispatch.extractionProfile.visualDocument, "bounded_visual_v1");
+    assert.equal(dispatch.extractionProfile.longDocument, "bounded_text_segments_v1");
+    process.env.IDPO_AUTO_VISUAL_DOCUMENT = "disabled";
+    process.env.IDPO_AUTO_LONG_DOCUMENT = "reject";
+    await assert.rejects(executePreparedProductAutoRun(f.request, new AbortController().signal), /output not verified/i);
+    const { args } = JSON.parse(fs.readFileSync(f.capturePath, "utf8")) as { args: string[] };
+    assert.equal(args[args.indexOf("--visual-document-profile") + 1], "bounded_visual_v1");
+    assert.equal(args[args.indexOf("--long-document-profile") + 1], "bounded_text_segments_v1");
+  }, { schema: true, visual: true, longDocument: true }));
+
   await t.test("pins a server model budget across an environment change", async () => withQueuedRun(async (f) => {
     const profile = JSON.parse(fs.readFileSync(f.recordPath.replace(/\.json$/, ".dispatch.json"), "utf8"));
     assert.equal(profile.version, 3);

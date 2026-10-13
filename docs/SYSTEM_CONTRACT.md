@@ -34,6 +34,14 @@ must have verified coverage before model execution. Invalid or incomplete replie
 conflicting scalar values require review. Complete processing is distinct from correct extraction. Older dispatches
 retain their original behavior. See [long documents](PRODUCT_LONG_DOCUMENT_SEGMENTS.md).
 
+The opt-in `bounded_visual_v1` profile routes confirmed-schema images and PDFs requiring OCR to complete
+page images with OCR text/geometry aids. All-native PDFs and other supported native/text formats use strict
+text extraction. Image requests are prepared before sending any page and require complete coverage within
+four requests (at most 12 images and 4 MiB each). Invalid or incomplete visual replies fail the whole candidate;
+all visual values require review, including exact OCR matches. Queued profile version 3 seals this choice;
+older jobs do not acquire visual routing from later server configuration. This is an implemented candidate,
+not a validated accuracy claim. See [visual extraction](PRODUCT_VISUAL_BOUNDARY.md).
+
 The current runtime must remain understandable, stable and auditable while product stabilization proceeds. Its research
 policy outputs are retained for the frozen October internal study, which is separate from the author-reported accepted
 May submission; whether adaptive routing belongs in the future product is an open measurement decision.

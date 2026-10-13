@@ -80,6 +80,8 @@ def main() -> None:
                              choices=("plain_json", "strict_confirmed_values_v1"))
     auto_parser.add_argument("--long-document-profile", default="reject",
                              choices=("reject", "bounded_text_segments_v1"))
+    auto_parser.add_argument("--visual-document-profile", default="disabled",
+                             choices=("disabled", "bounded_visual_v1"))
     auto_parser.add_argument("--approved-recipe-file", default=None, help="Explicit approved recipe snapshot file")
     auto_parser.add_argument("--approved-recipe-sha256", default=None, help="Expected SHA-256 of recipe snapshot bytes")
     auto_parser.add_argument("--confirmed-schema-file", default=None, help="Explicit user-confirmed schema snapshot file")
@@ -215,6 +217,7 @@ def main() -> None:
             confirmed_schema=confirmed_schema,
             response_format_profile=args.response_format_profile,
             **({"long_document_profile": args.long_document_profile} if args.long_document_profile != "reject" else {}),
+            **({"visual_document_profile": args.visual_document_profile} if args.visual_document_profile != "disabled" else {}),
         )
         print(json.dumps(result, indent=2))
         return
