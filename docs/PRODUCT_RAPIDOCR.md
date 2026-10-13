@@ -27,8 +27,9 @@ fallback. It must not replace a failed OCR result with rejected PDF text.
 
 ## Local configuration
 
-Select this adapter explicitly at the product integration layer. These variables
-configure it; setting them alone does not change the OCR engine:
+Select it with `python -m idpo.cli process-auto --input <path> --ocr-engine rapidocr`
+or `process_auto(..., ocr_engine="rapidocr")`. These variables configure it;
+setting them alone does not change the default engine:
 
 | Variable | Requirement |
 | --- | --- |
@@ -36,6 +37,22 @@ configure it; setting them alone does not change the OCR engine:
 | `IDPO_RAPIDOCR_TIMEOUT_S` | Default 120; 1–180 seconds per page including initialization |
 | `IDPO_RAPIDOCR_MAX_RSS_MIB` | Default 1536; 128–2048 MiB sampled process-tree RSS |
 | `IDPO_RAPIDOCR_WORK_DIR` | Optional existing absolute private scratch directory |
+
+The integration uses the existing bounded PDF rasterizer, performs at most one
+RapidOCR attempt per page, and preserves OCR text and line metadata without the
+legacy repair or Tesseract fallback. The effective child timeout is the smaller
+of the configured RapidOCR timeout and the product `--ocr-page-budget-s`. Image
+containers with multiple frames currently fail with
+`rapidocr_multiframe_requires_split`: split them into individual images first.
+Oversized image rasters are rejected explicitly rather than resized silently.
+
+Run `python scripts/check_product_runtime.py --ocr-engine rapidocr --json` with
+the environment above for an additional synthetic local OCR check. Its
+`optional_ocr` result controls overall readiness. Existing Tesseract checks remain
+required because schema sampling currently uses Tesseract. Omitting the engine
+flag preserves the original preflight contract. Native launcher configuration
+must explicitly pass the engine flag and worker environment when enabling this
+profile; the adapter does not change a running deployment by itself.
 
 The parent needs Pillow and psutil, already in `requirements-worker.txt`. The
 separate interpreter needs the optional `requirements-rapidocr.txt` environment.

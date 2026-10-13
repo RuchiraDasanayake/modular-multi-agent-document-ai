@@ -279,6 +279,7 @@ class OcrAgent(Agent):
         doc: Document = payload["document"]
         input_artifact_id = payload.get("input_artifact_id")
         engine = payload.get("engine") or ctx.config.preprocessing.ocr_engine
+        rapidocr_requested = str(engine).strip().lower() == "rapidocr"
         passes = int(payload.get("passes", ctx.config.preprocessing.ocr_passes))
         lang = payload.get("lang") or ctx.config.preprocessing.ocr_lang
         psm = int(payload.get("psm", ctx.config.preprocessing.ocr_psm))
@@ -334,6 +335,8 @@ class OcrAgent(Agent):
                     page_settings = dict(settings)
                     call_timeout = ctx.config.preprocessing.ocr_tesseract_call_timeout_s
                     page_budget = ctx.config.preprocessing.ocr_tesseract_page_budget_s
+                    if rapidocr_requested and page_budget is not None:
+                        page_settings["rapidocr_page_budget_s"] = page_budget
                     if call_timeout is not None and page_budget is not None:
                         page_settings["tesseract_budget"] = _TesseractBudget(
                             call_timeout_s=call_timeout,
@@ -351,6 +354,7 @@ class OcrAgent(Agent):
                 rerun_used = False
                 if (
                     page_used
+                    and not rapidocr_requested
                     and not page_failure
                     and (ocr_text or initial_single_pass)
                     and rerun_reason is not None
@@ -431,7 +435,7 @@ class OcrAgent(Agent):
                 ocr_meta["ocr_failure_reason"] = page_failure
                 if page_failure and failure_reason is None:
                     failure_reason = page_failure
-                if not ocr_text:
+                if not ocr_text and not rapidocr_requested:
                     # Fall back to raw text but normalize it
                     fallback = normalize_text(raw)
                     # If text is garbled (bad PDF CMap), try degarbling
@@ -439,7 +443,7 @@ class OcrAgent(Agent):
                         ocr_text = degarble(fallback)
                     else:
                         ocr_text = fallback
-                elif is_garbled_page and is_garbled(ocr_text):
+                elif not rapidocr_requested and is_garbled_page and is_garbled(ocr_text):
                     # OCR returned text but it's still garbled — degarble it
                     ocr_text = degarble(ocr_text)
             else:
@@ -481,6 +485,8 @@ class OcrAgent(Agent):
                                 "pdf_rendered_dpi",
                                 "pdf_render_size_px",
                                 "pdf_render_plan",
+                                "ocr_lines",
+                                "ocr_provenance",
                             )
                             if key in ocr_meta
                         },
@@ -627,6 +633,8 @@ class OcrAgent(Agent):
             raise TypeError("tesseract_budget must be a _TesseractBudget")
         dpi = int(settings.get("dpi") or 300)
         requested_engine = (engine_name or "").strip().lower()
+        if requested_engine == "rapidocr":
+            return self._ocr_image_rapidocr(page, settings)
         if requested_engine in {"paddle", "paddleocr"}:
             paddle_text, paddle_used, paddle_failure, paddle_meta = self._ocr_image_paddle(path, lang)
             if paddle_used and paddle_text:
@@ -696,6 +704,38 @@ class OcrAgent(Agent):
             if "TESSDATA_PREFIX" in message or "tessdata" in message:
                 return "", True, "tessdata_missing", {}
             return "", True, "ocr_failed", {}
+
+    def _ocr_image_rapidocr(
+        self, page: Page, settings: dict[str, object],
+    ) -> tuple[str, bool, str | None, dict[str, object]]:
+        """One isolated OCR attempt on the shared raster, with no text repair."""
+        from dataclasses import replace
+        from PIL import Image
+        from idpo.product_auto.rapid_ocr import RapidOcrConfig, RapidOcrError, recognize_image
+
+        metadata: dict[str, object] = {"ocr_engine_used": "rapidocr", "ocr_candidate_count": 0}
+        path = page.image_path or ""
+        if path.lower().endswith(".pdf"):
+            # run() already tried the shared bounded renderer. Do not enter the
+            # Tesseract PDF path or repeat rendering after that failure.
+            return "", True, "pdf_render_failed", metadata
+        try:
+            config = RapidOcrConfig.from_env()
+            budget = settings.get("rapidocr_page_budget_s")
+            if budget is not None:
+                config = replace(config, timeout_s=min(config.timeout_s, float(budget)))
+            with Image.open(path) as image:
+                # Intake currently represents an uploaded image as one page.
+                # Refuse multi-frame containers rather than silently skipping pages.
+                if getattr(image, "n_frames", 1) != 1:
+                    return "", True, "rapidocr_multiframe_requires_split", metadata
+                metadata["ocr_candidate_count"] = 1
+                result = recognize_image(image, config=config)
+            return result.text, True, None, result.metadata
+        except RapidOcrError as exc:
+            return "", True, exc.reason, metadata
+        except Exception:
+            return "", True, "rapidocr_failed", metadata
 
     def _preprocess_for_paddle(self, path: str) -> str:
         """Enhance image quality before PaddleOCR — upscale, contrast stretch, sharpen.

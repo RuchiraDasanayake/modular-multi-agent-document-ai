@@ -66,7 +66,8 @@ def main() -> None:
     auto_parser = subparsers.add_parser("process-auto", help="Discover fields and extract source-grounded values")
     auto_parser.add_argument("--input", required=True, help="One document or a directory of documents")
     auto_parser.add_argument("--run-id", default=None)
-    auto_parser.add_argument("--ocr-engine", default="tesseract")
+    auto_parser.add_argument("--ocr-engine", default="tesseract",
+                             choices=("tesseract", "paddle", "paddleocr", "rapidocr"))
     auto_parser.add_argument("--ocr-lang", default="eng")
     auto_parser.add_argument("--ocr-call-timeout-s", type=float, default=30.0)
     auto_parser.add_argument("--ocr-page-budget-s", type=float, default=120.0)
