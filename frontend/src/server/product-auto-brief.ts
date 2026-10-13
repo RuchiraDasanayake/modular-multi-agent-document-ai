@@ -139,7 +139,10 @@ function readTrail(jobId: string, owner: string): ProductAutoBriefRevision[] {
   if (!fs.existsSync(directory)) return [];
   const names = fs.readdirSync(directory).filter((name) => /^\d{12}\.json$/.test(name)).sort();
   if (!names.length) throw new Error("Extraction brief audit history is invalid.");
-  const events = names.map((name) => JSON.parse(fs.readFileSync(path.join(directory, name), "utf8")) as ProductAutoBriefRevision);
+  const events = names.map((name) => {
+    try { return JSON.parse(fs.readFileSync(path.join(directory, name), "utf8")) as ProductAutoBriefRevision; }
+    catch { throw new Error("Extraction brief audit history is invalid."); }
+  });
   for (let index = 0; index < events.length; index += 1) {
     const event = events[index];
     const previous = events[index - 1];

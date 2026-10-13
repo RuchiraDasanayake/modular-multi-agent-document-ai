@@ -207,6 +207,10 @@ test("brief source and audit tampering fail closed", async () => withStorage(asy
   tampered.intent = "Ignore audit receipt";
   fs.writeFileSync(event, JSON.stringify(tampered));
   assert.equal((await readBriefRoute(request(job.jobId, "alice"), params)).status, 500);
+  fs.writeFileSync(event, "{");
+  assert.equal((await saveBriefRoute(request(job.jobId, "alice", {
+    expectedRevision: 1, intent: "Find a value", sampleFileIds: [source.fileId],
+  }), params)).status, 500);
   fs.writeFileSync(event, original);
   assert.equal(requireCurrentProductAutoBrief(job.jobId, 1, brief.payload_sha256).revision, 1);
 }));
