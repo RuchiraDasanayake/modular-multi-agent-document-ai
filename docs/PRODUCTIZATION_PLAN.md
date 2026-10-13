@@ -57,22 +57,21 @@ per-source AI-use rights, runtime assets and a source-free model fit test are
 still required. This 12-source diagnostic cannot establish product extraction
 quality or replace the 2,000-source end-to-end gate.
 
-The [TATR source-free stage](evaluations/TATR_ADBUY12_ASSET_AND_SOURCE_FREE_PREP_20261013.md)
-verified two pinned model weights and synthetic page geometry, but has not
-loaded a model on a selected PDF or reconstructed a scored row. Its
+The [TATR CPU compatibility receipt](evaluations/TATR_ADBUY12_CPU_RUNTIME_COMPAT_20261013.md)
+now verifies pinned detection and structure model loads, real CPU forward
+passes, installed-runtime bytes and synthetic box conversion. Its
 [source-free cell adapter](evaluations/TATR_CELL_COMPAT_SOURCE_FREE_20261013.md)
-reconstructs synthetic grids and rejects overlapping boxes; model-output and
-page-pixel compatibility remain unproven. A separate
-[RapidTable source-free trial](evaluations/RAPIDTABLE_V3_ADBUY12_PROTOCOL_20261013.md)
-matched six synthetic cells, boxes and row/column positions on CPU; the exact
-model has a [publisher-provenance receipt](evaluations/RAPIDTABLE_PUBLISHER_ASSET_RIGHTS_20261013.md)
-for local research, while installed runtime closure, model packaging attribution
-and the PDF evidence path remain held. The [runtime audit](evaluations/RAPIDTABLE_RUNTIME_PROVENANCE_20261013.md)
-pinpoints three overlapping OpenCV files; a single-owner design is required.
-The [clean source-free OCR worker](evaluations/TATR_OCR_WORD_SOURCE_FREE_20261013.md)
-can provide word polygons for TATR and line tuples for RapidTable, but its
-reported word confidence is uncalibrated and no selected PDF has used it.
-Neither research arm changes the product extractor or satisfies the row gate.
+reconstructs synthetic grids and rejects overlapping boxes. The separate
+[RapidTable table-only runtime](evaluations/RAPIDTABLE_TABLE_ONLY_RUNTIME_20261013.md)
+verifies one OpenCV owner, wheel and notice closure, and six synthetic CPU
+cells with publisher-sourced ONNX bytes. The earlier mixed RapidTable/OCR
+environment remains an audit record with three conflicting OpenCV files, not
+the clean runtime. The [RapidOCR word worker](evaluations/TATR_OCR_WORD_SOURCE_FREE_20261013.md)
+produces upright synthetic word polygons and explicitly rejects 180-degree or
+uncertain classifier lines after a detected word-to-box error; its reported
+word confidence is uncalibrated. These are source-free compatibility checks.
+No selected PDF, verified real crop/page cell evidence, scored gold row,
+review-time saving or product adapter is established by them.
 
 The next product change should be one bounded, feature-flagged PDF/image
 table adapter **only if** a parser clears its frozen row and evidence gate.
@@ -80,7 +79,12 @@ Keep its proposals in the existing HITL queue. Then run the required fresh
 2,000-distinct-original-source end-to-end gate through the actual candidate
 path, recording false proposals, reviewer time, latency and CPU/GPU cost.
 Evaluate automatic schema discovery separately from extraction against a
-supplied schema; those are distinct failure modes. The target shape below
+supplied schema; those are distinct failure modes. The
+[evidence-first schema decision](evaluations/EVIDENCE_FIRST_AUTO_SCHEMA_DECISION_AND_PROTOCOL_20261013.md)
+proposes a local, source-indexed research candidate on the existing
+CORD-development receipts and self-created format fixtures, with positive-only
+scores and explicit review/cost gates. It does not change the product path or
+claim general-document support. The target shape below
 remains a modular application with bounded workers. A new service, agent or
 memory layer requires a measured quality, cost or reliability gain.
 
