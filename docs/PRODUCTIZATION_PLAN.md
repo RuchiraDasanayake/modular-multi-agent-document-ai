@@ -57,6 +57,14 @@ per-source AI-use rights, runtime assets and a source-free model fit test are
 still required. This 12-source diagnostic cannot establish product extraction
 quality or replace the 2,000-source end-to-end gate.
 
+The [TATR source-free stage](evaluations/TATR_ADBUY12_ASSET_AND_SOURCE_FREE_PREP_20261013.md)
+verified two pinned model weights and synthetic page geometry, but has not
+loaded a model on a selected PDF or reconstructed a scored row. A separate
+[RapidTable source-free trial](evaluations/RAPIDTABLE_V3_ADBUY12_PROTOCOL_20261013.md)
+matched six synthetic cells, boxes and row/column positions on CPU; the exact
+model's rights, installed runtime closure and PDF evidence path remain held.
+Neither research arm changes the product extractor or satisfies the row gate.
+
 The next product change should be one bounded, feature-flagged PDF/image
 table adapter **only if** a parser clears its frozen row and evidence gate.
 Keep its proposals in the existing HITL queue. Then run the required fresh
