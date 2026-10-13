@@ -146,3 +146,34 @@ test("suggestion response is rejected if source changes while the helper runs", 
   };
   await assert.rejects(suggestProductAutoBrief(job.jobId, { id: "admin-id", role: "admin" }, pin, helper), /changed/);
 }));
+
+test("AI suggestion keeps a draft repeated field's group in the helper context", async () => withStorage(async () => {
+  const job = createWorkspaceJob({ ownerUserId: "alice-id" });
+  const upload = await addDocumentsToJob(job.jobId, [new File(["Widget A 2 12.00"], "order.txt")]);
+  const fileId = upload.documents![0].fileId;
+  const params = { params: Promise.resolve({ jobId: job.jobId }) };
+  const saved = await saveBriefRoute(request(job.jobId, "alice", {
+    expectedRevision: 0, intent: "Extract each printed order line", fields: [
+      { field_id: "item_name", type: "array[object]", group: "order_lines",
+        description: "Item name in each row", example_values: ["Widget A"] },
+    ], sampleFileIds: [fileId],
+  }), params);
+  assert.equal(saved.status, 201);
+  const brief = (await saved.json()).brief;
+  const result = await suggestProductAutoBrief(job.jobId, { id: "admin-id", role: "admin" },
+    { expectedRevision: brief.revision, expectedPayloadSha256: brief.payload_sha256 },
+    async (input) => {
+      assert.deepEqual(input.existing_fields, [{ field_id: "item_name", type: "array[object]",
+        group: "order_lines", description: "Item name in each row", example_values: ["Widget A"] }]);
+      return { fields: brief.fields, clarification_questions: [], provenance: {
+        brief_revision: input.brief_revision, brief_payload_sha256: input.brief_payload_sha256,
+        samples: input.samples.map((sample) => ({ file_id: sample.file_id,
+          source_sha256: sample.source_sha256, parser_id: "utf8-text", excerpt_chars: 16,
+          truncated: false })), model: input.model, prompt_sha256: "a".repeat(64),
+        input_chars: 200, max_output_tokens: 1800, prompt_tokens: 50,
+        completion_tokens: 20, latency_ms: 2, sdk_attempts: 1,
+      } };
+    });
+  assert.equal(result.fields[0].group, "order_lines");
+  assert.equal(getProductAutoBrief(job.jobId).brief?.state, "draft");
+}));
