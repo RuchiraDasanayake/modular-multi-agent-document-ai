@@ -2,6 +2,11 @@
 
 Requires PowerShell 7.2+ (`pwsh`), Node.js 22.12+, an initialized PostgreSQL 16 data cluster, the repo extraction Python environment, and a gateway Python environment with gateway dependencies. This starts PostgreSQL, the gateway, an independent extraction worker, and the Next.js frontend on `127.0.0.1`. pg-boss provides a durable PostgreSQL queue; the worker executes the local Python extractor. Docker is not required. Run `npm ci` in `frontend` including development dependencies for the TypeScript worker launcher.
 
+Self-service password recovery is unavailable. The unauthenticated recovery and
+reset endpoints return 503, including for older reset tokens; they do not send
+email. Users who still know their password can use authenticated password change.
+See the [recovery shutdown](../docs/evaluations/PASSWORD_RECOVERY_SHUTDOWN_20261013.md).
+
 Store a private JSON config outside the repo, for example `I:\DocAI-Runtime\native-product.json`:
 
 For a **fresh installation**, obtain PostgreSQL 16 Windows binaries through the

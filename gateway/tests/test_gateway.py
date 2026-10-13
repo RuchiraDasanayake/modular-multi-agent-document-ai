@@ -252,6 +252,41 @@ def test_signup_is_refused_when_public_signup_is_off(client, monkeypatch):
     assert resp.status_code == 403
     assert "turned off" in resp.json()["detail"]
 
+
+@pytest.mark.parametrize("email", ["registered@example.org", "unknown@example.org"])
+def test_unauthenticated_recovery_never_issues_a_token_or_queries_accounts(client, email):
+    from gateway.deps import get_db
+    from gateway.main import app
+
+    database_calls = []
+
+    async def unavailable_database():
+        database_calls.append(True)
+        raise AssertionError("Disabled recovery must not read or alter accounts")
+
+    app.dependency_overrides[get_db] = unavailable_database
+    response = client.post("/api/auth/forgot-password", json={"email": email})
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Self-service password recovery is unavailable. Contact your administrator."}
+    assert database_calls == []
+
+
+def test_previously_issued_reset_tokens_cannot_change_passwords(client):
+    from gateway.deps import get_db
+    from gateway.main import app
+
+    database_calls = []
+
+    async def unavailable_database():
+        database_calls.append(True)
+        raise AssertionError("An old reset token must not reach the database")
+
+    app.dependency_overrides[get_db] = unavailable_database
+    response = client.post("/api/auth/reset-password", json={"token": "previously-issued-token", "new_password": "replacement-123"})
+    assert response.status_code == 503
+    assert "unavailable" in response.json()["detail"]
+    assert database_calls == []
+
 # ═══════════════════════════════════════════════════════════════
 # Protected Endpoints (no token)
 # ═══════════════════════════════════════════════════════════════

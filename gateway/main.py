@@ -22,7 +22,6 @@ import asyncio
 import logging
 import sys
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
 
 import httpx
 import redis.asyncio as aioredis
@@ -56,7 +55,6 @@ from .schemas import (
 from .auth_service import (
     create_access_token,
     create_refresh_token,
-    generate_reset_token,
     hash_password,
     verify_password,
     verify_token,
@@ -508,91 +506,18 @@ async def toggle_user(
 @app.post("/api/auth/forgot-password")
 async def forgot_password(
     body: ForgotPasswordRequest,
-    db: AsyncConnection = Depends(get_db),
 ):
-    """Request a password reset.
-
-    In production, the token would be sent via email. For this prototype,
-    the token is stored server-side only — the user must check logs/DB.
-    """
-    async with db.cursor() as cur:
-        await cur.execute(
-            "SELECT id, username FROM users WHERE email = %s AND is_active = TRUE",
-            (body.email,),
-        )
-        row = await cur.fetchone()
-
-    if row is None:
-        # Return success even if not found — prevents user enumeration
-        return {"message": "If that email is registered, a reset link has been generated."}
-
-    user_id = str(row[0])
-    token = generate_reset_token()
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
-
-    async with db.cursor() as cur:
-        # Invalidate any previous unused tokens for this user
-        await cur.execute(
-            "UPDATE password_reset_tokens SET used = TRUE WHERE user_id = %s AND used = FALSE",
-            (user_id,),
-        )
-        await cur.execute(
-            """INSERT INTO password_reset_tokens (user_id, token, expires_at)
-               VALUES (%s, %s, %s)""",
-            (user_id, token, expires_at),
-        )
-        await db.commit()
-
-    logger.info("Password reset token generated for user %s", row[1])
-    # In demo/prototype mode, return the token so the frontend can redirect
-    # directly to the reset page. In production, this would be sent via email.
-    return {
-        "message": "If that email is registered, a reset link has been generated.",
-        "token": token,
-    }
+    """Fail closed until recovery can prove control of an independent channel."""
+    # Returning a reset token to the requester proves no ownership of the
+    # supplied email. Do not query users, issue tokens or imply mail was sent.
+    raise HTTPException(status_code=503, detail="Self-service password recovery is unavailable. Contact your administrator.")
 
 @app.post("/api/auth/reset-password")
 async def reset_password(
     body: ResetPasswordRequest,
-    db: AsyncConnection = Depends(get_db),
 ):
-    """Reset password using a valid, unexpired token."""
-    async with db.cursor() as cur:
-        await cur.execute(
-            """SELECT id, user_id, expires_at FROM password_reset_tokens
-               WHERE token = %s AND used = FALSE""",
-            (body.token,),
-        )
-        row = await cur.fetchone()
-
-    if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or already-used reset token",
-        )
-
-    token_id, user_id, expires_at = str(row[0]), str(row[1]), row[2]
-
-    if datetime.now(timezone.utc) > expires_at:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Reset token has expired. Please request a new one.",
-        )
-
-    hashed = hash_password(body.new_password)
-    async with db.cursor() as cur:
-        await cur.execute(
-            "UPDATE users SET hashed_password = %s, updated_at = NOW() WHERE id = %s",
-            (hashed, user_id),
-        )
-        await cur.execute(
-            "UPDATE password_reset_tokens SET used = TRUE WHERE id = %s",
-            (token_id,),
-        )
-        await db.commit()
-
-    logger.info("Password reset completed for user_id %s", user_id)
-    return {"message": "Password has been reset successfully. You can now sign in."}
+    """Also reject tokens previously exposed by the insecure recovery route."""
+    raise HTTPException(status_code=503, detail="Self-service password recovery is unavailable. Contact your administrator.")
 
 @app.post("/api/auth/change-password")
 async def change_password(
