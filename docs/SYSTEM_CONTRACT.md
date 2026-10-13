@@ -159,7 +159,15 @@ its bytes and fields before running. It skips schema discovery, sends field desc
 source text to the value model, and checks exact source evidence locally. Values remain pending review. The run,
 manifest, and document artifacts carry the same confirmed-schema receipt. This path requires a configured value model
 and currently inherits the admin-only model-call gate. The earlier dynamic discovery and approved-recipe v1 paths
-remain available. AI-generated draft fields and model clarification are not yet part of this confirmation path.
+remain available. An admin can explicitly request `POST /api/jobs/<job_id>/auto/brief/suggest` for the current saved
+draft revision and digest. The server rechecks owner and sample hashes, sends bounded text excerpts from 1–5 sample
+sources to the configured OpenAI-compatible model in one call (at most 1,800 output tokens, no retries), and returns
+typed fields, clarification questions, source hashes, parser IDs, and usage provenance. The response is an editable proposal;
+it does not save, confirm, or run extraction. Users must use the proposed fields in a new draft, resolve questions,
+confirm field meanings, then preview and review. This action currently requires admin access and the product Python
+environment's optional `cloud` dependency for an OpenAI-compatible model. It can also use a loopback model endpoint
+without a cloud key. Sampling uses at most 1,800 characters per source (9,000 total), first two PDF pages, and bounded
+OCR for scans; fields outside those excerpts may need manual addition.
 
 The job-scoped recipe API separately records owner-scoped draft, approval, and disable events from completed reviews; it
 requires explicit linked-row group confirmation and can configure one explicitly selected run.

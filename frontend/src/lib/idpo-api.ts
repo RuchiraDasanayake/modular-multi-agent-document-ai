@@ -9,7 +9,7 @@ import type {
 } from "@/types/idpo";
 import type { ProductAutoAddedFieldInput, ProductAutoCorrectedResult, ProductAutoDocumentDetail, ProductAutoReview, ProductAutoReviewField, ProductAutoRun, ProductAutoSourceDocument } from "@/types/product-auto";
 import type { ProductAutoRecipeRevision } from "@/types/product-auto-recipes";
-import type { ProductAutoBriefDetail, ProductAutoBriefField, ProductAutoBriefRevision } from "@/types/product-auto-brief";
+import type { ProductAutoBriefDetail, ProductAutoBriefField, ProductAutoBriefRevision, ProductAutoBriefSuggestion } from "@/types/product-auto-brief";
 
 async function localRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
@@ -51,6 +51,14 @@ export const idpoApi = {
 
   getProductAutoBrief(jobId: string): Promise<ProductAutoBriefDetail> {
     return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto/brief`);
+  },
+
+  suggestProductAutoBrief(jobId: string, expectedRevision: number,
+    expectedPayloadSha256: string): Promise<ProductAutoBriefSuggestion> {
+    return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto/brief/suggest`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedRevision, expectedPayloadSha256 }),
+    });
   },
 
   saveProductAutoBrief(jobId: string, expectedRevision: number, intent: string,

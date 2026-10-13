@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { IdpoCard } from "@/components/idpo/card";
+import { api } from "@/lib/api";
 import { idpoApi } from "@/lib/idpo-api";
 import type { ProductAutoRun, ProductAutoSourceDocument } from "@/types/product-auto";
 import type { ProductAutoRecipeRevision } from "@/types/product-auto-recipes";
-import type { ProductAutoBriefField, ProductAutoBriefRevision } from "@/types/product-auto-brief";
+import type { ProductAutoBriefField, ProductAutoBriefRevision, ProductAutoBriefSuggestion } from "@/types/product-auto-brief";
 
 const FIELD_TYPES = ["string", "integer", "decimal", "boolean", "date", "array[object]"] as const;
 
@@ -26,6 +27,7 @@ export function ProductAutoPage() {
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [available, setAvailable] = useState(false);
   const [modelConfigured, setModelConfigured] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [approvedRecipes, setApprovedRecipes] = useState<ProductAutoRecipeRevision[]>([]);
   const [brief, setBrief] = useState<ProductAutoBriefRevision | null>(null);
   const [briefLoading, setBriefLoading] = useState(true);
@@ -34,6 +36,8 @@ export function ProductAutoPage() {
   const [sampleFileIds, setSampleFileIds] = useState<string[]>([]);
   const [staleSampleFileIds, setStaleSampleFileIds] = useState<string[]>([]);
   const [briefBusy, setBriefBusy] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestion, setSuggestion] = useState<ProductAutoBriefSuggestion | null>(null);
   const [selectedRecipeId, setSelectedRecipeId] = useState("");
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
@@ -55,6 +59,9 @@ export function ProductAutoPage() {
     void idpoApi.listProductAutoRecipes(jobId).then((data) => {
       if (current) setApprovedRecipes(data.recipes.filter((recipe) => recipe.state === "approved_shadow"));
     }).catch(() => { if (current) setApprovedRecipes([]); });
+    void api.me().then((user) => {
+      if (current) setIsAdmin(user.role === "admin");
+    }).catch(() => { if (current) setIsAdmin(false); });
     void idpoApi.getProductAutoBrief(jobId).then((data) => {
       if (!current) return;
       setBrief(data.brief);
@@ -74,7 +81,7 @@ export function ProductAutoPage() {
     }
   }, [briefLoading, brief, sampleFileIds.length, documents]);
 
-  const running = runs.some((run) => run.status === "running");
+  const running = runs.some((run) => run.status === "running" || (run.status as string) === "queued");
   useEffect(() => {
     if (!running) return undefined;
     const timer = window.setInterval(() => {
@@ -115,9 +122,23 @@ export function ProductAutoPage() {
       setBriefFields(saved.brief.fields);
       setSampleFileIds(saved.brief.sample_sources.map((source) => source.file_id));
       setStaleSampleFileIds([]);
+      setSuggestion(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save extraction setup.");
     } finally { setBriefBusy(false); }
+  }
+
+  async function suggestFields() {
+    if (!brief || brief.state !== "draft" || formDirty) return;
+    setSuggesting(true);
+    setSuggestion(null);
+    setError("");
+    try {
+      const result = await idpoApi.suggestProductAutoBrief(jobId, brief.revision, brief.payload_sha256);
+      setSuggestion(result);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not suggest fields from the sample files.");
+    } finally { setSuggesting(false); }
   }
 
   async function confirmSchema() {
@@ -265,20 +286,56 @@ export function ProductAutoPage() {
           </p> : null}
         </div>
         <div className="mt-5 flex flex-wrap items-center gap-3">
-          <button type="button" onClick={() => void saveDraft()} disabled={briefBusy || starting || running ||
+          <button type="button" onClick={() => void saveDraft()} disabled={briefBusy || suggesting || starting || running ||
             (!formDirty && staleSampleFileIds.length === 0) || sampleFileIds.length === 0 ||
             (!briefIntent.trim() && briefFields.length === 0)}
             className="rounded-lg border border-cyan-600 px-4 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-50 disabled:opacity-50 dark:text-cyan-300">
             {briefBusy ? "Saving…" : brief?.state === "confirmed" ? "Save as new draft" : "Save draft"}
           </button>
-          <button type="button" onClick={() => void confirmSchema()} disabled={briefBusy || starting || running ||
+          <button type="button" onClick={() => void confirmSchema()} disabled={briefBusy || suggesting || starting || running ||
             !brief || brief.state !== "draft" || formDirty || brief.fields.length === 0 ||
             brief.fields.some((field) => !field.description) || staleSampleFileIds.length > 0}
             className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50">
             Confirm field meanings
           </button>
+          <button type="button" onClick={() => void suggestFields()} disabled={briefBusy || suggesting || starting || running ||
+            !brief || brief.state !== "draft" || formDirty || staleSampleFileIds.length > 0 || !modelConfigured || !isAdmin}
+            className="rounded-lg border border-cyan-600 px-4 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-50 disabled:opacity-50 dark:text-cyan-300">
+            {suggesting ? "Reading samples and suggesting…" : "Suggest fields with AI"}
+          </button>
           {formDirty && brief ? <span className="text-xs text-amber-700 dark:text-amber-300">Save changes before confirming or previewing.</span> : null}
         </div>
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          AI suggestions use one server model call with bounded excerpts from your saved sample files. The call may incur provider cost. An administrator must run it. Suggestions remain editable and require your confirmation.
+        </p>
+        {suggestion ? <div className="mt-4 rounded-xl border border-cyan-300 bg-cyan-50 p-4 dark:border-cyan-700 dark:bg-cyan-950/30">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="font-semibold text-slate-900 dark:text-white">AI draft from {suggestion.provenance.samples.length} samples</h3>
+              <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                {suggestion.fields.length} proposed fields · {suggestion.provenance.model_id} · output cap {suggestion.provenance.max_output_tokens} tokens
+                {suggestion.provenance.prompt_tokens !== null ? ` · ${suggestion.provenance.prompt_tokens} input tokens` : ""}
+                {suggestion.provenance.completion_tokens !== null ? ` · ${suggestion.provenance.completion_tokens} output tokens` : ""}
+              </p>
+            </div>
+            <button type="button" onClick={() => setBriefFields(suggestion.fields)}
+              disabled={briefBusy || suggesting || formDirty || brief?.revision !== suggestion.provenance.brief_revision ||
+                brief?.payload_sha256 !== suggestion.provenance.brief_payload_sha256}
+              className="rounded-lg bg-cyan-600 px-3 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50">
+              Use these fields in draft
+            </button>
+          </div>
+          <ul className="mt-3 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+            {suggestion.fields.map((field) => <li key={field.field_id}><span className="font-mono font-medium">{field.field_id}</span> · {field.description} ({field.type})</li>)}
+          </ul>
+          {suggestion.clarification_questions.length > 0 ? <div className="mt-3 text-sm text-slate-700 dark:text-slate-200">
+            <p className="font-semibold">Clarify before confirmation</p>
+            <ul className="mt-1 list-disc space-y-1 pl-5">{suggestion.clarification_questions.map((question) => <li key={question}>{question}</li>)}</ul>
+            <p className="mt-1 text-xs">Answer by editing the intent or field meanings, then save the draft.</p>
+          </div> : null}
+          <p className="mt-3 text-xs text-slate-600 dark:text-slate-300">Source receipts: {suggestion.provenance.samples.map((sample) =>
+            `${documents.find((document) => document.fileId === sample.file_id)?.fileName ?? sample.file_id} (${sample.parser_id}, ${sample.excerpt_chars} characters${sample.truncated ? ", truncated" : ""}, SHA ${sample.source_sha256.slice(0, 12)})`).join(" · ")}</p>
+        </div> : null}
       </IdpoCard>
 
       {brief ? <IdpoCard>
@@ -374,6 +431,7 @@ export function ProductAutoPage() {
             ))}
           </div>
         )}
+        {(activeRun?.status as string) === "queued" ? <p className="mt-4 text-sm text-amber-700 dark:text-amber-300">Queued. Extraction will start when a worker is available.</p> : null}
         {activeRun?.status === "running" ? <p className="mt-4 text-sm text-amber-700 dark:text-amber-300">Extracting. Results will appear when the run completes.</p> : null}
         {activeRun?.status === "failed" ? <p role="alert" className="mt-4 text-sm text-rose-700 dark:text-rose-300">{activeRun.error ?? "Extraction failed."}</p> : null}
         {activeRun?.status === "success" ? (
