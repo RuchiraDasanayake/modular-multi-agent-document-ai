@@ -20,6 +20,7 @@ from importlib import metadata
 from pathlib import Path
 
 from idpo.core.types import Document, Page
+from idpo.product_auto.ooxml_preflight import preflight_xml_parts
 from idpo.product_auto.parsed_document import (
     ParsedDocument,
     SourceAnchor,
@@ -100,7 +101,6 @@ def _preflight_archive(path: Path, required_member: str) -> None:
             if "[Content_Types].xml" not in names or required_member not in names:
                 raise ValueError("invalid_ooxml_package")
             total = 0
-            spreadsheet_cells = 0
             for item in entries:
                 parts = item.filename.replace("\\", "/").split("/")
                 if item.filename.startswith(("/", "\\")) or ":" in parts[0] or any(
@@ -131,12 +131,11 @@ def _preflight_archive(path: Path, required_member: str) -> None:
                             scan = previous + chunk
                             if b"<!DOCTYPE" in scan.upper() or b"<!ENTITY" in scan.upper():
                                 raise ValueError("ooxml_dtd_forbidden")
-                            if member_name.startswith("xl/worksheets/"):
-                                spreadsheet_cells += sum(match.end() > len(previous) for match in
-                                                         re.finditer(rb"<(?:[A-Za-z0-9_]+:)?c(?:\s|/|>)", scan))
-                                if spreadsheet_cells > MAX_TABLE_CELLS:
-                                    raise NativeLimitError("native_cell_limit")
                             previous = chunk[-16:]
+            preflight_xml_parts(archive, max_xml_bytes=MAX_ARCHIVE_XML_BYTES,
+                                cell_limit=MAX_TABLE_CELLS, grid_limit=MAX_SHEET_GRID_CELLS,
+                                limit_error=NativeLimitError, spreadsheet=required_member == "xl/workbook.xml",
+                                word_processing=required_member == "word/document.xml")
     except (zipfile.BadZipFile, RuntimeError, EOFError) as exc:
         raise ValueError("invalid_ooxml_package") from exc
 
