@@ -113,14 +113,16 @@ def test_product_sidecar_whitelists_pdf_renderer_provenance(tmp_path: Path, monk
         "pdf_renderer", "pdf_renderer_fallback_reason", "pdf_page_index",
         "pdf_page_rotation_deg", "pdf_rendered_dpi", "pdf_render_size_px",
         "pdf_native_layer", "pdf_native_text_sha256", "pdf_native_text_rejected",
+        "pdf_render_plan",
     }
     assert page["pdf_renderer"] == "pdfium"
     assert page["pdf_renderer_fallback_reason"] is None
     assert page["pdf_page_index"] == 0
     assert page["pdf_page_rotation_deg"] == 0
-    assert page["pdf_rendered_dpi"] == 300
-    assert 239 <= page["pdf_render_size_px"][0] <= 241
-    assert 179 <= page["pdf_render_size_px"][1] <= 181
+    assert page["pdf_rendered_dpi"] == pytest.approx(100)
+    assert 79 <= page["pdf_render_size_px"][0] <= 81
+    assert 59 <= page["pdf_render_size_px"][1] <= 61
+    assert page["pdf_render_plan"]["requested_dpi"] == 300
     assert "source_sha256" in sidecar
     assert not any(str(source) in str(value) for value in renderer_fields.values())
 

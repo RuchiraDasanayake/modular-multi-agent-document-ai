@@ -549,7 +549,8 @@ def test_pdfium_failure_falls_back_to_one_based_poppler_page(tmp_path: Path, mon
     assert actual.image is expected
     assert actual.renderer == "poppler"
     assert actual.fallback_reason == "pdfium_open_failed"
-    assert calls == [("scan.pdf", {"first_page": 2, "last_page": 2, "poppler_path": str(tmp_path), "dpi": 150})]
+    assert calls == [("scan.pdf", {"first_page": 2, "last_page": 2, "poppler_path": str(tmp_path), "dpi": 150,
+                                  "size": 3464})]
 
 
 def test_both_pdf_renderers_fail_with_bounded_provenance(tmp_path: Path, monkeypatch) -> None:
@@ -596,7 +597,8 @@ def test_direct_pdf_poppler_provenance_only_after_a_page_is_rendered(monkeypatch
     assert meta["pdf_renderer"] == "poppler_direct"
     assert meta["pdf_page_index"] == 1
     assert meta["pdf_page_rotation_deg"] == 90
-    assert meta["pdf_rendered_dpi"] == 150
+    assert meta["pdf_rendered_dpi"] is None  # A nonexistent fixture cannot establish a page-to-pixel scale.
+    assert meta["pdf_render_plan"]["requested_dpi"] == 150
     assert meta["pdf_render_size_px"] == [40, 70]
 
     monkeypatch.setattr("pdf2image.convert_from_path", lambda *args, **kwargs: [])
@@ -655,6 +657,15 @@ def test_pdfium_render_is_serialized_and_image_does_not_share_bitmap_buffer(monk
             self.image.paste("black", (0, 0, 10, 10))
 
     class PdfPage:
+        def get_size(self):
+            return 7.2, 7.2
+
+        def get_bbox(self):
+            return 0, 0, 7.2, 7.2
+
+        def get_objects(self, max_depth):
+            return iter(())
+
         def render(self, scale):  # noqa: ANN001
             assert scale == 100 / 72
             time.sleep(0.01)

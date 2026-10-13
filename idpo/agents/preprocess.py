@@ -17,6 +17,7 @@ from idpo.agents.base import Agent, AgentContext
 from idpo.agents.degarble import degarble, is_garbled
 from idpo.core.contracts import AgentMessage
 from idpo.core.pdf_native import PDFIUM_LOCK
+from idpo.core.pdf_raster import pdfium_raster_plan, poppler_raster_plan
 from idpo.core.preflight import find_poppler_path, find_tesseract_cmd
 from idpo.core.types import AgentResult, Document, Page, StageSignal
 
@@ -58,6 +59,7 @@ class _PdfRenderResult:
     renderer: str
     fallback_reason: str | None
     rotation_deg: int | None
+    sizing: dict[str, object] | None = None
 
 
 def _call_tesseract(method, *args, budget: _TesseractBudget | None = None, **kwargs):
@@ -164,6 +166,7 @@ def _render_pdf_page(pdf_path: str, page_index: int, dpi: int) -> _PdfRenderResu
     if page_index < 0:
         return _PdfRenderResult(None, "none", "invalid_page_index", None)
     pdfium_reason = "pdfium_unavailable"
+    sizing = None
     try:
         import pypdfium2 as pdfium
     except Exception:
@@ -187,7 +190,8 @@ def _render_pdf_page(pdf_path: str, page_index: int, dpi: int) -> _PdfRenderResu
                                 rotation_deg = page.get_rotation()
                             except Exception:
                                 rotation_deg = None
-                            bitmap = page.render(scale=dpi / 72)
+                            sizing = pdfium_raster_plan(page, dpi)
+                            bitmap = page.render(scale=sizing["scale"])
                             try:
                                 # to_pil() may share PDFium's buffer. Detach before closing it.
                                 image = bitmap.to_pil().convert("RGB").copy()
@@ -195,7 +199,7 @@ def _render_pdf_page(pdf_path: str, page_index: int, dpi: int) -> _PdfRenderResu
                                 bitmap.close()
                         finally:
                             page.close()
-                        return _PdfRenderResult(image, "pdfium", None, rotation_deg)
+                        return _PdfRenderResult(image, "pdfium", None, rotation_deg, sizing)
                 finally:
                     pdf.close()
         except Exception:
@@ -204,11 +208,13 @@ def _render_pdf_page(pdf_path: str, page_index: int, dpi: int) -> _PdfRenderResu
         from pdf2image import convert_from_path
 
         poppler_path = OcrAgent()._find_poppler_path()
+        sizing, target_size = poppler_raster_plan(pdf_path, page_index, dpi)
         images = convert_from_path(
-            pdf_path, first_page=page_index + 1, last_page=page_index + 1, poppler_path=poppler_path, dpi=dpi
+            pdf_path, first_page=page_index + 1, last_page=page_index + 1, poppler_path=poppler_path,
+            dpi=dpi, size=target_size,
         )
         if images:
-            return _PdfRenderResult(images[0], "poppler", pdfium_reason, None)
+            return _PdfRenderResult(images[0], "poppler", pdfium_reason, sizing.get("page_rotation_deg"), sizing)
     except Exception:
         return _PdfRenderResult(None, "none", "poppler_failed", None)
     return _PdfRenderResult(None, "none", "poppler_empty", None)
@@ -229,22 +235,24 @@ def rasterize_pdf_page(page: Page, doc_id: str, ctx: AgentContext, dpi: int = 30
         render.rotation_deg if render.rotation_deg is not None else metadata.get("pdf_page_rotation_deg")
     )
     metadata["pdf_render_size_px"] = list(render.image.size) if render.image is not None else None
+    metadata["pdf_render_plan"] = render.sizing
     if render.image is None:
         return Page(number=page.number, text=page.text, raw_text=page.raw_text, image_path=path, metadata=metadata)
     metadata["pdf_source_path"] = path
-    metadata["pdf_rendered_dpi"] = dpi
+    metadata["pdf_rendered_dpi"] = render.sizing.get("effective_dpi") if render.sizing else None
     rendered_path = _save_processed_image(ctx, doc_id, page.number, "pdf_render", render.image)
     return Page(number=page.number, text=page.text, raw_text=page.raw_text, image_path=rendered_path, metadata=metadata)
 
 
-def _direct_pdf_render_metadata(page: Page, renderer: str, image: Any, dpi: int, page_index: int) -> dict[str, object]:
+def _direct_pdf_render_metadata(page: Page, render: _PdfRenderResult, page_index: int) -> dict[str, object]:
     return {
-        "pdf_renderer": renderer,
-        "pdf_renderer_fallback_reason": page.metadata.get("pdf_renderer_fallback_reason"),
+        "pdf_renderer": render.renderer + "_direct",
+        "pdf_renderer_fallback_reason": render.fallback_reason,
         "pdf_page_index": page_index,
-        "pdf_page_rotation_deg": page.metadata.get("pdf_page_rotation_deg"),
-        "pdf_rendered_dpi": dpi,
-        "pdf_render_size_px": list(image.size),
+        "pdf_page_rotation_deg": render.rotation_deg if render.rotation_deg is not None else page.metadata.get("pdf_page_rotation_deg"),
+        "pdf_rendered_dpi": render.sizing.get("effective_dpi") if render.sizing else None,
+        "pdf_render_size_px": list(render.image.size),
+        "pdf_render_plan": render.sizing,
     }
 
 def mock_ocr(text: str, passes: int = 1) -> str:
@@ -472,6 +480,7 @@ class OcrAgent(Agent):
                                 "pdf_page_rotation_deg",
                                 "pdf_rendered_dpi",
                                 "pdf_render_size_px",
+                                "pdf_render_plan",
                             )
                             if key in ocr_meta
                         },
@@ -812,89 +821,31 @@ class OcrAgent(Agent):
         page_index = int(page.metadata.get("pdf_page_index", 0) or 0)
         direct_meta: dict[str, object] | None = None
         try:
-            from pdf2image import convert_from_path
-            poppler_path = self._find_poppler_path()
-            images = convert_from_path(
-                path,
-                first_page=page_index + 1,
-                last_page=page_index + 1,
-                poppler_path=poppler_path,
-                dpi=dpi,
+            render = _render_pdf_page(path, page_index, dpi)
+            if render.image is None:
+                return "", "pdf_render_failed", {}
+            from PIL import ImageFilter, ImageOps
+
+            direct_meta = _direct_pdf_render_metadata(page, render, page_index)
+            cleaned = self._normalize_image(render.image, Image, ImageOps, ImageFilter)
+            cleaned, rotation = (
+                self._apply_orientation_correction(cleaned, pytesseract, lang, budget)
+                if budget else self._apply_orientation_correction(cleaned, pytesseract, lang)
             )
-            if images:
-                from PIL import ImageFilter, ImageOps
-
-                direct_meta = _direct_pdf_render_metadata(page, "poppler_direct", images[0], dpi, page_index)
-                cleaned = self._normalize_image(images[0], Image, ImageOps, ImageFilter)
-                cleaned, rotation = (
-                    self._apply_orientation_correction(cleaned, pytesseract, lang, budget)
-                    if budget else self._apply_orientation_correction(cleaned, pytesseract, lang)
-                )
-                text, meta = self._run_ocr_variants(
-                    cleaned,
-                    pytesseract,
-                    tessdata_dir,
-                    lang,
-                    psm,
-                    oem,
-                    alt_psm,
-                    ImageOps,
-                    ImageFilter,
-                    single_pass=single_pass,
-                    max_candidates=max_candidates,
-                    **({"budget": budget} if budget else {}),
-                )
-                meta["ocr_rotation_applied"] = rotation
-                meta.update(direct_meta)
-                return text, "ocr_timeout" if meta.get("ocr_timeout") else None, meta
-        except _TesseractTimeout:
-            if direct_meta is not None:
-                return "", "ocr_timeout", direct_meta
-            raise
-        except Exception:
-            pass
-
-        direct_meta = None
-        try:
-            texts = []
-            with Image.open(path) as doc:
-                for idx, frame in enumerate(ImageSequence.Iterator(doc)):
-                    if idx == page_index:
-                        from PIL import ImageFilter, ImageOps
-
-                        direct_meta = _direct_pdf_render_metadata(page, "pillow_direct", frame, dpi, page_index)
-                        cleaned = self._normalize_image(frame, Image, ImageOps, ImageFilter)
-                        cleaned, rotation = (
-                            self._apply_orientation_correction(cleaned, pytesseract, lang, budget)
-                            if budget else self._apply_orientation_correction(cleaned, pytesseract, lang)
-                        )
-                        text, meta = self._run_ocr_variants(
-                            cleaned,
-                            pytesseract,
-                            tessdata_dir,
-                            lang,
-                            psm,
-                            oem,
-                            alt_psm,
-                            ImageOps,
-                            ImageFilter,
-                            single_pass=single_pass,
-                            max_candidates=max_candidates,
-                            **({"budget": budget} if budget else {}),
-                        )
-                        meta["ocr_rotation_applied"] = rotation
-                        meta.update(direct_meta)
-                        texts.append(text)
-                        break
-            if texts:
-                return "\n".join(texts), "ocr_timeout" if meta.get("ocr_timeout") else None, meta
+            text, meta = self._run_ocr_variants(
+                cleaned, pytesseract, tessdata_dir, lang, psm, oem, alt_psm, ImageOps, ImageFilter,
+                single_pass=single_pass, max_candidates=max_candidates,
+                **({"budget": budget} if budget else {}),
+            )
+            meta["ocr_rotation_applied"] = rotation
+            meta.update(direct_meta)
+            return text, "ocr_timeout" if meta.get("ocr_timeout") else None, meta
         except _TesseractTimeout:
             if direct_meta is not None:
                 return "", "ocr_timeout", direct_meta
             raise
         except Exception:
             return "", "pdf_render_failed", {}
-        return "", "pdf_render_failed", {}
 
     def _find_poppler_path(self) -> str | None:
         if self._poppler_searched:
