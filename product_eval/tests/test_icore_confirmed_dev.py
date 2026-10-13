@@ -4,7 +4,13 @@ import hashlib
 import json
 
 from idpo.product_auto.provider import ModelReply
-from product_eval.icore_confirmed_dev import MAX_CALLS, MODEL, SOURCE_LOCK, SOURCE_LOCK_SHA256, RecordedChat
+from product_eval.icore_confirmed_dev import (
+    MAX_CALLS,
+    MODEL,
+    SOURCE_LOCK,
+    SOURCE_LOCK_SHA256,
+    RecordedChat,
+)
 
 
 def test_source_lock_pin_uses_canonical_lf_and_existing_six_scored_sources():
