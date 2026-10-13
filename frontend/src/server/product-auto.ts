@@ -7,6 +7,8 @@ import { getCommandConfig, loadRunnerConfig } from "@/server/config";
 import { getJobOrThrow } from "@/server/jobs";
 import { requireCurrentProductAutoBrief } from "@/server/product-auto-brief";
 import { productExecutionQueue, QueueAdmissionError, type ProductDispatch } from "@/server/product-execution-queue";
+import { appendExtractionArguments, configuredExtractionProfile, extractionEnvironment,
+  validExtractionProfile, type ExtractionProfile } from "@/server/product-auto-profile";
 import type { ProductAutoBriefRevision } from "@/types/product-auto-brief";
 import type {
   ProductAutoAddedField,
@@ -142,7 +144,7 @@ interface ModelBudget {
 }
 
 interface PreparedDispatch {
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   ownerId: string;
   jobId: string;
   runId: string;
@@ -151,6 +153,7 @@ interface PreparedDispatch {
   model?: string;
   baseUrl?: string;
   modelBudget?: ModelBudget;
+  extractionProfile?: ExtractionProfile;
 }
 
 function validModelBudget(value: unknown): value is ModelBudget {
@@ -932,6 +935,7 @@ export async function startProductAutoRun(
   }
   if (model && !admin) throw new AccessError("Admin access is required to start model-backed extraction.", 403);
   const modelBudget = model ? configuredModelBudget() : undefined;
+  const extractionProfile = configuredExtractionProfile(Boolean(confirmedBriefSelection));
   if (approvedRecipeSelection && !model) {
     throw new AccessError("An approved recipe requires a configured value extraction model.", 503);
   }
@@ -1045,7 +1049,7 @@ export async function startProductAutoRun(
     let dispatch: PreparedDispatch | undefined;
     let dispatchHash: string | undefined;
     if (queued) {
-      dispatch = { version: modelBudget ? 2 : 1, ownerId: job.ownerUserId!, jobId, runId,
+      dispatch = { version: 3, ownerId: job.ownerUserId!, jobId, runId, extractionProfile,
         commandSha256: commandSha256(),
         inputManifestSha256: inputManifestSha256({ selectedFiles, approvedRecipe: recipeMeta, confirmedBrief: schemaMeta }),
         ...(model && baseUrl ? { model, baseUrl, modelBudget } : {}) };
@@ -1081,13 +1085,14 @@ export async function startProductAutoRun(
     const command = getCommandConfig("idpo_process_auto");
     const args = command.args.map((arg) => arg.replaceAll("{input_dir}", inputDir).replaceAll("{run_id}", runId));
     appendModelArguments(args, model, baseUrl, modelBudget);
+    appendExtractionArguments(args, extractionProfile);
     if (recipeMeta) args.push("--approved-recipe-file", stagedRecipeFile(runId),
       "--approved-recipe-sha256", recipeMeta.snapshotSha256);
     if (schemaMeta) args.push("--confirmed-schema-file", stagedSchemaFile(runId),
       "--confirmed-schema-sha256", schemaMeta.snapshotSha256);
     const child = spawn(command.program, args, {
       cwd: command.cwd,
-      env: { ...process.env, ...command.env, IDPO_DATA_DIR: storageRoot() },
+      env: extractionEnvironment({ ...process.env, ...command.env, IDPO_DATA_DIR: storageRoot() }, extractionProfile),
       windowsHide: true,
       stdio: "ignore",
     });
@@ -1125,15 +1130,21 @@ function verifiedDispatch(request: ProductDispatch): { record: RunRecord; prepar
     throw new Error("Queued extraction profile changed.");
   }
   const prepared = parseJsonObject(file) as unknown as PreparedDispatch;
-  if ((prepared.version !== 1 && prepared.version !== 2) || prepared.ownerId !== request.ownerId ||
+  if (![1, 2, 3].includes(prepared.version) || prepared.ownerId !== request.ownerId ||
     prepared.jobId !== request.jobId || prepared.runId !== request.runId ||
     prepared.inputManifestSha256 !== inputManifestSha256(record)) {
     throw new Error("Invalid queued extraction profile.");
   }
   if (prepared.version === 1 ? prepared.modelBudget !== undefined :
-    (!prepared.model || !prepared.baseUrl || !validModelBudget(prepared.modelBudget))) {
+    (prepared.version === 2 || prepared.model ?
+      (!prepared.model || !prepared.baseUrl || !validModelBudget(prepared.modelBudget)) : prepared.modelBudget !== undefined)) {
     throw new Error("Invalid queued model budget.");
   }
+  if (prepared.version === 3 ? !validExtractionProfile(prepared.extractionProfile) : prepared.extractionProfile !== undefined) {
+    throw new Error("Invalid queued extraction profile.");
+  }
+  if (prepared.extractionProfile?.responseFormat === "strict_confirmed_values_v1" &&
+      (!record.confirmedBrief || !prepared.model)) throw new Error("Strict output requires a confirmed schema and model.");
   return { record, prepared };
 }
 
@@ -1167,6 +1178,7 @@ export async function executePreparedProductAutoRun(request: ProductDispatch, si
   const command = getCommandConfig("idpo_process_auto");
   const args = command.args.map((arg) => arg.replaceAll("{input_dir}", inputDir).replaceAll("{run_id}", request.runId));
   appendModelArguments(args, prepared.model, prepared.baseUrl, prepared.modelBudget);
+  appendExtractionArguments(args, prepared.extractionProfile);
   if (record.approvedRecipe) args.push("--approved-recipe-file", stagedRecipeFile(request.runId),
     "--approved-recipe-sha256", record.approvedRecipe.snapshotSha256);
   if (record.confirmedBrief) args.push("--confirmed-schema-file", stagedSchemaFile(request.runId),
@@ -1178,7 +1190,7 @@ export async function executePreparedProductAutoRun(request: ProductDispatch, si
   startHeartbeat(request.jobId, request.runId);
   await new Promise<void>((resolve, reject) => {
     const child = spawn(command.program, args, { cwd: command.cwd,
-      env: { ...process.env, ...command.env, IDPO_DATA_DIR: storageRoot() },
+      env: extractionEnvironment({ ...process.env, ...command.env, IDPO_DATA_DIR: storageRoot() }, prepared.extractionProfile),
       windowsHide: true, stdio: "ignore" });
     const abort = () => {
       // A killed attempt is terminal. Its external calls may have completed.

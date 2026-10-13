@@ -63,6 +63,20 @@ try {
   $withBudget = Get-NativeConfig -ConfigPath $configPath
   Assert-Test ($withBudget.autoMaxOutputTokens -eq 8192 -and $withBudget.autoTimeoutSeconds -eq 180) 'Product model budget validated and normalized.'
 
+  $rapid = $base.Clone(); $rapid.autoOcrEngine = 'rapidocr'
+  $rapid.rapidOcrPythonPath = 'I:\runtime\python.exe'; $rapid.rapidOcrWorkDir = 'I:\runtime\scratch'
+  $rapid.autoResponseFormat = 'strict_confirmed_values_v1'
+  $rapid | ConvertTo-Json | Set-Content -LiteralPath $configPath
+  $rapidConfig = Get-NativeConfig -ConfigPath $configPath
+  Assert-Test ($rapidConfig.rapidOcrTimeoutSeconds -eq 120 -and $rapidConfig.rapidOcrMaxRssMiB -eq 1536) 'RapidOCR bounds default explicitly.'
+  foreach ($patch in @(@{ rapidOcrPythonPath = 'relative.exe' }, @{ rapidOcrMaxRssMiB = 2049 },
+      @{ rapidOcrTimeoutSeconds = 181 }, @{ autoOcrEngine = 'unavailable' }, @{ autoResponseFormat = 'unknown' })) {
+    $bad = $rapid.Clone()
+    foreach ($key in $patch.Keys) { $bad[$key] = $patch[$key] }
+    $bad | ConvertTo-Json | Set-Content -LiteralPath $configPath
+    Assert-Throws { Get-NativeConfig -ConfigPath $configPath } 'Invalid extraction profile rejected.'
+  }
+
   $base | ConvertTo-Json | Set-Content -LiteralPath $configPath
   $config = Get-NativeConfig -ConfigPath $configPath
   $startScript = Join-Path (Split-Path -Parent $PSScriptRoot) 'start_native_product.ps1'

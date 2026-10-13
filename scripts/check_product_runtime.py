@@ -326,13 +326,24 @@ def native_environment(config_path: Path | None):
                 raise ConfigurationError("wrong_python_runtime", "Run this check with the interpreter named by pythonPath in the native config.")
             for source, target in {"autoModel": "IDPO_AUTO_MODEL", "autoApiBaseUrl": "IDPO_AUTO_API_BASE_URL",
                                    "icoreApiKey": "ICORE_API_KEY", "tesseractPath": "TESSERACT_CMD",
-                                   "tessdataDir": "TESSDATA_PREFIX"}.items():
+                                   "tessdataDir": "TESSDATA_PREFIX",
+                                   "rapidOcrPythonPath": "IDPO_RAPIDOCR_PYTHON",
+                                   "rapidOcrWorkDir": "IDPO_RAPIDOCR_WORK_DIR"}.items():
                 value = config.get(source)
                 if value is not None and not isinstance(value, str):
                     raise ConfigurationError("invalid_native_config", "Provider and OCR settings in the native config must be text.")
                 if value:
                     previous[target] = os.environ.get(target)
                     os.environ[target] = value
+            for source, target, default, low, high in (
+                ("rapidOcrTimeoutSeconds", "IDPO_RAPIDOCR_TIMEOUT_S", 120, 1, 180),
+                ("rapidOcrMaxRssMiB", "IDPO_RAPIDOCR_MAX_RSS_MIB", 1536, 128, 2048),
+            ):
+                value = config.get(source, default)
+                if type(value) is not int or not low <= value <= high:
+                    raise ConfigurationError("invalid_native_config", "OCR limits must be bounded integers.")
+                previous[target] = os.environ.get(target)
+                os.environ[target] = str(value)
         yield
     finally:
         for key, value in previous.items():

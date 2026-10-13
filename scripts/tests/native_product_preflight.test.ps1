@@ -77,6 +77,22 @@ try {
   $receipt = Get-Content -LiteralPath (Join-Path $testRoot 'probe-receipt.json') -Raw | ConvertFrom-Json
   Assert-PreflightTest (($receipt.args -join '|') -eq "--native-config|$configPath|--json") 'Probe receives only its private config path and JSON flag.'
 
+  $config.autoOcrEngine = 'rapidocr'; $config.rapidOcrTimeoutSeconds = 120
+  Save-ProbeConfig
+  Expect-PreflightFailure { Invoke-NativeProductPreflight -Config $config } 'invalid_report'
+  $rapidPayload = New-ReadyPayload
+  $rapidPayload.optional_ocr = @{ engine = 'rapidocr'; id = 'rapidocr_ocr'; ready = $true; raw = 'DO_NOT_RETAIN_SECRET' }
+  Save-ProbeConfig -Payload $rapidPayload
+  Assert-PreflightTest ((Invoke-NativeProductPreflight -Config $config).status -eq 'ready') 'Explicit RapidOCR requires its successful check.'
+  $receipt = Get-Content -LiteralPath (Join-Path $testRoot 'probe-receipt.json') -Raw | ConvertFrom-Json
+  Assert-PreflightTest (($receipt.args -join '|').EndsWith('|--ocr-engine|rapidocr')) 'Selected optional OCR reaches the probe.'
+  $rapidPayload.optional_ocr.ready = $false
+  Save-ProbeConfig -Payload $rapidPayload
+  Expect-PreflightFailure { Invoke-NativeProductPreflight -Config $config } 'capability_unavailable'
+  $stored = Get-Content -LiteralPath $reportPath -Raw
+  Assert-PreflightTest (-not $stored.Contains('DO_NOT_RETAIN_SECRET')) 'Optional OCR report excludes raw diagnostics.'
+  $config.Remove('autoOcrEngine'); $config.Remove('rapidOcrTimeoutSeconds')
+
   $missing = New-ReadyPayload
   $missing.capabilities.pdf_native_text.ready = $false
   # A lying overall status or zero process exit cannot hide a failed capability.

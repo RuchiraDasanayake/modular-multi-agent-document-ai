@@ -150,6 +150,29 @@ def test_wrong_interpreter_cannot_certify_the_configured_runtime(tmp_path: Path,
     assert "private-key" not in output
 
 
+def test_private_rapidocr_settings_are_bounded_and_restored(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "native.json"
+    settings = {"pythonPath": sys.executable, "rapidOcrPythonPath": "fixture-python",
+                "rapidOcrWorkDir": "fixture-scratch", "rapidOcrTimeoutSeconds": 90, "rapidOcrMaxRssMiB": 1024}
+    source.write_text(json.dumps(settings))
+    monkeypatch.setenv("IDPO_RAPIDOCR_TIMEOUT_S", "1")
+    monkeypatch.delenv("IDPO_RAPIDOCR_PYTHON", raising=False)
+    with runtime.native_environment(source):
+        assert os.environ["IDPO_RAPIDOCR_PYTHON"] == "fixture-python"
+        assert os.environ["IDPO_RAPIDOCR_WORK_DIR"] == "fixture-scratch"
+        assert os.environ["IDPO_RAPIDOCR_TIMEOUT_S"] == "90"
+        assert os.environ["IDPO_RAPIDOCR_MAX_RSS_MIB"] == "1024"
+    assert os.environ["IDPO_RAPIDOCR_TIMEOUT_S"] == "1"
+    assert "IDPO_RAPIDOCR_PYTHON" not in os.environ
+    for invalid in (0, 181, True, "90", 1.5):
+        source.write_text(json.dumps({**settings, "rapidOcrTimeoutSeconds": invalid}))
+        with pytest.raises(runtime.ConfigurationError):
+            with runtime.native_environment(source):
+                pass
+        assert os.environ["IDPO_RAPIDOCR_TIMEOUT_S"] == "1"
+        assert "IDPO_RAPIDOCR_PYTHON" not in os.environ
+
+
 def test_invalid_json_is_reported_without_printing_private_config(tmp_path: Path, capsys) -> None:
     source = tmp_path / "native.json"
     source.write_text('{"icoreApiKey":"private-key",broken')
