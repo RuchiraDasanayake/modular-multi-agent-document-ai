@@ -21,6 +21,10 @@ from idpo.core.provenance import ProvenanceRecorder
 from idpo.core.storage import data_root
 from idpo.product_auto.approved_recipe import ApprovedRecipe
 from idpo.product_auto.confirmed_schema import ConfirmedSchema
+from idpo.product_auto.image_frames import (
+    UnsupportedImageFrames,
+    require_single_frame_image,
+)
 from idpo.product_auto.logic import (
     MAX_FIELDS,
     baseline_proposals,
@@ -32,7 +36,11 @@ from idpo.product_auto.logic import (
 )
 from idpo.product_auto.long_document import (
     MERGE_PROFILE as LONG_DOCUMENT_MERGE_PROFILE,
+)
+from idpo.product_auto.long_document import (
     PROFILE as BOUNDED_TEXT_SEGMENTS_PROFILE,
+)
+from idpo.product_auto.long_document import (
     SegmentMergeError,
     merge_segment_values,
     plan_receipt,
@@ -52,22 +60,29 @@ from idpo.product_auto.resource_telemetry import ResourceProbe, elapsed_cpu_ms
 from idpo.product_auto.segments import SegmentPlan, plan_segments
 from idpo.product_auto.strict_output import (
     PROFILE as STRICT_CONFIRMED_VALUES_PROFILE,
+)
+from idpo.product_auto.strict_output import (
     compile_confirmed_values_response_format,
     parse_confirmed_strict_values_reply,
 )
+from idpo.product_auto.visual_output import (
+    PROFILE as STRICT_VISUAL_PROFILE,
+)
+from idpo.product_auto.visual_output import (
+    compile_visual_response_format,
+)
 from idpo.product_auto.visual_workflow import (
     PROFILES as BOUNDED_VISUAL_PROFILES,
+)
+from idpo.product_auto.visual_workflow import (
     extract_visual_values,
     select_visual_route,
     visual_receipt,
 )
-from idpo.product_auto.visual_output import (
-    PROFILE as STRICT_VISUAL_PROFILE,
-    compile_visual_response_format,
-)
 
 CONTRACT_VERSION = 1
-SUPPORTED_INPUT_EXTS = {".json", ".txt", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"} | NATIVE_EXTENSIONS
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
+SUPPORTED_INPUT_EXTS = {".json", ".txt", ".pdf"} | IMAGE_EXTENSIONS | NATIVE_EXTENSIONS
 MAX_INPUT_BYTES = 20 * 1024 * 1024
 MAX_PAGES = 50
 MAX_MODEL_CHARS = 24_000
@@ -208,6 +223,12 @@ def process_auto(
                         documents = None
                     else:
                         documents = intake.ingest(str(file_path))
+                elif file_path.suffix.lower() in IMAGE_EXTENSIONS:
+                    from PIL import Image
+
+                    with Image.open(file_path) as image:
+                        require_single_frame_image(image)
+                    documents = intake.ingest(str(file_path))
                 else:
                     documents = intake.ingest(str(file_path))
                 if documents is not None:
@@ -229,6 +250,8 @@ def process_auto(
                     ]
                     if not rows:
                         rows = [(_doc_id(file_path.name, container_hash, 0), None, "no_documents_parsed", 0, container_hash, container_size, "raw_file")]
+            except UnsupportedImageFrames:
+                rows = [(_doc_id(file_path.name, container_hash, 0), None, "multi_frame_image_unsupported", 0, container_hash, container_size, "raw_file")]
             except NativeLimitError:
                 rows = [(_doc_id(file_path.name, container_hash, 0), None, "native_limit_exceeded", 0, container_hash, container_size, "raw_file")]
             except ImportError:
@@ -408,7 +431,7 @@ def _process_document(
     candidate: dict[str, object] = {
         "contract_version": CONTRACT_VERSION,
         "doc_id": doc_id,
-        "document_status": "unsupported" if initial_reason in {"unsupported_file_type", "file_too_large", "too_many_pages", "native_limit_exceeded"} else "failed" if initial_reason else "needs_review",
+        "document_status": "unsupported" if initial_reason in {"unsupported_file_type", "file_too_large", "too_many_pages", "native_limit_exceeded", "multi_frame_image_unsupported"} else "failed" if initial_reason else "needs_review",
         "proposed_schema": [],
         "extracted_values": [],
     }

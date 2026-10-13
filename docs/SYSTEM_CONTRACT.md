@@ -27,6 +27,10 @@ merged ranges and hyperlink ranges are checked before allocation, including UTF-
 nonstandard names. Complex valid files can exceed these limits and receive an explicit unsupported result. See the
 [allocation guard receipt](evaluations/OOXML_ALLOCATION_GUARD_20261013.md) for the reproduced defect and tests.
 
+Product image intake and schema sampling require single-frame sources. Multipage TIFFs and animated PNGs are
+explicitly rejected before OCR or model calls; they must be split into separate files. Reading only their first
+frame would falsely imply complete coverage. This check does not change the frozen PDF/PNG benchmark checkouts.
+
 New product queue dispatches also seal the selected OCR engine and response format. Optional local RapidOCR
 uses a separate pinned CPU environment with page resource bounds and exact line evidence. Optional strict
 confirmed-schema output sends an explicit JSON Schema to the provider and independently validates the response
