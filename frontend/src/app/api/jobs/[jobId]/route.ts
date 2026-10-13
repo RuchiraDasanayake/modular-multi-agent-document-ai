@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { getJob, mutateJob } from "@/server/jobs";
+import { requireJob } from "@/server/access";
+import { AccessError, requireUser } from "@/server/auth";
 import { apiError } from "@/server/api/response";
 import { syncActiveJobProgress } from "@/server/runner";
+import { loadRunnerConfig } from "@/server/config";
 import { readJobValidationContext, updateJobValidationContextManualInput } from "@/server/review-context";
 import type { JobExecutionMode, JobFieldConfig, JobValidationContextManualInput } from "@/types/idpo";
 
@@ -16,9 +19,11 @@ interface Params {
   params: Promise<{ jobId: string }>;
 }
 
-export async function GET(_: Request, { params }: Params) {
+export async function GET(request: Request, { params }: Params) {
   try {
+    const user = await requireUser(request.headers);
     const { jobId } = await params;
+    requireJob(jobId, user);
     const baseJob = getJob(jobId);
     let job = baseJob;
     if (baseJob && (baseJob.status === "queued" || baseJob.status === "running")) {
@@ -35,7 +40,8 @@ export async function GET(_: Request, { params }: Params) {
     if (reviewContext) {
       job.reviewContext = reviewContext;
     }
-    return NextResponse.json(job, { headers: NO_STORE_HEADERS });
+    return NextResponse.json({ ...job, canonicalRunnerAvailable: loadRunnerConfig().canonicalRunnerAvailable },
+      { headers: NO_STORE_HEADERS });
   } catch (error) {
     return apiError(error, 400);
   }
@@ -107,8 +113,14 @@ function parseSettingsPatch(value: unknown): Record<string, unknown> | undefined
 
 export async function PATCH(request: Request, { params }: Params) {
   try {
+    const user = await requireUser(request.headers);
     const { jobId } = await params;
+    requireJob(jobId, user);
     const payload = (await request.json()) as Record<string, unknown>;
+    if (user.role !== "admin" && payload.settings && typeof payload.settings === "object"
+      && "llmLocalModel" in payload.settings && Boolean(String(payload.settings.llmLocalModel ?? "").trim())) {
+      throw new AccessError("Admin access is required to change the local model.", 403);
+    }
     const updated = mutateJob(jobId, (job) => {
       if (typeof payload.jobName === "string") {
         job.jobName = payload.jobName.trim();

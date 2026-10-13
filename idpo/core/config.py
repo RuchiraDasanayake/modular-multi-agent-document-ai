@@ -21,9 +21,14 @@ class PreprocessingConfig:
     ocr_dpi: int = 300
     ocr_alt_psm: list[int] = field(default_factory=lambda: [4, 11])
     ocr_passes: int = 2
+    ocr_initial_single_pass: bool = False
     ocr_min_confidence: float = 55.0
     ocr_retry_dpi: int = 450
     ocr_retry_alt_psm: list[int] = field(default_factory=lambda: [3, 4, 6, 11, 12])
+    ocr_retry_max_candidates: int | None = None
+    # Only the product-auto path sets these. Canonical research OCR keeps its existing behavior.
+    ocr_tesseract_call_timeout_s: float | None = None
+    ocr_tesseract_page_budget_s: float | None = None
     ocr_max_reruns_per_page: int = 1
     ocr_rerun_min_score_gain: float = 0.03
     ocr_fast_exit_score: float = 0.82

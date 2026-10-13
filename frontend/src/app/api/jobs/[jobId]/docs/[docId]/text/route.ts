@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { readRunOcrText } from "@/server/artifacts";
 import { apiError } from "@/server/api/response";
 import { getJobOrThrow } from "@/server/jobs";
+import { requireJob } from "@/server/access";
+import { requireUser } from "@/server/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,9 +14,11 @@ interface Params {
   params: Promise<{ jobId: string; docId: string }>;
 }
 
-export async function GET(_: Request, { params }: Params) {
+export async function GET(request: Request, { params }: Params) {
   try {
+    const user = await requireUser(request.headers);
     const { jobId, docId } = await params;
+    requireJob(jobId, user);
     const document = (getJobOrThrow(jobId).documents ?? []).find((entry) => entry.fileId === docId);
     if (!document) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 });

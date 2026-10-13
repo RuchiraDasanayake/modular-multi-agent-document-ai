@@ -1,0 +1,1216 @@
+{
+  "report_version": 1,
+  "title": "ICORE synthetic schema and extraction pilot",
+  "tested_at_utc": "2026-10-11T18:40:07.356347+00:00",
+  "provider": "ICORE",
+  "api_base_url": "https://icore.innobothealth.us/innobot-api/v1",
+  "request_count": {
+    "authenticated_models_get": 2,
+    "chat_completions_post": 8,
+    "total": 10
+  },
+  "scope": "Synthetic text only; no VRDU corpus item or private user document sent.",
+  "method": {
+    "two_stage_prompts": "Current idpo.product_auto.logic schema_prompt(pages) then values_prompt(pages, proposed_schema)",
+    "max_tokens_per_chat_call": 1000,
+    "temperature": null,
+    "response_format_parameter": null,
+    "source_validation": "Current parse_schema_reply and parse_values_reply, including exact quote resolution to a 1-based page and 0-based half-open Unicode span.",
+    "note": "Parser accepted_count measures deterministic grounding and typed-value checks, not production release. Current product workflow still requires human review for an unapproved dynamic schema."
+  },
+  "synthetic_documents": {
+    "invoice": {
+      "text": "NORTHWIND PAPER CO.\nInvoice INV-2047\nIssued: 2026-02-10\nBill to: Maple Workshop\nLine: Binding clips, 4 at 12.50, line total 50.00\nShipping: 0.00\nTotal due: 50.00 USD\nPayment terms: Net 30.\n",
+      "check_facts": {
+        "invoice_number": "INV-2047",
+        "issue_date": "2026-02-10",
+        "shipping": 0,
+        "total_due": 50,
+        "currency": "USD"
+      }
+    },
+    "incident_report": {
+      "text": "On 2026-03-15 at 14:20, the conveyor in Warehouse B stopped after a safety sensor detected a loose cable. Operator Maya Chen isolated power. Technician Ravi Patel replaced the cable at 15:05. No injuries were reported. Work order WO-778 remains open pending inspection on 2026-03-16.\n",
+      "check_facts": {
+        "incident_date": "2026-03-15",
+        "location": "Warehouse B",
+        "operator": "Maya Chen",
+        "technician": "Ravi Patel",
+        "work_order": "WO-778",
+        "injuries_reported": false
+      }
+    }
+  },
+  "model_catalog_observed": {
+    "source": "Authenticated GET /models response (2 successful requests; 2026-10-11 UTC / 2026-10-12 Asia/Colombo)",
+    "ids": [
+      "innobot-titan-embed-v2",
+      "innobot-nova-embed",
+      "innobot-luna-mantle",
+      "innobot-terra-mantle",
+      "innobot-sonnet-5",
+      "innobot-minimax-m2-5",
+      "innobot-luna-6",
+      "innobot-image-core",
+      "innobot-image-ultra"
+    ],
+    "tested_text_chat_models": {
+      "innobot-minimax-m2-5": {
+        "input_modalities": [
+          "text"
+        ],
+        "operations": [
+          "chat/completions"
+        ],
+        "response_formats_advertised": [
+          "text",
+          "json_schema"
+        ],
+        "provider_schema_validation_advertised": true,
+        "max_context_tokens_advertised": 196608
+      },
+      "innobot-luna-6": {
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "operations": [
+          "chat/completions",
+          "responses"
+        ],
+        "schema_guarantee_advertised": false,
+        "max_context_tokens_advertised": 1000000
+      }
+    },
+    "other_relevant_capabilities": {
+      "titan_and_nova_embeddings": "Text input only through embeddings endpoint; no chat or image input in this ICORE release. Titan dimensions 256/512/1024; Nova dimensions 256/384/1024/3072; one input and 8000 input bytes per request advertised.",
+      "luna_mantle_terra_mantle_sonnet_5": "Chat supports text and inline base64 JPEG/PNG images; no file IDs, remote URLs, or stored responses advertised. Vision was not tested.",
+      "image_core_and_ultra": "Separate images/generations endpoint for one PNG per request; generation is not an extraction capability and was not tested."
+    },
+    "pricing_fields_in_model_items": []
+  },
+  "call_results": [
+    {
+      "model": "innobot-minimax-m2-5",
+      "document_type": "invoice",
+      "phase": "schema",
+      "request_bytes": 926,
+      "http_status": 200,
+      "response_keys": [
+        "choices",
+        "created",
+        "id",
+        "model",
+        "object",
+        "usage"
+      ],
+      "usage": {
+        "prompt_tokens": 216,
+        "completion_tokens": 756,
+        "total_tokens": 972
+      },
+      "usage_keys": [
+        "completion_tokens",
+        "prompt_tokens",
+        "prompt_tokens_details",
+        "total_tokens"
+      ],
+      "finish_reason": "stop",
+      "content_chars": 787,
+      "elapsed_ms": 8901.1
+    },
+    {
+      "model": "innobot-minimax-m2-5",
+      "document_type": "invoice",
+      "phase": "values",
+      "request_bytes": 1826,
+      "http_status": 200,
+      "response_keys": [
+        "choices",
+        "created",
+        "id",
+        "model",
+        "object",
+        "usage"
+      ],
+      "usage": {
+        "prompt_tokens": 451,
+        "completion_tokens": 644,
+        "total_tokens": 1095
+      },
+      "usage_keys": [
+        "completion_tokens",
+        "prompt_tokens",
+        "prompt_tokens_details",
+        "total_tokens"
+      ],
+      "finish_reason": "stop",
+      "content_chars": 1049,
+      "elapsed_ms": 21055.5
+    },
+    {
+      "model": "innobot-luna-6",
+      "document_type": "invoice",
+      "phase": "schema",
+      "request_bytes": 920,
+      "http_status": 200,
+      "response_keys": [
+        "choices",
+        "created",
+        "id",
+        "model",
+        "object",
+        "service_tier",
+        "system_fingerprint",
+        "usage"
+      ],
+      "usage": {
+        "completion_tokens": 283,
+        "prompt_tokens": 210,
+        "total_tokens": 493
+      },
+      "usage_keys": [
+        "completion_tokens",
+        "completion_tokens_details",
+        "prompt_tokens",
+        "prompt_tokens_details",
+        "total_tokens"
+      ],
+      "finish_reason": "stop",
+      "content_chars": 756,
+      "elapsed_ms": 4213.8
+    },
+    {
+      "model": "innobot-luna-6",
+      "document_type": "invoice",
+      "phase": "values",
+      "request_bytes": 1791,
+      "http_status": 200,
+      "response_keys": [
+        "choices",
+        "created",
+        "id",
+        "model",
+        "object",
+        "service_tier",
+        "system_fingerprint",
+        "usage"
+      ],
+      "usage": {
+        "completion_tokens": 408,
+        "prompt_tokens": 440,
+        "total_tokens": 848
+      },
+      "usage_keys": [
+        "completion_tokens",
+        "completion_tokens_details",
+        "prompt_tokens",
+        "prompt_tokens_details",
+        "total_tokens"
+      ],
+      "finish_reason": "stop",
+      "content_chars": 1005,
+      "elapsed_ms": 4542.4
+    },
+    {
+      "model": "innobot-minimax-m2-5",
+      "document_type": "incident_report",
+      "phase": "schema",
+      "request_bytes": 1007,
+      "http_status": 200,
+      "response_keys": [
+        "choices",
+        "created",
+        "id",
+        "model",
+        "object",
+        "usage"
+      ],
+      "usage": {
+        "prompt_tokens": 212,
+        "completion_tokens": 828,
+        "total_tokens": 1040
+      },
+      "usage_keys": [
+        "completion_tokens",
+        "prompt_tokens",
+        "prompt_tokens_details",
+        "total_tokens"
+      ],
+      "finish_reason": "stop",
+      "content_chars": 1135,
+      "elapsed_ms": 39716.3
+    },
+    {
+      "model": "innobot-minimax-m2-5",
+      "document_type": "incident_report",
+      "phase": "values",
+      "request_bytes": 2345,
+      "http_status": 200,
+      "response_keys": [
+        "choices",
+        "created",
+        "id",
+        "model",
+        "object",
+        "usage"
+      ],
+      "usage": {
+        "prompt_tokens": 559,
+        "completion_tokens": 1000,
+        "total_tokens": 1559
+      },
+      "usage_keys": [
+        "completion_tokens",
+        "prompt_tokens",
+        "prompt_tokens_details",
+        "total_tokens"
+      ],
+      "finish_reason": "length",
+      "content_chars": 1373,
+      "elapsed_ms": 38031.9
+    },
+    {
+      "model": "innobot-luna-6",
+      "document_type": "incident_report",
+      "phase": "schema",
+      "request_bytes": 1001,
+      "http_status": 200,
+      "response_keys": [
+        "choices",
+        "created",
+        "id",
+        "model",
+        "object",
+        "service_tier",
+        "system_fingerprint",
+        "usage"
+      ],
+      "usage": {
+        "completion_tokens": 358,
+        "prompt_tokens": 207,
+        "total_tokens": 565
+      },
+      "usage_keys": [
+        "completion_tokens",
+        "completion_tokens_details",
+        "prompt_tokens",
+        "prompt_tokens_details",
+        "total_tokens"
+      ],
+      "finish_reason": "stop",
+      "content_chars": 951,
+      "elapsed_ms": 3320.1
+    },
+    {
+      "model": "innobot-luna-6",
+      "document_type": "incident_report",
+      "phase": "values",
+      "request_bytes": 2121,
+      "http_status": 200,
+      "response_keys": [
+        "choices",
+        "created",
+        "id",
+        "model",
+        "object",
+        "service_tier",
+        "system_fingerprint",
+        "usage"
+      ],
+      "usage": {
+        "completion_tokens": 454,
+        "prompt_tokens": 501,
+        "total_tokens": 955
+      },
+      "usage_keys": [
+        "completion_tokens",
+        "completion_tokens_details",
+        "prompt_tokens",
+        "prompt_tokens_details",
+        "total_tokens"
+      ],
+      "finish_reason": "stop",
+      "content_chars": 1210,
+      "elapsed_ms": 3899.8
+    }
+  ],
+  "case_results": [
+    {
+      "document_type": "invoice",
+      "model": "innobot-minimax-m2-5",
+      "baseline_field_ids": [
+        "invoice_inv",
+        "issued",
+        "bill_to",
+        "line",
+        "shipping",
+        "total_due",
+        "payment_terms"
+      ],
+      "schema_valid": true,
+      "proposed_schema": [
+        {
+          "field_id": "company_name",
+          "type": "string",
+          "group": "header"
+        },
+        {
+          "field_id": "invoice_number",
+          "type": "string",
+          "group": "header"
+        },
+        {
+          "field_id": "issue_date",
+          "type": "date",
+          "group": "header"
+        },
+        {
+          "field_id": "bill_to",
+          "type": "string",
+          "group": "header"
+        },
+        {
+          "field_id": "line_item_description",
+          "type": "string",
+          "group": "line_items"
+        },
+        {
+          "field_id": "line_item_quantity",
+          "type": "integer",
+          "group": "line_items"
+        },
+        {
+          "field_id": "line_item_unit_price",
+          "type": "decimal",
+          "group": "line_items"
+        },
+        {
+          "field_id": "line_item_total",
+          "type": "decimal",
+          "group": "line_items"
+        },
+        {
+          "field_id": "shipping_amount",
+          "type": "decimal",
+          "group": "summary"
+        },
+        {
+          "field_id": "total_due",
+          "type": "decimal",
+          "group": "summary"
+        },
+        {
+          "field_id": "currency",
+          "type": "string",
+          "group": "summary"
+        },
+        {
+          "field_id": "payment_terms",
+          "type": "string",
+          "group": "summary"
+        }
+      ],
+      "values_valid": true,
+      "values": [
+        {
+          "field_id": "company_name",
+          "value": "NORTHWIND PAPER CO.",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 0,
+            "end": 19,
+            "quote": "NORTHWIND PAPER CO."
+          }
+        },
+        {
+          "field_id": "invoice_number",
+          "value": "INV-2047",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 20,
+            "end": 36,
+            "quote": "Invoice INV-2047"
+          }
+        },
+        {
+          "field_id": "issue_date",
+          "value": "2026-02-10",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 37,
+            "end": 55,
+            "quote": "Issued: 2026-02-10"
+          }
+        },
+        {
+          "field_id": "bill_to",
+          "value": "Maple Workshop",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 56,
+            "end": 79,
+            "quote": "Bill to: Maple Workshop"
+          }
+        },
+        {
+          "field_id": "line_item_description",
+          "value": "Binding clips",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 80,
+            "end": 129,
+            "quote": "Line: Binding clips, 4 at 12.50, line total 50.00"
+          }
+        },
+        {
+          "field_id": "line_item_quantity",
+          "value": 4,
+          "status": "needs_review",
+          "review_state": "pending",
+          "evidence": {
+            "page": 1,
+            "start": 101,
+            "end": 111,
+            "quote": "4 at 12.50"
+          }
+        },
+        {
+          "field_id": "line_item_unit_price",
+          "value": 12.5,
+          "status": "needs_review",
+          "review_state": "pending",
+          "evidence": {
+            "page": 1,
+            "start": 101,
+            "end": 111,
+            "quote": "4 at 12.50"
+          }
+        },
+        {
+          "field_id": "line_item_total",
+          "value": 50.0,
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 113,
+            "end": 129,
+            "quote": "line total 50.00"
+          }
+        },
+        {
+          "field_id": "shipping_amount",
+          "value": 0.0,
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 130,
+            "end": 144,
+            "quote": "Shipping: 0.00"
+          }
+        },
+        {
+          "field_id": "total_due",
+          "value": 50.0,
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 145,
+            "end": 165,
+            "quote": "Total due: 50.00 USD"
+          }
+        },
+        {
+          "field_id": "currency",
+          "value": "USD",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 156,
+            "end": 165,
+            "quote": "50.00 USD"
+          }
+        },
+        {
+          "field_id": "payment_terms",
+          "value": "Net 30",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 166,
+            "end": 188,
+            "quote": "Payment terms: Net 30."
+          }
+        }
+      ],
+      "accepted_count": 10,
+      "needs_review_count": 2
+    },
+    {
+      "document_type": "invoice",
+      "model": "innobot-luna-6",
+      "baseline_field_ids": [
+        "invoice_inv",
+        "issued",
+        "bill_to",
+        "line",
+        "shipping",
+        "total_due",
+        "payment_terms"
+      ],
+      "schema_valid": true,
+      "proposed_schema": [
+        {
+          "field_id": "vendor_name",
+          "type": "string",
+          "group": "header"
+        },
+        {
+          "field_id": "invoice_number",
+          "type": "string",
+          "group": "header"
+        },
+        {
+          "field_id": "issue_date",
+          "type": "date",
+          "group": "header"
+        },
+        {
+          "field_id": "bill_to",
+          "type": "string",
+          "group": "header"
+        },
+        {
+          "field_id": "payment_terms",
+          "type": "string",
+          "group": "header"
+        },
+        {
+          "field_id": "line_description",
+          "type": "string",
+          "group": "line_item"
+        },
+        {
+          "field_id": "line_quantity",
+          "type": "integer",
+          "group": "line_item"
+        },
+        {
+          "field_id": "line_unit_price",
+          "type": "decimal",
+          "group": "line_item"
+        },
+        {
+          "field_id": "line_total",
+          "type": "decimal",
+          "group": "line_item"
+        },
+        {
+          "field_id": "shipping_amount",
+          "type": "decimal",
+          "group": "header"
+        },
+        {
+          "field_id": "total_due",
+          "type": "decimal",
+          "group": "header"
+        },
+        {
+          "field_id": "currency",
+          "type": "string",
+          "group": "header"
+        }
+      ],
+      "values_valid": true,
+      "values": [
+        {
+          "field_id": "vendor_name",
+          "value": "NORTHWIND PAPER CO.",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 0,
+            "end": 19,
+            "quote": "NORTHWIND PAPER CO."
+          }
+        },
+        {
+          "field_id": "invoice_number",
+          "value": "INV-2047",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 20,
+            "end": 36,
+            "quote": "Invoice INV-2047"
+          }
+        },
+        {
+          "field_id": "issue_date",
+          "value": "2026-02-10",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 37,
+            "end": 55,
+            "quote": "Issued: 2026-02-10"
+          }
+        },
+        {
+          "field_id": "bill_to",
+          "value": "Maple Workshop",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 56,
+            "end": 79,
+            "quote": "Bill to: Maple Workshop"
+          }
+        },
+        {
+          "field_id": "payment_terms",
+          "value": "Net 30",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 166,
+            "end": 188,
+            "quote": "Payment terms: Net 30."
+          }
+        },
+        {
+          "field_id": "line_description",
+          "value": "Binding clips",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 80,
+            "end": 129,
+            "quote": "Line: Binding clips, 4 at 12.50, line total 50.00"
+          }
+        },
+        {
+          "field_id": "line_quantity",
+          "value": 4,
+          "status": "needs_review",
+          "review_state": "pending",
+          "evidence": {
+            "page": 1,
+            "start": 101,
+            "end": 111,
+            "quote": "4 at 12.50"
+          }
+        },
+        {
+          "field_id": "line_unit_price",
+          "value": 12.5,
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 106,
+            "end": 111,
+            "quote": "12.50"
+          }
+        },
+        {
+          "field_id": "line_total",
+          "value": 50.0,
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 113,
+            "end": 129,
+            "quote": "line total 50.00"
+          }
+        },
+        {
+          "field_id": "shipping_amount",
+          "value": 0.0,
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 130,
+            "end": 144,
+            "quote": "Shipping: 0.00"
+          }
+        },
+        {
+          "field_id": "total_due",
+          "value": 50.0,
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 145,
+            "end": 165,
+            "quote": "Total due: 50.00 USD"
+          }
+        },
+        {
+          "field_id": "currency",
+          "value": "USD",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 162,
+            "end": 165,
+            "quote": "USD"
+          }
+        }
+      ],
+      "accepted_count": 11,
+      "needs_review_count": 1
+    },
+    {
+      "document_type": "incident_report",
+      "model": "innobot-minimax-m2-5",
+      "baseline_field_ids": [],
+      "schema_valid": true,
+      "proposed_schema": [
+        {
+          "field_id": "incident_date",
+          "type": "date",
+          "group": "header"
+        },
+        {
+          "field_id": "incident_time",
+          "type": "string",
+          "group": "header"
+        },
+        {
+          "field_id": "equipment_type",
+          "type": "string",
+          "group": "equipment"
+        },
+        {
+          "field_id": "equipment_location",
+          "type": "string",
+          "group": "equipment"
+        },
+        {
+          "field_id": "fault_description",
+          "type": "string",
+          "group": "incident"
+        },
+        {
+          "field_id": "operator_name",
+          "type": "string",
+          "group": "personnel"
+        },
+        {
+          "field_id": "operator_role",
+          "type": "string",
+          "group": "personnel"
+        },
+        {
+          "field_id": "technician_name",
+          "type": "string",
+          "group": "personnel"
+        },
+        {
+          "field_id": "technician_role",
+          "type": "string",
+          "group": "personnel"
+        },
+        {
+          "field_id": "power_isolated_by",
+          "type": "string",
+          "group": "action"
+        },
+        {
+          "field_id": "cable_replaced_at",
+          "type": "string",
+          "group": "action"
+        },
+        {
+          "field_id": "cable_replaced_by",
+          "type": "string",
+          "group": "action"
+        },
+        {
+          "field_id": "work_order_number",
+          "type": "string",
+          "group": "reference"
+        },
+        {
+          "field_id": "work_order_status",
+          "type": "string",
+          "group": "reference"
+        },
+        {
+          "field_id": "next_inspection_date",
+          "type": "date",
+          "group": "schedule"
+        },
+        {
+          "field_id": "injuries_reported",
+          "type": "boolean",
+          "group": "safety"
+        },
+        {
+          "field_id": "facility",
+          "type": "string",
+          "group": "location"
+        }
+      ],
+      "values_valid": false,
+      "values": null,
+      "accepted_count": 0,
+      "needs_review_count": 0
+    },
+    {
+      "document_type": "incident_report",
+      "model": "innobot-luna-6",
+      "baseline_field_ids": [],
+      "schema_valid": true,
+      "proposed_schema": [
+        {
+          "field_id": "incident_date",
+          "type": "date",
+          "group": "header"
+        },
+        {
+          "field_id": "incident_time",
+          "type": "string",
+          "group": "header"
+        },
+        {
+          "field_id": "equipment",
+          "type": "string",
+          "group": "header"
+        },
+        {
+          "field_id": "location",
+          "type": "string",
+          "group": "header"
+        },
+        {
+          "field_id": "failure_event",
+          "type": "string",
+          "group": "header"
+        },
+        {
+          "field_id": "detected_cause",
+          "type": "string",
+          "group": "header"
+        },
+        {
+          "field_id": "operator_name",
+          "type": "string",
+          "group": "header"
+        },
+        {
+          "field_id": "power_isolated",
+          "type": "boolean",
+          "group": "header"
+        },
+        {
+          "field_id": "technician_name",
+          "type": "string",
+          "group": "header"
+        },
+        {
+          "field_id": "repair_action",
+          "type": "string",
+          "group": "header"
+        },
+        {
+          "field_id": "repair_time",
+          "type": "string",
+          "group": "header"
+        },
+        {
+          "field_id": "injuries_reported",
+          "type": "boolean",
+          "group": "header"
+        },
+        {
+          "field_id": "work_order_id",
+          "type": "string",
+          "group": "header"
+        },
+        {
+          "field_id": "work_order_status",
+          "type": "string",
+          "group": "header"
+        },
+        {
+          "field_id": "pending_inspection_date",
+          "type": "date",
+          "group": "header"
+        }
+      ],
+      "values_valid": true,
+      "values": [
+        {
+          "field_id": "incident_date",
+          "value": "2026-03-15",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 3,
+            "end": 13,
+            "quote": "2026-03-15"
+          }
+        },
+        {
+          "field_id": "incident_time",
+          "value": "14:20",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 17,
+            "end": 22,
+            "quote": "14:20"
+          }
+        },
+        {
+          "field_id": "equipment",
+          "value": "conveyor",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 24,
+            "end": 36,
+            "quote": "the conveyor"
+          }
+        },
+        {
+          "field_id": "location",
+          "value": "Warehouse B",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 40,
+            "end": 51,
+            "quote": "Warehouse B"
+          }
+        },
+        {
+          "field_id": "failure_event",
+          "value": "stopped",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 52,
+            "end": 59,
+            "quote": "stopped"
+          }
+        },
+        {
+          "field_id": "detected_cause",
+          "value": "loose cable",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 91,
+            "end": 104,
+            "quote": "a loose cable"
+          }
+        },
+        {
+          "field_id": "operator_name",
+          "value": "Maya Chen",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 115,
+            "end": 124,
+            "quote": "Maya Chen"
+          }
+        },
+        {
+          "field_id": "power_isolated",
+          "value": true,
+          "status": "needs_review",
+          "review_state": "pending",
+          "evidence": {
+            "page": 1,
+            "start": 125,
+            "end": 139,
+            "quote": "isolated power"
+          }
+        },
+        {
+          "field_id": "technician_name",
+          "value": "Ravi Patel",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 152,
+            "end": 162,
+            "quote": "Ravi Patel"
+          }
+        },
+        {
+          "field_id": "repair_action",
+          "value": "replaced the cable",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 163,
+            "end": 181,
+            "quote": "replaced the cable"
+          }
+        },
+        {
+          "field_id": "repair_time",
+          "value": "15:05",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 185,
+            "end": 190,
+            "quote": "15:05"
+          }
+        },
+        {
+          "field_id": "injuries_reported",
+          "value": false,
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 192,
+            "end": 218,
+            "quote": "No injuries were reported."
+          }
+        },
+        {
+          "field_id": "work_order_id",
+          "value": "WO-778",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 230,
+            "end": 236,
+            "quote": "WO-778"
+          }
+        },
+        {
+          "field_id": "work_order_status",
+          "value": "open",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 237,
+            "end": 249,
+            "quote": "remains open"
+          }
+        },
+        {
+          "field_id": "pending_inspection_date",
+          "value": "2026-03-16",
+          "status": "accepted",
+          "review_state": "none",
+          "evidence": {
+            "page": 1,
+            "start": 272,
+            "end": 282,
+            "quote": "2026-03-16"
+          }
+        }
+      ],
+      "accepted_count": 14,
+      "needs_review_count": 1
+    }
+  ],
+  "aggregates": {
+    "innobot-minimax-m2-5": {
+      "chat_calls": 4,
+      "http_200_calls": 4,
+      "prompt_tokens": 1438,
+      "completion_tokens": 3228,
+      "total_tokens": 4666,
+      "sum_request_elapsed_ms": 107704.8,
+      "valid_schema_cases": 2,
+      "valid_values_cases": 1,
+      "source_grounded_values": 10,
+      "values_requiring_review": 2,
+      "usd_cost": null
+    },
+    "innobot-luna-6": {
+      "chat_calls": 4,
+      "http_200_calls": 4,
+      "prompt_tokens": 1358,
+      "completion_tokens": 1503,
+      "total_tokens": 2861,
+      "sum_request_elapsed_ms": 15976.1,
+      "valid_schema_cases": 2,
+      "valid_values_cases": 2,
+      "source_grounded_values": 25,
+      "values_requiring_review": 2,
+      "usd_cost": null
+    }
+  },
+  "billing": {
+    "measured_usd_cost": null,
+    "published_icore_per_model_rates_verified": false,
+    "reason": "The authenticated model catalog and chat responses contained token usage but no USD rate or cost field; ICORE-specific public rate documentation was not located. The user-provided UI mentions a shared allowance and ICORE rates, without a per-model rate table.",
+    "do_not_infer_from_upstream_model_prices": true
+  },
+  "data_terms": {
+    "retention_period_verified": false,
+    "training_use_verified": false,
+    "residency_verified": false,
+    "observation": "The model catalog advertises client-managed conversation state and no stored_responses operation for tested chat models. This does not establish provider logging, retention, training, or residency terms.",
+    "private_document_cloud_test_authorized_by_this_pilot": false
+  },
+  "findings": [
+    "Both models produced valid flat schema JSON for the invoice and narrative incident report.",
+    "The invoice schema contained 12 fields from each model; the local verifier grounded 10/12 MiniMax and 11/12 Luna values. Quantity/unit-price quotes that contained two numbers were deliberately sent to review.",
+    "Luna produced valid incident values and the local verifier grounded 14/15. The boolean power_isolated value was correctly inferred from the sentence but the literal-token verifier sent it to review.",
+    "MiniMax proposed 17 incident fields but its value response reached finish_reason=length at 1000 completion tokens; the response was unusable under the production parser.",
+    "Across four calls each, MiniMax used 4666 reported tokens and 107704.8 ms summed request time; Luna used 2861 tokens and 15976.1 ms. This tiny sequential sample does not prove general latency or USD-cost superiority.",
+    "Neither response usage nor model catalog exposed cost metadata. No USD cost comparison is possible until ICORE rates or settled per-request charges are available."
+  ],
+  "decision": "For a limited follow-up on synthetic text, prefer Luna 6 for schema and value calls because both documents returned usable JSON within the 1000-token cap and had lower measured request time and token counts here. Keep human approval of dynamic schemas. Do not send private or regulated documents until retention/training terms and per-model prices are confirmed.",
+  "limitations": [
+    "Two fictional single-page documents, one response per model per stage; no statistical accuracy estimate.",
+    "No image, OCR, embeddings, PDF, or image-generation capability was exercised.",
+    "No response_format/json_schema parameter was tested; MiniMax strict-schema capability is catalog metadata only.",
+    "Provider token usage is reported but actual settled charges are not known.",
+    "No official public ICORE pricing schedule or data-processing terms were found in the available sources."
+  ],
+  "source_urls": [
+    "https://icore.innobothealth.us/innobot-api/v1/models",
+    "https://icore.innobothealth.us/innobot-api/v1/chat/completions"
+  ]
+}

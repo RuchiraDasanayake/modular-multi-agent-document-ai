@@ -40,3 +40,15 @@ test("runner resolves a relative Python path before the process starts", () => {
     resetConfigCacheForTests();
   }
 });
+
+test("Docker config enables the private product worker and disables unsupported research runs", () => {
+  const dockerConfig = JSON.parse(fs.readFileSync(path.join(process.cwd(), "runner.config.docker.json"), "utf8")) as {
+    canonicalRunnerAvailable: boolean;
+    commands: Array<{ id: string; program: string; args: string[] }>;
+  };
+  assert.equal(dockerConfig.canonicalRunnerAvailable, false);
+  const product = dockerConfig.commands.find((command) => command.id === "idpo_process_auto");
+  assert.equal(product?.program, "node");
+  assert.deepEqual(product?.args.slice(0, 3), ["/app/scripts/product-worker-client.mjs", "--input", "{input_dir}"]);
+  assert.ok(fs.existsSync(path.join(process.cwd(), "scripts", "product-worker-client.mjs")));
+});

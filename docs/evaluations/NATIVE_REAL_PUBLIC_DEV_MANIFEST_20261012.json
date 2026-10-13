@@ -1,0 +1,122 @@
+{
+  "manifest_version": 1,
+  "frozen_utc_date": "2026-10-12",
+  "purpose": "Small, real-source native-format development corpus; source availability only, with no extraction gold or accuracy claim",
+  "directory_parameter": "NATIVE_DEV_CORPUS_DIR (outside the repository)",
+  "source_file_count": 10,
+  "holdout": false,
+  "sources": [
+    {
+      "id": "gov_etf_indicators_2025",
+      "format": "docx",
+      "filename": "gov_etf_indicators_2025.docx",
+      "bytes": 114282,
+      "sha256": "ccd38fe983bcd50e707dcda10eccfa6e52b7f6a819ef19d139565d8943f37c2c",
+      "publication_url": "https://www.gov.uk/government/publications/evaluation-task-force-output-and-outcome-indicators-march-2025",
+      "source_url": "https://assets.publishing.service.gov.uk/media/67ef9c5a199d1cd55b48c7c2/Evaluation_Task_Force_Output_and_Outcome_Indicators_March_2025.docx",
+      "rights": "GOV.UK publication states Open Government Licence v3.0 except where otherwise stated; attribute Evaluation Task Force, Cabinet Office and HM Treasury; confirm any third-party content before redistribution"
+    },
+    {
+      "id": "gov_etf_technical_annex_2025",
+      "format": "docx",
+      "filename": "gov_etf_technical_annex_2025.docx",
+      "bytes": 126084,
+      "sha256": "9891776cf9fd00c3ec56741bdb83f9397f1154a4846c0996bec7dcd70505dafb",
+      "publication_url": "https://www.gov.uk/government/publications/evaluation-task-force-output-and-outcome-indicators-march-2025",
+      "source_url": "https://assets.publishing.service.gov.uk/media/67ef9c7b98b3bac1ec299cf8/Evaluation_Task_Force_Output_and_Outcome_Indicators_March_2025_Technical_Annex.docx",
+      "rights": "GOV.UK publication states Open Government Licence v3.0 except where otherwise stated; attribute Evaluation Task Force, Cabinet Office and HM Treasury; confirm any third-party content before redistribution"
+    },
+    {
+      "id": "gov_defra_workforce_june_2025",
+      "format": "xlsx",
+      "filename": "gov_defra_workforce_june_2025.xlsx",
+      "bytes": 60123,
+      "sha256": "197dea6fb55e8c352e4f033bae442f76acaaa5407c1e793f1b7bd82c3ba179e0",
+      "publication_url": "https://www.gov.uk/government/publications/defra-workforce-management-information-june-2025",
+      "source_url": "https://assets.publishing.service.gov.uk/media/68b5a60e11b4ded2da19fcda/06-Jun25-DefraMWMIPubdData.xlsx",
+      "rights": "GOV.UK publication states Open Government Licence v3.0 except where otherwise stated; attribute Department for Environment, Food and Rural Affairs; confirm any third-party content before redistribution"
+    },
+    {
+      "id": "gov_adoption_agency_data_q2_2014",
+      "format": "xlsx",
+      "filename": "gov_adoption_agency_data_q2_2014.xlsx",
+      "bytes": 158700,
+      "sha256": "c145242bbf4b0ec98d57710b2fc815d7b52690d2ed317fb11da9a9f241b70de1",
+      "publication_url": "https://www.gov.uk/government/publications/adoption-leadership-board-quarterly-data-reports",
+      "source_url": "https://assets.publishing.service.gov.uk/media/5a7eae5240f0b62305b827cb/ALB_Agency_Level_Data_Quarter_2_2014_to_2015.xlsx",
+      "rights": "GOV.UK publication states Open Government Licence v3.0 except where otherwise stated; attribute Department for Education; confirm any third-party content before redistribution"
+    },
+    {
+      "id": "gov_ofqual_grading_lesson_2026",
+      "format": "pptx",
+      "filename": "gov_ofqual_grading_lesson_2026.pptx",
+      "bytes": 760730,
+      "sha256": "b70e310228b548e6b7d259e1247417072d32efb96129ed9a34b709ce502a2553",
+      "publication_url": "https://www.gov.uk/government/publications/understanding-grading-classroom-and-assembly-resources",
+      "source_url": "https://assets.publishing.service.gov.uk/media/69bbce528006048065f73c9f/Ofqual_GCSE_A_level_grading_lesson_plan_slides.pptx",
+      "rights": "GOV.UK publication states Open Government Licence v3.0 except where otherwise stated; attribute Ofqual; confirm any third-party content before redistribution"
+    },
+    {
+      "id": "gov_defence_cyber_board_2018",
+      "format": "pptx",
+      "filename": "gov_defence_cyber_board_2018.pptx",
+      "bytes": 213121,
+      "sha256": "6c8852cad16cf8c7462c04357387ec43a403a469b772306c0e2fa918ac5fce43",
+      "publication_url": "https://www.gov.uk/government/publications/defence-cyber-protection-partnership-presentation-slides",
+      "source_url": "https://assets.publishing.service.gov.uk/media/5ad856e7e5274a76c13dfd9d/20180411_Board_level_PPT_MC_PB.pptx",
+      "rights": "GOV.UK publication states Open Government Licence v3.0 except where otherwise stated; attribute Ministry of Defence; confirm any third-party content before redistribution"
+    },
+    {
+      "id": "gov_etf_indicators_2025_html",
+      "format": "html",
+      "filename": "gov_etf_indicators_2025.html",
+      "bytes": 77706,
+      "sha256": "04a3a3748d93e7c3b5d66d6db3c4e9b08ad338f0472d95e045e6e2e12b9b9472",
+      "publication_url": "https://www.gov.uk/government/publications/evaluation-task-force-output-and-outcome-indicators-march-2025",
+      "source_url": "https://www.gov.uk/government/publications/evaluation-task-force-output-and-outcome-indicators-march-2025",
+      "rights": "GOV.UK page footer states Open Government Licence v3.0 except where otherwise stated; attribute Evaluation Task Force, Cabinet Office and HM Treasury; HTML includes site chrome"
+    },
+    {
+      "id": "gov_ofqual_grading_lesson_2026_html",
+      "format": "html",
+      "filename": "gov_ofqual_grading_lesson_2026.html",
+      "bytes": 86097,
+      "sha256": "a8194e5d39e7bf84ff914cb96abd906c03e00b74a5197b326b5e40e8d4a47a25",
+      "publication_url": "https://www.gov.uk/government/publications/understanding-grading-classroom-and-assembly-resources",
+      "source_url": "https://www.gov.uk/government/publications/understanding-grading-classroom-and-assembly-resources/lesson-plan-in-html-format-understanding-how-your-exams-are-marked-and-graded",
+      "rights": "Ofqual HTML publication explicitly states Open Government Licence v3.0 except where otherwise stated and third-party exclusions; attribute Ofqual; HTML includes site chrome"
+    },
+    {
+      "id": "asf_log4j_2250_2025",
+      "format": "eml",
+      "filename": "asf_log4j_2250_2025.eml",
+      "bytes": 5950,
+      "sha256": "f4a5e3c2a678c231e69bce7d0a11c408bc8a08e76e213b6da7cbaf681a4ab18c",
+      "publication_url": "https://lists.apache.org/thread/9w0zpqgt803kz6onzdzyy1x1vfyt01vb",
+      "source_url": "https://lists.apache.org/api/source.json",
+      "source_method": "POST",
+      "source_json_body": {"id": "9w0zpqgt803kz6onzdzyy1x1vfyt01vb"},
+      "raw_filename": "asf_log4j_2250_2025.mbox-source",
+      "raw_bytes": 6051,
+      "raw_sha256": "5e63341ece7f335606dd301df0a08141c69c99bc6b16ec536bfb255232e9afa8",
+      "derivation": "Remove only the leading mbox From_ envelope line, including its LF; retain all subsequent bytes unmodified",
+      "rights": "ASF permits research on publicly archived mailing lists and calls public forum posts public without conditions; no explicit Apache-2.0 grant for message content was verified. Local research evaluation only; no corpus redistribution or cloud transfer without further review"
+    },
+    {
+      "id": "asf_poi_541_2025",
+      "format": "eml",
+      "filename": "asf_poi_541_2025.eml",
+      "bytes": 4672,
+      "sha256": "cf44f139471be992966260b6a51af91aeaa6332ed4bf08ca76b1720a258041f8",
+      "publication_url": "https://lists.apache.org/thread/n0w82jv5v4twm4vbk937hgk3wmbngjgs",
+      "source_url": "https://lists.apache.org/api/source.json",
+      "source_method": "POST",
+      "source_json_body": {"id": "n0w82jv5v4twm4vbk937hgk3wmbngjgs"},
+      "raw_filename": "asf_poi_541_2025.mbox-source",
+      "raw_bytes": 4772,
+      "raw_sha256": "9a71d52d8b5cf3b241883054f82aa356ac5b4c92d3d63f0ba0d730d2874c03aa",
+      "derivation": "Remove only the leading mbox From_ envelope line, including its LF; retain all subsequent bytes unmodified",
+      "rights": "ASF permits research on publicly archived mailing lists and calls public forum posts public without conditions; no explicit Apache-2.0 grant for message content was verified. Local research evaluation only; no corpus redistribution or cloud transfer without further review"
+    }
+  ]
+}

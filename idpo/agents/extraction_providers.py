@@ -20,7 +20,7 @@ try:
 except Exception:
     ANTHROPIC_AVAILABLE = False
 
-_API_KEY_RE = re.compile(r"\b(?:sk|rk|api[_-]?key)[-_a-zA-Z0-9]{8,}\b", re.IGNORECASE)
+_API_KEY_RE = re.compile(r"\b(?:sk|rk|iba|api[_-]?key)[-_a-zA-Z0-9]{8,}\b", re.IGNORECASE)
 _BEARER_RE = re.compile(r"(bearer\s+)[^\s'\"}]+", re.IGNORECASE)
 
 

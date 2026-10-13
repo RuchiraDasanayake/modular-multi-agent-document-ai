@@ -6,6 +6,7 @@ Uses FastAPI TestClient with mocked database and Redis dependencies.
 
 import asyncio
 
+import httpx
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timedelta, timezone
@@ -80,6 +81,61 @@ def test_api_health(client):
     resp = client.get("/api/health")
     assert resp.status_code == 200
     assert resp.json()["status"] == "healthy"
+
+
+def test_postgres_revocation_health_does_not_use_redis(client, monkeypatch):
+    from gateway.config import settings
+    redis = AsyncMock(side_effect=AssertionError("Redis must not be used"))
+    monkeypatch.setattr(settings, "TOKEN_REVOCATION_BACKEND", "postgresql")
+    monkeypatch.setattr("gateway.main._get_redis", redis)
+    body = client.get("/health").json()
+    assert body["status"] == "healthy"
+    assert body["token_revocation_backend"] == "postgresql"
+    assert "redis" not in body
+    redis.assert_not_called()
+
+
+def test_refresh_consumption_is_atomic_for_each_backend(monkeypatch):
+    from gateway.config import settings
+    from gateway.main import _consume_refresh_token
+    monkeypatch.setattr(settings, "TOKEN_REVOCATION_BACKEND", "postgresql")
+    db, cursor = _admin_check_connection(("token",), None)
+    assert asyncio.run(_consume_refresh_token("token", db)) is True
+    assert asyncio.run(_consume_refresh_token("token", db)) is False
+    assert "ON CONFLICT (jti) DO NOTHING RETURNING jti" in cursor.execute.call_args.args[0]
+    assert db.commit.await_count == 2
+    monkeypatch.setattr(settings, "TOKEN_REVOCATION_BACKEND", "redis")
+    redis = AsyncMock()
+    redis.set = AsyncMock(side_effect=[True, None])
+    monkeypatch.setattr("gateway.main._get_redis", AsyncMock(return_value=redis))
+    assert asyncio.run(_consume_refresh_token("token", db)) is True
+    assert asyncio.run(_consume_refresh_token("token", db)) is False
+    redis.set.assert_awaited_with("revoked:token", "1", ex=604800, nx=True)
+
+
+def test_refresh_replay_and_store_failure_never_issue_tokens(monkeypatch):
+    from fastapi import HTTPException
+    from gateway.main import refresh_token
+    from gateway.schemas import RefreshRequest
+    monkeypatch.setattr("gateway.main.verify_token", lambda *a, **k: {"sub": "user", "jti": "token"})
+    issue = MagicMock(side_effect=AssertionError("Must not issue tokens"))
+    monkeypatch.setattr("gateway.main.create_access_token", issue)
+    db, _ = _admin_check_connection(("user", True), ("user", True), ("user", True))
+    request = RefreshRequest(refresh_token="signed-input")
+    monkeypatch.setattr("gateway.main._consume_refresh_token", AsyncMock(return_value=False))
+    with pytest.raises(HTTPException) as replay:
+        asyncio.run(refresh_token(request, db))
+    assert replay.value.status_code == 401
+    monkeypatch.setattr("gateway.main._consume_refresh_token", AsyncMock(side_effect=ConnectionError("private details")))
+    with pytest.raises(HTTPException) as unavailable:
+        asyncio.run(refresh_token(request, db))
+    assert unavailable.value.status_code == 503
+    assert "private" not in unavailable.value.detail
+    monkeypatch.setattr("gateway.main.verify_token", lambda *a, **k: {"sub": "user"})
+    with pytest.raises(HTTPException) as missing_jti:
+        asyncio.run(refresh_token(request, db))
+    assert missing_jti.value.status_code == 401
+    issue.assert_not_called()
 
 # ═══════════════════════════════════════════════════════════════
 # Auth Service Unit Tests
@@ -171,6 +227,12 @@ def test_signup_missing_fields(client):
     resp = client.post("/api/auth/signup", json={})
     assert resp.status_code == 422
 
+def test_public_signup_defaults_to_off(monkeypatch):
+    from gateway.config import Settings
+
+    monkeypatch.delenv("PUBLIC_SIGNUP_ENABLED", raising=False)
+    assert Settings(_env_file=None).PUBLIC_SIGNUP_ENABLED is False
+
 def test_signup_status_follows_setting(client, monkeypatch):
     from gateway.config import settings
 
@@ -201,6 +263,56 @@ def test_me_without_token(client):
 def test_proxy_without_token(client):
     resp = client.get("/api/advice/something")
     assert resp.status_code in (401, 403)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/idpo/runs",
+        "/api/idpo/runs/other-user/docs.xlsx",
+        "/api/xai/explanation/other-user-question",
+        "/api/hitl/history",
+        "/api/dashboard/memory/mtm",
+        "/api/guardrails/history",
+    ],
+)
+def test_viewer_cannot_proxy_unscoped_service_data(client, path):
+    from gateway.deps import get_current_user
+    from gateway.main import app
+
+    app.dependency_overrides[get_current_user] = lambda: {"id": "viewer-1", "role": "viewer"}
+    with patch("gateway.main._get_client", new_callable=AsyncMock) as get_client:
+        resp = client.get(path)
+
+    assert resp.status_code == 403
+    get_client.assert_not_awaited()
+
+
+def test_viewer_cannot_start_legacy_idpo_run(client):
+    from gateway.deps import get_current_user
+    from gateway.main import app
+
+    app.dependency_overrides[get_current_user] = lambda: {"id": "viewer-1", "role": "viewer"}
+    with patch("gateway.main._get_client", new_callable=AsyncMock) as get_client:
+        resp = client.post("/api/idpo/run", json={"documents": []})
+
+    assert resp.status_code == 403
+    get_client.assert_not_awaited()
+
+
+def test_admin_can_proxy_legacy_service(client):
+    from gateway.deps import get_current_user
+    from gateway.main import app
+
+    app.dependency_overrides[get_current_user] = lambda: {"id": "admin-1", "role": "admin"}
+    upstream = AsyncMock()
+    upstream.request.return_value = httpx.Response(200, json={"runs": []})
+    with patch("gateway.main._get_client", new_callable=AsyncMock, return_value=upstream):
+        resp = client.get("/api/idpo/runs")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"runs": []}
+    assert upstream.request.await_args.kwargs["headers"]["x-user-id"] == "admin-1"
 
 # ═══════════════════════════════════════════════════════════════
 # Proxy Routing Logic
@@ -247,6 +359,24 @@ def test_jwt_secret_not_default():
     from gateway.config import settings
 
     assert settings.JWT_SECRET_KEY != "change-me-in-production"
+
+
+@pytest.mark.parametrize("secret", ["", "short", "change-me-in-production-use-a-32-char-random-string"])
+def test_production_rejects_missing_or_example_jwt_secret(secret):
+    from gateway.config import Settings
+
+    config = Settings(_env_file=None, JWT_SECRET_KEY=secret, REQUIRE_EXPLICIT_SECRETS=True)
+    with pytest.raises(ValueError, match="explicit JWT secret"):
+        config.validate_jwt_secret()
+
+
+def test_production_keeps_a_stable_explicit_jwt_secret():
+    from gateway.config import Settings
+
+    secret = "independent-test-secret-32-characters-long"
+    config = Settings(_env_file=None, JWT_SECRET_KEY=secret, REQUIRE_EXPLICIT_SECRETS=True)
+    config.validate_jwt_secret()
+    assert config.JWT_SECRET_KEY == secret
 
 # ═══════════════════════════════════════════════════════════════
 # Schemas

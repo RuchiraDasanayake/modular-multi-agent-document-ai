@@ -31,7 +31,7 @@ The system consists of **5 microservices**, a **PostgreSQL + pgvector** database
 
 ```
 ┌──────────────┐
-│   Frontend   │  Next.js 15 (port 3000)
+│   Frontend   │  Next.js 16 (port 3000)
 │   (React 19) │
 └──────┬───────┘
        │ HTTP

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { createWorkspaceJob, listJobs } from "@/server/jobs";
+import { createWorkspaceJob } from "@/server/jobs";
+import { listAccessibleJobs } from "@/server/access";
+import { requireUser } from "@/server/auth";
 import { apiError } from "@/server/api/response";
 import { syncActiveJobProgress } from "@/server/runner";
 import { readJobValidationContext } from "@/server/review-context";
@@ -38,9 +40,10 @@ function parseFieldConfig(value: unknown): JobFieldConfig[] {
   return fields;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const jobs = listJobs(100).map((job) =>
+    const user = await requireUser(request.headers);
+    const jobs = listAccessibleJobs(user, 100).map((job) =>
       job.status === "queued" || job.status === "running" ? syncActiveJobProgress(job.jobId) : job,
     );
     for (const job of jobs) {
@@ -57,8 +60,10 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const user = await requireUser(request.headers);
     const payload = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     const job = createWorkspaceJob({
+      ownerUserId: user.id,
       jobName: typeof payload.jobName === "string" ? payload.jobName : "",
       mode: parseMode(payload.mode) ?? "adaptive",
       fieldConfigCurrent: parseFieldConfig(payload.fieldConfigCurrent),

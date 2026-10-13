@@ -1,0 +1,26 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr \
+    poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY idpo/product_auto/requirements-worker.txt /tmp/requirements-worker.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-worker.txt
+COPY idpo/ ./idpo/
+
+RUN useradd --uid 1000 --create-home --shell /usr/sbin/nologin appuser \
+    && mkdir -p /idpo-data \
+    && chown appuser:appuser /idpo-data
+USER appuser
+
+ENV IDPO_DATA_DIR=/idpo-data \
+    PRODUCT_WORKER_SOCKET=/idpo-data/product-worker.sock \
+    PYTHONUNBUFFERED=1
+
+HEALTHCHECK --interval=15s --timeout=3s --start-period=15s --retries=3 \
+    CMD python -c "import os,socket; s=socket.socket(socket.AF_UNIX); s.settimeout(2); s.connect(os.environ['PRODUCT_WORKER_SOCKET']); s.close()"
+
+CMD ["python", "-m", "idpo.product_auto.worker_server"]

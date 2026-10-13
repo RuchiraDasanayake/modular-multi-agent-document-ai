@@ -5,6 +5,7 @@ Gateway configuration — server, database, JWT, microservice URLs.
 import logging
 import secrets
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -22,9 +23,11 @@ class Settings(BaseSettings):
 
     # ── Redis (token blacklist) ──
     REDIS_URL: str = "redis://:docai_redis_secret@localhost:6379/1"
+    TOKEN_REVOCATION_BACKEND: Literal["redis", "postgresql"] = "redis"
 
     # ── JWT ──
     JWT_SECRET_KEY: str = "change-me-in-production"
+    REQUIRE_EXPLICIT_SECRETS: bool = False
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 h
 
@@ -37,7 +40,7 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD: str = ""
 
     # ── Public self-registration (creates viewer accounts; admins can always add users) ──
-    PUBLIC_SIGNUP_ENABLED: bool = True
+    PUBLIC_SIGNUP_ENABLED: bool = False
 
     def validate_jwt_secret(self) -> None:
         """Ensure a stable JWT secret across restarts.
@@ -47,7 +50,12 @@ class Settings(BaseSettings):
         2. Previously generated secret persisted in ``/app/.jwt_secret``.
         3. Generate a new random secret, persist it, and reuse next time.
         """
-        if self.JWT_SECRET_KEY != "change-me-in-production":
+        explicit_secret = self.JWT_SECRET_KEY.strip()
+        if self.REQUIRE_EXPLICIT_SECRETS:
+            if len(explicit_secret) < 32 or explicit_secret.startswith("change-me"):
+                raise ValueError("Production requires an explicit JWT secret of at least 32 characters")
+            return
+        if explicit_secret and not explicit_secret.startswith("change-me"):
             return  # explicitly set — nothing to do
 
         secret_file = Path("/app/.jwt_secret")

@@ -26,6 +26,9 @@ ollama pull qwen3.5:9b
 ```
 
 Install Tesseract 5 and make sure `tesseract` is on `PATH` (see `SETUP.md`).
+The historical `scripts/build_hard_docs_pack.py` generator additionally imports PyMuPDF (`fitz`) to create one
+synthetic text-layer PDF. It is no longer a default product dependency. Install it separately only if rebuilding
+that historical pack, subject to its [AGPL/commercial license](https://artifex.com/blog/pymupdf-acquired-by-artifex).
 
 ## 2. Datasets
 

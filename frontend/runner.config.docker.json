@@ -14,25 +14,39 @@
     ".tiff",
     ".bmp",
     ".txt",
-    ".json"
+    ".json",
+    ".docx",
+    ".xlsx",
+    ".pptx",
+    ".html",
+    ".eml"
   ],
   "defaultCommandId": "idpo_process_inbox",
+  "canonicalRunnerAvailable": false,
   "commands": [
     {
       "id": "idpo_process_inbox",
-      "description": "Placeholder: the Docker frontend image cannot run the IDPO pipeline. Use the single-host runner (see docs/PUBLIC_DEMO_DEPLOYMENT.md).",
-      "program": "echo",
-      "args": ["delegated to IDPO microservice"],
+      "description": "Research runner unavailable in Docker; use the single-host research setup",
+      "program": "node",
+      "args": ["/app/scripts/product-worker-client.mjs", "--unsupported-research-runner"],
+      "cwd": ".",
+      "env": {}
+    },
+    {
+      "id": "idpo_process_auto",
+      "description": "Run source-grounded automatic extraction in the private product worker",
+      "program": "node",
+      "args": ["/app/scripts/product-worker-client.mjs", "--input", "{input_dir}", "--run-id", "{run_id}"],
       "cwd": ".",
       "env": {}
     }
   ],
   "backendChecks": [
     {
-      "id": "idpo-service",
-      "kind": "http",
-      "url": "http://idpo:8004/health",
-      "timeoutMs": 5000
+      "id": "product-worker",
+      "kind": "cli",
+      "command": "node",
+      "args": ["/app/scripts/product-worker-client.mjs", "--health"]
     }
   ]
 }

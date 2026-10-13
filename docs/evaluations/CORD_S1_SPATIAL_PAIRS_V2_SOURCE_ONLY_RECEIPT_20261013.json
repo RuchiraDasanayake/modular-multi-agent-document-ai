@@ -1,0 +1,39 @@
+{
+  "protocol": "cord_s1_spatial_pairs_v2_source_only",
+  "scope": "60 CORD development PNGs, RapidOCR line geometry only",
+  "source_cohort_sha256": "48f9af8c04a5ee874c68ccb4c70a5fb81bcfddc508064747779678949103414a",
+  "input_line_graphs_sha256": "4eb59422fddeb51778150f3cb79ed8f4ff9a34572e4f74b5974d680aaecd4b0d",
+  "input_line_rules_sha256": "21b30b1b0b70918fc7d87bdf3a672d3796d3a2835e97ae62e4b5f283bd901d90",
+  "input_v1_rules_sha256": "48de68d33a7845f7f17c65e895bae00cb07aa869dec6bfa2c153702210935482",
+  "pair_rules_lf_sha256": "ea054463cf32075fb55245ef8c05b7fe2d76cc3e86fb5cfce91b12df79d0ee32",
+  "sources_verified": 60,
+  "source_records": 60,
+  "pages_with_pairs": 59,
+  "pages_without_pairs": 1,
+  "pair_hypotheses": 570,
+  "pair_statuses": {
+    "conflicted": 287,
+    "uncontested": 283
+  },
+  "prefix_statuses": {
+    "ambiguous": 1,
+    "none": 517,
+    "unique": 52
+  },
+  "conflict_reasons": {
+    "crossing_order": 17,
+    "shared_line": 345
+  },
+  "spatial_pairs_sha256": "9410d36dbb7ab639b702a1a64add320aff0c4ba97b5a852fad113558ce5234ea",
+  "model_calls": 0,
+  "gold_access": false,
+  "creator_quad_access": false,
+  "reserved_source_access": false,
+  "product_extraction_calls": 0,
+  "limitations": [
+    "Pairs and prefixes are geometry hypotheses, not typed cells or item rows.",
+    "Conflicting hypotheses are preserved; no row is semantically selected.",
+    "A missed OCR column cannot be recovered from line geometry.",
+    "Candidate support does not establish recall, precision, or cost improvement."
+  ]
+}

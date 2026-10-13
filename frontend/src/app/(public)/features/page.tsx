@@ -8,84 +8,84 @@ const coreFeatures = [
     {
         color: "text-brand-500",
         bgColor: "bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/20",
-        title: "Adaptive Policy Routing",
-        desc: "Each document is profiled for type, scan quality, and layout, then a Thompson Sampling router chooses the processing policy most likely to succeed. Every outcome updates the router's posteriors.",
+        title: "Automatic Schema Proposals",
+        desc: "The opt-in product workflow proposes a schema for each document. It uses local heuristics by default and can use a configured chat model for field and value proposals.",
         bullets: [
-            "Per-document policy selection",
-            "Specialist policies for receipts and correspondence",
-            "Learning within and across jobs",
-            "Static single-policy baseline for comparison",
+            "Per-document field proposals",
+            "No per-template training required",
+            "Optional model-assisted proposals",
+            "Unapproved schemas require review",
         ],
     },
     {
         color: "text-violet-500",
         bgColor: "bg-violet-50 dark:bg-violet-500/10 border-violet-200 dark:border-violet-500/20",
         title: "Grounded Validation",
-        desc: "Extracted values are checked against per-field format rules and must be traceable to the source text. Values that cannot be grounded are flagged instead of passed through.",
+        desc: "Machine-accepted values require an exact source-text quote and a matching typed value. A matching quote confirms source presence, not that the field is semantically correct.",
         bullets: [
-            "Format checks for dates, amounts, and IDs",
-            "Source-text grounding check",
-            "Missing and malformed field detection",
-            "Per-field confidence scores",
+            "Exact source-text evidence check",
+            "Typed-value validation",
+            "Missing values marked for review",
+            "Uncertain values remain pending",
         ],
     },
     {
         color: "text-amber-500",
         bgColor: "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20",
         title: "Human-in-the-Loop Review",
-        desc: "Fields that fail validation or fall below the confidence threshold are queued for review. Reviewer corrections are carried into later runs in the same job.",
+        desc: "Reviewers can correct or remove proposed fields, add missed fields, and save a document-level review. Corrections are recorded but do not automatically configure later extraction.",
         bullets: [
-            "Review queue per job",
-            "Side-by-side document preview",
-            "Corrections fed into later runs",
-            "Review results stored with the run",
+            "Document-level review page",
+            "Source text alongside proposals",
+            "Revisioned correction history",
+            "Corrected structured result",
         ],
     },
     {
         color: "text-emerald-500",
         bgColor: "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20",
-        title: "Targeted Recovery",
-        desc: "When a field fails validation, the pipeline re-extracts only that field with a focused prompt rather than reprocessing the whole document.",
+        title: "Linked Row Review",
+        desc: "A configured model can propose bounded repeated columns linked by row ordinal. Linked rows and cells remain pending human review.",
         bullets: [
-            "Field-level re-extraction",
-            "Per-field prompts for specialist policies",
-            "Escalation when recovery fails",
-            "Recovery outcomes recorded per run",
+            "Repeated-column proposals",
+            "Per-cell text evidence",
+            "Reviewer row corrections",
+            "No automatic row acceptance",
         ],
     },
     {
         color: "text-blue-500",
         bgColor: "bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20",
-        title: "Robust OCR",
-        desc: "Scanned PDFs are rasterised page by page, deskewed and denoised when the policy calls for it, then read with PaddleOCR, with Tesseract as a fallback.",
+        title: "Local OCR",
+        desc: "Digital PDFs use their native text layer when available. Scanned PDF pages and raster images use local OCR; Tesseract is the current product default.",
         bullets: [
             "Scanned and image-only PDFs",
-            "Photos, faxes, and TIFF scans",
+            "Common raster image formats",
             "Native text layer for digital PDFs",
-            "Policy-controlled preprocessing",
+            "Per-page PDF renderer provenance",
         ],
     },
     {
         color: "text-rose-500",
         bgColor: "bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/20",
         title: "Inspectable Runs",
-        desc: "Every run records the policy that was chosen, the operators that ran, validation issues, and the reward fed back to the router, so results can be audited.",
+        desc: "Each product run stores source hashes, OCR pages, proposed fields, model-call telemetry, and review history for inspection.",
         bullets: [
-            "Routing decision per document",
-            "Operator stack and latency",
-            "Validation and recovery trace",
-            "Excel and CSV exports",
+            "Source and result receipts",
+            "OCR and model-call provenance",
+            "Review audit history",
+            "Structured JSON results",
         ],
     },
 ];
 
 const technicalSpecs = [
     { label: "Inputs", value: "PDF, image, text" },
-    { label: "Extraction", value: "Zero-shot LLM" },
-    { label: "Inference", value: "Local (Ollama)" },
-    { label: "OCR", value: "PaddleOCR + Tesseract" },
-    { label: "Routing", value: "Thompson Sampling" },
-    { label: "Outputs", value: "JSON, Excel, CSV" },
+    { label: "Schema", value: "Per-document proposal" },
+    { label: "Model", value: "Optional chat API" },
+    { label: "OCR default", value: "Tesseract" },
+    { label: "Review", value: "Human approval" },
+    { label: "Outputs", value: "JSON and audit trail" },
 ];
 
 export default function FeaturesPage() {
@@ -111,7 +111,7 @@ export default function FeaturesPage() {
                     >
                         Built for{" "}
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-violet-500">
-                            adaptive extraction
+                            reviewable extraction
                         </span>
                     </motion.h1>
                     <motion.p
@@ -120,8 +120,9 @@ export default function FeaturesPage() {
                         transition={{ duration: 0.5, delay: 0.2 }}
                         className="text-lg text-slate-600 dark:text-gray-400 mt-6 max-w-3xl mx-auto leading-relaxed"
                     >
-                        Every stage of the pipeline is driven by a per-document policy and leaves an auditable trace.
-                        These are the capabilities in the current research prototype.
+                        These are the current opt-in automatic extraction capabilities. The separate AHMN
+                        research runner supports Thompson Sampling policy routing and configurable OCR;
+                        automatic extraction does not use that router.
                     </motion.p>
                 </div>
             </section>
@@ -210,11 +211,11 @@ export default function FeaturesPage() {
                         Ready to see it in action?
                     </h2>
                     <p className="text-lg text-slate-600 dark:text-gray-400 mb-8">
-                        Upload your own documents to the research demo and inspect every routing decision.
+                        Upload documents, propose a schema, and review each structured result.
                     </p>
                     <div className="flex items-center justify-center gap-4 flex-wrap">
                         <SignupLink className="px-8 py-4 glass-button rounded-xl text-lg flex items-center gap-2">
-                            Try the Demo
+                            Try Extraction
                         </SignupLink>
                         <Link href="/docs" className="px-8 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-xl text-lg font-medium transition-all shadow-sm">
                             Read the Docs

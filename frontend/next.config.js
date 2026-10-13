@@ -4,7 +4,7 @@ const nextConfig = {
   // The default bottom-left badge covers the sidebar's sign-out control in development.
   devIndicators: { position: "bottom-right" },
   experimental: {
-    // Matches the gateway's PROXY_TIMEOUT. The 30 s default cuts off the XAI service's first answer while it loads its model.
+    // External /api rewrites use Next's router proxy. Keep its timeout aligned with the gateway while XAI loads a model.
     proxyTimeout: 300_000,
   },
   async rewrites() {

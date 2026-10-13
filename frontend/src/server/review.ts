@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import type { JobDocumentRecord, JobFieldConfig, JobStatus, ReviewStage } from "@/types/idpo";
 import { compareFieldValues } from "@/lib/idpo/exact-comparison";
 import { loadRunnerConfig } from "@/server/config";
-import { resolvePrimaryRunPath, resolveRunRoot } from "@/server/paths";
+import { resolvePrimaryRunPath, resolveRunDocumentDirectory, resolveRunRoot } from "@/server/paths";
 import { asNumber, readJsonFile } from "@/server/utils";
 
 export type ReviewState =
@@ -242,7 +242,7 @@ export function buildOverlayKey(parts: {
 function getReviewArtifactPath(runId: string, docId: string): string {
   const resolved = resolveRunRoot(runId);
   const primaryPath = resolvePrimaryRunPath(resolved.rootPath);
-  return path.join(primaryPath, "docs", docId, "review", "results.json");
+  return path.join(resolveRunDocumentDirectory(primaryPath, docId), "review", "results.json");
 }
 
 export function readReviewArtifact(runId: string, docId: string): ReviewArtifact | null {

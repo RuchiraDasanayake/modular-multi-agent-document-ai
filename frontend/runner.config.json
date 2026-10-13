@@ -14,7 +14,12 @@
     ".tiff",
     ".bmp",
     ".txt",
-    ".json"
+    ".json",
+    ".docx",
+    ".xlsx",
+    ".pptx",
+    ".html",
+    ".eml"
   ],
   "defaultCommandId": "idpo_process_inbox",
   "commands": [
@@ -31,6 +36,24 @@
         "--config",
         "{config_path}",
         "--input-dir",
+        "{input_dir}",
+        "--run-id",
+        "{run_id}"
+      ],
+      "cwd": "..",
+      "env": {
+        "PYTHONUTF8": "1"
+      }
+    },
+    {
+      "id": "idpo_process_auto",
+      "description": "Run opt-in schema discovery and evidence-backed extraction",
+      "program": "../.venv/Scripts/python.exe",
+      "args": [
+        "-m",
+        "idpo.cli",
+        "process-auto",
+        "--input",
         "{input_dir}",
         "--run-id",
         "{run_id}"

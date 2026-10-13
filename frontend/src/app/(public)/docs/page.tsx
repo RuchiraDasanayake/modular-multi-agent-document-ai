@@ -27,20 +27,20 @@ const apiEndpoints = [
     },
     {
         method: "POST",
-        path: "/api/jobs/{job_id}/runs",
-        desc: "Process the selected documents",
+        path: "/api/jobs/{job_id}/auto",
+        desc: "Start opt-in automatic extraction for selected file IDs",
         color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
     },
     {
         method: "GET",
-        path: "/api/jobs/{job_id}",
-        desc: "Poll job status and per-document results",
+        path: "/api/jobs/{job_id}/auto",
+        desc: "Read automatic run status and document IDs",
         color: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10",
     },
     {
         method: "GET",
-        path: "/api/runs/{run_id}/summary",
-        desc: "Read run-level metrics and document summary after completion",
+        path: "/api/jobs/{job_id}/auto/{run_id}/docs/{doc_id}",
+        desc: "Read a document proposal, source text, and review",
         color: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10",
     },
 ];
@@ -48,19 +48,19 @@ const apiEndpoints = [
 const modules = [
     {
         name: "Extraction Engine",
-        desc: "Intelligent document processing with multi-level understanding and adaptive learning that improves over time.",
+        desc: "Opt-in per-document schema and value proposals from local heuristics or a configured chat model.",
     },
     {
         name: "Transparency & Review",
-        desc: "AI explanations and expert review workflows for transparent, auditable document processing.",
+        desc: "Source text, proposed fields, corrected results, and revisioned human review records.",
     },
     {
-        name: "Quality Assurance",
-        desc: "Multi-layered validation with format checking, consistency verification, and configurable business rules.",
+        name: "Source Evidence Checks",
+        desc: "Exact source-text quote and typed-value checks for proposed values; human review remains necessary.",
     },
     {
-        name: "Secure Gateway",
-        desc: "Unified entry point with authentication, rate limiting, and intelligent request routing.",
+        name: "Authenticated API",
+        desc: "Authenticated, owner-scoped job and automatic extraction endpoints.",
     },
 ];
 
@@ -125,7 +125,7 @@ export default function DocsPage() {
                         transition={{ duration: 0.5, delay: 0.2 }}
                         className="text-lg text-slate-600 dark:text-gray-400 mt-6 max-w-2xl mx-auto"
                     >
-                        Everything you need to integrate Modular Doc AI into your workflow.
+                        Start the opt-in automatic extraction workflow and inspect its reviewable results.
                     </motion.p>
                 </div>
             </section>
@@ -167,8 +167,8 @@ export default function DocsPage() {
                             Getting Started
                         </h2>
                         <p className="text-slate-600 dark:text-gray-400 mb-8 text-lg leading-relaxed max-w-3xl">
-                            Get up and running in minutes. Create your account, configure your document types,
-                            and submit your first document for extraction.
+                            Create a job, upload a document, then start automatic schema extraction. A configured
+                            chat model enables AI proposals; without one, the workflow uses local heuristics.
                         </p>
 
                         <div className="space-y-6">
@@ -176,9 +176,12 @@ export default function DocsPage() {
                                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">1. Clone and start services</h3>
                                 <CodeBlock
                                     language="bash"
-                                    code={`git clone <repo-url> && cd modular-multi-agent-document-ai
+                                    code={`git clone https://github.com/RuchiraDasanayake/modular-multi-agent-document-ai.git
+cd modular-multi-agent-document-ai
+cp .env.example .env
+# Set JWT_SECRET_KEY and ADMIN_PASSWORD in .env before first start
 docker compose up --build -d
-# Services start on: Gateway :8000, Frontend :3000`}
+# Gateway :8000 and frontend :3000 start with the default Compose profile`}
                                 />
                             </div>
                             <div>
@@ -188,11 +191,12 @@ docker compose up --build -d
                                     code={`Open http://localhost:3000 in your browser.
 Sign up for an account, or sign in with the admin account
 created from ADMIN_PASSWORD in .env on first start.
-Navigate to Document Extraction to start processing.`}
+Open Document Extraction, create a job, then choose Automatic schema extraction.
+Model-backed runs currently require an admin account.`}
                                 />
                             </div>
                             <div>
-                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">3. Start a processing job</h3>
+                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">3. Upload and start automatic extraction</h3>
                                 <CodeBlock
                                     language="bash"
                                     code={`# Sign in once; job endpoints need the token
@@ -201,27 +205,29 @@ TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \\
   -d '{"username":"admin","password":"your_password"}' | jq -r .access_token)
 AUTH="Authorization: Bearer $TOKEN"
 
-# Create a job, upload a document, then process it
+# Create a job, upload a document, then start automatic extraction
 JOB=$(curl -s -X POST http://localhost:3000/api/jobs -H "$AUTH" \\
   -H "Content-Type: application/json" \\
-  -d '{"jobName":"invoices","fieldConfigCurrent":[{"name":"total_amount","description":"Total due"}]}' | jq -r .jobId)
+  -d '{"jobName":"sample documents"}' | jq -r .jobId)
 FILE=$(curl -s -X POST http://localhost:3000/api/jobs/$JOB/documents -H "$AUTH" \\
-  -F "files=@invoice.pdf" | jq -r '.documents[0].fileId')
-curl -X POST http://localhost:3000/api/jobs/$JOB/runs -H "$AUTH" \\
+  -F "files=@sample.pdf" | jq -r '.documents[-1].fileId')
+RUN=$(curl -s -X POST http://localhost:3000/api/jobs/$JOB/auto -H "$AUTH" \\
   -H "Content-Type: application/json" \\
-  -d "{\\"selectedFileIds\\":[\\"$FILE\\"],\\"mode\\":\\"adaptive\\"}"`}
+  -d "{\\"selectedFileIds\\":[\\"$FILE\\"]}" | jq -r .runId)`}
                                 />
                             </div>
                             <div>
-                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">4. Poll the job and open the run</h3>
+                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">4. Poll the run and review the document</h3>
                                 <CodeBlock
-                                    language="json"
-                                    code={`{
-  "jobId": "c1b2f3...",
-  "status": "success",
-  "runId": "7f8a9b...",
-  "runPath": "../idpo-data/runs/7f8a9b..."
-}`}
+                                    language="bash"
+                                    code={`# Repeat until the run status is success or failed
+curl -s http://localhost:3000/api/jobs/$JOB/auto -H "$AUTH" | jq --arg run "$RUN" '.runs[] | select(.runId == $run)'
+
+# After success, get a document ID and inspect its proposal
+DOC=$(curl -s http://localhost:3000/api/jobs/$JOB/auto -H "$AUTH" |
+  jq -r --arg run "$RUN" '.runs[] | select(.runId == $run) | .documents[0].docId')
+curl -s http://localhost:3000/api/jobs/$JOB/auto/$RUN/docs/$DOC -H "$AUTH" | jq '.candidate, .correctedResult'
+# Review fields in the dashboard at /dashboard/idpo/jobs/$JOB/auto/$RUN/docs/$DOC`}
                                 />
                             </div>
                         </div>
@@ -239,8 +245,9 @@ curl -X POST http://localhost:3000/api/jobs/$JOB/runs -H "$AUTH" \\
                             Integration Guide
                         </h2>
                         <p className="text-slate-600 dark:text-gray-400 mb-8 text-lg leading-relaxed max-w-3xl">
-                            RESTful API with JSON request and response bodies. Job endpoints require a signed-in session: send the
-                            token from <code>/api/auth/login</code> as a Bearer header. The dashboard uses its session cookie.
+                            Job endpoints require a signed-in session: send the token from <code>/api/auth/login</code>
+                            as a Bearer header. The dashboard uses its session cookie. Automatic extraction requires a configured runner;
+                            model-backed UI runs currently require admin access.
                         </p>
 
                         <div className="space-y-4">
@@ -292,8 +299,10 @@ curl http://localhost:8000/api/dashboard/stats \\
                             How It Works
                         </h2>
                         <p className="text-slate-600 dark:text-gray-400 mb-8 text-lg leading-relaxed max-w-3xl">
-                            Modular Doc AI processes your documents through multiple intelligent stages,
-                            ensuring accuracy, quality, and full transparency at every step.
+                            The automatic extraction path proposes reviewable fields and records source evidence.
+                            It does not guarantee that the proposed schema or values are semantically correct.
+                            The separate AHMN research runner supports Thompson Sampling policy routing and configurable OCR;
+                            the <code>/auto</code> endpoints do not call it.
                         </p>
 
                         <div className="glass-panel rounded-2xl p-8">
@@ -303,12 +312,12 @@ curl http://localhost:8000/api/dashboard/stats \\
                                     <div className="space-y-3">
                                         {[
                                             "Upload documents to a job via the dashboard or API",
-                                            "Each document is profiled for quality, layout and type",
-                                            "AHMN picks a processing policy for each document",
-                                            "OCR and an LLM extract the job's fields",
-                                            "Validation checks each value's format and that it appears in the source text",
-                                            "Operators review and correct values; reviews are fed back to AHMN",
-                                            "Results and run artifacts are exported per job",
+                                            "Start opt-in automatic extraction for selected files",
+                                            "Read native PDF text or use local OCR for image pages",
+                                            "Local heuristics or a configured chat model propose fields and values",
+                                            "Exact text quotes and typed values are checked for machine acceptance",
+                                            "Operators review, correct, remove, or add fields",
+                                            "Structured JSON and review history remain available per document",
                                         ].map((step, j) => (
                                             <div key={j} className="flex items-start gap-3 text-sm text-slate-600 dark:text-gray-400">
                                                 <span className="text-xs font-bold text-brand-500 bg-brand-50 dark:bg-brand-500/10 px-2 py-0.5 rounded-md mt-0.5 shrink-0">
@@ -320,17 +329,15 @@ curl http://localhost:8000/api/dashboard/stats \\
                                     </div>
                                 </div>
                                 <div className="space-y-4">
-                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Key Technologies</h3>
+                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Current product path</h3>
                                     <CodeBlock
-                                        language="yaml"
-                                        code={`platform:
-  extraction:    # Adaptive AI engine
-  transparency:  # Explainable results
-  quality:       # Multi-layer validation
-  gateway:       # Secure API access
-  dashboard:     # Real-time monitoring
-  storage:       # Secure data persistence
-  caching:       # High-speed processing`}
+                                        language="text"
+                                        code={`product_auto:
+  ocr_default: Tesseract
+  schema: local heuristics or configured chat model
+  evidence: exact source-text quote and typed value
+  review: document-level corrections and audit history
+  output: structured JSON`}
                                     />
                                 </div>
                             </div>
@@ -349,7 +356,7 @@ curl http://localhost:8000/api/dashboard/stats \\
                             Platform Capabilities
                         </h2>
                         <p className="text-slate-600 dark:text-gray-400 mb-8 text-lg leading-relaxed max-w-3xl">
-                            Each capability is designed to work together seamlessly, giving you a complete document intelligence solution.
+                            These capabilities describe the current opt-in automatic extraction path.
                         </p>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

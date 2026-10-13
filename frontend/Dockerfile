@@ -2,7 +2,7 @@ FROM node:20-alpine AS deps
 LABEL stage=deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+RUN npm ci --legacy-peer-deps
 
 FROM node:20-alpine AS builder
 RUN apk update && apk upgrade
@@ -32,6 +32,7 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/runner.config.docker.json ./runner.config.json
+COPY --from=builder /app/scripts/product-worker-client.mjs ./scripts/product-worker-client.mjs
 
 EXPOSE 3000
 

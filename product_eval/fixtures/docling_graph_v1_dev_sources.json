@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "graph_commit": "59f40ca2e20f7cdbc8898fcee733fcba947ab762",
+  "selection": "First four by source SHA256 within each pinned VRDU twelve family; first four CORD development source hashes with at least 200 product OCR characters. First two examples, last two scored per family.",
+  "cohort_sha256": {
+    "vrdu": "98f4fcbd6521594304da3a80104362cf89174c87c27ed08ce90a1158fef4bc90",
+    "cord": "48f9af8c04a5ee874c68ccb4c70a5fb81bcfddc508064747779678949103414a"
+  },
+  "gold_sha256": {
+    "vrdu": "8a631bffbf439ccc8376f84cbf7d4af25c86d35c0ccc7996ce3b23e6085138bf",
+    "cord": "84a097116eaad75fb66265447d1b831f5a2ffa98792e10e9ad7edb517cb8e318"
+  },
+  "sources": [
+    {
+      "family": "registration-form",
+      "role": "example",
+      "doc_id": "2e8f9a5f9657c1f854527313071dc9d3",
+      "source_sha256": "00159e1d37fc2665b6ffaf6223ff69187e51decdb00e0fe4cd501643b069c5d5",
+      "run_id": "vrdu_v5_reg_01",
+      "sidecar_sha256": "81d01d3bb78eb78076fb20af85c98318aceefeed6fee11fde8ba586e83652cfd",
+      "ocr_text_sha256": "bdb0437654bcd844713f86d4e2e1634f7c17ba2b60dac8fe70011ef902509612"
+    },
+    {
+      "family": "registration-form",
+      "role": "example",
+      "doc_id": "aea6ed014a29facb39de15eaaef1a963",
+      "source_sha256": "004e5f2397d3f69bcb2be14dc935df72caf8387d9958aa57b80e0294566307d7",
+      "run_id": "vrdu_v5_reg_03",
+      "sidecar_sha256": "a14d33074fe5d687d98a14d46edf892048393901f0afe75cfcfa459f8fb52f41",
+      "ocr_text_sha256": "ccc7e0bdf177559285299c14497063dc4f753002363d332dc3cd86e8efe133e6"
+    },
+    {
+      "family": "registration-form",
+      "role": "scored",
+      "doc_id": "1a9efac5c954664cf9992d1ab452fb5b",
+      "source_sha256": "008a35460c861cc80105e4b795cc774ad6766670894108e3cfb0900e99eaba03",
+      "run_id": "vrdu_v5_reg_02",
+      "sidecar_sha256": "744864e26ceccede790c9f667ff46b8709fc561dde150ff8be0c7827301a387a",
+      "ocr_text_sha256": "278770cc9676eb7145a82e1a79d11a38c05bd27fd466645102507e8ec45654c6"
+    },
+    {
+      "family": "registration-form",
+      "role": "scored",
+      "doc_id": "1a3330dba507d1eadd5c2c027af46c4d",
+      "source_sha256": "00942d7dd9affb784d4d4c1f407263dff4aa4b3ae4ca65ffee5d3110ad2273eb",
+      "run_id": "vrdu_v5_reg_01",
+      "sidecar_sha256": "b4eaf91fe1edc4fbc7314d5852418cb1e04c12b9fdeadac567902a6cf59bf8be",
+      "ocr_text_sha256": "014c71db8b53c694c2038de9ea4b75481e4acfd4b09d98c44609d551a9427ec1"
+    },
+    {
+      "family": "ad-buy-form",
+      "role": "example",
+      "doc_id": "c960338957dfa60346aac9863edd4c27",
+      "source_sha256": "00af9ec9594520a61f852e0ccfd93441f068b38fc120625a0571e04941eb1060",
+      "run_id": "vrdu_v5_ad_00",
+      "sidecar_sha256": "fb4bbd0d6c03c9701c9db16a2c4d3ee19fe8dbd3dfd8494f2293862ab9245646",
+      "ocr_text_sha256": "48bed53c5445ab0e83470294acec003a3b08103b9373f48881f5158dae8058e6"
+    },
+    {
+      "family": "ad-buy-form",
+      "role": "example",
+      "doc_id": "e2e3a1f8d204396dbd270eb9392e5454",
+      "source_sha256": "00d6bafddf012448e9ada179b9cebcf52a15eb6fb9e7d8c6549cf773a7ef56ff",
+      "run_id": "vrdu_v5_ad_00",
+      "sidecar_sha256": "42f043098d79fd8b7e94aeabc16c44b19934a14263c5d52c5745246188cc76ee",
+      "ocr_text_sha256": "144b108be8a2576b29e21846cc5628b9194e9f63fdbfe63f38e1f25922936e4f"
+    },
+    {
+      "family": "ad-buy-form",
+      "role": "scored",
+      "doc_id": "1bf0c61dbd517c9d5c1d2684c2788497",
+      "source_sha256": "0112d54415d968cd438207ddbd423fb64b636354f29c72f0c6defe3cef14729a",
+      "run_id": "vrdu_v5_ad_01",
+      "sidecar_sha256": "a7dc82b1d0949b94a2a2bbf2cc46e6ef9066b840c2156d029d625fbbd7810f72",
+      "ocr_text_sha256": "c9cdf3639f55b9f60f1e8f1acf323232dea43aad32cbf306bb8e30152bbab31f"
+    },
+    {
+      "family": "ad-buy-form",
+      "role": "scored",
+      "doc_id": "b83458ce56e8dad30aed9999f769f52d",
+      "source_sha256": "0141622de02458269027bb180986f0db2382762b5b5beb2bd06b4329e30ba27b",
+      "run_id": "vrdu_v5_ad_00",
+      "sidecar_sha256": "10744978f5c53cc9a48f983e970c3378f2423a2300ec00bea37e4b67b76c80fe",
+      "ocr_text_sha256": "9b00edc53dd75418c9a5df93415d89981ebe7649f72122f63c7c86693267244d"
+    },
+    {
+      "family": "receipt",
+      "role": "example",
+      "doc_id": "a198e580042974f6ad76724799e68913",
+      "source_sha256": "0000fb66d5cf4154d84d87f00c363cbdb62f805418aedbaca6e6fbc7cb8c32e8",
+      "run_id": "cord_v2_development_v1",
+      "sidecar_sha256": "09e6de208be3f6f8233edc8c57308a52048f39516ccff71716ff5139a4dcfb4e",
+      "ocr_text_sha256": "12420ed6ba312b4953c716f8fa95726a5ecacc81f808a2f08845089c0f761d13"
+    },
+    {
+      "family": "receipt",
+      "role": "example",
+      "doc_id": "16c34d5194f931e1b89b41b16f625067",
+      "source_sha256": "0f6a25eb66f3aac732d270cb3bfc6e89c4d435eccd9a343d380b1c7799253886",
+      "run_id": "cord_v2_development_v1",
+      "sidecar_sha256": "df5a369af31c5b280f626f406d45099a7f9e7ca80ae5fea7a16fd7dbb3da8d4a",
+      "ocr_text_sha256": "4d528246ae4ff9fcc1ef65aeec212d2dda0f4c0904fd133eb01d57f9ab4a8764"
+    },
+    {
+      "family": "receipt",
+      "role": "scored",
+      "doc_id": "eb053d7caa8fe79a8c410269eca5ca23",
+      "source_sha256": "28a8c9e154f9971aaae01212e395618460e610da9eca8f82d05b9b5277eb8c7c",
+      "run_id": "cord_v2_development_v1",
+      "sidecar_sha256": "6ef580db01aa91c9be3a0c184c7c6b5cfb129dd2dcac5d6a08856ef0a90d8729",
+      "ocr_text_sha256": "a98c3f77e0ad499949870d7a49e553d72925c20c08c8f095944606b987286f93"
+    },
+    {
+      "family": "receipt",
+      "role": "scored",
+      "doc_id": "10bb0bc78b323e60ce130c26de192848",
+      "source_sha256": "4322ab5ec4f0b1365e08af0c31288e65e8cbd2c8eb5241adfb329244acbbb30b",
+      "run_id": "cord_v2_development_v1",
+      "sidecar_sha256": "0a4f56bd2efa7fef9275d92c6b52401df5c93c55cc919216e8d535c3ddfdca64",
+      "ocr_text_sha256": "aaa3776a64d4c01ba42ea934213398bb9058afb94621debf6500f6e3017bf213"
+    }
+  ]
+}

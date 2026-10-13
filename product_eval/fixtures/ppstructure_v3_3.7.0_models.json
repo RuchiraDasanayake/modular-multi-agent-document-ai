@@ -1,0 +1,369 @@
+{
+  "template_url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleX/v3.7.0/paddlex/configs/pipelines/PP-StructureV3.yaml",
+  "template_sha256": "79aa30099f2b910457fd6855e06b9190a1bb5d985f3144c9185f3c0e90616c61",
+  "models": [
+    {
+      "model_name": "PP-DocLayout_plus-L",
+      "repo_id": "PaddlePaddle/PP-DocLayout_plus-L",
+      "revision": "aa52b8528c84f9b1a34ac3a88fe0e576edb9d11d",
+      "license": "apache-2.0",
+      "size_bytes": 130406207,
+      "files": {
+        ".gitattributes": {
+          "size_bytes": 1575,
+          "git_blob_sha1": "c48a31d8dce80bfbfe392212dc49792e212a6436"
+        },
+        "README.md": {
+          "size_bytes": 7121,
+          "git_blob_sha1": "7142be609c51c85c8ebece2f6cb269d5ec38a23b"
+        },
+        "config.json": {
+          "size_bytes": 6074,
+          "git_blob_sha1": "e1189fa8802253e304f0c3b68242b86c6777e157"
+        },
+        "inference.json": {
+          "size_bytes": 1081621,
+          "git_blob_sha1": "2c85a65a1d8a7ac2a2a1657ba3408bbaa90ed5d6"
+        },
+        "inference.pdiparams": {
+          "size_bytes": 129307978,
+          "sha256": "24ca3e2e442164505e250deef59f7ee9a54ea12dd32875c9cd6155d959dc97da"
+        },
+        "inference.yml": {
+          "size_bytes": 1838,
+          "git_blob_sha1": "9a236587eae068a1e7906fd158f712dc41400563"
+        }
+      }
+    },
+    {
+      "model_name": "PP-DocBlockLayout",
+      "repo_id": "PaddlePaddle/PP-DocBlockLayout",
+      "revision": "f270657da59d956ab69ffc2c4722fe1f557bf17b",
+      "license": "apache-2.0",
+      "size_bytes": 129934982,
+      "files": {
+        ".gitattributes": {
+          "size_bytes": 1575,
+          "git_blob_sha1": "c48a31d8dce80bfbfe392212dc49792e212a6436"
+        },
+        "README.md": {
+          "size_bytes": 3668,
+          "git_blob_sha1": "c5479f4786fef8bfd9ef000b9fe3d6e7b36fcdef"
+        },
+        "config.json": {
+          "size_bytes": 5684,
+          "git_blob_sha1": "e9eefed59547589f620231068b6c683c7baeaaec"
+        },
+        "inference.json": {
+          "size_bytes": 1081363,
+          "git_blob_sha1": "0657c163b234e9769856a3b2dbed5850dc5a1d5c"
+        },
+        "inference.pdiparams": {
+          "size_bytes": 128841073,
+          "sha256": "0ab733dcabfee41517b68b37fde4c696129b88096a93f8b9d8feaa43c27c8942"
+        },
+        "inference.yml": {
+          "size_bytes": 1619,
+          "git_blob_sha1": "839c3a803bec5e9022bd987e62aa791ebf4fd39c"
+        }
+      }
+    },
+    {
+      "model_name": "PP-OCRv5_server_det",
+      "repo_id": "PaddlePaddle/PP-OCRv5_server_det",
+      "revision": "ca867c897ecbca8873081573a802ad70d499cb94",
+      "license": "apache-2.0",
+      "size_bytes": 88356628,
+      "files": {
+        ".gitattributes": {
+          "size_bytes": 1575,
+          "git_blob_sha1": "c48a31d8dce80bfbfe392212dc49792e212a6436"
+        },
+        "README.md": {
+          "size_bytes": 15912,
+          "git_blob_sha1": "0c350c82bda0730e3006d10dbbd6397006cb9177"
+        },
+        "config.json": {
+          "size_bytes": 2871,
+          "git_blob_sha1": "5d2c6fed3aaf956367278c018e6d04b05fbd3eea"
+        },
+        "inference.json": {
+          "size_bytes": 402480,
+          "git_blob_sha1": "7b582d63397b09eea2b3ee8c7c7e4efae5d0ccff"
+        },
+        "inference.pdiparams": {
+          "size_bytes": 87932887,
+          "sha256": "183146fe9d9910352f68482f623bcbbb9fa7b9e8fa1463b9ad288cef00524d2d"
+        },
+        "inference.yml": {
+          "size_bytes": 903,
+          "git_blob_sha1": "c4f16313e7e2c567da8e9fa8f4aeba14a307786e"
+        }
+      }
+    },
+    {
+      "model_name": "PP-LCNet_x1_0_textline_ori",
+      "repo_id": "PaddlePaddle/PP-LCNet_x1_0_textline_ori",
+      "revision": "cd237a44b0e359d4fe38310a416203cf7403faa5",
+      "license": "apache-2.0",
+      "size_bytes": 6856668,
+      "files": {
+        ".gitattributes": {
+          "size_bytes": 1575,
+          "git_blob_sha1": "c48a31d8dce80bfbfe392212dc49792e212a6436"
+        },
+        "README.md": {
+          "size_bytes": 3554,
+          "git_blob_sha1": "83357160319f429b296b42710fdcc93957ffc931"
+        },
+        "config.json": {
+          "size_bytes": 2487,
+          "git_blob_sha1": "61174e2c35eaff2704f3387ef59ffa1870998b22"
+        },
+        "inference.json": {
+          "size_bytes": 104399,
+          "git_blob_sha1": "7491116096100398d6a660f2d689fc821023bbfa"
+        },
+        "inference.pdiparams": {
+          "size_bytes": 6743918,
+          "sha256": "0de2bcf996cf553e2b848dd7b1769dafffc6917b1ccdf55c1d8efe7909fbf743"
+        },
+        "inference.yml": {
+          "size_bytes": 735,
+          "git_blob_sha1": "61977592412f3529cf153ed9c904f6700cb8b9a6"
+        }
+      }
+    },
+    {
+      "model_name": "PP-OCRv5_server_rec",
+      "repo_id": "PaddlePaddle/PP-OCRv5_server_rec",
+      "revision": "b26c3587fda8da3c8ec0ce357214b4d661ff1558",
+      "license": "apache-2.0",
+      "size_bytes": 85233386,
+      "files": {
+        ".gitattributes": {
+          "size_bytes": 1575,
+          "git_blob_sha1": "c48a31d8dce80bfbfe392212dc49792e212a6436"
+        },
+        "README.md": {
+          "size_bytes": 15892,
+          "git_blob_sha1": "3a50ec2847c72089c7381e6426ca6aaa63a90fc2"
+        },
+        "config.json": {
+          "size_bytes": 352253,
+          "git_blob_sha1": "02221e994d4da4e8acee4b789c7d77ac3e33add4"
+        },
+        "inference.json": {
+          "size_bytes": 325204,
+          "git_blob_sha1": "67011337d66c66562b8a719c70e40cfcc242ac9e"
+        },
+        "inference.pdiparams": {
+          "size_bytes": 84390117,
+          "sha256": "63853f062a5f4089befc16f565a68277618e0da5cb45468b49d11079de0ada77"
+        },
+        "inference.yml": {
+          "size_bytes": 148345,
+          "git_blob_sha1": "f5156e77296f540e963bdf4f89be90153234a90e"
+        }
+      }
+    },
+    {
+      "model_name": "PP-LCNet_x1_0_table_cls",
+      "repo_id": "PaddlePaddle/PP-LCNet_x1_0_table_cls",
+      "revision": "2fa6323e7dab88fa883081db1460995f46af2922",
+      "license": "apache-2.0",
+      "size_bytes": 6864864,
+      "files": {
+        ".gitattributes": {
+          "size_bytes": 1575,
+          "git_blob_sha1": "c48a31d8dce80bfbfe392212dc49792e212a6436"
+        },
+        "README.md": {
+          "size_bytes": 11629,
+          "git_blob_sha1": "a363c7343ce3909ac83c94cce390e7557e603ac9"
+        },
+        "config.json": {
+          "size_bytes": 2539,
+          "git_blob_sha1": "3ce53451c759d1def8a953c230dc98da4504dfb0"
+        },
+        "inference.json": {
+          "size_bytes": 104441,
+          "git_blob_sha1": "b590ef45eb2fab6dba8da838229e8d5f821fc79c"
+        },
+        "inference.pdiparams": {
+          "size_bytes": 6743918,
+          "sha256": "d0224afd9cfddf22da17407c6c78491baaa1f25922fbb312c9b0d2037c802db0"
+        },
+        "inference.yml": {
+          "size_bytes": 762,
+          "git_blob_sha1": "45dabf8130517cbfa1acaf439809fd461ad13069"
+        }
+      }
+    },
+    {
+      "model_name": "SLANeXt_wired",
+      "repo_id": "PaddlePaddle/SLANeXt_wired",
+      "revision": "763069fcda6a065f2171753205a32bf899a88d15",
+      "license": "apache-2.0",
+      "size_bytes": 365752316,
+      "files": {
+        ".gitattributes": {
+          "size_bytes": 1575,
+          "git_blob_sha1": "c48a31d8dce80bfbfe392212dc49792e212a6436"
+        },
+        "README.md": {
+          "size_bytes": 12912,
+          "git_blob_sha1": "10b439b3e8aec1697533d528ecf570bae8d54270"
+        },
+        "config.json": {
+          "size_bytes": 4948,
+          "git_blob_sha1": "3672763c79063778a27c80180f905ef8e6aa22fb"
+        },
+        "inference.json": {
+          "size_bytes": 959302,
+          "git_blob_sha1": "4761a934c8f77c2092339f233266cecdf96a6c00"
+        },
+        "inference.pdiparams": {
+          "size_bytes": 364771513,
+          "sha256": "ff0362a30f707fa7d27d8453c4396b992fca287377a42d01515bca6eeb3908f5"
+        },
+        "inference.yml": {
+          "size_bytes": 2066,
+          "git_blob_sha1": "a9491bff55efffa29a39b952d2c9f73037c5a641"
+        }
+      }
+    },
+    {
+      "model_name": "SLANet_plus",
+      "repo_id": "PaddlePaddle/SLANet_plus",
+      "revision": "bae6e5f8c3c4e7da0c0b7639fdf3228fe76184e2",
+      "license": "apache-2.0",
+      "size_bytes": 8006029,
+      "files": {
+        ".gitattributes": {
+          "size_bytes": 1575,
+          "git_blob_sha1": "c48a31d8dce80bfbfe392212dc49792e212a6436"
+        },
+        "README.md": {
+          "size_bytes": 15347,
+          "git_blob_sha1": "10c67aa8ff7aaee4781abc25c6cc7ec6637116ab"
+        },
+        "config.json": {
+          "size_bytes": 4897,
+          "git_blob_sha1": "8933a73b813b20f2eb9d425da0c50142d0553c9c"
+        },
+        "inference.json": {
+          "size_bytes": 315660,
+          "git_blob_sha1": "3cac190b2282531db445059f869054f37784ff90"
+        },
+        "inference.pdiparams": {
+          "size_bytes": 7666515,
+          "sha256": "012986b0e2bfe90410618bfb4b7cf4fcb6c978caefd84c63c2934f8387b09ab8"
+        },
+        "inference.yml": {
+          "size_bytes": 2035,
+          "git_blob_sha1": "9d57e936f02d62335817f936d6e779e811f56d2a"
+        }
+      }
+    },
+    {
+      "model_name": "RT-DETR-L_wired_table_cell_det",
+      "repo_id": "PaddlePaddle/RT-DETR-L_wired_table_cell_det",
+      "revision": "e2bd53c06b3a815d86acbf5c6779dada58819cfe",
+      "license": "apache-2.0",
+      "size_bytes": 129945728,
+      "files": {
+        ".gitattributes": {
+          "size_bytes": 1575,
+          "git_blob_sha1": "c48a31d8dce80bfbfe392212dc49792e212a6436"
+        },
+        "README.md": {
+          "size_bytes": 14392,
+          "git_blob_sha1": "011b7f492a63363d8a87e53291fb9cdd0c6c099d"
+        },
+        "config.json": {
+          "size_bytes": 5695,
+          "git_blob_sha1": "5fe76a6e9d18293034e110a499b2c2e2f4584b99"
+        },
+        "inference.json": {
+          "size_bytes": 1081363,
+          "git_blob_sha1": "0657c163b234e9769856a3b2dbed5850dc5a1d5c"
+        },
+        "inference.pdiparams": {
+          "size_bytes": 128841073,
+          "sha256": "357321c2845f0a035e8d118622649685a3cdb89d28b09a64e45a5a3df7a9fedc"
+        },
+        "inference.yml": {
+          "size_bytes": 1630,
+          "git_blob_sha1": "12e2375734e7c34de26ae979aa40b5424571fb42"
+        }
+      }
+    },
+    {
+      "model_name": "RT-DETR-L_wireless_table_cell_det",
+      "repo_id": "PaddlePaddle/RT-DETR-L_wireless_table_cell_det",
+      "revision": "25ca86356a601c877476bb0dcc5fd09153d9d64d",
+      "license": "apache-2.0",
+      "size_bytes": 129946466,
+      "files": {
+        ".gitattributes": {
+          "size_bytes": 1575,
+          "git_blob_sha1": "c48a31d8dce80bfbfe392212dc49792e212a6436"
+        },
+        "README.md": {
+          "size_bytes": 15124,
+          "git_blob_sha1": "71220c60b07d0d6ba5c7681373b264243d7fd285"
+        },
+        "config.json": {
+          "size_bytes": 5698,
+          "git_blob_sha1": "6326a2bbf2adad7dac6e86b0fa2624b9f11dbc7d"
+        },
+        "inference.json": {
+          "size_bytes": 1081363,
+          "git_blob_sha1": "0657c163b234e9769856a3b2dbed5850dc5a1d5c"
+        },
+        "inference.pdiparams": {
+          "size_bytes": 128841073,
+          "sha256": "c0f8c9ea07be8916ece73a8acf807bd21aed3ef11969b319c2dccb2406774c34"
+        },
+        "inference.yml": {
+          "size_bytes": 1633,
+          "git_blob_sha1": "acbe633a4a077a1558fdd8796c65bf8ff396d6ec"
+        }
+      }
+    },
+    {
+      "model_name": "PP-LCNet_x1_0_doc_ori",
+      "repo_id": "PaddlePaddle/PP-LCNet_x1_0_doc_ori",
+      "revision": "d3b95a6dff5fe8a94f2748e12b61cb26818a0df8",
+      "license": "apache-2.0",
+      "size_bytes": 6870359,
+      "files": {
+        ".gitattributes": {
+          "size_bytes": 1575,
+          "git_blob_sha1": "c48a31d8dce80bfbfe392212dc49792e212a6436"
+        },
+        "README.md": {
+          "size_bytes": 6850,
+          "git_blob_sha1": "619f9d4e4c53b84ba389b89d983b1be62c588035"
+        },
+        "config.json": {
+          "size_bytes": 2561,
+          "git_blob_sha1": "ef069456b78d7e4dd10fb49a39ac1bb5aa2b998e"
+        },
+        "inference.json": {
+          "size_bytes": 104441,
+          "git_blob_sha1": "afade734133bc7a8df6c0f5a11efb4cc816c8c6b"
+        },
+        "inference.pdiparams": {
+          "size_bytes": 6754166,
+          "sha256": "e8d6e7c5d264507e40e58a655779059d616b20d7441ea22047d829eb3931989c"
+        },
+        "inference.yml": {
+          "size_bytes": 766,
+          "git_blob_sha1": "be5ff4a823ed0dc4fb6fa8e228608ba9ab9fc01d"
+        }
+      }
+    }
+  ]
+}

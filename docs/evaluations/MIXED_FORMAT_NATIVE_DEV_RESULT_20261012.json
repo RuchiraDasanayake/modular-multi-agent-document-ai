@@ -1,0 +1,639 @@
+{
+  "protocol": "mixed_format_native_v1",
+  "fixture_manifest": {
+    "fixture_set": "mixed_format_docling_v1",
+    "synthetic": true,
+    "expected_table_rows_per_source": 3,
+    "expected_table_cells_per_source": 9,
+    "files": {
+      "order.docx": "c962e87d75ad90335e44ec71a07b024e299d8b8c02b0a17e8922f5cd53a57f27",
+      "order.xlsx": "37b84b250ed69ca869dfd50e575432c918e35ca8fa71baab7552155e2ce6f3a3",
+      "order.html": "dcec615260752fd5e58886ed9e2cdb8d44f241fcf7376aadfc9d9f0afcd236af",
+      "order.eml": "289ab4ac838620f80f1742e066e70d41b1d9ef91d8a300469d657dd7818a2193",
+      "order.pptx": "770cf664027c555c0e7beba08d3ef8777c7efe20fd1db8f58b3c002a800f1257"
+    }
+  },
+  "runtime": {
+    "python": "3.11.0",
+    "platform": "Windows-10-10.0.19045-SP0",
+    "packages": {
+      "python-docx": "1.2.0",
+      "openpyxl": "3.1.5",
+      "python-pptx": "1.0.2",
+      "lxml": "6.1.3",
+      "psutil": "7.2.2"
+    }
+  },
+  "gpu_used": false,
+  "model_downloads": false,
+  "records": [
+    {
+      "cells": [
+        {
+          "text": "Item",
+          "locator": {
+            "kind": "docx_table_cell",
+            "block_index": 2,
+            "table_index": 0,
+            "row": 0,
+            "column": 0
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "Qty",
+          "locator": {
+            "kind": "docx_table_cell",
+            "block_index": 2,
+            "table_index": 0,
+            "row": 0,
+            "column": 1
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "Amount",
+          "locator": {
+            "kind": "docx_table_cell",
+            "block_index": 2,
+            "table_index": 0,
+            "row": 0,
+            "column": 2
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "Widget A",
+          "locator": {
+            "kind": "docx_table_cell",
+            "block_index": 2,
+            "table_index": 0,
+            "row": 1,
+            "column": 0
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "2",
+          "locator": {
+            "kind": "docx_table_cell",
+            "block_index": 2,
+            "table_index": 0,
+            "row": 1,
+            "column": 1
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "12.00",
+          "locator": {
+            "kind": "docx_table_cell",
+            "block_index": 2,
+            "table_index": 0,
+            "row": 1,
+            "column": 2
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "Widget B",
+          "locator": {
+            "kind": "docx_table_cell",
+            "block_index": 2,
+            "table_index": 0,
+            "row": 2,
+            "column": 0
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "1",
+          "locator": {
+            "kind": "docx_table_cell",
+            "block_index": 2,
+            "table_index": 0,
+            "row": 2,
+            "column": 1
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "7.50",
+          "locator": {
+            "kind": "docx_table_cell",
+            "block_index": 2,
+            "table_index": 0,
+            "row": 2,
+            "column": 2
+          },
+          "cell_bbox": null
+        }
+      ],
+      "paragraphs": [
+        {
+          "text": "Synthetic order SYN-1001",
+          "locator": {
+            "kind": "docx_paragraph",
+            "block_index": 0
+          }
+        },
+        {
+          "text": "Order date: 2020-01-01",
+          "locator": {
+            "kind": "docx_paragraph",
+            "block_index": 1
+          }
+        }
+      ],
+      "tables": 1,
+      "source_native_geometry": "none",
+      "parse_seconds": 0.0869,
+      "status": "match",
+      "fixture_exact_match": true,
+      "source": "order.docx",
+      "source_sha256": "c962e87d75ad90335e44ec71a07b024e299d8b8c02b0a17e8922f5cd53a57f27",
+      "expected_cells": 9,
+      "cells_found": 9,
+      "exact_known_cells": 9,
+      "resolvable_cell_locators": 9,
+      "cell_bbox_count": 0,
+      "worker_wall_seconds": 0.1936,
+      "peak_rss_mib": 53.58,
+      "process_wall_seconds": 0.3648
+    },
+    {
+      "cells": [
+        {
+          "text": "Item",
+          "locator": {
+            "kind": "xlsx_cell",
+            "sheet": "Order Lines",
+            "table": "OrderLines",
+            "address": "A1",
+            "formula": false
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "Qty",
+          "locator": {
+            "kind": "xlsx_cell",
+            "sheet": "Order Lines",
+            "table": "OrderLines",
+            "address": "B1",
+            "formula": false
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "Amount",
+          "locator": {
+            "kind": "xlsx_cell",
+            "sheet": "Order Lines",
+            "table": "OrderLines",
+            "address": "C1",
+            "formula": false
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "Widget A",
+          "locator": {
+            "kind": "xlsx_cell",
+            "sheet": "Order Lines",
+            "table": "OrderLines",
+            "address": "A2",
+            "formula": false
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "2",
+          "locator": {
+            "kind": "xlsx_cell",
+            "sheet": "Order Lines",
+            "table": "OrderLines",
+            "address": "B2",
+            "formula": false
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "12.00",
+          "locator": {
+            "kind": "xlsx_cell",
+            "sheet": "Order Lines",
+            "table": "OrderLines",
+            "address": "C2",
+            "formula": false
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "Widget B",
+          "locator": {
+            "kind": "xlsx_cell",
+            "sheet": "Order Lines",
+            "table": "OrderLines",
+            "address": "A3",
+            "formula": false
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "1",
+          "locator": {
+            "kind": "xlsx_cell",
+            "sheet": "Order Lines",
+            "table": "OrderLines",
+            "address": "B3",
+            "formula": false
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "7.50",
+          "locator": {
+            "kind": "xlsx_cell",
+            "sheet": "Order Lines",
+            "table": "OrderLines",
+            "address": "C3",
+            "formula": false
+          },
+          "cell_bbox": null
+        }
+      ],
+      "tables": [
+        {
+          "sheet": "Order Lines",
+          "name": "OrderLines",
+          "ref": "A1:C3"
+        }
+      ],
+      "source_native_geometry": "sheet_cell_address_only",
+      "parse_seconds": 0.2904,
+      "status": "match",
+      "fixture_exact_match": true,
+      "source": "order.xlsx",
+      "source_sha256": "37b84b250ed69ca869dfd50e575432c918e35ca8fa71baab7552155e2ce6f3a3",
+      "expected_cells": 9,
+      "cells_found": 9,
+      "exact_known_cells": 9,
+      "resolvable_cell_locators": 9,
+      "cell_bbox_count": 0,
+      "worker_wall_seconds": 0.3232,
+      "peak_rss_mib": 41.12,
+      "process_wall_seconds": 0.4923
+    },
+    {
+      "cells": [
+        {
+          "text": "Item",
+          "locator": {
+            "kind": "html_dom_cell",
+            "xpath": "/html/body/table/thead/tr/th[1]"
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "Qty",
+          "locator": {
+            "kind": "html_dom_cell",
+            "xpath": "/html/body/table/thead/tr/th[2]"
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "Amount",
+          "locator": {
+            "kind": "html_dom_cell",
+            "xpath": "/html/body/table/thead/tr/th[3]"
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "Widget A",
+          "locator": {
+            "kind": "html_dom_cell",
+            "xpath": "/html/body/table/tbody/tr[1]/td[1]"
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "2",
+          "locator": {
+            "kind": "html_dom_cell",
+            "xpath": "/html/body/table/tbody/tr[1]/td[2]"
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "12.00",
+          "locator": {
+            "kind": "html_dom_cell",
+            "xpath": "/html/body/table/tbody/tr[1]/td[3]"
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "Widget B",
+          "locator": {
+            "kind": "html_dom_cell",
+            "xpath": "/html/body/table/tbody/tr[2]/td[1]"
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "1",
+          "locator": {
+            "kind": "html_dom_cell",
+            "xpath": "/html/body/table/tbody/tr[2]/td[2]"
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "7.50",
+          "locator": {
+            "kind": "html_dom_cell",
+            "xpath": "/html/body/table/tbody/tr[2]/td[3]"
+          },
+          "cell_bbox": null
+        }
+      ],
+      "source_native_geometry": "dom_xpath_only",
+      "parse_seconds": 0.0199,
+      "status": "match",
+      "fixture_exact_match": true,
+      "source": "order.html",
+      "source_sha256": "dcec615260752fd5e58886ed9e2cdb8d44f241fcf7376aadfc9d9f0afcd236af",
+      "expected_cells": 9,
+      "cells_found": 9,
+      "exact_known_cells": 9,
+      "resolvable_cell_locators": 9,
+      "cell_bbox_count": 0,
+      "worker_wall_seconds": 0.0219,
+      "peak_rss_mib": 23.63,
+      "process_wall_seconds": 0.2008
+    },
+    {
+      "cells": [
+        {
+          "text": "Item",
+          "locator": {
+            "kind": "eml_html_cell",
+            "mime_path": [
+              1
+            ],
+            "xpath": "/html/body/table/thead/tr/th[1]"
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "Qty",
+          "locator": {
+            "kind": "eml_html_cell",
+            "mime_path": [
+              1
+            ],
+            "xpath": "/html/body/table/thead/tr/th[2]"
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "Amount",
+          "locator": {
+            "kind": "eml_html_cell",
+            "mime_path": [
+              1
+            ],
+            "xpath": "/html/body/table/thead/tr/th[3]"
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "Widget A",
+          "locator": {
+            "kind": "eml_html_cell",
+            "mime_path": [
+              1
+            ],
+            "xpath": "/html/body/table/tbody/tr[1]/td[1]"
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "2",
+          "locator": {
+            "kind": "eml_html_cell",
+            "mime_path": [
+              1
+            ],
+            "xpath": "/html/body/table/tbody/tr[1]/td[2]"
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "12.00",
+          "locator": {
+            "kind": "eml_html_cell",
+            "mime_path": [
+              1
+            ],
+            "xpath": "/html/body/table/tbody/tr[1]/td[3]"
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "Widget B",
+          "locator": {
+            "kind": "eml_html_cell",
+            "mime_path": [
+              1
+            ],
+            "xpath": "/html/body/table/tbody/tr[2]/td[1]"
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "1",
+          "locator": {
+            "kind": "eml_html_cell",
+            "mime_path": [
+              1
+            ],
+            "xpath": "/html/body/table/tbody/tr[2]/td[2]"
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "7.50",
+          "locator": {
+            "kind": "eml_html_cell",
+            "mime_path": [
+              1
+            ],
+            "xpath": "/html/body/table/tbody/tr[2]/td[3]"
+          },
+          "cell_bbox": null
+        }
+      ],
+      "selected_body_type": "text/html",
+      "selected_mime_path": [
+        1
+      ],
+      "subject": "Synthetic order SYN-1001",
+      "source_native_geometry": "mime_path_plus_dom_xpath_only",
+      "parse_seconds": 0.0185,
+      "status": "match",
+      "fixture_exact_match": true,
+      "source": "order.eml",
+      "source_sha256": "289ab4ac838620f80f1742e066e70d41b1d9ef91d8a300469d657dd7818a2193",
+      "expected_cells": 9,
+      "cells_found": 9,
+      "exact_known_cells": 9,
+      "resolvable_cell_locators": 9,
+      "cell_bbox_count": 0,
+      "worker_wall_seconds": 0.0377,
+      "peak_rss_mib": 23.83,
+      "process_wall_seconds": 0.2072
+    },
+    {
+      "cells": [
+        {
+          "text": "Item",
+          "locator": {
+            "kind": "pptx_table_cell",
+            "slide": 1,
+            "shape_id": 3,
+            "row": 0,
+            "column": 0,
+            "is_spanned": false
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "Qty",
+          "locator": {
+            "kind": "pptx_table_cell",
+            "slide": 1,
+            "shape_id": 3,
+            "row": 0,
+            "column": 1,
+            "is_spanned": false
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "Amount",
+          "locator": {
+            "kind": "pptx_table_cell",
+            "slide": 1,
+            "shape_id": 3,
+            "row": 0,
+            "column": 2,
+            "is_spanned": false
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "Widget A",
+          "locator": {
+            "kind": "pptx_table_cell",
+            "slide": 1,
+            "shape_id": 3,
+            "row": 1,
+            "column": 0,
+            "is_spanned": false
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "2",
+          "locator": {
+            "kind": "pptx_table_cell",
+            "slide": 1,
+            "shape_id": 3,
+            "row": 1,
+            "column": 1,
+            "is_spanned": false
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "12.00",
+          "locator": {
+            "kind": "pptx_table_cell",
+            "slide": 1,
+            "shape_id": 3,
+            "row": 1,
+            "column": 2,
+            "is_spanned": false
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "Widget B",
+          "locator": {
+            "kind": "pptx_table_cell",
+            "slide": 1,
+            "shape_id": 3,
+            "row": 2,
+            "column": 0,
+            "is_spanned": false
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "1",
+          "locator": {
+            "kind": "pptx_table_cell",
+            "slide": 1,
+            "shape_id": 3,
+            "row": 2,
+            "column": 1,
+            "is_spanned": false
+          },
+          "cell_bbox": null
+        },
+        {
+          "text": "7.50",
+          "locator": {
+            "kind": "pptx_table_cell",
+            "slide": 1,
+            "shape_id": 3,
+            "row": 2,
+            "column": 2,
+            "is_spanned": false
+          },
+          "cell_bbox": null
+        }
+      ],
+      "tables": [
+        {
+          "slide": 1,
+          "shape_id": 3,
+          "table_region_emu": {
+            "left": 914400,
+            "top": 1371600,
+            "width": 7315200,
+            "height": 1828800
+          }
+        }
+      ],
+      "source_native_geometry": "table_region_emu_only",
+      "parse_seconds": 0.1378,
+      "status": "match",
+      "fixture_exact_match": true,
+      "source": "order.pptx",
+      "source_sha256": "770cf664027c555c0e7beba08d3ef8777c7efe20fd1db8f58b3c002a800f1257",
+      "expected_cells": 9,
+      "cells_found": 9,
+      "exact_known_cells": 9,
+      "resolvable_cell_locators": 9,
+      "cell_bbox_count": 0,
+      "worker_wall_seconds": 0.1864,
+      "peak_rss_mib": 41.04,
+      "process_wall_seconds": 0.3581
+    }
+  ]
+}

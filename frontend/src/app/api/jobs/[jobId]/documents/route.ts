@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { addDocumentsToJob } from "@/server/jobs";
+import { requireJob } from "@/server/access";
+import { requireUser } from "@/server/auth";
 import { apiError } from "@/server/api/response";
 
 export const runtime = "nodejs";
@@ -57,7 +59,9 @@ async function readFiles(request: Request): Promise<File[]> {
 
 export async function POST(request: Request, { params }: Params) {
   try {
+    const user = await requireUser(request.headers);
     const { jobId } = await params;
+    requireJob(jobId, user);
     const files = await readFiles(request);
     const updated = await addDocumentsToJob(jobId, files);
     return NextResponse.json(updated, { status: 201 });

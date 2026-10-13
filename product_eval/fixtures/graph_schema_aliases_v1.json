@@ -1,0 +1,36 @@
+{
+  "registration-form": {
+    "file_date": {"semantic_type": "date", "aliases": ["filing_date", "date_filed", "date_of_filing"]},
+    "foreign_principle_name": {"semantic_type": "text", "aliases": ["foreign_principal_name", "foreign_principal", "name_of_foreign_principal"]},
+    "registrant_name": {"semantic_type": "text", "aliases": ["registrant", "name_of_registrant", "registered_agent_name"]},
+    "registration_num": {"semantic_type": "identifier", "aliases": ["registration_number", "registration_no", "registration_id"]},
+    "signer_name": {"semantic_type": "text", "aliases": ["signatory_name", "name_of_signer", "signed_by"]},
+    "signer_title": {"semantic_type": "text", "aliases": ["signatory_title", "title_of_signer", "signer_position"]}
+  },
+  "ad-buy-form": {
+    "advertiser": {"semantic_type": "text", "aliases": ["advertiser_name", "client_advertiser"]},
+    "agency": {"semantic_type": "text", "aliases": ["agency_name", "advertising_agency"]},
+    "contract_num": {"semantic_type": "identifier", "aliases": ["contract_number", "contract_no", "contract_id"]},
+    "flight_from": {"semantic_type": "date", "aliases": ["flight_start_date", "campaign_start_date", "flight_begin_date"]},
+    "flight_to": {"semantic_type": "date", "aliases": ["flight_end_date", "campaign_end_date", "flight_finish_date"]},
+    "gross_amount": {"semantic_type": "currency", "aliases": ["gross_total", "total_gross_amount", "gross_cost"]},
+    "product": {"semantic_type": "text", "aliases": ["product_name", "advertised_product"]},
+    "tv_address": {"semantic_type": "text", "aliases": ["television_address", "station_address", "tv_station_address"]},
+    "property": {"semantic_type": "text", "aliases": ["media_property", "property_name"]},
+    "channel": {"semantic_type": "text", "aliases": ["tv_channel", "station_channel"]},
+    "program_desc": {"semantic_type": "text", "aliases": ["program_description", "show_description"]},
+    "program_start_date": {"semantic_type": "date", "aliases": ["program_start", "show_start_date"]},
+    "program_end_date": {"semantic_type": "date", "aliases": ["program_end", "show_end_date"]},
+    "sub_amount": {"semantic_type": "currency", "aliases": ["line_amount", "line_item_amount", "program_amount"]}
+  },
+  "receipt": {
+    "total_amount": {"semantic_type": "currency", "aliases": ["total_price", "grand_total", "total_due"]},
+    "cash_amount": {"semantic_type": "currency", "aliases": ["cash_price", "cash_paid", "cash_tendered"]},
+    "change_amount": {"semantic_type": "currency", "aliases": ["change_price", "change_due", "change_returned"]},
+    "subtotal_amount": {"semantic_type": "currency", "aliases": ["subtotal_price", "subtotal", "sub_total"]},
+    "tax_amount": {"semantic_type": "currency", "aliases": ["tax_price", "sales_tax", "tax_total"]},
+    "item_name": {"semantic_type": "text", "aliases": ["menu_item_name", "line_item_name", "item_description"]},
+    "item_quantity": {"semantic_type": "quantity", "aliases": ["item_count", "menu_item_quantity", "line_item_quantity"]},
+    "item_price": {"semantic_type": "currency", "aliases": ["menu_item_price", "line_item_price", "item_amount"]}
+  }
+}

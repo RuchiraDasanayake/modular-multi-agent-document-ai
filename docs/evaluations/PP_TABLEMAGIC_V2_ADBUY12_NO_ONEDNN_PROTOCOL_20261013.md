@@ -1,0 +1,25 @@
+# PP-TableMagic v2 ad-buy pilot: separate CPU arm without oneDNN
+
+**Status: prepared; no inference or new output yet.** The original [`tablemagic-v2-adbuy12-xet2` result](PP_TABLEMAGIC_V2_ADBUY12_XET2_RESULT_20261013.md) is an immutable runtime failure. It stopped after the first PDF when PaddlePaddle 3.3.0 entered `onednn_instruction.cc` during PP-OCRv4 text detection. Its 0/219 score is not parser accuracy. This amended arm must write only to a new directory, `E:\DocAI-Benchmarks\tablemagic-v2-adbuy12-xet2-no-onednn`.
+
+## Reason for this single change
+
+PaddleOCR maintainers identify this exact `ConvertPirAttribute2RuntimeAttribute` error as a PaddlePaddle PIR/oneDNN CPU compatibility bug and recommend `enable_mkldnn=False` or a PaddlePaddle downgrade ([PaddleOCR #17869](https://github.com/PaddlePaddle/PaddleOCR/issues/17869), [PaddleOCR #18162](https://github.com/PaddlePaddle/PaddleOCR/issues/18162)). The installed PaddleOCR 3.7.0 common-argument path maps `enable_mkldnn=False` to PaddleX `run_mode="paddle"`; installed PaddleX 3.7.2 then calls `config.disable_mkldnn()` for CPU inference. This code-path observation supports a bounded attempt, not a claim that TableMagic will complete or extract correctly.
+
+Keep the **same** Python 3.11.0, PaddlePaddle CPU 3.3.0, PaddleOCR 3.7.0, PaddleX 3.7.2 and locked 102-package closure; the same nine models and all 54 exact model files; and the same source/cohort/gold hashes and scorer from the [original frozen protocol](PP_TABLEMAGIC_V2_ADBUY12_PROTOCOL_20261012.md). No package installation, model transfer, new source selection, gold-dependent tuning, product integration, or change to the success threshold is part of this arm.
+
+The only inference changes are (1) pass `enable_mkldnn=False` to `TableRecognitionPipelineV2` and (2) set `PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT=False` in each worker environment so any nested predictor that falls back to a PaddleX default also selects `paddle` mode. The worker's new normalized-LF SHA-256 is `db3cb931e84e93f9d9f6e7c46516d923495e400323db213437a3048578aa1d2c`. The runner checks that hash and the unchanged scorer hash before output creation. It also runs a **non-inference** preflight in the isolated Python: with that environment and `enable_mkldnn=False`, both wrapper and PaddleX default mode must report `paddle`, and the default oneDNN flag must be false. The verified preflight on this host returned those exact values. The run lock records the setting, versions, package-closure hash, model hashes, source hashes, and runner/worker/scorer digests. The runner refuses any output path except a new E: directory with the exact basename above.
+
+## Guards and decision
+
+The original limits still apply: at least 6 GiB initially available host RAM, 4 GiB free C:, 2 GiB free E:, and no competing inference; 8 GiB maximum process-tree RSS, 3 GiB minimum host RAM during work, 180-second model startup, 600-second first three-page PDF, 480 seconds per later PDF, and 3,600 seconds overall. Disabling oneDNN can materially slow CPU inference, so the first PDF remains a strict smoke gate. On timeout, resource breach, exception, missing page/raster/geometry, or failure to find a real table and source geometry, stop, keep the receipt, and count the unattempted PDFs in the denominator. Do not enlarge limits during this arm.
+
+If smoke passes, score exactly the 12 public VRDU ad-buy PDFs, 28 pages, 219 gold linked rows and 808 gold linked cells, using the original strict HTML-only scorer and independent cell-box/pixel audit. The predeclared promotion threshold remains at least 30/219 complete exact-cell rows, at least one strict row, and all sampled cell alignments passing independent visual review. Even a pass only warrants broader research; it is not evidence of production extraction quality and does not replace the user's separate 2,000-source product gate.
+
+After the parent task releases host resources, run this **once** from the isolated branch/commit with the new directory absent:
+
+```powershell
+& 'C:\Users\USER\Documents\DocAI-PaddleVL\venv\Scripts\python.exe' -m product_eval.tablemagic_v2_pilot --run --selection 'C:\Users\USER\Documents\ChatGPT\Research\modular-multi-agent-document-ai\product_eval\fixtures\vrdu_ad_buy_table12.jsonl' --cohort 'E:\DocAI-Benchmarks\vrdu-cohort-04a4df7\cohort.jsonl' --corpus-root 'E:\DocAI-Benchmarks\vrdu-extracted\vrdu-04a4df7ac5cc694e51c48115c03fe428f0e240cc' --gold 'E:\DocAI-Benchmarks\vrdu-cohort-04a4df7\gold.jsonl' --models-root 'C:\DocAI-TableMagic-Xet2\models-v2-pinned' --worker-python 'C:\Users\USER\Documents\DocAI-PaddleVL\venv\Scripts\python.exe' --output-dir 'E:\DocAI-Benchmarks\tablemagic-v2-adbuy12-xet2-no-onednn'
+```
+
+**Remaining risk:** PaddlePaddle 3.3.0 may have another CPU incompatibility after oneDNN is disabled. No table result, latency, or quality outcome is predicted from the dry backend preflight. If this arm fails or is too slow, preserve that failure and test another pinned parser (for example Docling TableFormer v2) under the same source lock, rather than changing this arm after observing gold.

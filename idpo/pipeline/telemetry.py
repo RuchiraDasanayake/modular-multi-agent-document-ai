@@ -25,11 +25,13 @@ def persist_run_telemetry(
         return {"enabled": False, "status": "skipped", "reason": "POSTGRES_URI_not_set"}
     try:
         import psycopg
-    except Exception as exc:
-        return {"enabled": False, "status": "skipped", "warning": f"psycopg_unavailable: {exc}"}
+    except Exception as exc:  # noqa: BLE001 - telemetry must not stop the extraction run
+        return {"enabled": False, "status": "skipped", "warning": f"psycopg_unavailable: {type(exc).__name__}"}
 
     try:
-        with psycopg.connect(dsn, autocommit=True) as conn:
+        # Psycopg commits this connection context on success and rolls it back
+        # on error. Keep the run row and every document row in one transaction.
+        with psycopg.connect(dsn) as conn:  # noqa: SIM117 - make the transaction boundary explicit
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -89,6 +91,11 @@ def persist_run_telemetry(
                     ),
                 )
 
+                # A retry publishes a complete replacement snapshot. Without
+                # this delete, documents omitted from a retried run remain in
+                # PostgreSQL even though the run header has been replaced.
+                cur.execute("DELETE FROM idpo_doc_telemetry WHERE run_id = %s", (run_id,))
+
                 persisted_docs = 0
                 for record in doc_records:
                     doc_id = str(record.get("doc_id", "")).strip()
@@ -145,8 +152,8 @@ def persist_run_telemetry(
                     persisted_docs += 1
 
         return {"enabled": True, "status": "ok", "persisted_docs": persisted_docs}
-    except Exception as exc:
-        return {"enabled": False, "status": "error", "warning": f"telemetry_db_write_failed: {exc}"}
+    except Exception as exc:  # noqa: BLE001 - optional telemetry reports its failure to the run
+        return {"enabled": False, "status": "error", "warning": f"telemetry_db_write_failed: {type(exc).__name__}"}
 
 
 def _read_ocr_confidence(path_like: object) -> float:
@@ -159,5 +166,5 @@ def _read_ocr_confidence(path_like: object) -> float:
         payload = json.loads(path.read_text(encoding="utf-8"))
         value = payload.get("confidence", 0.0)
         return float(value or 0.0)
-    except Exception:
+    except Exception:  # noqa: BLE001 - missing or malformed optional OCR metadata
         return 0.0

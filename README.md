@@ -3,14 +3,54 @@
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg?logo=docker&logoColor=white)](docker-compose.yml)
 [![Python 3.10](https://img.shields.io/badge/Python-3.10-3776AB.svg?logo=python&logoColor=white)](SETUP.md)
-[![Next.js 15](https://img.shields.io/badge/Next.js-15-000000.svg?logo=next.js&logoColor=white)](frontend/package.json)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-000000.svg?logo=next.js&logoColor=white)](frontend/package.json)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.114+-009485.svg?logo=fastapi&logoColor=white)](gateway/requirements.txt)
 
 A microservices-based research system for adaptive document extraction. A document goes in; structured key-value fields come out. The IDPO pipeline (OCR, preprocessing, local-LLM extraction, validation, recovery) is governed by a policy that the AHMN layer selects per document with Thompson Sampling. Guardrails and XAI-HITL are separate services with their own dashboard pages.
 
 > **Research results and how to reproduce them:** see [`docs/REPRODUCING_RESULTS.md`](docs/REPRODUCING_RESULTS.md).
 
-## Key Features
+> **Project status:** This is a research prototype under product stabilization. An opt-in
+> automatic extraction path now proposes scalar and bounded repeated-column schemas with source-anchored values,
+> with owner-scoped human review. It is a pilot, not a validated
+> general-purpose extractor. The first 2,000-document no-model development run
+> scored 4.33% strict schema F1 and 0.95% strict value F1, with unsafe automatic acceptance;
+> the second kept every discovered schema in review and scored 0% pre-review accepted-value F1.
+> The [v4 run](docs/evaluations/VRDU_2000_NO_MODEL_V4.md) verified 2,000 distinct sources but lacked its OCR
+> executable, so it is not a valid OCR comparison; it also proposed zero linked cells against 30,133 gold cells.
+> The [v5 pinned-OCR run](docs/evaluations/VRDU_2000_NO_MODEL_V5.md) recovered text on all 35 previously unsupported
+> scans across 2,000 distinct PDFs, but strict schema F1 was only 4.245%, every result required review, and no linked
+> cells were proposed. It did not configure a model or measure cost per correct document.
+> The [v6 bounded-OCR run](docs/evaluations/VRDU_2000_NO_MODEL_V6.md) again completed 2,000 distinct PDFs with
+> zero failures or unsupported results. No page hit its timeout; schema F1 and linked-row quality were unchanged.
+> See [v1](docs/evaluations/VRDU_2000_NO_MODEL_V1.md) and [v2](docs/evaluations/VRDU_2000_NO_MODEL_V2.md).
+> The later October paired evaluation in [`paper/FINAL_EVIDENCE.md`](paper/FINAL_EVIDENCE.md)
+> did not show an accuracy gain from adaptive routing, and the canonical research
+> document job path is unavailable in Docker. See the [productization plan](docs/PRODUCTIZATION_PLAN.md)
+> for the proposed quality, cost, review, and deployment gates.
+
+## Opt-in Product Pilot
+
+On a configured single-host installation, upload a document to a job and open its **Automatic extraction** page.
+The job owner can inspect proposed fields, linked cells, source quotes and the original file, then record field and
+row corrections. Model-backed runs currently require an admin. The command-line equivalent is:
+
+```powershell
+python -m idpo.cli process-auto --input path/to/document.pdf
+```
+
+The opt-in product path accepts PDF, common raster images, TXT, JSON, DOCX, XLSX, PPTX, HTML, and EML. The last five
+use source-native text and table-cell locators; they have no invented pixel boxes. The separate research `process-inbox`
+runtime has a narrower input list. New formats remain review-only and have no measured accuracy claim.
+
+Add `--model MODEL_ID --api-base-url HTTPS_OR_LOCAL_URL` to use a configured OpenAI-compatible model; the server reads
+the key from `ICORE_API_KEY` by default for remote providers. A loopback HTTP model server can run without an API key.
+The local, no-model route is a weak label/value baseline, not an accuracy
+substitute for a model or reviewer. Run artifacts are written to `IDPO_DATA_DIR/product_runs/<run_id>` and stay separate
+from the research `process-inbox` path. `run.json` is the completion marker. See the
+[current system contract](docs/SYSTEM_CONTRACT.md) and [product direction](docs/PROJECT_DIRECTION.md) for the boundaries.
+
+## Research Components
 
 - **Policy-driven document pipeline** — Intake → Document analysis → Policy selection → Preprocessing and OCR → Extraction → Validation → Recovery → Export, with each stage parameterised by the selected policy
 - **Local-first entity extraction** — Ollama (`qwen3.5:9b`) with JSON-schema-constrained output, a grounding check against the source text, and optional OpenAI cloud fallback
@@ -21,22 +61,14 @@ A microservices-based research system for adaptive document extraction. A docume
 - **Human-in-the-Loop** — Structured feedback loop with 5 feedback types, 4 priority levels, and 3 rating dimensions
 - **Full Text Extraction** — OCR'd or digitally extracted text shown in-app with copy functionality
 
-## Performance Notes
-
-| Optimization           | Before                       | After                  | Impact                                                            |
-| ---------------------- | ---------------------------- | ---------------------- | ----------------------------------------------------------------- |
-| **PaddleOCR memory**   | ~13 GB peak, 4 workers       | 2.5 GB peak            | One shared engine per language, recognition widths padded to 320 px buckets |
-| **LIME perturbations** | 500 fixed                    | 30-80 dynamic          | ~85% latency reduction with prediction caching                    |
-| **Sentence relevance** | Per-sentence QA forward pass | TF-IDF pre-filtering   | O(1) vs O(n) model calls                                          |
-| **Noise entities**     | 100+ spurious                | ~0                     | Aggressive filtering (special chars, short values, numeric keys)  |
-| **HTTP connections**   | New client per call          | Singleton with pooling | Connection reuse across integration cycle                         |
-| **Text normalization** | Raw PDF artifacts            | Intake-level cleaning  | Ligature replacement, whitespace normalization, null byte removal |
-
 ## Supported Domains & File Formats
 
 ### Document Domains
 
-The **IDPO pipeline is domain-agnostic** — it classifies documents by structural layout (table, form, text, scanned), not business domain. Any document type can be processed. The **Guardrails layer** provides domain-specific schema validation for 7 document types:
+The research IDPO pipeline classifies documents by structural layout (table, form, text, scanned) rather than business
+domain. It can attempt many document types, but its extraction accuracy on a new family is not guaranteed. The separate
+Guardrails service provides domain-specific schema validation for 7 document types; it is not part of the measured
+document-processing path:
 
 | Domain          | Document Types                           | Validated Fields                                          |
 | --------------- | ---------------------------------------- | --------------------------------------------------------- |
@@ -65,9 +97,13 @@ The **IDPO pipeline is domain-agnostic** — it classifies documents by structur
 
 ## Architecture Overview
 
+The diagram below shows the research services available through the `research` Compose profile. The default
+product pilot uses the gateway, frontend, product worker, PostgreSQL, and Redis; Automatic extraction does not
+call AHMN, Guardrails, XAI-HITL, or the legacy IDPO HTTP service.
+
 ```
                         ┌──────────────────────────────────┐
-                        │    frontend/  (Next.js 15)        │
+                        │    frontend/  (Next.js 16)        │
                         │   User: XAI │ HITL │ Guardrails   │
                         │          │ Doc Processing          │
                         │   Admin: Overview │ Experiments    │
@@ -130,6 +166,7 @@ AHMN routing runs in-process (`ahmn_core/direct_advisor.py`), so no AHMN server 
 | Guardrails   | 8002          | —               |
 | XAI-HITL     | 8003          | —               |
 | IDPO         | 8004          | —               |
+| Product worker | Unix socket | —             |
 | **Gateway**  | 8000          | **8000**        |
 | **Frontend** | 3000          | **3000**        |
 
@@ -159,12 +196,21 @@ AHMN routing runs in-process (`ahmn_core/direct_advisor.py`), so no AHMN server 
 
 ### Prerequisites
 
-- **Docker** & **Docker Compose** v2+ (only requirement for production)
+- **Docker** & **Docker Compose** v2+ for the supporting services
 - Python 3.10 (for local development; the document pipeline is tested on 3.10.10 with PaddlePaddle 2.6.2)
-- Node.js 18+ (for frontend development)
+- Node.js 20.9+ (for frontend development)
 - [Ollama](https://ollama.com) with `qwen3.5:9b` and Tesseract 5 (for document extraction; see [docs/REPRODUCING_RESULTS.md](docs/REPRODUCING_RESULTS.md))
 
-### Run with Docker (Recommended)
+### Start the supporting services with Docker
+
+The Docker frontend is wired to a private product extraction worker over a Unix socket and shared data volume.
+The **Automatic extraction** path targets that worker; the canonical research job path returns an explicit
+unavailable response in Docker. Compose configuration and focused tests pass, but a live image/container extraction
+smoke has not run on this host. The verified end-to-end research demo remains the single-host setup in
+[Public Demo Deployment](docs/PUBLIC_DEMO_DEPLOYMENT.md), checked with `scripts/run_public_demo_smoke.ps1`.
+By default, Compose starts the five services needed for the product pilot: PostgreSQL, Redis, gateway,
+product worker, and frontend. The AHMN, Guardrails, XAI-HITL, and legacy IDPO services are available with
+`docker compose --profile research up --build`; they are not called by Automatic extraction.
 
 ```bash
 # 1. Clone the repository
@@ -175,7 +221,7 @@ cd modular-multi-agent-document-ai
 cp .env.example .env
 # Edit .env: set JWT_SECRET_KEY to a random 32-char string and ADMIN_PASSWORD for the first admin account
 
-# 3. Build and start all eight services (database, cache, four Python services, gateway, frontend)
+# 3. Build and start the product pilot
 docker compose up --build
 
 # 4. Open the app
@@ -249,6 +295,9 @@ All traffic flows through the gateway at `:8000`. JWT authentication is required
 | POST   | `/api/auth/register`         | Admin: create user    |
 | GET    | `/api/auth/users`            | Admin: list all users |
 | PATCH  | `/api/auth/users/:id/toggle` | Admin: enable/disable |
+
+Public sign-up is disabled by default until per-user processing and storage quotas are enforced.
+An admin can create viewer accounts through `/api/auth/register`.
 
 ### AHMN Core (→ :8001)
 
@@ -381,7 +430,7 @@ All traffic flows through the gateway at `:8000`. JWT authentication is required
 │   ├── database.py             # PostgreSQL pool (auth tables)
 │   └── deps.py                 # FastAPI dependencies (JWT, DB)
 │
-├── frontend/                   # Next.js 15 + React 19 web app
+├── frontend/                   # Next.js 16 + React 19 web app
 │   └── src/
 │       ├── app/dashboard/      # All dashboard pages (XAI, HITL, Guardrails, IDPO, admin)
 │       ├── components/         # Sidebar (role-based), toast, stat cards
@@ -393,7 +442,7 @@ All traffic flows through the gateway at `:8000`. JWT authentication is required
 │   └── forgetting.py           # DAAF decay job
 ├── configs/                    # IDPO configuration files
 ├── scripts/init.sql            # PostgreSQL schema
-├── docker-compose.yml          # 8 services orchestration
+├── docker-compose.yml          # Research services, frontend, and product worker
 ├── CONTRIBUTING.md             # Developer guidelines
 └── LICENSE                     # MIT
 ```
@@ -472,7 +521,18 @@ cp .env.example .env
 
 ---
 
-## Production Deployment
+## Legacy Docker Service Deployment
+
+For the current five-service product stack, start with
+[Current single-host deployment path](docs/DEPLOYMENT_CURRENT.md). The
+instructions below describe an older topology and are retained for research
+context.
+
+The steps below describe the legacy service/UI stack plus the product extraction worker.
+The worker boundary has passed Compose parsing and focused tests but has not passed a live container smoke on this host.
+Its current single-run limit and lack of a durable queue make it a pilot rather than a production deployment.
+The canonical research job path remains available through the single-host setup in
+[Public Demo Deployment](docs/PUBLIC_DEMO_DEPLOYMENT.md).
 
 ### Prerequisites
 

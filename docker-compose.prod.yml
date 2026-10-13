@@ -1,7 +1,5 @@
 # Production VPS Deployment with Docker Compose
-# Use with: docker-compose -f docker-compose.prod.yml up -d
-
-version: '3.8'
+# Use with: docker compose --env-file .env.production -f docker-compose.prod.yml up -d
 
 services:
   # ── Database ──
@@ -11,7 +9,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for production}
       POSTGRES_DB: ${POSTGRES_DB:-ahmn_db}
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"  # Keep internal only
@@ -36,18 +34,35 @@ services:
     networks:
       - internal
 
+  # Explicit one-shot metadata upgrade; never runs as part of app startup.
+  product-migrations:
+    profiles: [maintenance]
+    build:
+      context: .
+      dockerfile: scripts/product_migrations/Dockerfile
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for production}
+      POSTGRES_DB: ${POSTGRES_DB:-ahmn_db}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal
+
   # ── Cache ──
   redis:
     image: redis:alpine
     container_name: docai_redis
     restart: always
-    command: redis-server --requirepass ${REDIS_PASSWORD:-docai_redis_secret} --appendonly yes
+    command: redis-server --requirepass ${REDIS_PASSWORD:?Set REDIS_PASSWORD for production} --appendonly yes
     ports:
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"  # Keep internal only
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-docai_redis_secret}", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?Set REDIS_PASSWORD for production}", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -66,6 +81,7 @@ services:
 
   # ── AHMN Service (port 8001, internal only) ──
   ahmn:
+    profiles: [research]
     build:
       context: .
       dockerfile: ahmn_core/Dockerfile
@@ -75,9 +91,9 @@ services:
       - path: .env
         required: false
     environment:
-      POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-ahmn_db}
+      POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for production}@db:5432/${POSTGRES_DB:-ahmn_db}
       REDIS_HOST: redis
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-docai_redis_secret}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD for production}
     depends_on:
       db:
         condition: service_healthy
@@ -106,6 +122,7 @@ services:
 
   # ── Guardrails Service (port 8002, internal only) ──
   guardrails:
+    profiles: [research]
     build:
       context: .
       dockerfile: guardrails/Dockerfile
@@ -115,7 +132,7 @@ services:
       - path: .env
         required: false
     environment:
-      POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-ahmn_db}
+      POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for production}@db:5432/${POSTGRES_DB:-ahmn_db}
     depends_on:
       db:
         condition: service_healthy
@@ -140,6 +157,7 @@ services:
 
   # ── XAI-HITL Service (port 8003, internal only) ──
   xai-hitl:
+    profiles: [research]
     build:
       context: .
       dockerfile: xai_hitl/Dockerfile
@@ -149,7 +167,7 @@ services:
       - path: .env
         required: false
     environment:
-      POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-ahmn_db}
+      POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for production}@db:5432/${POSTGRES_DB:-ahmn_db}
     depends_on:
       db:
         condition: service_healthy
@@ -174,6 +192,7 @@ services:
 
   # ── IDPO Service (port 8004, internal only) ──
   idpo:
+    profiles: [research]
     build:
       context: .
       dockerfile: idpo/Dockerfile
@@ -227,8 +246,14 @@ services:
       - path: .env
         required: false
     environment:
-      POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-ahmn_db}
-      REDIS_URL: redis://:${REDIS_PASSWORD:-docai_redis_secret}@redis:6379/1
+      POSTGRES_URI: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for production}@db:5432/${POSTGRES_DB:-ahmn_db}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD for production}@redis:6379/1
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY for production}
+      REQUIRE_EXPLICIT_SECRETS: "true"
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@localhost}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD for initial admin}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:?Set BACKEND_CORS_ORIGINS for production}
       AHMN_SERVICE_URL: http://ahmn:8001
       GUARDRAILS_SERVICE_URL: http://guardrails:8002
       XAI_HITL_SERVICE_URL: http://xai-hitl:8003
@@ -240,14 +265,6 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      ahmn:
-        condition: service_healthy
-      guardrails:
-        condition: service_healthy
-      xai-hitl:
-        condition: service_healthy
-      idpo:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
@@ -269,6 +286,32 @@ services:
       - internal
       - external
 
+  # Product extraction worker. Its Unix socket and artifacts are shared only
+  # with the frontend; no worker TCP port is published.
+  product-worker:
+    build:
+      context: .
+      dockerfile: idpo/product_auto/Dockerfile.worker
+    restart: always
+    environment:
+      IDPO_DATA_DIR: /idpo-data
+      PRODUCT_WORKER_SOCKET: /idpo-data/product-worker.sock
+      ICORE_API_KEY: ${ICORE_API_KEY:-}
+    volumes:
+      - idpo_data:/idpo-data
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "2.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    networks:
+      - external
+
   # ── Frontend (port 3000) ──
   frontend:
     build:
@@ -281,10 +324,19 @@ services:
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
       - INTERNAL_API_URL=http://gateway:8000
       - HOSTNAME=0.0.0.0
+      - IDPO_DATA_DIR=/idpo-data
+      - PRODUCT_WORKER_SOCKET=/idpo-data/product-worker.sock
+      - IDPO_AUTO_MODEL=${IDPO_AUTO_MODEL:-}
+      - IDPO_AUTO_API_BASE_URL=${IDPO_AUTO_API_BASE_URL:-}
+      - ICORE_API_KEY=${ICORE_API_KEY:-}
+    volumes:
+      - idpo_data:/idpo-data
     ports:
       - "0.0.0.0:${FRONTEND_PORT:-3000}:3000"  # Exposed to external
     depends_on:
       gateway:
+        condition: service_healthy
+      product-worker:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000',(r)=>{process.exit(r.statusCode<400?0:1)}).on('error',()=>process.exit(1))\""]
@@ -316,4 +368,6 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  idpo_data:
     driver: local

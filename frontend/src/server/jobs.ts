@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { writeFileSync as writeFileAtomicSync } from "atomically";
 import type {
   JobAHMNSummary,
   JobCounts,
@@ -380,7 +381,7 @@ function claimIfRunning(job: JobStatus): JobStatus {
 function persistJob(job: JobStatus): void {
   const normalized = normalizeJob(claimIfRunning(job));
   const filePath = getJobFile(normalized.jobId);
-  fs.writeFileSync(filePath, JSON.stringify(normalized, null, 2), "utf-8");
+  writeFileAtomicSync(filePath, JSON.stringify(normalized, null, 2), "utf8");
   inMemoryJobs.set(normalized.jobId, normalized);
 }
 
@@ -398,6 +399,7 @@ function validateUpload(file: File, allowedExtensions: string[], maxUploadMb: nu
 
 export function createWorkspaceJob(
   options?: {
+    ownerUserId?: string;
     jobName?: string;
     mode?: JobExecutionMode;
     fieldConfigCurrent?: JobFieldConfig[];
@@ -412,6 +414,7 @@ export function createWorkspaceJob(
 
   const job: JobStatus = {
     jobId,
+    ownerUserId: options?.ownerUserId,
     status: "draft",
     createdAt,
     startedAt: createdAt,
@@ -488,7 +491,7 @@ export function getJobOrThrow(jobId: string): JobStatus {
 export function mutateJob(jobId: string, mutator: (job: JobStatus) => JobStatus | void): JobStatus {
   const current = getJobOrThrow(jobId);
   const candidate = mutator(structuredClone(current));
-  const next = normalizeJob(claimIfRunning((candidate ?? current) as JobStatus));
+  const next = normalizeJob(claimIfRunning({ ...(candidate ?? current), ownerUserId: current.ownerUserId } as JobStatus));
   persistJob(next);
   return next;
 }
@@ -512,6 +515,7 @@ export function updateJob(jobId: string, patch: Partial<JobStatus>): JobStatus {
   const next: JobStatus = normalizeJob(claimIfRunning({
     ...current,
     ...patch,
+    ownerUserId: current.ownerUserId,
     logs: patch.logs ?? current.logs,
     settings: patch.settings ?? current.settings,
   }));

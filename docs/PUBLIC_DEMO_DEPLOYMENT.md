@@ -2,6 +2,14 @@
 
 This document defines the fastest supported path for making the current system publicly accessible without a major architecture rewrite.
 
+## Native Windows product development (no Docker)
+
+Use the [native product setup](../scripts/native_product.md) for a loopback-only Windows development installation.
+It runs PostgreSQL, the gateway, Node and on-demand Python extraction, with PostgreSQL token revocation and no Redis
+service. It uses a fresh configurable data directory. The broader research/public demo prerequisites below do not
+apply to this minimal product runtime. Public hosting still needs a separate deployment review; do not expose the
+Next development server or assume the legacy research services are running.
+
 ## Supported Deployment Model
 
 Use a `single-host public demo` setup:
@@ -20,7 +28,7 @@ It matches the current runtime path:
 `frontend job (POST /api/jobs/<job_id>/documents, then POST /api/jobs/<job_id>/runs) -> frontend job runner -> idpo.cli process-inbox -> IDPO_DATA_DIR/runs/<run_id>`
 
 The job API (`/api/jobs`, `/api/runs`, `/api/benchmarks`) and the dashboard pages run on the frontend server, so the
-frontend middleware checks every request against the gateway's `/api/auth/me` before serving it. A request without a
+Next.js proxy checks those protected requests against the gateway's `/api/auth/me` before serving them. A request without a
 session the gateway accepts gets `401` (API) or a redirect to `/login` (pages); if the gateway is unreachable it gets
 `503`. The frontend server must therefore reach the gateway at `INTERNAL_API_URL` (default `http://localhost:8000`).
 
@@ -33,13 +41,50 @@ That means the machine running the frontend must also have:
 - local repo workspace access
 - writable `IDPO_DATA_DIR`
 
-## Unsupported For The Full Runtime
+## Docker Product Extraction
+
+Both Compose files now run the opt-in **Automatic extraction** path with a dedicated Python product worker. The
+frontend stages uploads in the `idpo_data` named volume and sends the run request over a Unix socket in that volume.
+The worker has no published port. The frontend reads the worker's source-hash receipts and candidate artifacts from
+the same volume before showing a result. Frontend authentication, job ownership and review audit routes remain in
+place. The worker accepts only a staged directory whose name matches the run ID and executes one run at a time.
+The default Compose profile starts PostgreSQL, Redis, gateway, product worker, and frontend. Add
+`--profile research` to start the separate AHMN, Guardrails, XAI-HITL, and legacy IDPO services for their
+dashboard and research APIs; Automatic extraction does not depend on them.
+
+```powershell
+docker compose up --build -d
+docker compose ps
+docker compose exec frontend node /app/scripts/product-worker-client.mjs --health
+```
+
+In the UI, create a job, upload a document, then open **Automatic extraction**. With no model configured, the local
+heuristic proposes fields and leaves them for review.
+The product worker also accepts DOCX, XLSX, PPTX, HTML and EML through bounded source-native adapters; upload limits
+and review-only outcomes still apply. These formats require the worker's pinned python-docx, openpyxl, python-pptx and
+lxml packages. Native text and cell addresses appear in the result sidecar; the source download route forces these
+formats to attachment disposition. The research `process-inbox` runner has not gained those formats.
+
+To opt into a hosted OpenAI-compatible model, set `IDPO_AUTO_MODEL`, `IDPO_AUTO_API_BASE_URL` (HTTPS), and
+`ICORE_API_KEY` in a local `.env` file before starting Compose.
+Model runs remain admin-only. The key is passed to the frontend server and worker containers as an environment
+variable; it is never stored in the runner config or browser bundle. Do not send private documents to a provider
+until its data handling terms are confirmed. A loopback model endpoint in the host is not reachable as worker
+loopback; local model routing in Docker requires a separately verified configuration.
+
+The `idpo_data` volume holds uploads, runs, and review events; back it up alongside the database volumes. This is
+a single-host execution boundary, not a durable distributed queue. One product run executes at a time; another
+simultaneous request is rejected and can be retried. Docker image build and end-to-end container execution still need
+validation on a host with an available Docker daemon. The worker pins its direct Python dependencies, but transitive
+dependencies and the Python base image are not digest-locked yet.
+
+## Unsupported For The Full Research Runtime
 
 These are not the supported end-to-end deployment path right now:
 
 - Vercel-only deployment
-- frontend-only Docker deployment (the image ships `runner.config.docker.json`, whose
-  command is a placeholder; jobs started there fail with "wrote no run output")
+- canonical research `process-inbox` jobs in Docker: the Docker frontend returns a clear `503` for that action, while
+  the separate product Automatic extraction path runs through the worker above
 - any deployment where the frontend server cannot run local Python commands
 
 Vercel can still host the UI later, but not the current full job-runner path without a separate worker redesign.
@@ -57,8 +102,8 @@ Required on the demo host:
 - Ollama
 - pulled Ollama model `qwen3.5:9b` (the `llm.local_model` in `configs/idpo_research_config.json`)
 - `paddleocr` installed in the Python environment
-- `pymupdf` installed in the Python environment, for scanned / image-only PDFs
-  (Poppler is no longer required; `pdf2image` + Poppler is only a fallback)
+- `pypdfium2==5.14.0` installed in the Python environment for scanned / image-only PDFs.
+  `pdf2image` with Poppler remains a fallback if PDFium cannot render a page.
 - Tesseract OCR, as the fallback OCR engine. It is found on `PATH`, via
   `TESSERACT_CMD`, or in the default Windows install folders under
   `Program Files` / `%LOCALAPPDATA%\Programs`

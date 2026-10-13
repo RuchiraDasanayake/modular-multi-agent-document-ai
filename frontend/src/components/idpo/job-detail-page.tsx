@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { IdpoCard } from "@/components/idpo/card";
 import { StatusBadge } from "@/components/idpo/status-badge";
 import { Icon } from "@/components/icons";
+import { api } from "@/lib/api";
 import { idpoApi } from "@/lib/idpo-api";
 import type {
   JobDocumentRecord,
@@ -28,7 +29,7 @@ const MODE_OPTIONS: { value: JobExecutionMode; label: string }[] = [
   { value: "strict", label: "Strict: default policy only" },
   { value: "both", label: "Both: run each and compare" },
 ];
-const ACCEPTED_FILE_TYPES = ".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.txt,.json";
+const ACCEPTED_FILE_TYPES = ".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.txt,.json,.docx,.xlsx,.pptx,.html,.eml";
 
 const secondaryButton =
   "inline-flex items-center gap-2 rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800";
@@ -169,6 +170,7 @@ export function JobDetailPage() {
   const hydratedJobIdRef = useRef<string | null>(null);
 
   const [job, setJob] = useState<JobStatus | null>(null);
+  const [canonicalRunnerAvailable, setCanonicalRunnerAvailable] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [busyAction, setBusyAction] = useState<"upload" | "process" | "retry" | "review" | null>(null);
@@ -185,6 +187,7 @@ export function JobDetailPage() {
   const [escalationEnabled, setEscalationEnabled] = useState(true);
   const [localModel, setLocalModel] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [showRoutingDetails, setShowRoutingDetails] = useState(false);
   const [showReviewContext, setShowReviewContext] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -203,6 +206,7 @@ export function JobDetailPage() {
       }
       const payload = await idpoApi.getJob(activeJobId);
       setJob(payload);
+      setCanonicalRunnerAvailable(payload.canonicalRunnerAvailable !== false);
       setPollFailed(false);
       if (!background) {
         setError("");
@@ -225,6 +229,16 @@ export function JobDetailPage() {
     void loadJob();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
+
+  useEffect(() => {
+    let active = true;
+    void api.me().then((user) => {
+      if (active) setIsAdmin(user.role === "admin");
+    }).catch(() => {
+      if (active) setIsAdmin(false);
+    });
+    return () => { active = false; };
+  }, []);
 
   // Form state comes from the first load only, so polling never overwrites what the user is editing.
   useEffect(() => {
@@ -469,10 +483,10 @@ export function JobDetailPage() {
           configPath: CONFIG_PATH,
           adaptiveMode: effectiveMode === "strict" ? "static" : "adaptive_safe",
           report: true,
-          escalationEnabled,
-          maxCostPerDoc: maxCostPerDoc.trim() ? Number(maxCostPerDoc) : undefined,
-          llmLocalModel: localModel.trim() || undefined,
-          autoInstallLocalModel: Boolean(localModel.trim()),
+          escalationEnabled: isAdmin ? escalationEnabled : false,
+          maxCostPerDoc: isAdmin && maxCostPerDoc.trim() ? Number(maxCostPerDoc) : undefined,
+          llmLocalModel: isAdmin ? localModel.trim() || undefined : undefined,
+          autoInstallLocalModel: isAdmin && Boolean(localModel.trim()),
           customFields: fieldConfig.map((field) => ({
             key: field.name,
             description: field.description,
@@ -694,13 +708,18 @@ export function JobDetailPage() {
               <StatusBadge value={runActive ? "running" : job.status} />
             </div>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Upload files, choose which ones to process, then open a finished document to check its fields.
+              {canonicalRunnerAvailable
+                ? "Upload files, choose which ones to process, then open a finished document to check its fields."
+                : "Upload files, then use Automatic schema extraction for Docker-backed processing and review."}
             </p>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Job <span className="font-mono" title={job.jobId}>{shortId(job.jobId)}</span> · created {formatDate(job.createdAt)}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Link href={`/dashboard/idpo/jobs/${encodeURIComponent(job.jobId)}/auto`} className={secondaryButton}>
+              Automatic schema extraction
+            </Link>
             <Link href={`/dashboard/idpo/jobs/${encodeURIComponent(job.jobId)}/policies`} className={secondaryButton}>
               Policies
             </Link>
@@ -871,6 +890,9 @@ export function JobDetailPage() {
                   ? "Drop files here or use Upload files."
                   : `${documents.length} file${documents.length === 1 ? "" : "s"}, ${selectedDocuments.length} selected. Drop more files here to add them.`}
               </p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                DOCX, XLSX, PPTX, HTML and EML run through Automatic extraction only; the research runner does not process them.
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <input
@@ -890,7 +912,7 @@ export function JobDetailPage() {
                 <Icon name="upload" className="h-4 w-4" />
                 {busyAction === "upload" ? "Uploading..." : "Upload files"}
               </button>
-              {queueSummary.failed > 0 ? (
+              {canonicalRunnerAvailable && queueSummary.failed > 0 ? (
                 <button
                   type="button"
                   onClick={() => void startRun(mode, true)}
@@ -901,7 +923,7 @@ export function JobDetailPage() {
                   {busyAction === "retry" ? "Starting..." : `Retry failed${selectedFailedDocuments.length > 0 ? ` (${selectedFailedDocuments.length})` : ""}`}
                 </button>
               ) : null}
-              <button
+              {isAdmin ? <button
                 type="button"
                 onClick={() => void validateSelectedWithAi()}
                 disabled={saving || !canAutoReview}
@@ -909,15 +931,17 @@ export function JobDetailPage() {
                 className={secondaryButton}
               >
                 {busyAction === "review" ? "Reviewing..." : "Auto review"}
-              </button>
-              <button
-                type="button"
-                onClick={() => void startRun(mode, false)}
-                disabled={saving || selectedDocuments.length === 0}
-                className={primaryButton}
-              >
-                {processLabel}
-              </button>
+              </button> : null}
+              {canonicalRunnerAvailable ? (
+                <button
+                  type="button"
+                  onClick={() => void startRun(mode, false)}
+                  disabled={saving || selectedDocuments.length === 0}
+                  className={primaryButton}
+                >
+                  {processLabel}
+                </button>
+              ) : null}
             </div>
           </div>
 
@@ -1148,14 +1172,14 @@ export function JobDetailPage() {
               Leave this empty and the policy chosen for each document decides which fields to extract. Add a field to ask for a specific value, such as an invoice total.
             </p>
           </div>
-          <button
+          {isAdmin ? <button
             type="button"
             onClick={() => setShowAdvanced((current) => !current)}
             aria-expanded={showAdvanced}
             className={`text-sm ${linkStyle}`}
           >
             {showAdvanced ? "Hide advanced settings" : "Advanced settings"}
-          </button>
+          </button> : null}
         </div>
 
         <form
@@ -1214,7 +1238,7 @@ export function JobDetailPage() {
           </div>
         ) : null}
 
-        {showAdvanced ? (
+        {isAdmin && showAdvanced ? (
           <div className="mt-4 grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2 dark:border-slate-800 dark:bg-slate-950/40">
             <label className="text-sm">
               <span className="mb-1 block text-slate-700 dark:text-slate-300">Local extraction model</span>

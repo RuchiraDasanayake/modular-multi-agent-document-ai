@@ -153,6 +153,7 @@ export interface JobCounts {
 
 export interface JobStatus {
   jobId: string;
+  ownerUserId?: string;
   status: JobState;
   createdAt: string;
   startedAt: string;

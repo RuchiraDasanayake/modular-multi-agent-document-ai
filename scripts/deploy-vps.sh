@@ -1,128 +1,61 @@
-#!/bin/bash
-# Production Deployment Script for VPS
-# Usage: bash scripts/deploy-vps.sh your-domain.com YOUR_VPS_IP
+#!/usr/bin/env bash
+# Deploy the default five-service product stack on a Linux host.
+# Usage: bash scripts/deploy-vps.sh PUBLIC_HOST_OR_IP
 
-set -e
+set -euo pipefail
 
-DOMAIN="${1:-localhost}"
-VPS_IP="${2:-$(hostname -I | awk '{print $1}')}"
+PUBLIC_HOST="${1:?Usage: bash scripts/deploy-vps.sh PUBLIC_HOST_OR_IP}"
+if [[ ! "$PUBLIC_HOST" =~ ^[[:alnum:]][[:alnum:].-]*$ ]]; then
+    echo "PUBLIC_HOST_OR_IP must be a DNS name or IPv4 address." >&2
+    exit 1
+fi
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-echo "================================================================"
-echo "  Document AI Production Deployment"
-echo "================================================================"
-echo ""
-echo "Domain: $DOMAIN"
-echo "VPS IP: $VPS_IP"
-echo ""
-
-# Check prerequisites
-echo "[*] Checking prerequisites..."
-if ! command -v docker &> /dev/null; then
-    echo "[ERROR] Docker is not installed. Install it first:"
-    echo "        curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh"
+if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
+    echo "Docker with the Compose plugin is required." >&2
     exit 1
 fi
 
-if ! command -v docker-compose &> /dev/null; then
-    echo "[ERROR] Docker Compose is not installed."
-    exit 1
-fi
-
-echo "[OK] Docker and Docker Compose found"
-echo ""
-
-# Generate secure secrets
-echo "[*] Generating secure secrets..."
-POSTGRES_PASS=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
-REDIS_PASS=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
-JWT_SECRET=$(python3 -c "import secrets; print(secrets.token_urlsafe(64))")
-
-echo "[OK] Secrets generated"
-echo ""
-
-# Determine API URL
-if [ "$DOMAIN" == "localhost" ]; then
-    API_URL="http://$VPS_IP:8000"
-else
-    API_URL="https://$DOMAIN"
-fi
-
-# Update .env.production with actual values
-echo "[*] Configuring .env.production..."
-cp .env.production .env.production.tmp
-
-sed -i.bak \
-    -e "s|POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$POSTGRES_PASS|" \
-    -e "s|REDIS_PASSWORD=.*|REDIS_PASSWORD=$REDIS_PASS|" \
-    -e "s|JWT_SECRET_KEY=.*|JWT_SECRET_KEY=$JWT_SECRET|" \
-    -e "s|NEXT_PUBLIC_API_URL=.*|NEXT_PUBLIC_API_URL=$API_URL|" \
-    .env.production
-
-echo "[OK] Configuration updated"
-echo ""
-
-# Load environment
-export $(cat .env.production | grep -v '#' | xargs)
-
-# Build services
-echo "[*] Building Docker images (this may take 10-15 minutes)..."
-docker-compose -f docker-compose.prod.yml build --no-cache
-echo "[OK] Build complete"
-echo ""
-
-# Start services
-echo "[*] Starting services..."
-docker-compose -f docker-compose.prod.yml up -d
-
-echo "[OK] Services started"
-echo ""
-
-# Wait for health checks
-echo "[*] Waiting for services to be healthy (max 3 minutes)..."
-RETRIES=0
-MAX_RETRIES=36
-
-while [ $RETRIES -lt $MAX_RETRIES ]; do
-    if docker-compose -f docker-compose.prod.yml ps | grep -q "healthy"; then
-        echo "[OK] Services healthy"
-        break
+if [[ ! -f .env.production ]]; then
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "Python 3 is required to generate initial secrets." >&2
+        exit 1
     fi
-    echo "[*] Waiting... ($RETRIES/$MAX_RETRIES)"
-    sleep 5
-    RETRIES=$((RETRIES + 1))
-done
-
-if [ $RETRIES -eq $MAX_RETRIES ]; then
-    echo "[WARN] Services did not reach healthy state. Checking logs..."
-    docker-compose -f docker-compose.prod.yml logs --tail=50
+    umask 077
+    postgres_password="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+    redis_password="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+    jwt_secret="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+    admin_password="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+    temporary_env="$(mktemp .env.production.XXXXXX)"
+    trap 'rm -f "$temporary_env"' EXIT
+    cat > "$temporary_env" <<EOF
+# Generated once by scripts/deploy-vps.sh. Back up this file securely.
+POSTGRES_USER=user
+POSTGRES_PASSWORD=${postgres_password}
+POSTGRES_DB=ahmn_db
+REDIS_PASSWORD=${redis_password}
+JWT_SECRET_KEY=${jwt_secret}
+ADMIN_USERNAME=admin
+ADMIN_EMAIL=admin@localhost
+ADMIN_PASSWORD=${admin_password}
+NEXT_PUBLIC_API_URL=http://${PUBLIC_HOST}:8000
+BACKEND_CORS_ORIGINS=http://${PUBLIC_HOST}:3000
+EOF
+    mv "$temporary_env" .env.production
+    trap - EXIT
+    echo "Created .env.production with new credentials. Save the first admin password from that file securely."
 fi
 
-echo ""
-echo "================================================================"
-echo "  Deployment Complete!"
-echo "================================================================"
-echo ""
-echo "Access your application:"
-echo ""
-if [ "$DOMAIN" == "localhost" ]; then
-    echo "   Frontend:  http://$VPS_IP:3000"
-    echo "   API:       http://$VPS_IP:8000"
-else
-    echo "   Frontend:  https://$DOMAIN"
-    echo "   API:       https://$DOMAIN/api"
-fi
-echo ""
-echo "Production Secrets:"
-echo "   - Database password: (saved in .env.production)"
-echo "   - Redis password: (saved in .env.production)"
-echo "   - JWT secret: (saved in .env.production)"
-echo ""
-echo "Next Steps:"
-echo "   1. Set up SSL/TLS with Let's Encrypt + Nginx (optional)"
-echo "   2. Configure firewall rules"
-echo "   3. Monitor logs: docker-compose -f docker-compose.prod.yml logs -f"
-echo "   4. Create backups of .env.production and database volumes"
-echo ""
-echo "To stop services:"
-echo "   docker-compose -f docker-compose.prod.yml down"
-echo ""
+chmod 600 .env.production
+# A caller's shell variables otherwise take precedence over --env-file.
+unset POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB REDIS_PASSWORD JWT_SECRET_KEY
+unset ADMIN_USERNAME ADMIN_EMAIL ADMIN_PASSWORD NEXT_PUBLIC_API_URL BACKEND_CORS_ORIGINS
+unset PUBLIC_SIGNUP_ENABLED ICORE_API_KEY IDPO_AUTO_MODEL IDPO_AUTO_API_BASE_URL
+compose=(docker compose --env-file .env.production -f docker-compose.prod.yml)
+"${compose[@]}" config --quiet
+"${compose[@]}" build
+"${compose[@]}" up -d --wait --wait-timeout 180
+
+echo "Product stack is healthy. Frontend: http://${PUBLIC_HOST}:3000"
+echo "API health: http://${PUBLIC_HOST}:8000/health"
+echo "Configure TLS and a reverse proxy before exposing this deployment to untrusted networks."

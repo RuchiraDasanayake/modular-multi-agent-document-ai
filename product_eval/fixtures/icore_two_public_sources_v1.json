@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "selection": "One registration-form and one ad-buy-form VRDU public development PDF at raw-source SHA rank 6 in each family of the pre-existing twelve-source lock; selected without reading labels or model replies.",
+  "parent_six_source_lock_sha256": "a64f14e737ae7fe2bda3a84458d996385db40b253a78175ec161a6175c82cb15",
+  "vrdu_cohort_sha256": "98f4fcbd6521594304da3a80104362cf89174c87c27ed08ce90a1158fef4bc90",
+  "vrdu_gold_sha256": "8a631bffbf439ccc8376f84cbf7d4af25c86d35c0ccc7996ce3b23e6085138bf",
+  "model": "innobot-luna-6",
+  "max_authenticated_chat_attempts": 4,
+  "sources": [
+    {
+      "family": "registration-form",
+      "selection_rank": 6,
+      "doc_id": "4d8a3580763cfc54e07b943e4e5fe9d8",
+      "source_sha256": "012038abfa3e045b23584aacd91dff687425c1b0933b3558fd51d34f44f1233b",
+      "source_size_bytes": 144553,
+      "source_file": "20180425_Policy Impact Strategic Communications, Inc._Schrade, Jeff_Short-Form.pdf",
+      "run_id": "vrdu_v5_reg_05",
+      "ocr_sidecar_sha256": "2a570e8b8403daa5c2a05862e15b74d919304eb59143abdb592ba96b2c722ae5",
+      "ocr_pages_sha256": "31116d370f4dd0d5c11146d44b863e21f366f56cfa627df2eecbcc7312148f86"
+    },
+    {
+      "family": "ad-buy-form",
+      "selection_rank": 6,
+      "doc_id": "480ff75645024ee29844be53be120fcf",
+      "source_sha256": "022c46dc12f992dd7b632b2c3821f5158979934e7354e01dc4ecaf5c7a39d62c",
+      "source_size_bytes": 158402,
+      "source_file": "434068-collect-files-1051-political-file-2012-non.pdf",
+      "run_id": "vrdu_v5_ad_00",
+      "ocr_sidecar_sha256": "f1fae93fcd30f9ac4fe7350aa9d65e822b5a6e61b67edbd7d0d8d6029bcfb9a4",
+      "ocr_pages_sha256": "d6d7dc55417551a1aff459e877c2bc588fa140c61c74d7b2e081423c456aeecb"
+    }
+  ]
+}

@@ -1,0 +1,639 @@
+{
+  "protocol": "mixed_format_docling_v1",
+  "fixture_manifest": {
+    "fixture_set": "mixed_format_docling_v1",
+    "synthetic": true,
+    "expected_table_rows_per_source": 3,
+    "expected_table_cells_per_source": 9,
+    "files": {
+      "order.docx": "c962e87d75ad90335e44ec71a07b024e299d8b8c02b0a17e8922f5cd53a57f27",
+      "order.xlsx": "37b84b250ed69ca869dfd50e575432c918e35ca8fa71baab7552155e2ce6f3a3",
+      "order.html": "dcec615260752fd5e58886ed9e2cdb8d44f241fcf7376aadfc9d9f0afcd236af",
+      "order.eml": "289ab4ac838620f80f1742e066e70d41b1d9ef91d8a300469d657dd7818a2193",
+      "order.pptx": "770cf664027c555c0e7beba08d3ef8777c7efe20fd1db8f58b3c002a800f1257"
+    }
+  },
+  "runtime": {
+    "python": "3.11.0",
+    "platform": "Windows-10-10.0.19045-SP0",
+    "packages": {
+      "docling-slim": "2.138.0",
+      "docling-core": "2.101.1",
+      "python-docx": "1.2.0",
+      "openpyxl": "3.1.5",
+      "python-pptx": "1.0.2",
+      "mail-parser": "4.8.0",
+      "beautifulsoup4": "4.15.0",
+      "psutil": "7.2.2"
+    }
+  },
+  "gpu_used": false,
+  "model_downloads": false,
+  "records": [
+    {
+      "source": "order.docx",
+      "source_sha256": "c962e87d75ad90335e44ec71a07b024e299d8b8c02b0a17e8922f5cd53a57f27",
+      "status": "ConversionStatus.SUCCESS",
+      "init_seconds": 1.608,
+      "conversion_seconds": 0.0457,
+      "errors": [],
+      "document_name": "order",
+      "pages_count": 0,
+      "page_keys": [],
+      "page_sizes": {},
+      "groups": [
+        {
+          "label": "section",
+          "name": "header-0"
+        }
+      ],
+      "sheet_group_names": [],
+      "item_count": 3,
+      "items_with_provenance": 0,
+      "item_bbox_count": 0,
+      "provenance_page_numbers": [],
+      "table_count": 1,
+      "table_rows_total": 3,
+      "table_cells_total": 9,
+      "tables": [
+        {
+          "rows": 3,
+          "columns": 3,
+          "cell_count": 9,
+          "cell_texts": [
+            "Item",
+            "Qty",
+            "Amount",
+            "Widget A",
+            "2",
+            "12.00",
+            "Widget B",
+            "1",
+            "7.50"
+          ],
+          "cell_grid": [
+            {
+              "row_start": 0,
+              "row_end": 1,
+              "column_start": 0,
+              "column_end": 1,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 0,
+              "row_end": 1,
+              "column_start": 1,
+              "column_end": 2,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 0,
+              "row_end": 1,
+              "column_start": 2,
+              "column_end": 3,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 1,
+              "row_end": 2,
+              "column_start": 0,
+              "column_end": 1,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 1,
+              "row_end": 2,
+              "column_start": 1,
+              "column_end": 2,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 1,
+              "row_end": 2,
+              "column_start": 2,
+              "column_end": 3,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 2,
+              "row_end": 3,
+              "column_start": 0,
+              "column_end": 1,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 2,
+              "row_end": 3,
+              "column_start": 1,
+              "column_end": 2,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 2,
+              "row_end": 3,
+              "column_start": 2,
+              "column_end": 3,
+              "row_span": 1,
+              "column_span": 1
+            }
+          ],
+          "table_page_numbers": [],
+          "table_bbox_count": 0,
+          "table_bboxes": [],
+          "cell_bbox_count": 0
+        }
+      ],
+      "identifier_seen_in_markdown": true,
+      "sheet_name_seen_in_markdown": false,
+      "markdown_character_count": 180,
+      "markdown_excerpt": "## Synthetic order SYN-1001\n\nOrder date: 2020-01-01\n\n| Item     |   Qty |   Amount |\n|----------|-------|----------|\n| Widget A |     2 |    12.00 |\n| Widget B |     1 |     7.50 |",
+      "peak_rss_mib": 135.73,
+      "baseline_rss_mib": 20.81,
+      "worker_wall_seconds": 1.6715,
+      "expected_table_cells": 9,
+      "exact_table_cell_matches": 9,
+      "process_wall_seconds": 2.0145,
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "source": "order.xlsx",
+      "source_sha256": "37b84b250ed69ca869dfd50e575432c918e35ca8fa71baab7552155e2ce6f3a3",
+      "status": "ConversionStatus.SUCCESS",
+      "init_seconds": 1.6412,
+      "conversion_seconds": 0.0169,
+      "errors": [],
+      "document_name": "order",
+      "pages_count": 1,
+      "page_keys": [
+        1
+      ],
+      "page_sizes": {
+        "1": {
+          "width": 3.0,
+          "height": 3.0
+        }
+      },
+      "groups": [
+        {
+          "label": "sheet",
+          "name": "Order Lines"
+        }
+      ],
+      "sheet_group_names": [
+        "Order Lines"
+      ],
+      "item_count": 1,
+      "items_with_provenance": 1,
+      "item_bbox_count": 1,
+      "provenance_page_numbers": [
+        1
+      ],
+      "table_count": 1,
+      "table_rows_total": 3,
+      "table_cells_total": 9,
+      "tables": [
+        {
+          "rows": 3,
+          "columns": 3,
+          "cell_count": 9,
+          "cell_texts": [
+            "Item",
+            "Qty",
+            "Amount",
+            "Widget A",
+            "2",
+            "12.00",
+            "Widget B",
+            "1",
+            "7.50"
+          ],
+          "cell_grid": [
+            {
+              "row_start": 0,
+              "row_end": 1,
+              "column_start": 0,
+              "column_end": 1,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 0,
+              "row_end": 1,
+              "column_start": 1,
+              "column_end": 2,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 0,
+              "row_end": 1,
+              "column_start": 2,
+              "column_end": 3,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 1,
+              "row_end": 2,
+              "column_start": 0,
+              "column_end": 1,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 1,
+              "row_end": 2,
+              "column_start": 1,
+              "column_end": 2,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 1,
+              "row_end": 2,
+              "column_start": 2,
+              "column_end": 3,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 2,
+              "row_end": 3,
+              "column_start": 0,
+              "column_end": 1,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 2,
+              "row_end": 3,
+              "column_start": 1,
+              "column_end": 2,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 2,
+              "row_end": 3,
+              "column_start": 2,
+              "column_end": 3,
+              "row_span": 1,
+              "column_span": 1
+            }
+          ],
+          "table_page_numbers": [
+            1
+          ],
+          "table_bbox_count": 1,
+          "table_bboxes": [
+            {
+              "l": 0.0,
+              "t": 0.0,
+              "r": 3.0,
+              "b": 3.0,
+              "coord_origin": "TOPLEFT"
+            }
+          ],
+          "cell_bbox_count": 0
+        }
+      ],
+      "identifier_seen_in_markdown": false,
+      "sheet_name_seen_in_markdown": false,
+      "markdown_character_count": 127,
+      "markdown_excerpt": "| Item     |   Qty |   Amount |\n|----------|-------|----------|\n| Widget A |     2 |    12.00 |\n| Widget B |     1 |     7.50 |",
+      "peak_rss_mib": 130.39,
+      "baseline_rss_mib": 20.74,
+      "worker_wall_seconds": 1.6744,
+      "expected_table_cells": 9,
+      "exact_table_cell_matches": 9,
+      "process_wall_seconds": 2.0131,
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "source": "order.html",
+      "source_sha256": "dcec615260752fd5e58886ed9e2cdb8d44f241fcf7376aadfc9d9f0afcd236af",
+      "status": "ConversionStatus.SUCCESS",
+      "init_seconds": 1.5513,
+      "conversion_seconds": 0.0206,
+      "errors": [],
+      "document_name": "order",
+      "pages_count": 0,
+      "page_keys": [],
+      "page_sizes": {},
+      "groups": [],
+      "sheet_group_names": [],
+      "item_count": 3,
+      "items_with_provenance": 0,
+      "item_bbox_count": 0,
+      "provenance_page_numbers": [],
+      "table_count": 1,
+      "table_rows_total": 3,
+      "table_cells_total": 9,
+      "tables": [
+        {
+          "rows": 3,
+          "columns": 3,
+          "cell_count": 9,
+          "cell_texts": [
+            "Item",
+            "Qty",
+            "Amount",
+            "Widget A",
+            "2",
+            "12.00",
+            "Widget B",
+            "1",
+            "7.50"
+          ],
+          "cell_grid": [
+            {
+              "row_start": 0,
+              "row_end": 1,
+              "column_start": 0,
+              "column_end": 1,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 0,
+              "row_end": 1,
+              "column_start": 1,
+              "column_end": 2,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 0,
+              "row_end": 1,
+              "column_start": 2,
+              "column_end": 3,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 1,
+              "row_end": 2,
+              "column_start": 0,
+              "column_end": 1,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 1,
+              "row_end": 2,
+              "column_start": 1,
+              "column_end": 2,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 1,
+              "row_end": 2,
+              "column_start": 2,
+              "column_end": 3,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 2,
+              "row_end": 3,
+              "column_start": 0,
+              "column_end": 1,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 2,
+              "row_end": 3,
+              "column_start": 1,
+              "column_end": 2,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 2,
+              "row_end": 3,
+              "column_start": 2,
+              "column_end": 3,
+              "row_span": 1,
+              "column_span": 1
+            }
+          ],
+          "table_page_numbers": [],
+          "table_bbox_count": 0,
+          "table_bboxes": [],
+          "cell_bbox_count": 0
+        }
+      ],
+      "identifier_seen_in_markdown": true,
+      "sheet_name_seen_in_markdown": false,
+      "markdown_character_count": 179,
+      "markdown_excerpt": "# Synthetic order SYN-1001\n\nOrder date: 2020-01-01\n\n| Item     |   Qty |   Amount |\n|----------|-------|----------|\n| Widget A |     2 |    12.00 |\n| Widget B |     1 |     7.50 |",
+      "peak_rss_mib": 130.74,
+      "baseline_rss_mib": 20.83,
+      "worker_wall_seconds": 1.5879,
+      "expected_table_cells": 9,
+      "exact_table_cell_matches": 9,
+      "process_wall_seconds": 1.9294,
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "source": "order.eml",
+      "source_sha256": "289ab4ac838620f80f1742e066e70d41b1d9ef91d8a300469d657dd7818a2193",
+      "status": "ConversionStatus.SUCCESS",
+      "init_seconds": 1.5868,
+      "conversion_seconds": 0.0114,
+      "errors": [],
+      "document_name": "order",
+      "pages_count": 0,
+      "page_keys": [],
+      "page_sizes": {},
+      "groups": [],
+      "sheet_group_names": [],
+      "item_count": 5,
+      "items_with_provenance": 0,
+      "item_bbox_count": 0,
+      "provenance_page_numbers": [],
+      "table_count": 0,
+      "table_rows_total": 0,
+      "table_cells_total": 0,
+      "tables": [],
+      "identifier_seen_in_markdown": true,
+      "sheet_name_seen_in_markdown": false,
+      "markdown_character_count": 171,
+      "markdown_excerpt": "# Synthetic order SYN-1001\n\nFrom: sender@example.invalid\n\nTo: recipient@example.invalid\n\nDate: 2020-01-01T00:00:00+00:00\n\nSynthetic order SYN-1001  \nOrder date: 2020-01-01",
+      "peak_rss_mib": 130.21,
+      "baseline_rss_mib": 20.81,
+      "worker_wall_seconds": 1.6138,
+      "expected_table_cells": 9,
+      "exact_table_cell_matches": 0,
+      "process_wall_seconds": 1.9506,
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "source": "order.pptx",
+      "source_sha256": "770cf664027c555c0e7beba08d3ef8777c7efe20fd1db8f58b3c002a800f1257",
+      "status": "ConversionStatus.SUCCESS",
+      "init_seconds": 1.5264,
+      "conversion_seconds": 0.0225,
+      "errors": [],
+      "document_name": "order",
+      "pages_count": 1,
+      "page_keys": [
+        1
+      ],
+      "page_sizes": {
+        "1": {
+          "width": 9144000.0,
+          "height": 6858000.0
+        }
+      },
+      "groups": [
+        {
+          "label": "chapter",
+          "name": "slide-0"
+        }
+      ],
+      "sheet_group_names": [],
+      "item_count": 2,
+      "items_with_provenance": 2,
+      "item_bbox_count": 2,
+      "provenance_page_numbers": [
+        1
+      ],
+      "table_count": 1,
+      "table_rows_total": 3,
+      "table_cells_total": 9,
+      "tables": [
+        {
+          "rows": 3,
+          "columns": 3,
+          "cell_count": 9,
+          "cell_texts": [
+            "Item",
+            "Qty",
+            "Amount",
+            "Widget A",
+            "2",
+            "12.00",
+            "Widget B",
+            "1",
+            "7.50"
+          ],
+          "cell_grid": [
+            {
+              "row_start": 0,
+              "row_end": 1,
+              "column_start": 0,
+              "column_end": 1,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 0,
+              "row_end": 1,
+              "column_start": 1,
+              "column_end": 2,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 0,
+              "row_end": 1,
+              "column_start": 2,
+              "column_end": 3,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 1,
+              "row_end": 2,
+              "column_start": 0,
+              "column_end": 1,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 1,
+              "row_end": 2,
+              "column_start": 1,
+              "column_end": 2,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 1,
+              "row_end": 2,
+              "column_start": 2,
+              "column_end": 3,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 2,
+              "row_end": 3,
+              "column_start": 0,
+              "column_end": 1,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 2,
+              "row_end": 3,
+              "column_start": 1,
+              "column_end": 2,
+              "row_span": 1,
+              "column_span": 1
+            },
+            {
+              "row_start": 2,
+              "row_end": 3,
+              "column_start": 2,
+              "column_end": 3,
+              "row_span": 1,
+              "column_span": 1
+            }
+          ],
+          "table_page_numbers": [
+            1
+          ],
+          "table_bbox_count": 1,
+          "table_bboxes": [
+            {
+              "l": 914400.0,
+              "t": 1371600.0,
+              "r": 8229600.0,
+              "b": 3200400.0,
+              "coord_origin": "TOPLEFT"
+            }
+          ],
+          "cell_bbox_count": 0
+        }
+      ],
+      "identifier_seen_in_markdown": true,
+      "sheet_name_seen_in_markdown": false,
+      "markdown_character_count": 155,
+      "markdown_excerpt": "# Synthetic order SYN-1001\n\n| Item     |   Qty |   Amount |\n|----------|-------|----------|\n| Widget A |     2 |    12.00 |\n| Widget B |     1 |     7.50 |",
+      "peak_rss_mib": 131.79,
+      "baseline_rss_mib": 20.83,
+      "worker_wall_seconds": 1.5645,
+      "expected_table_cells": 9,
+      "exact_table_cell_matches": 9,
+      "process_wall_seconds": 1.8963,
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    }
+  ]
+}

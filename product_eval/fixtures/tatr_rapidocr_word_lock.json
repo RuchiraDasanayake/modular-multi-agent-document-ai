@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "purpose": "source-free OCR word-token compatibility only",
+  "rapidocr_version": "3.10.0",
+  "rapidocr_source_git_tag": "v3.10.0",
+  "rapidocr_source_git_commit": "38ed48d802cfb9f91d24153258427beef2b3d50c",
+  "model_notice_revision_note": "The bundled MODEL_LICENSES.md links v3.9.2 while this wheel's authoritative default_models.yaml links v3.10.0; both list the same three SHA-256 values. Artifact identity is pinned by SHA-256.",
+  "onnxruntime_version": "1.31.0",
+  "dependency_wheel_lock_sha256": "1264a56da9c666676deb1a442eae8811aff296001340c105d07acd90e3042f4a",
+  "excluded_dependency_wheels": ["rapid-table", "opencv-python"],
+  "rapidocr_wheel": {
+    "filename": "rapidocr-3.10.0-py3-none-any.whl",
+    "sha256": "2fc34e26cd0f48514804a94f8832283039c7334076bff60768b1fed9ad068050"
+  },
+  "package_files": {
+    "default_models.yaml": "90e0159dead16c21adbf000014a46043c981ae097f041d92d8b19a52c2f2ed9a",
+    "rapidocr-3.10.0.dist-info/licenses/LICENSE": "3e0af25fdd06aa9586ae97adb00ea927ebe5a3805ac77d2d3a81ce5f55693333",
+    "rapidocr-3.10.0.dist-info/licenses/MODEL_LICENSES.md": "c5fd0e8603d3df743355b546121e6fe0f4ef8ff455c5a85c1681fd3ae520e153"
+  },
+  "external_notices": [
+    {"name": "flatbuffers-LICENSE", "source": "https://github.com/google/flatbuffers/blob/v25.12.19/LICENSE", "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"},
+    {"name": "onnxruntime-LICENSE", "source": "https://github.com/microsoft/onnxruntime/blob/v1.31.0/LICENSE", "sha256": "2f07c72751aed99790b8a4869cf2311df85a860b22ded05fa22803587a48922c"},
+    {"name": "onnxruntime-ThirdPartyNotices.txt", "source": "https://github.com/microsoft/onnxruntime/blob/v1.31.0/ThirdPartyNotices.txt", "sha256": "143764b952fdb1a7c69ce653bfba74a7744d6a8a573bfb73e235fba356c83de3"},
+    {"name": "opencv-python-LICENSE.txt", "source": "https://github.com/opencv/opencv-python/blob/93/LICENSE.txt", "sha256": "09d719058e782ac7bc71ba21c944e1136cde2bb957c0e888121f0218d6b5f02c"},
+    {"name": "opencv-python-LICENSE-3RD-PARTY.txt", "source": "https://github.com/opencv/opencv-python/blob/93/LICENSE-3RD-PARTY.txt", "sha256": "2537f5653345db7231ff12f307bcfa4c89807d45ed1c4bb8ebfb6f26f61b160a"},
+    {"name": "opencv-core-LICENSE", "source": "https://github.com/opencv/opencv/blob/5.0.0/LICENSE", "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"},
+    {"name": "protobuf-LICENSE", "source": "https://github.com/protocolbuffers/protobuf/blob/v36.2/LICENSE", "sha256": "6e5e117324afd944dcf67f36cf329843bc1a92229a8cd9bb573d7a83130fea7d"},
+    {"name": "six-LICENSE", "source": "https://github.com/benjaminp/six/blob/1.17.0/LICENSE", "sha256": "4375ba20e2b9c6c4e7cad2940a628fd90e95cc3d50ee92aae755715d8ba1fbd0"}
+  ],
+  "models": {
+    "PP-OCRv6_det_small.onnx": {
+      "sha256": "090f04abcd9d9a7498bc4ebf677e4cb9bdce1fe4197ddb7e529f1ef44e1ff94f",
+      "source_revision": "RapidAI/RapidOCR ModelScope v3.10.0 (installed registry)",
+      "license": "Apache-2.0"
+    },
+    "PP-OCRv6_rec_small.onnx": {
+      "sha256": "6f327246b50388f3c176ae304bd95767ea6dc0c9ae92153ef8cbe210b3c14884",
+      "source_revision": "RapidAI/RapidOCR ModelScope v3.10.0 (installed registry)",
+      "license": "Apache-2.0"
+    },
+    "ch_ppocr_mobile_v2.0_cls_mobile.onnx": {
+      "sha256": "e47acedf663230f8863ff1ab0e64dd2d82b838fceb5957146dab185a89d6215c",
+      "source_revision": "RapidAI/RapidOCR ModelScope v3.10.0 (installed registry)",
+      "license": "Apache-2.0"
+    }
+  }
+}

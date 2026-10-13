@@ -37,6 +37,10 @@ py -3.10 -m venv .venv
 Run every Python command from the repository root with the virtual environment's interpreter, as above. On macOS or
 Linux use `python3.10 -m venv .venv` and `.venv/bin/python` instead.
 
+The opt-in product path uses python-docx, openpyxl, python-pptx and lxml for DOCX, XLSX, PPTX, HTML and EML source-native
+parsing. The root requirements above install them for local runs; the private Compose worker pins its own copy in
+`idpo/product_auto/requirements-worker.txt`. The research `process-inbox` path still has its original format scope.
+
 ---
 
 ## 3. Tesseract path (Windows)

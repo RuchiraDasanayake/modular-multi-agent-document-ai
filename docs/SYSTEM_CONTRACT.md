@@ -1,14 +1,26 @@
 # System Contract
 
-This file defines the current practical contract for the system.
+This file defines the current practical contract for the system. The proposed product architecture and acceptance gates
+are in `docs/PRODUCTIZATION_PLAN.md`; they must not be read as implemented features.
 
 It is intentionally shorter and stricter than the long architecture docs.
 
 ## Purpose
 
-The system is a document-processing platform with one canonical runtime path and a few legacy or research-facing support surfaces.
+The system is a document-processing platform with a canonical research runtime and a separate opt-in product extraction
+path, plus a few legacy or research-facing support surfaces.
 
-The main goal right now is to keep the runtime understandable, stable, easy to audit, and focused on clear adaptive extraction results.
+The native Windows product launcher runs local PostgreSQL, the authentication gateway and the frontend; extraction
+uses the existing local Python subprocess. Docker and Redis are optional for this product mode. Set
+`TOKEN_REVOCATION_BACKEND=postgresql` and explicitly apply `gateway/native_auth.sql` to the configured database.
+Refresh rotation uses a durable atomic claim before issuing replacement tokens; storage failures deny refresh.
+The launcher requires persistent explicit secrets and binds only loopback. This is a development runtime with
+process-local rate limits and the existing single-run extraction lease, not a distributed queue. See
+[`scripts/native_product.md`](../scripts/native_product.md) for setup, startup and ownership-checked shutdown.
+
+The current runtime must remain understandable, stable and auditable while product stabilization proceeds. Its research
+policy outputs are retained for the frozen October internal study, which is separate from the author-reported accepted
+May submission; whether adaptive routing belongs in the future product is an open measurement decision.
 
 ## Document Precedence
 
@@ -18,14 +30,16 @@ Use the project docs with this precedence:
    Defines the current phase, goal, and non-goals
 2. `docs/SYSTEM_CONTRACT.md`
    Defines the current system contract and canonical outputs
-3. `docs/IDPO_CLEANUP_PASS1.md`
+3. `docs/PRODUCTIZATION_PLAN.md`
+   Defines proposed product changes and their gates, without changing this current contract
+4. `docs/IDPO_CLEANUP_PASS1.md`
    Defines the active cleanup plan
-4. `AGENTS.md`
+5. `AGENTS.md`
    Defines AI workflow rules for working in the repo
 
 If they conflict, update the stale document instead of letting the mismatch persist.
 
-## Canonical Runtime
+## Canonical Research Runtime
 
 The canonical operational path is:
 
@@ -36,6 +50,132 @@ Inside IDPO, the canonical runtime path is:
 `ingest/inbox -> orchestrator -> executor -> exports`
 
 That is the path cleanup work should protect.
+
+## Opt-in Product Extraction Path
+
+The separate, experimental product path is:
+
+`owner-scoped job upload -> POST /api/jobs/<job_id>/auto -> frontend server runner -> product extraction worker -> IDPO_DATA_DIR/product_runs/<run_id>`
+
+On a single host, the runner executes `idpo.cli process-auto` directly. In Compose, the frontend invokes a Node
+bridge to a private Python worker over a Unix socket in the shared data volume. That Docker path has passed static
+Compose checks, a frontend build and focused tests but has **not** completed a live container extraction smoke here.
+The default Compose profile starts PostgreSQL, Redis, gateway, product worker, and frontend. The four separate
+research services start only with `--profile research`; they are not used by this product path. The canonical
+research job runner is explicitly unavailable in Docker.
+An October two-user audit reproduced cross-owner reading of legacy run artifacts through a traversal document ID;
+the frontend now rejects unsafe document IDs and confines document and review artifact paths to the authorized run.
+Focused two-user, traversal and directory-link tests pass. This fixes that route, not every possible ownership path;
+a broader route audit remains an external-release gate.
+The same audit reproduced a separate local filesystem junction escape in the authenticated original-content route.
+That route now derives the expected job upload directory from configuration and confines resolved directory and file
+paths before reading. A Windows junction regression and the full 78-test frontend server suite pass. A process with
+permission to replace local paths can still race a path check against a read; this is not an HTTP-only exploit found
+in the bounded audit, and the broader release audit remains open.
+
+The CLI accepts one file or a directory. It supports PDF, common raster images, text, the existing JSON document
+format, and source-native DOCX, XLSX, PPTX, HTML, and EML. The five native adapters preserve parser-derived text
+offsets and table-cell source locators in an optional `parsed_document` v2 sidecar; the current extraction candidate
+and review contract stay v1. A native address is not a pixel box or proof of business meaning. Native source units map
+to the existing one-based `pages` evidence interface, and the reviewer sees the unit label and matching native cell
+address where available. Native formats bypass OCR normalization. Office ZIP, sheet-grid, HTML-tree, MIME-tree,
+derived-text, table-cell, and existing input-byte limits produce unsupported or parse-failed outcomes. The native
+view covers Word top-level paragraphs/tables, worksheet cells with formulas unevaluated, slide native text/tables,
+HTML DOM text/tables without CSS rendering or network fetches, and one preferred non-attachment EML text body.
+Embedded images, presentation notes, email attachments, nested Word/HTML tables and grouped slide shapes are not
+extracted; the latter three structural cases explicitly abstain when encountered.
+The research `process-inbox` intake retains its narrower format support. The product path uses local OCR/text extraction
+and either a deterministic label/value proposal or an optional
+OpenAI-compatible chat model for scalar or bounded repeated-column schema discovery followed by value extraction.
+With no model, a conservative native-table adapter also proposes linked columns when a complete parser grid has
+credible headers and exact cell anchors. It rechecks the source hash, reads HTML/EML header and visibility structure
+or a declared XLSX table and formula/visibility state, and records each proposed cell's native locator beside the
+v1 candidate. DOCX/PPTX use a stricter row-shape check because the current parsed contract has no semantic header
+flag. Ambiguous, sparse, merged, hidden, or unverified tables abstain; these are literal, review-only proposals,
+not a claim that column meanings or row relations are correct. This arm is limited to source-native files and does
+not alter PDF or image extraction.
+Product-auto Tesseract calls now have a 30-second default timeout and a 120-second per-image-page search budget;
+these limits are configurable in the CLI and do not alter the canonical research OCR route. A timeout with no text is
+an execution failure, while partial text remains in review. The [pinned v6 gate](evaluations/VRDU_2000_NO_MODEL_V6.md)
+completed 2,000 sources with no timeout events. The [PDFium-first v7 gate](evaluations/VRDU_2000_NO_MODEL_V7_PDFIUM.md)
+also completed 2,000 distinct sources with no OCR failures; it had 23 more false schema fields and still produced
+zero linked rows. The [v8 provenance gate](evaluations/VRDU_2000_NO_MODEL_V8_PROVENANCE.md) checked another
+2,000-source execution at the same source hashes: all 831 scanned PDF pages actually used PDFium, and strict
+schema F1 remained 4.2423% with zero linked rows. RapidOCR outperformed Tesseract on fixed CORD development
+text-box crops and full pages in separate diagnostics, but the unchanged product schema/row layer still mapped
+zero exact CORD fields or linked rows from either engine. The product default remains Tesseract.
+Local loopback HTTP servers may run without an API key; remote providers require an HTTPS URL and server-side key. The model can replace the
+heuristic schema. Proposed values require exact text-span evidence and a matching, JSON-round-trippable typed value
+for machine acceptance. Ambiguous boolean quotes and partial identifier matches stay pending review. A newly
+discovered schema is unapproved, so every document remains `needs_review` until an operator reviews it. A separate
+owner-scoped registry can save a completed review as a draft schema and explicitly approve it as `approved_shadow`.
+The operator may select a current approved revision for one run. The frontend rechecks its source
+review and owner, freezes a SHA-256-bound schema snapshot, and the worker skips schema induction
+and calls the model only for values. A stale or disabled selection fails closed; an invalid response
+leaves the selected fields missing and pending review. Receipts identify the exact recipe revision,
+event, and snapshot hash. Family selection is explicit; there is no automatic matching or release.
+A model can propose repeated columns as `array[object]` values with
+shared row ordinals and per-cell text evidence; row links remain pending human review. This is not a visual table
+parser, stable row identity across versions, or a guarantee of useful fields on unfamiliar documents.
+
+`product_runs/<run_id>` contains `run.json` as the completion marker, `manifest.jsonl` with source hashes and per-document
+receipts, `candidates.jsonl`, and `docs/<doc_id>/result.json` with source-text units, per-page PDF renderer provenance
+or native parser identity and locators, the proposal, model-call telemetry and reason. Worker process CPU and boundary RSS snapshots are recorded where
+available; they exclude OCR child processes and remote model compute, and RSS is not peak memory. Cost fields exist
+but remain null until provider prices, compute rates and review work are recorded. The
+frontend checks source hashes and artifact consistency before displaying a completed run. Owner-scoped result and
+source routes lead to a field review page. A reviewer can correct or remove proposed scalar fields, add missing
+scalar fields, inspect or correct bounded linked cells by row, and add a wholly missed linked column. The server checks
+each machine cell's text evidence and requires a unique exact OCR quote and page for every new linked cell; it also
+requires an exact source quote for a newly added scalar. It accepts a human row correction only as a typed array.
+The API derives a document-scoped `correctedResult` from the
+immutable machine candidate and latest review snapshot. Undecided machine values remain in review; human corrections
+are reviewer assertions; newly added scalar and linked-cell corrections carry checked OCR quotes, which prove source
+presence but not semantic correctness. Review changes append revisioned events and reject stale saves. A reviewer may
+record 1 to 14,400 seconds of self-reported active work for an individual save; the system does not infer this time
+and older events have no such field.
+
+The owner-scoped `GET /api/jobs/<job_id>/auto/<run_id>/docs/<doc_id>/export` route downloads a versioned JSON result only
+after that document's review is complete. It rechecks the original source, OCR-page, machine-result, and review hashes
+at download time. The export carries typed fields, per-field status and provenance, source and machine hashes, and the
+review revision; it omits the raw source and server file paths. A human-corrected value is still a reviewer assertion
+unless it has explicit evidence. This is a per-document export; bulk run export is not implemented.
+
+The owner-scoped `/api/jobs/<job_id>/auto/brief` API stores a revisioned extraction brief with plain-language intent,
+typed field meanings and examples, and 1–5 sample file IDs bound to source SHA-256 hashes. `GET` reports stale sample
+IDs; `POST` requires the current revision and appends an immutable draft event. `PATCH` explicitly confirms the current
+revision and payload digest only when it has typed fields with descriptions and all sample bytes still match. Any subsequent edit appends
+a new draft; it does not inherit confirmation. Intent-only drafts cannot start this schema-guided route.
+
+The owner-scoped `POST /api/jobs/<job_id>/auto` route accepts an explicit `confirmedBrief` selection. The `preview`
+phase must select exactly the confirmed sample files. The `batch` phase excludes those files and requires the exact
+confirmed preview run, complete source-linked human review of all its documents, unchanged sample sources, and valid
+run, document, and review receipts. The frontend freezes a SHA-256-bound schema snapshot; the native worker validates
+its bytes and fields before running. It skips schema discovery, sends field descriptions, examples, and intent with
+source text to the value model, and checks exact source evidence locally. Values remain pending review. The run,
+manifest, and document artifacts carry the same confirmed-schema receipt. This path requires a configured value model
+and currently inherits the admin-only model-call gate. The earlier dynamic discovery and approved-recipe v1 paths
+remain available. AI-generated draft fields and model clarification are not yet part of this confirmation path.
+
+The job-scoped recipe API separately records owner-scoped draft, approval, and disable events from completed reviews; it
+requires explicit linked-row group confirmation and can configure one explicitly selected run.
+This is not geometric table annotation.
+
+The single-host path runs as a child process of the frontend server; Docker sends it to one private worker that admits
+one active run and returns a busy error for another. It has no durable queue, cancellation, runtime recipe matcher,
+reusable row extraction policy, per-user cloud quota, or verified live Docker execution. Model-backed
+UI runs are admin-only until cloud data and spend controls exist. It does not use the AHMN policy router, Guardrails
+service, or the separate XAI-HITL service. Its benchmarks and outputs must never be represented as the submitted paper's
+results or as the canonical research runtime's outputs.
+
+The user's target intent-first batch flow is not implemented by this path. The current product screen requires a job
+upload and run selection; it has no natural-language intent-to-schema onboarding, field-meaning confirmation, pinned
+sample preview before the rest of a batch, or durable backpressure for arbitrarily large batches. The current
+candidate can be downloaded as reviewed JSON per document, but bulk export is still absent.
+The [productization plan](PRODUCTIZATION_PLAN.md) defines these as staged target capabilities. This paragraph
+describes the current gap, not a promise that every format or field can be extracted accurately.
+
+## Canonical Research Policy Routing
 
 Policy routing runs in-process through `ahmn_core/direct_advisor.py` (Thompson Sampling over the policies whose conditions match, with job-scoped posteriors). The runtime does not call the Guardrails or XAI-HITL services, and RABI and DAAF are not active in it; those are separate services and simulation experiments.
 
@@ -168,7 +308,9 @@ The primary UI requirement is:
 
 without digging through subsystem-specific panels first.
 
-The target UI model is defined in `docs/JOB_UI_CONTRACT.md`.
+The near-term job-first UI model is defined in `docs/JOB_UI_CONTRACT.md`. Product review and field-evidence gates are
+defined separately in `docs/PRODUCTIZATION_PLAN.md`; AHMN-specific UI requirements remain subject to its keep/remove
+decision.
 
 That model is job-first:
 
@@ -181,7 +323,8 @@ The current runtime remains run-centric underneath, but the frontend now treats 
 ## Access Control
 
 The job API and the dashboard pages are served by the frontend server, so the gateway never sees those requests.
-`frontend/src/middleware.ts` checks them instead:
+`frontend/src/proxy.ts` checks their session, and the job API routes resolve the current user before accessing
+stored resources:
 
 - Public without a session: `/`, `/features`, `/about`, `/docs`, `/contact`, `/login`, `/signup`, `/forgot-password`,
   `/reset-password`, static assets, and the `/api/*` routes that are proxied to the gateway, which checks them itself.
@@ -191,16 +334,28 @@ The job API and the dashboard pages are served by the frontend server, so the ga
   that the gateway accepts at `GET /api/auth/me`; accepted tokens are cached for 60 seconds.
 - Without a valid session the job API answers 401 and pages redirect to `/login`, deleting a rejected cookie. When the
   gateway cannot be reached, both answer 503.
-- The middleware reaches the gateway at `INTERNAL_API_URL`, then `NEXT_PUBLIC_API_URL`, then `http://localhost:8000`.
+- The proxy reaches the gateway at `INTERNAL_API_URL`, then `NEXT_PUBLIC_API_URL`, then `http://localhost:8000`.
 
 The gateway creates the first admin account at startup from `ADMIN_PASSWORD` (with `ADMIN_USERNAME` and `ADMIN_EMAIL`)
 when no admin exists, and never changes existing users.
 
-Any signed-in account, viewer or admin, can use the job API. Public sign-up (`POST /api/auth/signup`) always creates a
-viewer and follows the gateway's `PUBLIC_SIGNUP_ENABLED` setting: on by default, off in `docker-compose.prod.yml` and
-`scripts/start_public_demo_stack.ps1` unless set to `true`. While it is off, sign-up answers 403, admins create
-accounts on `/dashboard/admin`, and the frontend reads `GET /api/auth/signup-status` to replace its sign-up links with
-sign-in.
+On the current branch, a new job records its creator as `ownerUserId`. Viewers can access their own jobs, related runs
+and document artifacts; admins can access all jobs. Jobs from before ownership was recorded are admin-only. The local
+benchmark API is admin-only. The gateway's catch-all `/api/{path:path}` proxy is also admin-only, including legacy
+`/api/{advice,dashboard,scheduler,guardrails,xai,hitl,idpo,experiments}/...` routes, because those services do not yet
+enforce per-user ownership. This is a temporary isolation gate, **not** per-user HITL or Guardrails support. The
+multi-user route matrix and end-to-end artifact reads remain a release verification gate in
+`docs/PRODUCTIZATION_PLAN.md`.
+
+The frontend run API currently rejects viewer-supplied model, cloud, custom config, escalation and resource overrides,
+and rejects a viewer run when a cloud policy is enabled. Creating or changing job policies is admin-only; a viewer may
+read policies for a job they own. These are temporary spend and data-egress controls until per-user authorization,
+quotas and provider policies are implemented and tested. They do not define the final product's cloud access policy.
+
+Public sign-up (`POST /api/auth/signup`) always creates a viewer and follows the gateway's `PUBLIC_SIGNUP_ENABLED`
+setting: off by default until per-user processing and storage quotas exist. It can be explicitly set to `true` for a
+controlled deployment. While it is off, sign-up answers 403, admins create accounts on `/dashboard/admin`, and the frontend reads
+`GET /api/auth/signup-status` to replace its sign-up links with sign-in.
 
 ## Supported Demo Deployment
 
@@ -236,9 +391,9 @@ Rules:
 
 ## What The System Should Be
 
-During cleanup, the system should be:
+For cleanup of the canonical research runtime, that path should be:
 
-- one understandable runtime path
+- one understandable research runtime path
 - one stable run artifact contract
 - one primary UI path for reading results
 - adaptive extraction results presented more clearly than supporting metrics or subsystem detail
@@ -247,9 +402,13 @@ During cleanup, the system should be:
 
 It should not be:
 
-- a collection of overlapping entrypoints with different behavior
+- a collection of undocumented overlapping research entrypoints with different behavior
 - a mix of demo logic and production-path logic in the same core files
 - dependent on giant multi-purpose files for basic reasoning
+
+The separate product pilot above may simplify or replace these service boundaries after measured quality, cost,
+security and operability checks. The target worker, structured visual evidence, approved recipes and scalable review
+requirements in `docs/PRODUCTIZATION_PLAN.md` remain future work.
 
 ## Change Protocol
 

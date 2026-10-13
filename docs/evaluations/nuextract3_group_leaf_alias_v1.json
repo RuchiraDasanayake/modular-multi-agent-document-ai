@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "scope": "schema_scoring_only",
+  "normalization": {
+    "unicode": "NFKC",
+    "camel_boundary": "insert underscore between a lowercase ASCII letter or digit and an uppercase ASCII letter before casefold",
+    "casefold": true,
+    "separators": "replace each non-Unicode-alphanumeric run with one underscore; trim outer underscores"
+  },
+  "eligibility": {
+    "predicted": "leaf must descend from an explicitly declared array of objects; retain its nearest repeated-object parent path as the group ID",
+    "reference": "leaf must be annotated as a linked array[object] field; use its declared row group, or one synthetic reference group only when the annotation has a single implicit row group",
+    "other_shapes": "do not apply these aliases to scalar or scalar-list fields"
+  },
+  "slots": {
+    "description": ["description", "desc", "item_description", "line_item_description", "product_description", "service_description", "item_name", "line_item_name", "product_name", "service_name"],
+    "quantity": ["quantity", "qty", "item_quantity", "item_qty", "line_item_quantity", "line_item_qty", "units", "unit_count"],
+    "unit_price": ["unit_price", "unit_cost", "price_per_unit", "cost_per_unit", "per_unit_price", "per_unit_cost", "item_unit_price", "line_item_unit_price"],
+    "line_amount": ["amount", "line_amount", "line_total", "line_item_amount", "item_amount", "item_total", "row_amount", "row_total", "extended_amount", "extended_price"],
+    "price_unspecified": ["price", "cost", "item_price", "line_item_price", "item_cost", "line_item_cost"]
+  },
+  "unlisted_leaf": "literal normalized name; exact equality only",
+  "price_safety": "price_unspecified never equals unit_price or line_amount",
+  "collision": "if more than one predicted or reference leaf maps to a slot, leave that slot unmatched and record the collision; never choose by gold value, row content, document family, or predicted confidence"
+}

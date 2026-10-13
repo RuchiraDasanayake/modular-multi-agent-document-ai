@@ -1,0 +1,32 @@
+{
+  "protocol": "cord_s1_spatial_rows_v1",
+  "scope": "60 CORD development PNGs, RapidOCR line geometry only",
+  "source_cohort_sha256": "48f9af8c04a5ee874c68ccb4c70a5fb81bcfddc508064747779678949103414a",
+  "input_line_graphs_sha256": "4eb59422fddeb51778150f3cb79ed8f4ff9a34572e4f74b5974d680aaecd4b0d",
+  "input_line_rules_sha256": "21b30b1b0b70918fc7d87bdf3a672d3796d3a2835e97ae62e4b5f283bd901d90",
+  "spatial_rules_lf_sha256": "48de68d33a7845f7f17c65e895bae00cb07aa869dec6bfa2c153702210935482",
+  "sources_verified": 60,
+  "source_records": 60,
+  "pages_with_triplets": 8,
+  "pages_without_triplets": 52,
+  "candidate_triplets": 14,
+  "lane_abstentions": {
+    "crowded_lane": 26,
+    "duplicate_or_missing_band": 18,
+    "horizontal_overlap": 2,
+    "incomplete_lane": 394,
+    "transitive_overlap_ambiguous": 6,
+    "wide_line": 1
+  },
+  "spatial_rows_sha256": "0ab4886430c835399afbb18c90f51ce16dcc4e4dd88a1a15a759cf17e38432c2",
+  "model_calls": 0,
+  "gold_access": false,
+  "creator_quad_access": false,
+  "reserved_source_access": false,
+  "product_extraction_calls": 0,
+  "limitations": [
+    "Slots are spatial left/middle/right, not item, quantity, or price labels.",
+    "Only isolated three-line overlap components can qualify; two-column and merged-line layouts abstain.",
+    "No transcription, semantic, row-link, precision, reviewer-cost, or product quality score is reported."
+  ]
+}

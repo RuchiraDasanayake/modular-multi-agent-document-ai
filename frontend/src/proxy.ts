@@ -69,7 +69,7 @@ function isUnexpiredJwt(token: string): boolean {
   }
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isSessionApi = sessionApiPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
@@ -102,6 +102,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  runtime: "nodejs",
   matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg).*)"],
 };

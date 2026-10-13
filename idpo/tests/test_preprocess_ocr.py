@@ -7,7 +7,8 @@ import types
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from PIL import Image
+import pytest
+from PIL import Image, ImageFilter, ImageOps
 
 from idpo.agents import preprocess
 from idpo.agents.base import AgentContext
@@ -15,7 +16,7 @@ from idpo.agents.preprocess import DenoiseAgent, OcrAgent, rasterize_pdf_page
 from idpo.core.artifacts import ArtifactStore
 from idpo.core.config import PipelineConfig
 from idpo.core.provenance import ProvenanceRecorder
-from idpo.core.types import Page
+from idpo.core.types import Document, Page
 
 
 def _ctx(tmp_path: Path, config: PipelineConfig | None = None) -> AgentContext:
@@ -64,6 +65,311 @@ def test_extract_with_confidence_uses_tesseract_word_confidence() -> None:
     )
     assert text == "Total Amount: 100.00"
     assert conf == 88.0
+
+
+def test_product_tesseract_budget_is_shared_across_osd_text_and_confidence(monkeypatch) -> None:
+    clock = [0.0]
+    monkeypatch.setattr(preprocess.time, "monotonic", lambda: clock[0])
+    observed: list[tuple[str, float]] = []
+
+    class StubTesseract:
+        class Output:
+            DICT = "DICT"
+
+        def image_to_osd(self, image, config, timeout):  # noqa: ANN001, ARG002
+            observed.append(("osd", timeout))
+            clock[0] += 2.0
+            return "Rotate: 0"
+
+        def image_to_string(self, image, lang, config, timeout):  # noqa: ANN001, ARG002
+            observed.append(("text", timeout))
+            clock[0] += 4.0
+            return "Invoice Number INV-42"
+
+        def image_to_data(self, image, lang, config, output_type, timeout):  # noqa: ANN001, ARG002
+            observed.append(("data", timeout))
+            return {"conf": ["90"]}
+
+    agent = OcrAgent()
+    budget = preprocess._TesseractBudget(call_timeout_s=5.0, deadline=10.0)  # noqa: SLF001
+    assert agent._detect_rotation_degrees(object(), StubTesseract(), "eng", budget) == 0  # noqa: SLF001
+    text, confidence = agent._extract_with_confidence(  # noqa: SLF001
+        StubTesseract(), object(), "eng", "--psm 6", budget=budget,
+    )
+    assert (text, confidence) == ("Invoice Number INV-42", 90.0)
+    assert observed == [("osd", 5.0), ("text", 5.0), ("data", 4.0)]
+
+
+def test_product_page_budget_exhaustion_preserves_text_from_completed_call(monkeypatch) -> None:
+    clock = [0.0]
+    monkeypatch.setattr(preprocess.time, "monotonic", lambda: clock[0])
+
+    class StubTesseract:
+        class Output:
+            DICT = "DICT"
+
+        def image_to_string(self, image, lang, config, timeout):  # noqa: ANN001, ARG002
+            assert timeout == 3.0
+            clock[0] = 4.0
+            return "Invoice Number INV-42"
+
+        def image_to_data(self, image, lang, config, output_type, timeout):  # noqa: ANN001, ARG002
+            raise AssertionError("The page budget must stop further Tesseract calls")
+
+    with pytest.raises(preprocess._TesseractTimeout) as raised:  # noqa: SLF001
+        OcrAgent()._extract_with_confidence(  # noqa: SLF001
+            StubTesseract(), object(), "eng", "--psm 6",
+            budget=preprocess._TesseractBudget(call_timeout_s=30.0, deadline=3.0),  # noqa: SLF001
+        )
+    assert raised.value.partial_text == "Invoice Number INV-42"
+
+
+def test_product_engine_start_failure_is_not_silently_treated_as_empty_scan() -> None:
+    class MissingTesseract:
+        def image_to_string(self, image, lang, config, timeout):  # noqa: ANN001, ARG002
+            raise FileNotFoundError("Tesseract binary is absent")
+
+    agent = OcrAgent()
+    with pytest.raises(FileNotFoundError, match="Tesseract binary is absent"):
+        agent._extract_with_confidence(  # noqa: SLF001
+            MissingTesseract(), object(), "eng", "--psm 6",
+            budget=preprocess._TesseractBudget(30.0, time.monotonic() + 120.0),  # noqa: SLF001
+        )
+    assert agent._extract_with_confidence(  # noqa: SLF001
+        MissingTesseract(), object(), "eng", "--psm 6",
+    ) == ("", 0.0)
+
+
+def test_product_tesseract_subprocess_timeout_is_classified(monkeypatch) -> None:
+    class SlowTesseract:
+        def image_to_string(self, image, lang, config, timeout):  # noqa: ANN001, ARG002
+            raise RuntimeError("Tesseract process timeout")
+
+    with pytest.raises(preprocess._TesseractTimeout):  # noqa: SLF001
+        OcrAgent()._extract_with_confidence(  # noqa: SLF001
+            SlowTesseract(), object(), "eng", "--psm 6",
+            budget=preprocess._TesseractBudget(30.0, time.monotonic() + 120.0),  # noqa: SLF001
+        )
+    assert PipelineConfig().preprocessing.ocr_tesseract_call_timeout_s is None
+    assert PipelineConfig().preprocessing.ocr_tesseract_page_budget_s is None
+
+
+def test_tesseract_timeout_preserves_earlier_candidate_and_stops_search(monkeypatch) -> None:
+    agent = OcrAgent()
+    calls = 0
+
+    def extract(pytesseract, image, lang, config, *, budget):  # noqa: ANN001, ARG001
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return "Invoice Number INV-42", 80.0
+        raise preprocess._TesseractTimeout()  # noqa: SLF001
+
+    monkeypatch.setattr(agent, "_extract_with_confidence", extract)
+    text, meta = agent._run_ocr_variants(  # noqa: SLF001
+        Image.new("RGB", (20, 20), "white"), object(), None, "eng", 6, 3, [3],
+        ImageOps, ImageFilter,
+        budget=preprocess._TesseractBudget(call_timeout_s=30.0, deadline=time.monotonic() + 120.0),  # noqa: SLF001
+    )
+    assert text == "Invoice Number INV-42"
+    assert meta["ocr_timeout"] is True
+    assert meta["ocr_candidate_count"] == 2
+    assert calls == 2
+
+
+def test_product_retry_timeout_keeps_initial_text_for_review(tmp_path: Path, monkeypatch) -> None:
+    config = PipelineConfig()
+    config.preprocessing.ocr_initial_single_pass = True
+    config.preprocessing.ocr_tesseract_call_timeout_s = 30.0
+    config.preprocessing.ocr_tesseract_page_budget_s = 120.0
+    agent = OcrAgent()
+    calls = 0
+
+    def ocr_image(page, settings, engine_name):  # noqa: ANN001, ARG001
+        nonlocal calls
+        calls += 1
+        assert isinstance(settings["tesseract_budget"], preprocess._TesseractBudget)  # noqa: SLF001
+        if calls == 1:
+            return "Invoice Number INV-42 !!!! @@", True, None, {
+                "ocr_confidence": 75.0, "ocr_engine_used": "tesseract", "ocr_candidate_count": 1,
+            }
+        return "", True, "ocr_timeout", {"ocr_engine_used": "tesseract", "ocr_candidate_count": 1}
+
+    monkeypatch.setattr(agent, "_ocr_image", ocr_image)
+    document = Document(
+        doc_id="scan", source="scanned", path="scan.png",
+        pages=[Page(number=1, text="", image_path="scan.png")],
+    )
+    result = agent.run({"document": document}, _ctx(tmp_path, config))
+    page = result.artifacts["document"].pages[0]
+    assert calls == 2
+    assert result.artifacts["signal"].failure_reason == "ocr_timeout"
+    assert page.text == "Invoice Number INV-42 !!!! @@"
+    assert page.metadata["ocr_failure_reason"] == "ocr_timeout"
+    assert page.metadata["ocr_retry_path"] == "quick_psm11_timeout"
+
+
+def test_single_initial_ocr_uses_one_variant_while_default_keeps_search(monkeypatch) -> None:
+    agent = OcrAgent()
+    image = Image.new("RGB", (20, 20), "white")
+    calls: list[str] = []
+
+    def extract(pytesseract, candidate_image, lang, config):  # noqa: ANN001, ARG001
+        calls.append(config)
+        return "readable text", 35.0
+
+    monkeypatch.setattr(agent, "_extract_with_confidence", extract)
+    agent._run_ocr_variants(  # noqa: SLF001
+        image, object(), None, "eng", 6, 3, [], ImageOps, ImageFilter, single_pass=True
+    )
+    assert len(calls) == 1
+    assert "--psm 6" in calls[0]
+
+    calls.clear()
+    agent._run_ocr_variants(image, object(), None, "eng", 6, 3, [], ImageOps, ImageFilter)  # noqa: SLF001
+    assert len(calls) > 1
+    assert PipelineConfig().preprocessing.ocr_initial_single_pass is False
+
+
+def test_bounded_full_retry_checks_eight_prioritized_candidates(monkeypatch) -> None:
+    agent = OcrAgent()
+    image = Image.new("RGB", (20, 20), "white")
+    calls: list[str] = []
+
+    def extract(pytesseract, candidate_image, lang, config):  # noqa: ANN001, ARG001
+        calls.append(config)
+        return "readable text", 35.0
+
+    monkeypatch.setattr(agent, "_extract_with_confidence", extract)
+    _, meta = agent._run_ocr_variants(  # noqa: SLF001
+        image, object(), None, "eng", 6, 3, [3, 4, 11, 12], ImageOps, ImageFilter, max_candidates=8
+    )
+
+    assert len(calls) == 8
+    assert [int(config.split("--psm ")[1].split()[0]) for config in calls] == [6, 11, 3, 12, 4, 6, 11, 6]
+    assert meta["ocr_candidate_count"] == 8
+
+    calls.clear()
+    agent._run_ocr_variants(  # noqa: SLF001
+        image, object(), None, "eng", 6, 3, [3, 4, 11, 12], ImageOps, ImageFilter
+    )
+    assert len(calls) == 20
+
+
+def test_empty_product_initial_ocr_escalates_to_existing_retry(tmp_path: Path, monkeypatch) -> None:
+    cfg = PipelineConfig()
+    cfg.preprocessing.ocr_initial_single_pass = True
+    cfg.preprocessing.ocr_passes = 1
+    cfg.preprocessing.ocr_alt_psm = []
+    ctx = _ctx(tmp_path, cfg)
+    agent = OcrAgent()
+    settings_seen: list[dict] = []
+
+    def ocr_image(page, settings, engine_name):  # noqa: ANN001, ARG001
+        settings_seen.append(dict(settings))
+        if len(settings_seen) == 1:
+            return "", True, None, {"ocr_confidence": 0.0, "ocr_variant": "base", "ocr_candidate_count": 1}
+        return "Recovered invoice number INV-17", True, None, {
+            "ocr_confidence": 86.0, "ocr_variant": "base", "ocr_candidate_count": 8
+        }
+
+    monkeypatch.setattr(agent, "_ocr_image", ocr_image)
+    doc = Document(
+        doc_id="scan", source="scanned", path="scan.png",
+        pages=[Page(number=1, text="", image_path="scan.png")],
+    )
+    result = agent.run({"document": doc}, ctx)
+
+    assert len(settings_seen) == 2
+    assert settings_seen[0]["single_pass"] is True
+    assert settings_seen[0]["alt_psm"] == []
+    assert settings_seen[1]["single_pass"] is False
+    assert 11 in settings_seen[1]["alt_psm"]
+    assert result.artifacts["document"].pages[0].text == "Recovered invoice number INV-17"
+    assert result.artifacts["document"].pages[0].metadata["ocr_rerun_used"] is True
+    assert result.artifacts["document"].pages[0].metadata["ocr_retry_path"] == "full_bounded"
+    assert result.artifacts["document"].pages[0].metadata["ocr_candidate_count"] == 9
+
+
+def test_high_confidence_noisy_product_ocr_uses_quick_psm11_retry(tmp_path: Path, monkeypatch) -> None:
+    cfg = PipelineConfig()
+    cfg.preprocessing.ocr_initial_single_pass = True
+    cfg.preprocessing.ocr_passes = 1
+    cfg.preprocessing.ocr_alt_psm = []
+    cfg.preprocessing.ocr_retry_max_candidates = 8
+    agent = OcrAgent()
+    settings_seen: list[dict] = []
+
+    def ocr_image(page, settings, engine_name):  # noqa: ANN001, ARG001
+        settings_seen.append(dict(settings))
+        if len(settings_seen) == 1:
+            return "Invoice Number INV-17 !!!! @@", True, None, {
+                "ocr_confidence": 75.0, "ocr_engine_used": "tesseract", "ocr_candidate_count": 1
+            }
+        return "Invoice Number INV-17 Total 100", True, None, {
+            "ocr_confidence": 78.0, "ocr_engine_used": "tesseract", "ocr_candidate_count": 1
+        }
+
+    monkeypatch.setattr(agent, "_ocr_image", ocr_image)
+    doc = Document(
+        doc_id="scan", source="scanned", path="scan.png",
+        pages=[Page(number=1, text="", image_path="scan.png")],
+    )
+    page = agent.run({"document": doc}, _ctx(tmp_path, cfg)).artifacts["document"].pages[0]
+
+    assert len(settings_seen) == 2
+    assert settings_seen[1]["psm"] == 11
+    assert settings_seen[1]["single_pass"] is True
+    assert settings_seen[1]["alt_psm"] == []
+    assert page.text == "Invoice Number INV-17 Total 100"
+    assert page.metadata["ocr_retry_path"] == "quick_psm11"
+    assert page.metadata["ocr_candidate_count"] == 2
+    assert page.metadata["ocr_rerun_used"] is True
+
+
+def test_noisy_quick_retry_escalates_when_still_noisy(tmp_path: Path, monkeypatch) -> None:
+    cfg = PipelineConfig()
+    cfg.preprocessing.ocr_initial_single_pass = True
+    cfg.preprocessing.ocr_passes = 1
+    cfg.preprocessing.ocr_alt_psm = []
+    cfg.preprocessing.ocr_retry_max_candidates = 8
+    agent = OcrAgent()
+    settings_seen: list[dict] = []
+
+    def ocr_image(page, settings, engine_name):  # noqa: ANN001, ARG001
+        settings_seen.append(dict(settings))
+        if len(settings_seen) < 3:
+            return "Invoice Number INV-17 !!!! @@", True, None, {
+                "ocr_confidence": 75.0, "ocr_engine_used": "tesseract", "ocr_candidate_count": 1
+            }
+        return "Invoice Number INV-17 Total 100", True, None, {
+            "ocr_confidence": 90.0, "ocr_engine_used": "tesseract", "ocr_candidate_count": 8
+        }
+
+    monkeypatch.setattr(agent, "_ocr_image", ocr_image)
+    doc = Document(
+        doc_id="scan", source="scanned", path="scan.png",
+        pages=[Page(number=1, text="", image_path="scan.png")],
+    )
+    page = agent.run({"document": doc}, _ctx(tmp_path, cfg)).artifacts["document"].pages[0]
+
+    assert len(settings_seen) == 3
+    assert settings_seen[2]["single_pass"] is False
+    assert settings_seen[2]["max_candidates"] == 8
+    assert page.metadata["ocr_retry_path"] == "quick_then_full_bounded"
+    assert page.metadata["ocr_candidate_count"] == 10
+
+
+def test_stale_tessdata_environment_falls_back_to_tesseract_directory(tmp_path: Path, monkeypatch) -> None:
+    valid_tessdata = tmp_path / "tessdata"
+    valid_tessdata.mkdir()
+    monkeypatch.setenv("TESSDATA_PREFIX", str(tmp_path / "missing"))
+
+    agent = OcrAgent()
+    config = agent._tessdata_config(valid_tessdata, psm=6, oem=3)
+
+    assert f"--tessdata-dir {agent._short_path(str(valid_tessdata))}" in config
+    assert str(tmp_path / "missing") not in config
 
 
 def test_native_text_detector_accepts_clean_text() -> None:
@@ -145,7 +451,7 @@ def test_ocr_image_falls_back_to_tesseract_when_paddle_returns_no_text(tmp_path:
     monkeypatch.setattr(
         agent,
         "_run_ocr_variants",
-        lambda cleaned, pytesseract, tessdata_dir, lang, psm, oem, alt_psm, ImageOps, ImageFilter: (
+            lambda cleaned, pytesseract, tessdata_dir, lang, psm, oem, alt_psm, ImageOps, ImageFilter, single_pass=False, max_candidates=None: (
             "Total Amount: 42.00",
             {"ocr_psm": psm, "ocr_oem": oem, "ocr_variant": "base", "ocr_confidence": 88.0},
         ),
@@ -164,18 +470,222 @@ def test_ocr_image_falls_back_to_tesseract_when_paddle_returns_no_text(tmp_path:
 
 
 def test_rasterize_pdf_page_renders_the_requested_page_of_an_image_only_pdf(tmp_path: Path) -> None:
+    import pypdfium2
+
     pdf_path = tmp_path / "scan.pdf"
-    first = Image.new("RGB", (400, 300), "white")
-    second = Image.new("RGB", (300, 500), "white")
+    first = Image.new("RGB", (400, 300), "red")
+    second = Image.new("RGB", (300, 500), "blue")
+    second.paste("green", (25, 30, 100, 80))
     first.save(pdf_path, "PDF", resolution=100, save_all=True, append_images=[second])
+
+    # An independent invocation of the pre-instrumentation PDFium pixel path.
+    pdf = pypdfium2.PdfDocument(str(pdf_path))
+    try:
+        pdf_page = pdf[1]
+        try:
+            bitmap = pdf_page.render(scale=100 / 72)
+            try:
+                expected_pixels = bitmap.to_pil().convert("RGB").copy().tobytes()
+            finally:
+                bitmap.close()
+        finally:
+            pdf_page.close()
+    finally:
+        pdf.close()
 
     page = Page(number=2, text="", image_path=str(pdf_path), metadata={"file_type": ".pdf", "pdf_page_index": 1})
     rendered = rasterize_pdf_page(page, "scan", _ctx(tmp_path), dpi=100)
 
     assert rendered.image_path is not None and rendered.image_path.endswith(".png")
     assert rendered.metadata["pdf_source_path"] == str(pdf_path)
+    assert rendered.metadata["pdf_renderer"] == "pdfium"
+    assert rendered.metadata["pdf_renderer_fallback_reason"] is None
+    assert rendered.metadata["pdf_page_index"] == 1
+    assert rendered.metadata["pdf_rendered_dpi"] == 100
+    assert rendered.metadata["pdf_render_size_px"] == [300, 500]
     with Image.open(rendered.image_path) as img:
         assert img.size == (300, 500)
+        assert img.convert("RGB").tobytes() == expected_pixels
+
+
+def test_rasterize_pdf_page_honors_pdf_page_rotation(tmp_path: Path) -> None:
+    pypdf = pytest.importorskip("pypdf")
+    source = tmp_path / "source.pdf"
+    rotated = tmp_path / "rotated.pdf"
+    Image.new("RGB", (400, 300), "white").save(source, "PDF", resolution=100)
+    writer = pypdf.PdfWriter()
+    writer.add_page(pypdf.PdfReader(source).pages[0]).rotate(90)
+    with rotated.open("wb") as file:
+        writer.write(file)
+
+    page = Page(number=1, text="", image_path=str(rotated), metadata={"pdf_page_index": 0})
+    rendered = rasterize_pdf_page(page, "rotated", _ctx(tmp_path), dpi=100)
+
+    assert rendered.image_path is not None
+    assert rendered.metadata["pdf_page_rotation_deg"] == 90
+    with Image.open(rendered.image_path) as img:
+        assert img.size == (300, 400)
+
+
+def test_pdfium_failure_falls_back_to_one_based_poppler_page(tmp_path: Path, monkeypatch) -> None:
+    import pypdfium2
+
+    expected = Image.new("RGB", (30, 50), "white")
+    calls = []
+
+    def unavailable(pdf_path):  # noqa: ANN001, ARG001
+        raise RuntimeError("PDFium unavailable")
+
+    def poppler(pdf_path, **kwargs):  # noqa: ANN001
+        calls.append((pdf_path, kwargs))
+        return [expected]
+
+    monkeypatch.setattr(pypdfium2, "PdfDocument", unavailable)
+    monkeypatch.setattr(OcrAgent, "_find_poppler_path", lambda self: str(tmp_path))
+    monkeypatch.setattr("pdf2image.convert_from_path", poppler)
+
+    actual = preprocess._render_pdf_page("scan.pdf", page_index=1, dpi=150)  # noqa: SLF001
+
+    assert actual.image is expected
+    assert actual.renderer == "poppler"
+    assert actual.fallback_reason == "pdfium_open_failed"
+    assert calls == [("scan.pdf", {"first_page": 2, "last_page": 2, "poppler_path": str(tmp_path), "dpi": 150})]
+
+
+def test_both_pdf_renderers_fail_with_bounded_provenance(tmp_path: Path, monkeypatch) -> None:
+    import pypdfium2
+
+    def fail(*args, **kwargs):  # noqa: ANN002, ANN003, ARG001
+        raise RuntimeError("private/customer.pdf: sensitive document text")
+
+    monkeypatch.setattr(pypdfium2, "PdfDocument", fail)
+    monkeypatch.setattr("pdf2image.convert_from_path", fail)
+    page = Page(number=1, text="", image_path=str(tmp_path / "private.pdf"), metadata={"pdf_page_index": 0})
+
+    rendered = rasterize_pdf_page(page, "private", _ctx(tmp_path), dpi=150)
+
+    assert rendered.image_path == page.image_path
+    assert rendered.metadata["pdf_renderer"] == "none"
+    assert rendered.metadata["pdf_renderer_fallback_reason"] == "poppler_failed"
+    assert rendered.metadata["pdf_render_size_px"] is None
+    assert "private" not in str(rendered.metadata["pdf_renderer_fallback_reason"])
+
+
+def test_direct_pdf_poppler_provenance_only_after_a_page_is_rendered(monkeypatch) -> None:
+    from PIL import ImageSequence
+
+    image = Image.new("RGB", (40, 70), "white")
+    agent = OcrAgent()
+    monkeypatch.setattr("pdf2image.convert_from_path", lambda *args, **kwargs: [image])
+    monkeypatch.setattr(agent, "_find_poppler_path", lambda: None)
+    monkeypatch.setattr(agent, "_normalize_image", lambda frame, *args: frame)
+    monkeypatch.setattr(agent, "_apply_orientation_correction", lambda frame, *args: (frame, 0))
+    monkeypatch.setattr(agent, "_run_ocr_variants", lambda *args, **kwargs: ("Invoice 42", {}))
+    page = Page(number=2, text="", image_path="private.pdf", metadata={
+        "pdf_page_index": 1,
+        "pdf_page_rotation_deg": 90,
+        "pdf_renderer": "none",
+        "pdf_renderer_fallback_reason": "poppler_failed",
+    })
+
+    text, failure, meta = agent._ocr_pdf_page(  # noqa: SLF001
+        "private.pdf", page, object(), Image, ImageSequence, None, "eng", 6, 3, [], 150
+    )
+
+    assert (text, failure) == ("Invoice 42", None)
+    assert meta["pdf_renderer"] == "poppler_direct"
+    assert meta["pdf_page_index"] == 1
+    assert meta["pdf_page_rotation_deg"] == 90
+    assert meta["pdf_rendered_dpi"] == 150
+    assert meta["pdf_render_size_px"] == [40, 70]
+
+    monkeypatch.setattr("pdf2image.convert_from_path", lambda *args, **kwargs: [])
+    monkeypatch.setattr(Image, "open", lambda *args, **kwargs: (_ for _ in ()).throw(OSError("failed")))
+    _, failure, meta = agent._ocr_pdf_page(  # noqa: SLF001
+        "private.pdf", page, object(), Image, ImageSequence, None, "eng", 6, 3, [], 150
+    )
+    assert failure == "pdf_render_failed"
+    assert "pdf_renderer" not in meta
+
+
+def test_ocr_run_preserves_direct_pdf_renderer_metadata(tmp_path: Path, monkeypatch) -> None:
+    agent = OcrAgent()
+    page = Page(number=1, text="", image_path="scan.pdf", metadata={
+        "pdf_page_index": 0,
+        "pdf_renderer": "none",
+        "pdf_renderer_fallback_reason": "poppler_failed",
+    })
+    monkeypatch.setattr(preprocess, "rasterize_pdf_page", lambda page, doc_id, ctx, dpi: page)
+    monkeypatch.setattr(agent, "_ocr_image", lambda page, settings, engine_name: (
+        "Invoice Number INV-42", True, None, {
+            "ocr_engine_used": "tesseract",
+            "ocr_confidence": 90.0,
+            "pdf_renderer": "poppler_direct",
+            "pdf_renderer_fallback_reason": "poppler_failed",
+            "pdf_page_index": 0,
+            "pdf_page_rotation_deg": 90,
+            "pdf_rendered_dpi": 300,
+            "pdf_render_size_px": [500, 700],
+        }
+    ))
+    document = Document(doc_id="scan", source="scanned", path="scan.pdf", pages=[page])
+
+    result = agent.run({"document": document}, _ctx(tmp_path))
+    metadata = result.artifacts["document"].pages[0].metadata
+
+    assert metadata["pdf_renderer"] == "poppler_direct"
+    assert metadata["pdf_page_rotation_deg"] == 90
+    assert metadata["pdf_render_size_px"] == [500, 700]
+
+
+def test_pdfium_render_is_serialized_and_image_does_not_share_bitmap_buffer(monkeypatch) -> None:
+    import pypdfium2
+
+    state = {"active": 0, "peak": 0}
+    guard = threading.Lock()
+
+    class Bitmap:
+        def __init__(self) -> None:
+            self.image = Image.new("RGB", (10, 10), "white")
+
+        def to_pil(self):
+            return self.image
+
+        def close(self) -> None:
+            self.image.paste("black", (0, 0, 10, 10))
+
+    class PdfPage:
+        def render(self, scale):  # noqa: ANN001
+            assert scale == 100 / 72
+            time.sleep(0.01)
+            return Bitmap()
+
+        def close(self) -> None:
+            pass
+
+    class PdfDocument:
+        def __init__(self, path):  # noqa: ANN001, ARG002
+            with guard:
+                state["active"] += 1
+                state["peak"] = max(state["peak"], state["active"])
+
+        def __len__(self) -> int:
+            return 1
+
+        def __getitem__(self, index):  # noqa: ANN001
+            assert index == 0
+            return PdfPage()
+
+        def close(self) -> None:
+            with guard:
+                state["active"] -= 1
+
+    monkeypatch.setattr(pypdfium2, "PdfDocument", PdfDocument)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        images = list(pool.map(lambda _: preprocess._render_pdf_page("scan.pdf", 0, 100), range(4)))
+
+    assert state == {"active": 0, "peak": 1}
+    assert all(result.renderer == "pdfium" and result.image.getpixel((0, 0)) == (255, 255, 255) for result in images)
 
 
 def test_rasterize_pdf_page_leaves_image_pages_untouched(tmp_path: Path) -> None:

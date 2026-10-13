@@ -1,0 +1,11 @@
+# ADR-0003: Bound product Tesseract calls and page candidate search
+
+Status: pilot; requires a new pinned 2,000-document extraction gate before promotion.
+
+The opt-in `process-auto` path can run a one-pass Tesseract read, a quick PSM 11 retry, and up to eight full-search candidates for a difficult image page. Each candidate asks Tesseract for text and word confidence. Previously these subprocess calls had no timeout. One bad page could hold a worker for an unbounded period, especially when retry candidates accumulated.
+
+`process-auto` now defaults to **30 seconds per Tesseract call** and **120 seconds total elapsed time per image page**. The same page deadline covers orientation detection, text recognition, confidence extraction, and every retry candidate. Each call receives the smaller of its per-call limit and the remaining page time. The eight-candidate retry cap remains. Operators may change the limits with `--ocr-call-timeout-s` and `--ocr-page-budget-s`; both positive finite values are recorded in `run.json`. The Python `process_auto` function has matching arguments. Canonical research preprocessing keeps both config values unset and retains its existing OCR behavior.
+
+When a Tesseract call times out, candidate search stops. If no text is available, the product candidate is `failed` with reason `ocr_timeout`. If an earlier candidate or completed text call supplied text, the text and its OCR evidence remain visible but the document stays `needs_review` with reason `ocr_partial_failure`. A timeout during a quick retry does not start the full retry search. Missing executables and other engine errors during product text recognition surface as failures rather than an empty, allegedly illegible scan.
+
+The page deadline bounds Tesseract calls and retry search; it does not bound PDF rasterization, image decoding, PaddleOCR, intake, or the entire document. A worker-level document deadline and durable queue are separate production requirements. The 30/120-second defaults are operational starting points, not quality-optimized thresholds. Measure OCR recovery, timeouts, p95 latency, and extraction correctness on a fresh pinned 2,000-document gate before changing the release policy. Existing v5 gate results, produced from an earlier commit, do not validate this change.

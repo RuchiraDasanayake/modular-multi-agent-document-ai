@@ -1,6 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { getJobOrThrow } from "@/server/jobs";
+import { requireJob } from "@/server/access";
+import { requireUser } from "@/server/auth";
+import { loadRunnerConfig } from "@/server/config";
 import { ensurePathInside } from "@/server/paths";
 import { apiError } from "@/server/api/response";
 
@@ -39,6 +42,14 @@ function guessContentType(filename: string): string {
       return "application/json; charset=utf-8";
     case ".docx":
       return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case ".xlsx":
+      return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    case ".pptx":
+      return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+    case ".html":
+      return "text/html; charset=utf-8";
+    case ".eml":
+      return "message/rfc822";
     default:
       return "application/octet-stream";
   }
@@ -46,7 +57,9 @@ function guessContentType(filename: string): string {
 
 export async function GET(request: Request, { params }: Params) {
   try {
+    const user = await requireUser(request.headers);
     const { jobId, docId } = await params;
+    requireJob(jobId, user);
     const job = getJobOrThrow(jobId);
     const document = (job.documents ?? []).find((entry) => entry.fileId === docId);
     if (!document) {
@@ -64,8 +77,28 @@ export async function GET(request: Request, { params }: Params) {
       throw new Error("Job uploads path is missing");
     }
 
-    const target = ensurePathInside(uploadsPath, path.join(uploadsPath, document.storedName));
-    if (!fs.existsSync(target) || !fs.statSync(target).isFile()) {
+    const uploadsRoot = path.resolve(loadRunnerConfig().uploadsDir);
+    const expectedUploadsPath = ensurePathInside(uploadsRoot, path.resolve(uploadsRoot, `job_${jobId}`));
+    if (path.resolve(uploadsPath) !== expectedUploadsPath) {
+      throw new Error("Job uploads path is invalid");
+    }
+    const target = ensurePathInside(expectedUploadsPath, path.resolve(expectedUploadsPath, document.storedName));
+    if (!fs.existsSync(target)) {
+      return new Response(JSON.stringify({ error: "Original document not found" }), {
+        status: 404,
+        headers: {
+          "Content-Type": "application/json",
+          ...NO_STORE_HEADERS,
+        },
+      });
+    }
+    const realUploadsRoot = fs.realpathSync(uploadsRoot);
+    const realUploadsPath = ensurePathInside(realUploadsRoot, fs.realpathSync(expectedUploadsPath));
+    if (realUploadsPath !== path.join(realUploadsRoot, `job_${jobId}`)) {
+      throw new Error("Job uploads path is invalid");
+    }
+    const realTarget = ensurePathInside(realUploadsPath, fs.realpathSync(target));
+    if (!fs.statSync(realTarget).isFile()) {
       return new Response(JSON.stringify({ error: "Original document not found" }), {
         status: 404,
         headers: {
@@ -76,14 +109,17 @@ export async function GET(request: Request, { params }: Params) {
     }
 
     const url = new URL(request.url);
-    const download = url.searchParams.get("download") === "1";
-    const body = fs.readFileSync(target);
+    const nativeFormat = /\.(docx|xlsx|pptx|html|eml)$/i.test(document.fileName);
+    const download = nativeFormat || url.searchParams.get("download") === "1";
+    const body = fs.readFileSync(realTarget);
 
     return new Response(body, {
       status: 200,
       headers: {
         ...NO_STORE_HEADERS,
         "Content-Type": guessContentType(document.fileName),
+        "X-Content-Type-Options": "nosniff",
+        ...(nativeFormat ? { "Content-Security-Policy": "sandbox" } : {}),
         "Content-Length": String(body.byteLength),
         "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${encodeURIComponent(document.fileName)}"`,
       },

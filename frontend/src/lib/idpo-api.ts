@@ -7,6 +7,9 @@ import type {
   BenchmarkRunSummary,
   BenchmarkEvidencePayload,
 } from "@/types/idpo";
+import type { ProductAutoAddedFieldInput, ProductAutoCorrectedResult, ProductAutoDocumentDetail, ProductAutoReview, ProductAutoReviewField, ProductAutoRun, ProductAutoSourceDocument } from "@/types/product-auto";
+import type { ProductAutoRecipeRevision } from "@/types/product-auto-recipes";
+import type { ProductAutoBriefDetail, ProductAutoBriefField, ProductAutoBriefRevision } from "@/types/product-auto-brief";
 
 async function localRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
@@ -26,7 +29,72 @@ async function localRequest<T>(path: string, options: RequestInit = {}): Promise
   return res.json() as Promise<T>;
 }
 
+export function parseReportedActiveMinutes(input: string): number | undefined {
+  if (!input.trim()) return undefined;
+  const minutes = Number(input);
+  const seconds = Math.round(minutes * 60);
+  if (!Number.isFinite(minutes) || minutes < 0.1 || minutes > 240 ||
+    !Number.isSafeInteger(seconds) || seconds < 1 || seconds > 14_400) {
+    throw new Error("Enter 0.1 to 240 active minutes for this save, or leave it blank.");
+  }
+  return seconds;
+}
+
 export const idpoApi = {
+  listProductAutoRuns(jobId: string): Promise<{ available: boolean; modelConfigured: boolean; sourceFiles: ProductAutoSourceDocument[]; runs: ProductAutoRun[] }> {
+    return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto`);
+  },
+
+  listProductAutoRecipes(jobId: string): Promise<{ recipes: ProductAutoRecipeRevision[] }> {
+    return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto/recipes`);
+  },
+
+  getProductAutoBrief(jobId: string): Promise<ProductAutoBriefDetail> {
+    return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto/brief`);
+  },
+
+  saveProductAutoBrief(jobId: string, expectedRevision: number, intent: string,
+    fields: ProductAutoBriefField[], sampleFileIds: string[]): Promise<{ brief: ProductAutoBriefRevision }> {
+    return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto/brief`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedRevision, intent, fields, sampleFileIds }),
+    });
+  },
+
+  confirmProductAutoBrief(jobId: string, expectedRevision: number,
+    expectedPayloadSha256: string): Promise<{ brief: ProductAutoBriefRevision }> {
+    return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto/brief`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedRevision, expectedPayloadSha256 }),
+    });
+  },
+
+  startProductAutoRun(jobId: string, selectedFileIds: string[],
+    approvedRecipe?: { recipeId: string; expectedRevision: number },
+    confirmedBrief?: { expectedRevision: number; payloadSha256: string; phase: "preview" | "batch";
+      previewRunId?: string }): Promise<ProductAutoRun> {
+    return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ selectedFileIds, ...(approvedRecipe ? { approvedRecipe } : {}),
+        ...(confirmedBrief ? { confirmedBrief } : {}) }),
+    });
+  },
+
+  getProductAutoDocument(jobId: string, runId: string, docId: string): Promise<ProductAutoDocumentDetail> {
+    return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(runId)}/docs/${encodeURIComponent(docId)}`);
+  },
+
+  saveProductAutoReview(jobId: string, runId: string, docId: string, expectedRevision: number, fields: ProductAutoReviewField[], addedFields: ProductAutoAddedFieldInput[], reportedActiveMinutes = ""): Promise<{ review: ProductAutoReview; correctedResult: ProductAutoCorrectedResult }> {
+    const reportedSeconds = parseReportedActiveMinutes(reportedActiveMinutes);
+    return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(runId)}/docs/${encodeURIComponent(docId)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expected_revision: expectedRevision, fields, added_fields: addedFields,
+        ...(reportedSeconds === undefined ? {} : { reported_active_review_seconds: reportedSeconds }) }),
+    });
+  },
+
   listJobs(): Promise<{ jobs: JobStatus[] }> {
     return localRequest("/api/jobs");
   },

@@ -7,7 +7,30 @@ import path from "node:path";
 import test from "node:test";
 import { resetConfigCacheForTests } from "./config";
 import { createWorkspaceJob, getJob, mutateJob } from "./jobs";
-import { maybeInstallLocalModel, syncActiveJobProgress } from "./runner";
+import { maybeInstallLocalModel, patchConfig, syncActiveJobProgress } from "./runner";
+
+test("viewer runtime settings disable cloud paths even when the base config enables them", () => {
+  const config = patchConfig({
+    llm: {
+      default_mode: "cloud",
+      history_mode: "cloud",
+      provider: "openai",
+      allow_cloud_fallback: true,
+      enable_flagship_fallback: true,
+      description_refinement_use_cloud: true,
+    },
+    escalation: { enabled: true },
+  }, { forceLocalOnly: true }, "viewer-job");
+  assert.deepEqual(config.llm, {
+    default_mode: "local",
+    history_mode: "local",
+    provider: "ollama",
+    allow_cloud_fallback: false,
+    enable_flagship_fallback: false,
+    description_refinement_use_cloud: false,
+  });
+  assert.deepEqual(config.escalation, { enabled: false });
+});
 
 interface FakeOllama {
   baseUrl: string;

@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import { IdpoCard } from "@/components/idpo/card";
 import { getJobPolicyDetail } from "@/server/policies";
+import { requireJob } from "@/server/access";
+import { requireUser } from "@/server/auth";
 
 interface PolicyFact {
   label: string;
@@ -279,6 +282,11 @@ export default async function JobPolicyDetailPage({
 }) {
   const resolved = await params;
   const jobId = decodeURIComponent(resolved.jobId);
+  try {
+    requireJob(jobId, await requireUser(await headers()));
+  } catch {
+    notFound();
+  }
   const policyId = decodeURIComponent(resolved.policyId);
   const detail = getJobPolicyDetail(jobId, policyId);
 

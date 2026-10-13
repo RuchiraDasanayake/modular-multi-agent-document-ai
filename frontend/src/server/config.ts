@@ -28,6 +28,7 @@ export interface RunnerConfig {
   maxUploadMb: number;
   allowedExtensions: string[];
   defaultCommandId: string;
+  canonicalRunnerAvailable: boolean;
   commands: RunnerCommandConfig[];
   backendChecks: BackendCheckConfig[];
 }
@@ -97,10 +98,11 @@ export function loadRunnerConfig(): RunnerConfig {
     jobsDir: storageDir(raw.jobsDir, "frontend", "jobs"),
     demoSampleRunsDir: resolvePath(appRoot, raw.demoSampleRunsDir ?? "./demo_sample_runs"),
     maxUploadMb: raw.maxUploadMb ?? 20,
-    allowedExtensions: (raw.allowedExtensions ?? [".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".txt", ".json"]).map((ext) =>
+    allowedExtensions: (raw.allowedExtensions ?? [".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".txt", ".json", ".docx", ".xlsx", ".pptx", ".html", ".eml"]).map((ext) =>
       ext.toLowerCase(),
     ),
     defaultCommandId: raw.defaultCommandId,
+    canonicalRunnerAvailable: raw.canonicalRunnerAvailable ?? true,
     commands: raw.commands.map((cmd) => ({
       ...cmd,
       program: resolveExecutable(appRoot, cmd.program),

@@ -1,0 +1,571 @@
+"""Read-only admission check for a future local blind-schema comparison.
+
+The scorer's source-lock, gold and alias JSON are validated by the scorer
+itself. Separate rights, human-anchor and runtime receipts must bind their
+exact hashes to the same versioned cohort. This module makes no model call.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import re
+import shutil
+import subprocess
+import sys
+from collections import Counter
+from pathlib import Path, PurePosixPath
+from typing import Any
+
+from product_eval.schema_only_scorer import (
+    SchemaContractError,
+    read_json,
+    validate_aliases,
+    validate_gold,
+    validate_source_lock,
+)
+
+HASH_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
+ASSET_ROLES = {
+    "nuextract3_q4": {"weight", "vision_projector", "llama_server"},
+    "qwen35_2b_bf16": {"weight", "config", "tokenizer", "processor", "runner"},
+}
+MAX_ASSET_FILES_PER_ARM = 64
+PARSER_FILES = frozenset({
+    "idpo/agents/intake.py",
+    "idpo/agents/preprocess.py",
+    "idpo/product_auto/native_formats.py",
+    "idpo/product_auto/workflow.py",
+})
+
+
+class PreflightError(ValueError):
+    """The versioned admission evidence is missing or inconsistent."""
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _read_locked_json(path: Path, expected_sha256: str) -> dict[str, Any]:
+    if not HASH_PATTERN.fullmatch(expected_sha256):
+        raise PreflightError("expected SHA-256 must be 64 lowercase hex characters")
+    if not path.is_file():
+        raise PreflightError(f"lock file is missing: {path.name}")
+    try:
+        value, actual_sha256 = read_json(path)
+    except (OSError, SchemaContractError) as exc:
+        raise PreflightError(f"invalid lock JSON: {path.name}: {exc}") from exc
+    if actual_sha256 != expected_sha256:
+        raise PreflightError(f"lock SHA-256 differs: {path.name}")
+    if not isinstance(value, dict):
+        raise PreflightError(f"lock must be a JSON object: {path.name}")
+    return value
+
+
+def _cohort_sources(source_root: Path, manifest: dict[str, Any], eligibility: dict[str, Any],
+                    manifest_sha256: str, cap: int, expected_count: int) -> dict[str, Any]:
+    if manifest.get("candidate_denominator") != expected_count or manifest.get("model_inference") is not False:
+        raise PreflightError("cohort denominator or staged-only status differs")
+    if eligibility.get("source_manifest_sha256") != manifest_sha256:
+        raise PreflightError("eligibility belongs to a different source manifest")
+    parser_hashes = eligibility.get("parser_code_sha256")
+    if not isinstance(parser_hashes, dict) or set(parser_hashes) != PARSER_FILES:
+        raise PreflightError("eligibility has an incomplete parser code lock")
+    repo_root = Path(__file__).resolve().parents[1]
+    for relative, expected_hash in parser_hashes.items():
+        if (not isinstance(expected_hash, str) or not HASH_PATTERN.fullmatch(expected_hash)
+                or sha256_file(repo_root / relative) != expected_hash):
+            raise PreflightError(f"parser code differs from eligibility: {relative}")
+    manifest_rows = manifest.get("sources")
+    eligibility_rows = eligibility.get("sources")
+    if not isinstance(manifest_rows, list) or len(manifest_rows) != expected_count:
+        raise PreflightError("manifest does not contain the declared source count")
+    if not isinstance(eligibility_rows, list) or len(eligibility_rows) != expected_count:
+        raise PreflightError("eligibility does not contain the declared source count")
+    raw_root = (source_root / "raw").resolve(strict=True)
+    ids: set[str] = set()
+    source_hashes: set[str] = set()
+    formats: Counter[str] = Counter()
+    for row in manifest_rows:
+        if not isinstance(row, dict):
+            raise PreflightError("source entry is not an object")
+        source_id, relative, claimed_hash = row.get("id"), row.get("relative_path"), row.get("sha256")
+        if not isinstance(source_id, str) or not source_id.strip() or source_id in ids:
+            raise PreflightError("source IDs must be unique and nonempty")
+        if not isinstance(relative, str) or not isinstance(claimed_hash, str) or not HASH_PATTERN.fullmatch(claimed_hash):
+            raise PreflightError(f"source path or hash is invalid: {source_id}")
+        relative_posix = PurePosixPath(relative)
+        if (relative_posix.is_absolute() or len(relative_posix.parts) != 2 or relative_posix.parts[0] != "raw"
+                or any(part in {"", ".", ".."} for part in relative_posix.parts)):
+            raise PreflightError(f"source path escapes raw directory: {source_id}")
+        source_path = (source_root / Path(*relative_posix.parts)).resolve(strict=True)
+        if not source_path.is_relative_to(raw_root) or not source_path.is_file():
+            raise PreflightError(f"source path is not a regular raw file: {source_id}")
+        if source_path.stat().st_size != row.get("byte_size") or sha256_file(source_path) != claimed_hash:
+            raise PreflightError(f"source bytes differ: {source_id}")
+        if claimed_hash in source_hashes:
+            raise PreflightError("cohort contains duplicate original bytes")
+        ids.add(source_id)
+        source_hashes.add(claimed_hash)
+        formats[str(row.get("kind"))] += 1
+    if set(formats) - {"pdf", "html", "xlsx"}:
+        raise PreflightError("unsupported source format in cohort")
+    eligibility_by_id: dict[str, dict[str, Any]] = {}
+    for row in eligibility_rows:
+        if not isinstance(row, dict) or not isinstance(row.get("source_id"), str):
+            raise PreflightError("eligibility source ID is invalid")
+        source_id = row["source_id"]
+        if source_id in eligibility_by_id:
+            raise PreflightError("duplicate eligibility source ID")
+        eligibility_by_id[source_id] = row
+    if set(eligibility_by_id) != ids:
+        raise PreflightError("eligibility and manifest source IDs differ")
+    eligible = 0
+    over_limit: list[str] = []
+    for source in manifest_rows:
+        row = eligibility_by_id[source["id"]]
+        chars = row.get("character_count")
+        if (row.get("source_sha256") != source["sha256"] or row.get("format") != source["kind"]
+                or row.get("status") != "parsed" or type(chars) is not int or chars < 0
+                or row.get("model_context_cap_chars") != cap
+                or row.get("meets_model_context_limit") is not (chars <= cap)):
+            raise PreflightError(f"eligibility mismatch: {source['id']}")
+        if chars <= cap:
+            eligible += 1
+        else:
+            over_limit.append(source["id"])
+    return {"source_count": len(ids), "unique_source_hashes": len(source_hashes),
+            "formats": dict(formats), "eligible_under_character_cap": eligible,
+            "over_limit_source_ids": over_limit, "source_ids": sorted(ids)}
+
+
+def _try_lock(path: Path | None, digest: str | None, label: str) -> tuple[dict[str, Any] | None, str | None]:
+    if path is None or digest is None:
+        return None, f"{label} is not supplied with an expected SHA-256"
+    try:
+        return _read_locked_json(path, digest), None
+    except (OSError, ValueError) as exc:
+        return None, f"{label} failed: {exc}"
+
+
+def _validate_rights(value: dict[str, Any], *, manifest_sha256: str, source_lock_sha256: str,
+                     planned: dict[str, str]) -> None:
+    if (value.get("version") != 1 or value.get("source_manifest_sha256") != manifest_sha256
+            or value.get("source_lock_sha256") != source_lock_sha256
+            or value.get("status") != "cleared_for_local_ai_inference" or not value.get("reviewed_by")):
+        raise PreflightError("rights receipt is not cleared and bound to this cohort")
+    rows = value.get("sources")
+    if not isinstance(rows, list) or len(rows) != len(planned):
+        raise PreflightError("rights receipt must cover every original source")
+    seen: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            raise PreflightError("rights source entry is invalid")
+        doc_id = row.get("doc_id")
+        if (doc_id not in planned or doc_id in seen or row.get("source_sha256") != planned[doc_id]
+                or row.get("local_ai_inference_permitted") is not True or not row.get("basis")):
+            raise PreflightError("rights clearance is incomplete or misbound")
+        seen.add(doc_id)
+    if seen != set(planned):
+        raise PreflightError("rights receipt omitted a source")
+
+
+def _validate_human(value: dict[str, Any], *, manifest_sha256: str, eligibility_sha256: str,
+                    source_lock_sha256: str, gold_sha256: str, aliases_sha256: str,
+                    planned: dict[str, str], gold_docs: dict[str, dict[str, Any]]) -> None:
+    if (value.get("version") != 1 or value.get("source_manifest_sha256") != manifest_sha256
+            or value.get("source_lock_sha256") != source_lock_sha256
+            or value.get("eligibility_sha256") != eligibility_sha256
+            or value.get("gold_sha256") != gold_sha256
+            or value.get("aliases_sha256") != aliases_sha256
+            or value.get("status") != "adjudicated_source_only"):
+        raise PreflightError("human receipt is not adjudicated and bound to exact scorer inputs")
+    annotators = value.get("annotators")
+    if (not isinstance(annotators, list) or len(annotators) < 2
+            or any(not isinstance(person, str) or not person.strip() for person in annotators)
+            or len({person.strip().casefold() for person in annotators}) < 2
+            or not isinstance(value.get("adjudicator"), str)
+            or not value["adjudicator"].strip()
+            or value["adjudicator"].strip().casefold() in
+            {person.strip().casefold() for person in annotators}):
+        raise PreflightError("human receipt lacks independent annotation and adjudication")
+    rows = value.get("sources")
+    if not isinstance(rows, list) or len(rows) != len(planned):
+        raise PreflightError("human receipt must cover all planned sources")
+    seen: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            raise PreflightError("human source entry is invalid")
+        doc_id = row.get("doc_id")
+        if (doc_id not in planned or doc_id in seen or row.get("source_sha256") != planned[doc_id]
+                or row.get("full_source_pass") is not True):
+            raise PreflightError("human source pass is incomplete or misbound")
+        fields = row.get("fields")
+        if not isinstance(fields, list) or len(fields) != len(gold_docs[doc_id]["fields"]):
+            raise PreflightError("human field anchors do not cover scorer gold")
+        field_ids: set[str] = set()
+        for field in fields:
+            if not isinstance(field, dict):
+                raise PreflightError("human field anchor entry is invalid")
+            field_id = field.get("field_id")
+            anchors = field.get("anchors")
+            if (field_id not in gold_docs[doc_id]["fields"] or field_id in field_ids
+                    or not isinstance(anchors, list) or not anchors
+                    or any(not isinstance(anchor, dict) or not anchor.get("locator") or
+                           not anchor.get("quote") for anchor in anchors)):
+                raise PreflightError("human field lacks a source locator and quote")
+            field_ids.add(field_id)
+        if field_ids != set(gold_docs[doc_id]["fields"]):
+            raise PreflightError("human anchor fields differ from scorer gold")
+        seen.add(doc_id)
+    if seen != set(planned):
+        raise PreflightError("human receipt omitted a source")
+
+
+def _validate_asset_manifest(value: dict[str, Any], *, profile: dict[str, Any],
+                             profile_sha256: str) -> None:
+    """Check a previously sealed file inventory against bytes on this host."""
+    if value.get("version") != 1 or value.get("protocol_profile_sha256") != profile_sha256:
+        raise PreflightError("asset manifest is not bound to this protocol profile")
+    arms = value.get("model_arms")
+    models = profile["model_profiles"]
+    if not isinstance(arms, dict) or set(arms) != set(models) or set(arms) != set(ASSET_ROLES):
+        raise PreflightError("asset manifest must cover exactly both pinned model arms")
+    known_hashes = {
+        "nuextract3_q4": {
+            "weight": models["nuextract3_q4"]["weight_sha256"],
+            "vision_projector": models["nuextract3_q4"]["vision_projector_sha256"],
+            "llama_server": models["nuextract3_q4"]["llama_server_sha256"],
+        },
+        "qwen35_2b_bf16": {"weight": models["qwen35_2b_bf16"]["weight_sha256"]},
+    }
+    for name, arm in arms.items():
+        model = models[name]
+        if (not isinstance(arm, dict) or arm.get("official_repository") != model["official_repository"]
+                or arm.get("revision") != model["revision"]):
+            raise PreflightError(f"asset manifest repository or revision differs: {name}")
+        files = arm.get("files")
+        if not isinstance(files, list) or not 1 <= len(files) <= MAX_ASSET_FILES_PER_ARM:
+            raise PreflightError(f"asset manifest file inventory is invalid: {name}")
+        seen_paths: set[Path] = set()
+        roles: Counter[str] = Counter()
+        for entry in files:
+            if not isinstance(entry, dict):
+                raise PreflightError(f"asset manifest file entry is invalid: {name}")
+            role, raw_path, digest, size = (entry.get("role"), entry.get("path"),
+                                            entry.get("sha256"), entry.get("size_bytes"))
+            if (not isinstance(role, str) or not re.fullmatch(r"[a-z][a-z0-9_]*", role)
+                    or not isinstance(raw_path, str) or not raw_path.strip()
+                    or not isinstance(digest, str) or not HASH_PATTERN.fullmatch(digest)
+                    or type(size) is not int or size < 1):
+                raise PreflightError(f"asset manifest file metadata is invalid: {name}")
+            path = Path(raw_path)
+            if not path.is_absolute():
+                raise PreflightError(f"asset manifest requires absolute local paths: {name}")
+            resolved = path.resolve(strict=True)
+            if resolved in seen_paths or not resolved.is_file():
+                raise PreflightError(f"asset manifest has duplicate or non-file path: {name}")
+            seen_paths.add(resolved)
+            if resolved.stat().st_size != size or sha256_file(resolved) != digest:
+                raise PreflightError(f"asset bytes differ from manifest: {name}/{role}")
+            if role in known_hashes[name] and digest != known_hashes[name][role]:
+                raise PreflightError(f"asset hash differs from profile: {name}/{role}")
+            if (role == "weight" and name == "qwen35_2b_bf16"
+                    and (size != model["weight_size_bytes"] or path.name != model["weight_filename"])):
+                raise PreflightError("Qwen weight size or filename differs from profile")
+            roles[role] += 1
+        if not ASSET_ROLES[name].issubset(roles):
+            raise PreflightError(f"asset manifest lacks required roles: {name}")
+        if any(roles[role] != 1 for role in known_hashes[name]):
+            raise PreflightError(f"asset manifest duplicates a pinned asset role: {name}")
+        if name == "nuextract3_q4" and set(roles) != ASSET_ROLES[name]:
+            raise PreflightError("NuExtract manifest has undeclared extra asset roles")
+        if name == "qwen35_2b_bf16" and roles["runner"] != 1:
+            raise PreflightError("Qwen manifest requires exactly one launch runner")
+
+
+def _validate_smoke_log(value: dict[str, Any], *, profile_sha256: str,
+                        asset_manifest_sha256: str, asset_manifest: dict[str, Any],
+                        model_profiles: dict[str, Any]) -> None:
+    if (value.get("version") != 1 or value.get("protocol_profile_sha256") != profile_sha256
+            or value.get("asset_manifest_sha256") != asset_manifest_sha256
+            or value.get("status") != "source_free_verified"):
+        raise PreflightError("source-free smoke log is not bound to profile and asset manifest")
+    arms = value.get("model_arms")
+    if not isinstance(arms, dict) or set(arms) != set(model_profiles):
+        raise PreflightError("source-free smoke log must cover both model arms")
+    for name, arm in arms.items():
+        if not isinstance(arm, dict):
+            raise PreflightError(f"source-free smoke entry is invalid: {name}")
+        argv = arm.get("launch_argv")
+        if (arm.get("input_kind") != "synthetic" or arm.get("loaded") is not True
+                or arm.get("source_free_smoke") is not True
+                or type(arm.get("exit_code")) is not int or arm["exit_code"] != 0
+                or not isinstance(argv, list) or not argv
+                or any(not isinstance(arg, str) or not arg.strip() for arg in argv)
+                or any(not isinstance(arm.get(key), str) or not HASH_PATTERN.fullmatch(arm[key])
+                       for key in ("runner_sha256", "input_sha256", "output_sha256"))):
+            raise PreflightError(f"source-free smoke evidence is incomplete: {name}")
+        paths: dict[str, Path] = {}
+        for label in ("runner", "input", "output"):
+            raw_path = arm.get(f"{label}_path")
+            if not isinstance(raw_path, str) or not raw_path.strip():
+                raise PreflightError(f"source-free smoke {label} path is missing: {name}")
+            path = Path(raw_path)
+            if not path.is_absolute():
+                raise PreflightError(f"source-free smoke {label} path must be absolute: {name}")
+            resolved = path.resolve(strict=True)
+            if not resolved.is_file() or sha256_file(resolved) != arm[f"{label}_sha256"]:
+                raise PreflightError(f"source-free smoke {label} bytes differ: {name}")
+            paths[label] = resolved
+        if Path(argv[0]).resolve(strict=True) != paths["runner"]:
+            raise PreflightError(f"source-free smoke launch runner differs: {name}")
+        runner_role = "llama_server" if name == "nuextract3_q4" else "runner"
+        manifest_runner = next(
+            (entry for entry in asset_manifest["model_arms"][name]["files"]
+             if entry["role"] == runner_role), None
+        )
+        if (manifest_runner is None
+                or Path(manifest_runner["path"]).resolve(strict=True) != paths["runner"]
+                or manifest_runner["sha256"] != arm["runner_sha256"]):
+            raise PreflightError(f"source-free smoke runner differs from asset manifest: {name}")
+
+
+def _validate_runtime(value: dict[str, Any], *, manifest_sha256: str, source_lock_sha256: str,
+                      profile_sha256: str, asset_manifest_sha256: str,
+                      smoke_log_sha256: str) -> None:
+    reviewer = value.get("reviewed_by")
+    if (value.get("version") != 1 or value.get("source_manifest_sha256") != manifest_sha256
+            or value.get("source_lock_sha256") != source_lock_sha256
+            or value.get("protocol_profile_sha256") != profile_sha256
+            or value.get("asset_manifest_sha256") != asset_manifest_sha256
+            or value.get("smoke_log_sha256") != smoke_log_sha256
+            or value.get("status") != "source_free_verified"
+            or not isinstance(reviewer, str) or not reviewer.strip()):
+        raise PreflightError("runtime receipt is not bound to the verified smoke log and assets")
+
+
+def _host_model_resources() -> tuple[int | None, int | None]:
+    """Read current host RAM and GPU 0 free memory; unknown values fail closed."""
+    try:
+        import psutil
+
+        available_ram = psutil.virtual_memory().available
+    except (ImportError, OSError):
+        available_ram = None
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, check=True, timeout=5,
+        )
+        gpu_free_mib = int(result.stdout.splitlines()[0].strip())
+    except (OSError, ValueError, IndexError, subprocess.CalledProcessError,
+            subprocess.TimeoutExpired):
+        gpu_free_mib = None
+    return available_ram, gpu_free_mib
+
+
+def inspect(args: argparse.Namespace) -> dict[str, Any]:
+    profile = _read_locked_json(args.profile, args.profile_sha256)
+    if profile.get("protocol_version") != 1 or profile.get("cohort_size") != 12:
+        raise PreflightError("protocol profile is incompatible")
+    limits = profile["limits"]
+    c_free = shutil.disk_usage("C:\\" if sys.platform == "win32" else "/").free
+    if c_free < limits["minimum_c_free_bytes_for_source_check"]:
+        raise PreflightError("C: free space is below the 4 GiB source-check guard")
+    manifest = _read_locked_json(args.source_root / "manifest-final.json", args.manifest_sha256)
+    eligibility = _read_locked_json(args.source_root / "eligibility.json", args.eligibility_sha256)
+    cohort = _cohort_sources(args.source_root, manifest, eligibility, args.manifest_sha256,
+                             profile["eligible_source_character_cap"], profile["cohort_size"])
+    expected_sources = {row["id"]: row["sha256"] for row in manifest["sources"]}
+    gates: dict[str, bool] = {"source_bytes": True}
+    blockers: list[str] = []
+
+    source_lock, issue = _try_lock(args.source_lock, args.source_lock_sha256, "scorer source lock")
+    planned: dict[str, str] | None = None
+    if source_lock is not None:
+        try:
+            planned = validate_source_lock(source_lock)
+            if planned != expected_sources:
+                raise PreflightError("scorer source lock ID-to-original-hash mapping differs from cohort")
+        except (SchemaContractError, PreflightError) as exc:
+            issue = str(exc)
+            planned = None
+    gates["source_lock"] = planned is not None
+    if issue:
+        blockers.append(issue)
+
+    gold_docs: dict[str, dict[str, Any]] | None = None
+    gold, issue = _try_lock(args.gold, args.gold_sha256, "scorer gold")
+    if gold is not None and planned is not None:
+        try:
+            gold_docs = validate_gold(gold, planned, args.source_lock_sha256)
+            if any(not doc["gold_complete"] for doc in gold_docs.values()):
+                raise PreflightError("scorer gold has an incomplete full-document annotation")
+        except (SchemaContractError, PreflightError) as exc:
+            issue = str(exc)
+            gold_docs = None
+    elif gold is not None:
+        issue = "scorer gold cannot be admitted before its source lock"
+    gates["gold"] = gold_docs is not None
+    if issue:
+        blockers.append(issue)
+
+    aliases, issue = _try_lock(args.aliases, args.aliases_sha256, "scorer aliases")
+    aliases_ok = False
+    if aliases is not None and gold_docs is not None:
+        try:
+            validate_aliases(aliases, gold_docs)
+            aliases_ok = True
+        except SchemaContractError as exc:
+            issue = str(exc)
+    elif aliases is not None:
+        issue = "scorer aliases cannot be admitted before adjudicated gold"
+    gates["aliases"] = aliases_ok
+    if issue:
+        blockers.append(issue)
+
+    rights, issue = _try_lock(args.rights_receipt, args.rights_sha256, "rights receipt")
+    rights_ok = False
+    if rights is not None and planned is not None:
+        try:
+            _validate_rights(rights, manifest_sha256=args.manifest_sha256,
+                             source_lock_sha256=args.source_lock_sha256, planned=planned)
+            rights_ok = True
+        except PreflightError as exc:
+            issue = str(exc)
+    elif rights is not None:
+        issue = "rights receipt cannot be admitted before its source lock"
+    gates["rights"] = rights_ok
+    if issue:
+        blockers.append(issue)
+
+    human, issue = _try_lock(args.human_receipt, args.human_sha256, "human adjudication receipt")
+    human_ok = False
+    if human is not None and planned is not None and gold_docs is not None and aliases_ok:
+        try:
+            _validate_human(human, manifest_sha256=args.manifest_sha256,
+                            eligibility_sha256=args.eligibility_sha256,
+                            source_lock_sha256=args.source_lock_sha256,
+                            gold_sha256=args.gold_sha256, aliases_sha256=args.aliases_sha256,
+                            planned=planned, gold_docs=gold_docs)
+            human_ok = True
+        except PreflightError as exc:
+            issue = str(exc)
+    elif human is not None:
+        issue = "human receipt cannot be admitted before scorer source/gold/alias locks"
+    gates["human_adjudication"] = human_ok
+    if issue:
+        blockers.append(issue)
+
+    assets, issue = _try_lock(args.asset_manifest, args.asset_manifest_sha256, "asset manifest")
+    assets_ok = False
+    if assets is not None:
+        try:
+            _validate_asset_manifest(assets, profile=profile, profile_sha256=args.profile_sha256)
+            assets_ok = True
+        except (OSError, PreflightError) as exc:
+            issue = f"asset manifest failed: {exc}"
+    gates["asset_manifest"] = assets_ok
+    if issue:
+        blockers.append(issue)
+
+    smoke, issue = _try_lock(args.smoke_log, args.smoke_sha256, "source-free smoke log")
+    smoke_ok = False
+    if smoke is not None and assets_ok:
+        try:
+            _validate_smoke_log(smoke, profile_sha256=args.profile_sha256,
+                                asset_manifest_sha256=args.asset_manifest_sha256,
+                                asset_manifest=assets,
+                                model_profiles=profile["model_profiles"])
+            smoke_ok = True
+        except (OSError, PreflightError) as exc:
+            issue = str(exc)
+    elif smoke is not None:
+        issue = "source-free smoke log cannot be admitted before the asset manifest"
+    gates["smoke_log"] = smoke_ok
+    if issue:
+        blockers.append(issue)
+
+    runtime, issue = _try_lock(args.runtime_receipt, args.runtime_sha256, "runtime receipt")
+    runtime_ok = False
+    if runtime is not None and planned is not None and assets_ok and smoke_ok:
+        try:
+            _validate_runtime(runtime, manifest_sha256=args.manifest_sha256,
+                              source_lock_sha256=args.source_lock_sha256,
+                              profile_sha256=args.profile_sha256,
+                              asset_manifest_sha256=args.asset_manifest_sha256,
+                              smoke_log_sha256=args.smoke_sha256)
+            runtime_ok = True
+        except PreflightError as exc:
+            issue = str(exc)
+    elif runtime is not None:
+        issue = "runtime receipt cannot be admitted before source, asset and smoke locks"
+    gates["runtime"] = runtime_ok
+    if issue:
+        blockers.append(issue)
+
+    gates["model_run_c_headroom"] = c_free >= limits["minimum_c_free_bytes_for_model_run"]
+    if not gates["model_run_c_headroom"]:
+        blockers.append("C: free space is below the 7 GiB model-run headroom gate")
+    available_ram, gpu_free_mib = _host_model_resources()
+    gates["model_run_host_ram"] = (available_ram is not None and
+                                   available_ram >= limits["minimum_host_available_ram_bytes_for_model_run"])
+    gates["model_run_gpu_memory"] = (gpu_free_mib is not None and
+                                     gpu_free_mib >= limits["minimum_gpu_free_mib_for_model_run"])
+    if not gates["model_run_host_ram"]:
+        blockers.append("available host RAM is below the 6 GiB model-run gate or unavailable")
+    if not gates["model_run_gpu_memory"]:
+        blockers.append("GPU 0 free memory is below the 6,144 MiB model-run gate or unavailable")
+    coverage_note = None
+    if cohort["eligible_under_character_cap"] < cohort["source_count"]:
+        coverage_note = "over-limit sources remain in the 12-source denominator and receive no model call"
+    return {"ready_for_inference": all(gates.values()), "gates": gates, "blockers": blockers,
+            "cohort": cohort, "coverage_note": coverage_note,
+            "manifest_sha256": args.manifest_sha256,
+            "eligibility_sha256": args.eligibility_sha256, "source_lock_sha256": args.source_lock_sha256,
+            "profile_sha256": args.profile_sha256, "c_free_bytes_at_check": c_free,
+            "host_available_ram_bytes_at_check": available_ram,
+            "gpu_0_free_mib_at_check": gpu_free_mib,
+            "model_calls_made": 0}
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source-root", type=Path, required=True)
+    parser.add_argument("--manifest-sha256", required=True)
+    parser.add_argument("--eligibility-sha256", required=True)
+    parser.add_argument("--profile", type=Path, required=True)
+    parser.add_argument("--profile-sha256", required=True)
+    parser.add_argument("--source-lock", type=Path)
+    parser.add_argument("--source-lock-sha256")
+    parser.add_argument("--gold", type=Path)
+    parser.add_argument("--gold-sha256")
+    parser.add_argument("--aliases", type=Path)
+    parser.add_argument("--aliases-sha256")
+    for kind in ("rights", "human", "runtime"):
+        parser.add_argument(f"--{kind}-receipt", type=Path)
+        parser.add_argument(f"--{kind}-sha256")
+    parser.add_argument("--asset-manifest", type=Path)
+    parser.add_argument("--asset-manifest-sha256")
+    parser.add_argument("--smoke-log", type=Path)
+    parser.add_argument("--smoke-sha256")
+    parser.add_argument("--require-ready", action="store_true",
+                        help="Return exit 2 when any pre-inference gate is not met")
+    args = parser.parse_args(argv)
+    try:
+        result = inspect(args)
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        result = {"ready_for_inference": False, "blockers": [str(exc)], "model_calls_made": 0}
+    print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
+    return 2 if args.require_ready and not result["ready_for_inference"] else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

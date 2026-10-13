@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "selection": "VRDU ranks 5-6 by raw source SHA in each frozen twelve; two pre-scored, OCR-eligible CORD development sources from the prior Graph lock. Selection precedes ICORE inference and does not read labels.",
+  "model_assignment": "Luna 6 all six; Sonnet 5 the lower selected source hash in each family. Same raw input and product process-auto route per model.",
+  "dataset_sha256": {
+    "vrdu_cohort": "98f4fcbd6521594304da3a80104362cf89174c87c27ed08ce90a1158fef4bc90",
+    "vrdu_gold": "8a631bffbf439ccc8376f84cbf7d4af25c86d35c0ccc7996ce3b23e6085138bf",
+    "cord_development_cohort": "48f9af8c04a5ee874c68ccb4c70a5fb81bcfddc508064747779678949103414a",
+    "cord_development_gold": "84a097116eaad75fb66265447d1b831f5a2ffa98792e10e9ad7edb517cb8e318",
+    "cord_reserved_cohort": "06d0bcfb05734557c54b85a9d7c0536008d9393a14012a1c7d01ab6e3058647e"
+  },
+  "prior_selection_sha256": {
+    "vrdu_twelve": "4e41a50bad2fedd0a1c488022f6ff7ff90e67af5d2aa14bd392ff96318e562ea",
+    "docling_graph_twelve": "61bef64cafb35739eba3a087fe5a742c57e68c340834325a8f77e49f63c5b047"
+  },
+  "call_budget": {
+    "max_attempts": 18,
+    "max_output_tokens_per_call": 1536,
+    "max_prompt_chars": 12000,
+    "max_prompt_utf8_bytes": 14000,
+    "max_reported_total_tokens": 100000,
+    "timeout_seconds": 60,
+    "sdk_retries": 0,
+    "concurrency": 1
+  },
+  "sources": [
+    {
+      "family": "registration-form",
+      "selection_rank": 5,
+      "doc_id": "f51b64436494f30050ef20376dc3c801",
+      "source_sha256": "00ac9d8296f6e8e5d5e6a8d4d5ce3f8af5156ab674d66095c2fe9f73114a9793",
+      "run_id": "vrdu_v5_reg_03",
+      "model_arms": [
+        "innobot-luna-6",
+        "innobot-sonnet-5"
+      ],
+      "source_size_bytes": 214439,
+      "source_file": "20140416_Ketchum Inc. NY_Crimmins, Julie Sarah_Short-Form.pdf",
+      "ocr_sidecar_sha256": "f42e548d938f716b0ec29e4a31fa713717cc1d68d7d8aef4b76bb67f38c1b231",
+      "ocr_pages_sha256": "401da9b4ca0e28338a75f84357e55c5765cc334756df200adbb14027c8afc157",
+      "ocr_page_count": 2,
+      "ocr_chars": 6612
+    },
+    {
+      "family": "registration-form",
+      "selection_rank": 6,
+      "doc_id": "4d8a3580763cfc54e07b943e4e5fe9d8",
+      "source_sha256": "012038abfa3e045b23584aacd91dff687425c1b0933b3558fd51d34f44f1233b",
+      "run_id": "vrdu_v5_reg_05",
+      "model_arms": [
+        "innobot-luna-6"
+      ],
+      "source_size_bytes": 144553,
+      "source_file": "20180425_Policy Impact Strategic Communications, Inc._Schrade, Jeff_Short-Form.pdf",
+      "ocr_sidecar_sha256": "2a570e8b8403daa5c2a05862e15b74d919304eb59143abdb592ba96b2c722ae5",
+      "ocr_pages_sha256": "31116d370f4dd0d5c11146d44b863e21f366f56cfa627df2eecbcc7312148f86",
+      "ocr_page_count": 2,
+      "ocr_chars": 6717
+    },
+    {
+      "family": "ad-buy-form",
+      "selection_rank": 5,
+      "doc_id": "19410b18c4ceda18cbeae9c546c6369d",
+      "source_sha256": "019bf912ebeab2dd72205cec02d895931e46bcacb7d486a2449e61187579f7fa",
+      "run_id": "vrdu_v5_ad_01",
+      "model_arms": [
+        "innobot-luna-6",
+        "innobot-sonnet-5"
+      ],
+      "source_size_bytes": 431111,
+      "source_file": "9e040dfb-a987-6a58-a341-e21b2cb1d0dc.pdf",
+      "ocr_sidecar_sha256": "78b15c9753505feb0f1640846484982dc506c84c0e54b3877d97cc1b3ebefc78",
+      "ocr_pages_sha256": "ecbd44d85cae037a6c8ed8e5b627483b4cbfa0be41b48f80b8087576927cb6fe",
+      "ocr_page_count": 1,
+      "ocr_chars": 2226
+    },
+    {
+      "family": "ad-buy-form",
+      "selection_rank": 6,
+      "doc_id": "480ff75645024ee29844be53be120fcf",
+      "source_sha256": "022c46dc12f992dd7b632b2c3821f5158979934e7354e01dc4ecaf5c7a39d62c",
+      "run_id": "vrdu_v5_ad_00",
+      "model_arms": [
+        "innobot-luna-6"
+      ],
+      "source_size_bytes": 158402,
+      "source_file": "434068-collect-files-1051-political-file-2012-non.pdf",
+      "ocr_sidecar_sha256": "f1fae93fcd30f9ac4fe7350aa9d65e822b5a6e61b67edbd7d0d8d6029bcfb9a4",
+      "ocr_pages_sha256": "d6d7dc55417551a1aff459e877c2bc588fa140c61c74d7b2e081423c456aeecb",
+      "ocr_page_count": 3,
+      "ocr_chars": 4570
+    },
+    {
+      "family": "receipt",
+      "selection_rank": 3,
+      "doc_id": "eb053d7caa8fe79a8c410269eca5ca23",
+      "source_sha256": "28a8c9e154f9971aaae01212e395618460e610da9eca8f82d05b9b5277eb8c7c",
+      "run_id": "cord_v2_development_v1",
+      "model_arms": [
+        "innobot-luna-6",
+        "innobot-sonnet-5"
+      ],
+      "source_size_bytes": 1636748,
+      "source_file": "cord_test_0083.png",
+      "ocr_sidecar_sha256": "6ef580db01aa91c9be3a0c184c7c6b5cfb129dd2dcac5d6a08856ef0a90d8729",
+      "ocr_pages_sha256": "0b9724072f497d9545b4ebf937517ae382039f7bdf6d56b412ac6c336789c32b",
+      "ocr_page_count": 1,
+      "ocr_chars": 272
+    },
+    {
+      "family": "receipt",
+      "selection_rank": 4,
+      "doc_id": "10bb0bc78b323e60ce130c26de192848",
+      "source_sha256": "4322ab5ec4f0b1365e08af0c31288e65e8cbd2c8eb5241adfb329244acbbb30b",
+      "run_id": "cord_v2_development_v1",
+      "model_arms": [
+        "innobot-luna-6"
+      ],
+      "source_size_bytes": 1235872,
+      "source_file": "cord_test_0017.png",
+      "ocr_sidecar_sha256": "0a4f56bd2efa7fef9275d92c6b52401df5c93c55cc919216e8d535c3ddfdca64",
+      "ocr_pages_sha256": "4b7cd06fb958e2085451ccf042f1d041abeca61cf7b0b0e8c518988e3ca145b0",
+      "ocr_page_count": 1,
+      "ocr_chars": 229
+    }
+  ]
+}

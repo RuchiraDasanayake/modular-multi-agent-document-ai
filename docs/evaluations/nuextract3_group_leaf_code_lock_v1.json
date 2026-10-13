@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "scope": "source_disjoint_nuextract3_grouped_leaf_dev12",
+  "code_commit": "87c28a64ad0561ce538c2e029aea9fb28b08c340",
+  "source_lock_canonical_sha256": "846d3bcc4cf1d02a2dcb10d1e5233b6881c2ec23d57d0a100936430972748a80",
+  "rule_canonical_sha256": "343e6c2403d97c27d4cdf4207e005eb6d800397ff19d426474d6970d3b51d95b",
+  "run_profile_canonical_sha256": "c72c0c4e86499796a188c660ce0de03d04be25abe90d0ca3e469812c2eddcd62",
+  "files": {
+    "product_eval/nuextract3_group_leaf_pilot.py": "c86cb563fbc41fc32fb3296894b2d9ed16d7fbb18b07866aaa3bc3ef86388ac3",
+    "product_eval/nuextract3_group_leaf_scorer.py": "a098dfea27eb727274cb7e562cd5d3c23b039ee4604c076400e9ea20f9924772",
+    "product_eval/nuextract3_dev_diagnostic.py": "926f53e39734c7d58ec073477ed8098dc4e16cbd2ea6a1fb83063dfb0586cee0",
+    "product_eval/graph_schema_diagnostic.py": "032a43b1760a3ff9acc5a5ed0ef881a21387dde6ae91d97b72b49d789672ade9",
+    "product_eval/contracts.py": "238c7b61a0db005601e477029f29b3b60e4da1d8ab999b8e59d17e895efc8d93",
+    "product_eval/oracle_schema_diagnostic.py": "fcbbeaeaa41a6c400721ec111ffbf461da30a41f20803eb9ab55ee470ba83317"
+  }
+}

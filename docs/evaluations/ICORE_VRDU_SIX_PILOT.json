@@ -1,0 +1,348 @@
+{
+  "report_version": 1,
+  "title": "ICORE on six public VRDU PDFs: bounded auto-mode trial",
+  "reported_at_utc": "2026-10-11T20:49:40.462852+00:00",
+  "scope": "Exactly six public PDFs from Google's VRDU corpus: three registration-form and three ad-buy-form. No private user PDF or source was sent to ICORE. The six candidate IDs were selected by raw source SHA-256 rank before reading labels.",
+  "dataset": {
+    "source": "https://github.com/google-research-datasets/vrdu",
+    "creator_commit": "04a4df7ac5cc694e51c48115c03fe428f0e240cc",
+    "frozen_cohort": "E:/DocAI-Benchmarks/vrdu-cohort-04a4df7/cohort.jsonl",
+    "frozen_gold": "E:/DocAI-Benchmarks/vrdu-cohort-04a4df7/gold.jsonl",
+    "selection_rule": "Lowest three raw source_sha256 values in each frozen VRDU family, independent of annotation content.",
+    "selected_family_counts": {
+      "registration-form": 3,
+      "ad-buy-form": 3
+    },
+    "distinct_raw_source_sha256": 6,
+    "source_hashes_verified": true,
+    "repeated_source_outputs": 0,
+    "gold_candidate_join": "exact 6:6 doc_id join"
+  },
+  "configuration": {
+    "command_path": "Current idpo.product_auto.process_auto with OpenAICompatibleChat; one run per original PDF",
+    "api_base_url": "https://icore.innobothealth.us/innobot-api/v1",
+    "model": "innobot-luna-6",
+    "credential_handling": "Read from user attachment into process memory only; never printed or persisted. SDK retries disabled.",
+    "chat_request_cap": 12,
+    "attempted_chat_requests": 6,
+    "sdk_max_retries": 0,
+    "max_tokens_per_chat_call": 1200,
+    "timeout_s": 90,
+    "ocr_engine": "tesseract",
+    "code_sha256": {
+      "idpo/product_auto/workflow.py": "7ea5ac8e94e5b4831181992f78713cb6867bde310d5ddd39d2f9519d9236b78e",
+      "idpo/product_auto/logic.py": "b499a7564691616622591c2e4cfbd8559b0e9951cc4c45715936b6ead23a25e4",
+      "idpo/product_auto/provider.py": "0275bedb3be1a41b5fbda2f3626300b30bba6e4d0ba66aeadf95649d44f32259",
+      "idpo/agents/preprocess.py": "91c85895d986b67e28db84abead1c66efd2d206777551682585d4cb86555c1d6"
+    },
+    "research_pipeline_or_frozen_october_artifacts_changed": false
+  },
+  "results": {
+    "status_counts": {
+      "failed": 0,
+      "needs_review": 5,
+      "processed": 0,
+      "unsupported": 1
+    },
+    "sum_document_duration_ms": 177149.826,
+    "successful_chat_responses": 1,
+    "provider_connection_errors": 5,
+    "provider_error_types": [
+      "APIConnectionError"
+    ],
+    "known_prompt_tokens": 1241,
+    "known_completion_tokens": 457,
+    "token_usage_reporting_coverage": "1/6 attempted chats",
+    "schema": {
+      "f1": 0.02631578947368421,
+      "fn": 59,
+      "fp": 15,
+      "group_accuracy": null,
+      "group_correct": 0,
+      "group_evaluated": 0,
+      "precision": 0.0625,
+      "recall": 0.016666666666666666,
+      "tp": 1,
+      "type_accuracy": 1.0,
+      "type_correct": 1,
+      "type_evaluated": 1
+    },
+    "values": {
+      "critical_false_accepted": 0,
+      "f1": 0.0,
+      "false_accepted": 0,
+      "fn": 54,
+      "fp": 0,
+      "gold_missing_predicted_zero": 0,
+      "gold_zero_predicted_missing": 0,
+      "precision": null,
+      "recall": 0.0,
+      "tp": 0
+    },
+    "linked_rows": {
+      "accepted_cells": {
+        "f1": 0.0,
+        "fn": 221,
+        "fp": 0,
+        "precision": null,
+        "recall": 0.0,
+        "tp": 0
+      },
+      "accepted_complete_rows": {
+        "f1": 0.0,
+        "fn": 48,
+        "fp": 0,
+        "precision": null,
+        "recall": 0.0,
+        "tp": 0
+      },
+      "candidate_cells": 0,
+      "candidate_linked_fields": 0,
+      "candidate_rows": 0,
+      "gold_cells": 221,
+      "gold_linked_fields": 15,
+      "gold_rows": 48,
+      "matching": "Exact derived field ID, row ordinal, and OCR surface string; not the official VRDU matcher or a semantic alignment.",
+      "proposed_cells": {
+        "f1": 0.0,
+        "fn": 221,
+        "fp": 0,
+        "precision": null,
+        "recall": 0.0,
+        "tp": 0
+      },
+      "proposed_complete_rows": {
+        "f1": 0.0,
+        "fn": 48,
+        "fp": 0,
+        "precision": null,
+        "recall": 0.0,
+        "tp": 0
+      }
+    },
+    "evidence": {
+      "evaluable_accepted_values": 0,
+      "presence_rate": null,
+      "present": 0,
+      "valid": 0,
+      "validity_rate": null
+    },
+    "operations": {
+      "auto_accepted_gold_fields": 0,
+      "auto_processed_docs": 0,
+      "correct_auto_release_rate": null,
+      "correctly_auto_released_docs": 0,
+      "critical_evaluable_docs": 0,
+      "doc_automation_rate": 0.0,
+      "doc_review_rate": 0.8333333333333334,
+      "docs_requiring_or_receiving_review": 5,
+      "field_automation_rate": 0.0,
+      "field_review_rate": 0.016666666666666666,
+      "gold_fields": 60,
+      "orphan_extracted_values": 0,
+      "reviewed_or_pending_gold_fields": 1
+    },
+    "documents": {
+      "candidate": 6,
+      "failed": 0,
+      "gold": 6,
+      "missing_candidate": 0,
+      "unsupported": 1
+    },
+    "per_document": [
+      {
+        "doc_id": "2e8f9a5f9657c1f854527313071dc9d3",
+        "family": "registration-form",
+        "source_sha256": "00159e1d37fc2665b6ffaf6223ff69187e51decdb00e0fe4cd501643b069c5d5",
+        "source_size_bytes": 120939,
+        "status": "needs_review",
+        "reason": "invalid_schema_model_response",
+        "ocr_pages": 3,
+        "ocr_chars": 1147,
+        "proposed_schema_fields": 0,
+        "proposed_linked_fields": 0,
+        "accepted_values": 0,
+        "needs_review_values": 0,
+        "missing_values": 0,
+        "model_calls": [
+          {
+            "completion_tokens": null,
+            "error": "APIConnectionError",
+            "finish_reason": null,
+            "latency_ms": 76922.779,
+            "phase": "schema",
+            "prompt_tokens": null
+          }
+        ],
+        "duration_ms": 79861.036
+      },
+      {
+        "doc_id": "aea6ed014a29facb39de15eaaef1a963",
+        "family": "registration-form",
+        "source_sha256": "004e5f2397d3f69bcb2be14dc935df72caf8387d9958aa57b80e0294566307d7",
+        "source_size_bytes": 48470,
+        "status": "needs_review",
+        "reason": "invalid_values_model_response",
+        "ocr_pages": 2,
+        "ocr_chars": 4818,
+        "proposed_schema_fields": 16,
+        "proposed_linked_fields": 0,
+        "accepted_values": 0,
+        "needs_review_values": 0,
+        "missing_values": 16,
+        "model_calls": [
+          {
+            "completion_tokens": 457,
+            "error": null,
+            "finish_reason": "stop",
+            "latency_ms": 10729.648,
+            "phase": "schema",
+            "prompt_tokens": 1241
+          },
+          {
+            "completion_tokens": null,
+            "error": "APIConnectionError",
+            "finish_reason": null,
+            "latency_ms": 81053.906,
+            "phase": "values",
+            "prompt_tokens": null
+          }
+        ],
+        "duration_ms": 91826.305
+      },
+      {
+        "doc_id": "1a9efac5c954664cf9992d1ab452fb5b",
+        "family": "registration-form",
+        "source_sha256": "008a35460c861cc80105e4b795cc774ad6766670894108e3cfb0900e99eaba03",
+        "source_size_bytes": 129214,
+        "status": "needs_review",
+        "reason": "invalid_schema_model_response",
+        "ocr_pages": 3,
+        "ocr_chars": 1155,
+        "proposed_schema_fields": 0,
+        "proposed_linked_fields": 0,
+        "accepted_values": 0,
+        "needs_review_values": 0,
+        "missing_values": 0,
+        "model_calls": [
+          {
+            "completion_tokens": null,
+            "error": "APIConnectionError",
+            "finish_reason": null,
+            "latency_ms": 1.771,
+            "phase": "schema",
+            "prompt_tokens": null
+          }
+        ],
+        "duration_ms": 2796.708
+      },
+      {
+        "doc_id": "c960338957dfa60346aac9863edd4c27",
+        "family": "ad-buy-form",
+        "source_sha256": "00af9ec9594520a61f852e0ccfd93441f068b38fc120625a0571e04941eb1060",
+        "source_size_bytes": 269805,
+        "status": "needs_review",
+        "reason": "invalid_schema_model_response",
+        "ocr_pages": 3,
+        "ocr_chars": 7885,
+        "proposed_schema_fields": 0,
+        "proposed_linked_fields": 0,
+        "accepted_values": 0,
+        "needs_review_values": 0,
+        "missing_values": 0,
+        "model_calls": [
+          {
+            "completion_tokens": null,
+            "error": "APIConnectionError",
+            "finish_reason": null,
+            "latency_ms": 1.297,
+            "phase": "schema",
+            "prompt_tokens": null
+          }
+        ],
+        "duration_ms": 395.402
+      },
+      {
+        "doc_id": "e2e3a1f8d204396dbd270eb9392e5454",
+        "family": "ad-buy-form",
+        "source_sha256": "00d6bafddf012448e9ada179b9cebcf52a15eb6fb9e7d8c6549cf773a7ef56ff",
+        "source_size_bytes": 204508,
+        "status": "unsupported",
+        "reason": "no_text_after_ocr",
+        "ocr_pages": 1,
+        "ocr_chars": 0,
+        "proposed_schema_fields": 0,
+        "proposed_linked_fields": 0,
+        "accepted_values": 0,
+        "needs_review_values": 0,
+        "missing_values": 0,
+        "model_calls": [],
+        "duration_ms": 2119.862
+      },
+      {
+        "doc_id": "1bf0c61dbd517c9d5c1d2684c2788497",
+        "family": "ad-buy-form",
+        "source_sha256": "0112d54415d968cd438207ddbd423fb64b636354f29c72f0c6defe3cef14729a",
+        "source_size_bytes": 433820,
+        "status": "needs_review",
+        "reason": "invalid_schema_model_response",
+        "ocr_pages": 1,
+        "ocr_chars": 1750,
+        "proposed_schema_fields": 0,
+        "proposed_linked_fields": 0,
+        "accepted_values": 0,
+        "needs_review_values": 0,
+        "missing_values": 0,
+        "model_calls": [
+          {
+            "completion_tokens": null,
+            "error": "APIConnectionError",
+            "finish_reason": null,
+            "latency_ms": 3.66,
+            "phase": "schema",
+            "prompt_tokens": null
+          }
+        ],
+        "duration_ms": 150.513
+      }
+    ]
+  },
+  "cost": {
+    "billed_api_cost_usd": null,
+    "compute_cost_usd": null,
+    "total_cost_usd": null,
+    "pricing_source": null,
+    "reason": "ICORE response usage was present only on one successful request, and no verifiable per-model prices or settled charge data were returned. Timed-out requests may or may not have been processed remotely."
+  },
+  "interpretation": [
+    "This is a connectivity-limited pilot: five of six attempted chats returned APIConnectionError, so the observed low extraction score does not isolate model quality.",
+    "The one successful schema proposal had 16 fields, of which one field ID matched the frozen canonical gold exactly. The scorer does not adjudicate semantic aliases, so schema precision/recall is a strict ID metric.",
+    "No value response succeeded. Zero accepted values means evidence presence and validity rates are undefined, not perfect.",
+    "The frozen gold contains 221 linked cells in 48 rows across the six PDFs. The candidate proposed zero linked fields/cells; ad-buy schema calls did not succeed, so this does not demonstrate the model's table capability.",
+    "One public ad-buy PDF produced zero text under an unverified Tesseract environment and was marked unsupported before any provider call. This scan outcome is invalid as evidence of document illegibility; the executable must be pinned and preflighted.",
+    "All proposed values remain subject to human review because dynamic schemas are unapproved; this run produced no correctly auto-released document."
+  ],
+  "decision": {
+    "gate": "FAIL",
+    "reason": "No accepted extraction and unstable provider connectivity in this bounded trial.",
+    "next_step": "Pin and preflight the Tesseract executable before evaluating scanned PDFs. Diagnose ICORE transport/timeouts before any new bounded cloud holdout. Preserve this attempt in the denominator."
+  },
+  "external_artifacts": {
+    "pilot_dir": "E:/DocAI-Benchmarks/vrdu-icore-six-20261011T193706Z-e4d294",
+    "execution_report": "execution-report.json",
+    "quality_report": "quality-report.json",
+    "candidate_subset": "candidate-six.jsonl",
+    "gold_subset": "gold-six.jsonl"
+  },
+  "ocr_dependency_audit": {
+    "audited_after_pilot": true,
+    "runner_pinned_TESSERACT_CMD": false,
+    "runner_recorded_resolved_executable": false,
+    "same_host_current_find_tesseract_cmd": null,
+    "code_path": "idpo.agents.preprocess._extract_with_confidence catches Tesseract launch exceptions and returns empty text with confidence 0.0; the pilot version then marked zero-text pages unsupported.",
+    "zero_text_doc_id": "e2e3a1f8d204396dbd270eb9392e5454",
+    "zero_text_page_observation": "The one page logged engine=tesseract, confidence=0.0 and nine rapid OCR candidates; no provider call was made.",
+    "inference": "The missing executable is strongly indicated, but pilot-time process environment was not recorded. Treat the unsupported label as invalid evidence of document illegibility or OCR quality.",
+    "effect_on_model_findings": "The zero-text scan provides no ICORE model-quality observation. Connectivity results and measured 6-document score remain as executed; five text-bearing documents reached provider attempts."
+  }
+}

@@ -13,7 +13,7 @@ ocr = [
   "pytesseract>=0.3.10",
   "pillow>=10.0.0",
   "pdf2image>=1.17.0",
-  "pymupdf>=1.24",
+  "pypdfium2==5.14.0",
 ]
 pdf = [
   "pypdf>=4.0.0",

@@ -1,4 +1,8 @@
-# 🚀 QUICK START - Deploy in 30 Minutes
+# Legacy deployment quick start
+
+This guide describes an older service topology and environment setup. Use the
+[current single-host deployment path](docs/DEPLOYMENT_CURRENT.md). Its live
+container smoke and extraction-quality release gates remain outstanding.
 
 ## 📋 Pre-Flight Checklist
 
