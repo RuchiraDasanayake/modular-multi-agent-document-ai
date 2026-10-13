@@ -3,18 +3,112 @@
 from __future__ import annotations
 
 import base64
+import builtins
 import hashlib
+import importlib.util
+import py_compile
 import zipfile
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
+from product_eval import tatr_ocr_word_source_free as ocr_probe
 from product_eval.tatr_cell_compat import prepare_word_tokens
 from product_eval.tatr_ocr_word_source_free import (
+    _installed_distributions,
     _verify_installed_record,
+    _verify_site_packages_inventory,
     _verify_wheel_payload,
     rapidocr_words_to_tatr_tokens,
 )
+
+
+@pytest.fixture
+def site_packages(tmp_path: Path) -> Path:
+    root = tmp_path / "site-packages"
+    package = root / "demo"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
+    metadata = root / "demo_package-1.0.dist-info"
+    metadata.mkdir()
+    (metadata / "METADATA").write_text(
+        "Metadata-Version: 2.1\nName: demo-package\nVersion: 1.0\n", encoding="utf-8",
+    )
+    (metadata / "RECORD").write_text(
+        "demo/__init__.py,,\n"
+        "demo_package-1.0.dist-info/METADATA,,\n"
+        "demo_package-1.0.dist-info/RECORD,,\n",
+        encoding="utf-8",
+    )
+    return root
+
+
+def test_installed_distribution_rejects_duplicate_normalized_name(site_packages: Path) -> None:
+    duplicate = site_packages / "shadow-1.0.dist-info"
+    duplicate.mkdir()
+    (duplicate / "METADATA").write_text(
+        "Metadata-Version: 2.1\nName: demo_package\nVersion: 1.0\n", encoding="utf-8",
+    )
+    (duplicate / "RECORD").write_text(
+        "shadow-1.0.dist-info/METADATA,,\nshadow-1.0.dist-info/RECORD,,\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="duplicate installed distribution: demo-package"):
+        _installed_distributions(site_packages)
+
+
+@pytest.mark.parametrize("name", [
+    "intruder.py", "sitecustomize.py", "usercustomize.py", "startup.pth",
+    "demo/intruder.py", "demo/native.pyd", "demo/native.so", "demo/native.pyc",
+    "demo/__pycache__/orphan.cpython-311.pyc",
+])
+def test_inventory_rejects_unrecorded_importable_or_executable_files(
+    site_packages: Path, name: str,
+) -> None:
+    injected = site_packages / name
+    injected.parent.mkdir(parents=True, exist_ok=True)
+    injected.write_bytes(b"injected")
+    with pytest.raises(ValueError, match="unrecorded site-packages file"):
+        _verify_site_packages_inventory(site_packages, _installed_distributions(site_packages))
+
+
+def test_inventory_allows_generated_bytecode_for_recorded_source(site_packages: Path) -> None:
+    source = site_packages / "demo" / "__init__.py"
+    cache = Path(importlib.util.cache_from_source(str(source)))
+    py_compile.compile(str(source), cfile=str(cache), doraise=True)
+    assert _verify_site_packages_inventory(site_packages, _installed_distributions(site_packages)) == 4
+
+
+def test_inventory_allows_recorded_pth(site_packages: Path) -> None:
+    (site_packages / "bootstrap.pth").write_text("import bootstrap\n", encoding="utf-8")
+    record = site_packages / "demo_package-1.0.dist-info" / "RECORD"
+    record.write_text(record.read_text(encoding="utf-8") + "bootstrap.pth,,\n", encoding="utf-8")
+    assert _verify_site_packages_inventory(site_packages, _installed_distributions(site_packages)) == 4
+
+
+def test_inventory_rejects_injection_before_vendor_imports(
+    site_packages: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (site_packages / "sitecustomize.py").write_text("raise RuntimeError('loaded')\n", encoding="utf-8")
+
+    def reject_inventory(*_args: object) -> dict:
+        _verify_site_packages_inventory(site_packages, _installed_distributions(site_packages))
+        return {}
+
+    original_import = builtins.__import__
+
+    def reject_vendor_import(name: str, *args: object, **kwargs: object) -> object:
+        if name.split(".", 1)[0] in {"numpy", "onnxruntime", "PIL", "rapidocr"}:
+            pytest.fail(f"vendor import before runtime inventory: {name}")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(ocr_probe, "verify_runtime", reject_inventory)
+    monkeypatch.setattr(builtins, "__import__", reject_vendor_import)
+    with pytest.raises(ValueError, match="unrecorded site-packages file"):
+        ocr_probe.run_synthetic(runtime_root=site_packages.parent, wheelhouse=site_packages.parent,
+                                notices_root=site_packages.parent, font_path=site_packages.parent,
+                                output_dir=site_packages.parent / "unused")
 
 
 def _result() -> SimpleNamespace:

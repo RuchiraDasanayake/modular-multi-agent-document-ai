@@ -11,10 +11,12 @@ import base64
 import csv
 import hashlib
 import importlib.metadata
+import importlib.util
 import json
 import math
 import os
 import re
+import stat
 import sys
 import zipfile
 from collections.abc import Sequence
@@ -93,6 +95,58 @@ def _verify_wheel_payload(wheel: zipfile.ZipFile, site_packages: Path) -> int:
     return count
 
 
+def _installed_distributions(site_packages: Path) -> dict[str, importlib.metadata.Distribution]:
+    installed: dict[str, importlib.metadata.Distribution] = {}
+    for dist in importlib.metadata.distributions(path=[str(site_packages)]):
+        raw_name = dist.metadata["Name"]
+        if not raw_name:
+            raise ValueError("OCR runtime has installed distribution without a name")
+        name = _canonical_name(raw_name)
+        if name in installed:
+            raise ValueError(f"OCR runtime has duplicate installed distribution: {name}")
+        installed[name] = dist
+    return installed
+
+
+def _generated_bytecode(path: Path, recorded: set[Path]) -> bool:
+    if path.suffix != ".pyc" or path.parent.name != "__pycache__":
+        return False
+    try:
+        source = Path(importlib.util.source_from_cache(str(path))).resolve()
+    except ValueError:
+        return False
+    return source in recorded and source.is_file()
+
+
+def _verify_site_packages_inventory(
+    site_packages: Path, installed: dict[str, importlib.metadata.Distribution],
+) -> int:
+    """Reject files outside installed RECORDs, apart from generated source bytecode."""
+    recorded: set[Path] = set()
+    for dist in installed.values():
+        record = dist.read_text("RECORD")
+        if not record:
+            raise ValueError(f"missing installed RECORD: {dist.metadata['Name']}")
+        for row in csv.reader(record.splitlines()):
+            if len(row) != 3:
+                raise ValueError(f"malformed installed RECORD: {dist.metadata['Name']}")
+            path = Path(dist.locate_file(row[0])).resolve()
+            if path.is_relative_to(site_packages):
+                recorded.add(path)
+    count = 0
+    for path in site_packages.rglob("*"):
+        if path.is_symlink() or (getattr(path.lstat(), "st_file_attributes", 0)
+                                 & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)):
+            raise ValueError(f"site-packages contains a linked path: {path}")
+        if not path.is_file():
+            continue
+        resolved = path.resolve()
+        if resolved not in recorded and not _generated_bytecode(resolved, recorded):
+            raise ValueError(f"unrecorded site-packages file: {path}")
+        count += 1
+    return count
+
+
 def verify_runtime(runtime_root: Path, wheelhouse: Path, notices_root: Path) -> dict[str, Any]:
     """Verify the headless-only OCR environment and its cached wheel closure."""
     runtime_root, wheelhouse = runtime_root.resolve(strict=True), wheelhouse.resolve(strict=True)
@@ -107,12 +161,10 @@ def verify_runtime(runtime_root: Path, wheelhouse: Path, notices_root: Path) -> 
     wheels = [row for row in dependency_lock["wheels"]
               if _canonical_name(row["package"]) not in exclusions]
     expected_names = {_canonical_name(row["package"]) for row in wheels}
-    installed = {
-        _canonical_name(dist.metadata["Name"]): dist
-        for dist in importlib.metadata.distributions(path=[str(site_packages)])
-    }
+    installed = _installed_distributions(site_packages)
     if set(installed) != expected_names | {"pip", "setuptools"}:
         raise ValueError("OCR runtime has missing or unexpected installed distributions")
+    inventory_files = _verify_site_packages_inventory(site_packages, installed)
     verified_files = 0
     wheel_payload_files = 0
     record_hashes: dict[str, str] = {}
@@ -155,6 +207,7 @@ def verify_runtime(runtime_root: Path, wheelhouse: Path, notices_root: Path) -> 
         "wheel_count": len(wheels),
         "installed_record_files_verified": verified_files,
         "installed_wheel_payload_files_verified": wheel_payload_files,
+        "installed_site_packages_files_inventoried": inventory_files,
         "installed_record_sha256": record_hashes,
         "model_sha256": {name: item["sha256"] for name, item in lock["models"].items()},
         "rapidocr_wheel_sha256": lock["rapidocr_wheel"]["sha256"],
@@ -324,7 +377,7 @@ def run_synthetic(*, runtime_root: Path, wheelhouse: Path, notices_root: Path, f
         "providers_available": ort.get_available_providers(),
         "providers_selected": providers,
         "confidence_caveat": "RapidOCR 3.10.0 word_results scores are raw reported scores, not calibrated word probabilities; grouped-word aggregation is not established.",
-        "runtime_boundary": "21 OCR dependency wheels, hashed installed payloads and staged upstream notices verified; generated .pyc, bootstrap pip/setuptools, and host system DLLs are outside this closure.",
+        "runtime_boundary": "21 OCR dependency wheels, hashed installed payloads, staged upstream notices, and site-packages RECORD inventory verified; generated .pyc, unpinned bootstrap pip/setuptools, and host system DLLs are outside the byte closure. Python startup files may execute before this preflight.",
     }
     encoded = json.dumps(receipt, indent=2, sort_keys=True) + "\n"
     receipt_path = output_dir / "receipt.json"
