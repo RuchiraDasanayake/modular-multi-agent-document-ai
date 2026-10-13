@@ -8,6 +8,11 @@ function Assert-Throws([scriptblock]$Action, [string]$Message) {
   try { & $Action | Out-Null } catch { $failed = $true }
   Assert-Test $failed $Message
 }
+function Assert-ThrowsMessage([scriptblock]$Action, [string]$Expected, [string]$Message) {
+  $actual = $null
+  try { & $Action | Out-Null } catch { $actual = $_.Exception.Message }
+  Assert-Test ([bool]$actual -and $actual.Contains($Expected, [StringComparison]::Ordinal)) $Message
+}
 Assert-NativeWindows
 $testRoot = Join-Path $env:TEMP ('docai-recovery-unit-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $testRoot | Out-Null
@@ -76,6 +81,42 @@ try {
   [void]$runningState.services.Remove('worker')
   function Test-NativePortOwnership { param($Port, $Identity) return $false }
   Assert-Throws { Assert-RecoveryRunning $secret } 'Wrong port ownership prevents passive HTTP verification.'
+  # A Windows venv launcher remains a separate configured process above the base
+  # Python caller. The guard may exclude only its direct script caller; running
+  # the stdlib recovery helper with base Python avoids the self-launcher.
+  Remove-Item -LiteralPath (Join-Path $target 'postmaster.pid')
+  function Get-NativeState { param($Config) return $null }
+  $guardCallerPid = 9001
+  $baseCaller = [pscustomobject]@{
+    ProcessId = $guardCallerPid; ParentProcessId = 9002; Name = 'python.exe'
+    ExecutablePath = 'C:\Python313\python.exe'
+    CommandLine = 'C:\Python313\python.exe scripts\native_recovery_files.py backup'
+  }
+  $venvLauncher = [pscustomobject]@{
+    ProcessId = 9002; ParentProcessId = 9003; Name = 'python.exe'
+    ExecutablePath = $config.pythonPath
+    CommandLine = 'C:\fixture\python.exe scripts\native_recovery_files.py backup'
+  }
+  $unrelatedParser = [pscustomobject]@{
+    ProcessId = 9004; ParentProcessId = 9003; Name = 'python.exe'
+    ExecutablePath = $config.pythonPath
+    CommandLine = 'C:\fixture\python.exe unrelated-benchmark.py'
+  }
+  $processRows = @($baseCaller)
+  function Get-CimInstance {
+    param([string]$ClassName, [string]$Filter)
+    Assert-Test ($ClassName -eq 'Win32_Process') 'Only synthetic process inspection is used.'
+    if ($Filter) { return [pscustomobject]@{ ParentProcessId = $guardCallerPid } }
+    return $processRows
+  }
+  Assert-ThrowsMessage { Assert-RecoveryStopped $secret } 'pg_controldata.exe is required.' `
+    'The direct base Python caller is exempt and reaches the next stopped-state check.'
+  $processRows = @($baseCaller, $venvLauncher)
+  Assert-ThrowsMessage { Assert-RecoveryStopped $secret } 'A configured PostgreSQL or Python process is still running.' `
+    'A configured venv launcher ancestor is not exempt.'
+  $processRows = @($baseCaller, $unrelatedParser)
+  Assert-ThrowsMessage { Assert-RecoveryStopped $secret } 'A configured PostgreSQL or Python process is still running.' `
+    'An unrelated configured parser remains a backup blocker.'
   Write-Output 'PASS: private ACLs, junction rejection, isolated environment, stopped guards and passive process ownership.'
 } finally {
   Remove-Item Env:UNUSUAL_PROVIDER_SECRET -ErrorAction SilentlyContinue

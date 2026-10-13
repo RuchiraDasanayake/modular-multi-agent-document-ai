@@ -34,11 +34,35 @@ copy. No live recovery result is implied by the unit tests.
 
 ## Stages (operator-controlled; no automatic shutdown)
 
-Use absolute paths. In the examples, `$python` is the configured interpreter,
-`$originalConfig` the private native JSON, `$backup` a new bundle directory,
+Use absolute paths. In the examples, `$productPython` is the configured product
+interpreter, `$python` is its base CPython interpreter, `$originalConfig` the
+private native JSON, `$backup` a new bundle directory,
 `$clone` a new recovery runtime directory, and `$cloneRepo` a separate checkout at
 the source revision recorded by the backup. Parent directories must already
 exist. Choose three unused clone ports different from all three original ports.
+
+Resolve the base interpreter **before** the cold-backup window, then let the
+configured interpreter exit. The recovery helpers use only Python's standard
+library. On Windows, a virtual-environment `python.exe` can remain as a parent
+launcher while its base interpreter runs the script. The stopped-state guard
+correctly sees that configured launcher as another runtime user and refuses the
+backup. Do not weaken the guard or bypass this check:
+
+```powershell
+$resolvedBase = & $productPython -c 'import sys; print(sys._base_executable)'
+if ($LASTEXITCODE -ne 0 -or $resolvedBase -isnot [string]) {
+  throw 'The base Python interpreter could not be resolved.'
+}
+$python = $resolvedBase.Trim()
+if (-not [IO.Path]::IsPathFullyQualified($python) -or
+    -not (Test-Path -LiteralPath $python -PathType Leaf)) {
+  throw 'The base Python interpreter could not be resolved.'
+}
+```
+
+Use `$python` for the capture, backup, verification and restore commands below.
+Wait for unrelated users of the configured product and gateway interpreters to
+finish before the cold backup; an unrelated process must still block it.
 
 ### 1. Record a private authenticated baseline while the original is available
 
