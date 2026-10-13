@@ -77,7 +77,7 @@ def main() -> None:
     auto_parser.add_argument("--timeout-s", type=_model_timeout_s, default=60)
     auto_parser.add_argument("--max-tokens", type=_model_max_tokens, default=1200)
     auto_parser.add_argument("--response-format-profile", default="plain_json",
-                             choices=("plain_json", "strict_confirmed_values_v1"))
+                             choices=("plain_json", "strict_confirmed_values_v1", "strict_confirmed_values_v2"))
     auto_parser.add_argument("--long-document-profile", default="reject",
                              choices=("reject", "bounded_text_segments_v1"))
     auto_parser.add_argument("--visual-document-profile", default="disabled",

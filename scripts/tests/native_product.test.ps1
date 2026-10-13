@@ -69,6 +69,9 @@ try {
   $rapid | ConvertTo-Json | Set-Content -LiteralPath $configPath
   $rapidConfig = Get-NativeConfig -ConfigPath $configPath
   Assert-Test ($rapidConfig.rapidOcrTimeoutSeconds -eq 120 -and $rapidConfig.rapidOcrMaxRssMiB -eq 1536) 'RapidOCR bounds default explicitly.'
+  $rapid.autoResponseFormat = 'strict_confirmed_values_v2'
+  $rapid | ConvertTo-Json | Set-Content -LiteralPath $configPath
+  Assert-Test ((Get-NativeConfig -ConfigPath $configPath).autoResponseFormat -eq 'strict_confirmed_values_v2') 'Keyed strict v2 requires explicit native configuration.'
   foreach ($patch in @(@{ rapidOcrPythonPath = 'relative.exe' }, @{ rapidOcrMaxRssMiB = 2049 },
       @{ rapidOcrTimeoutSeconds = 181 }, @{ autoOcrEngine = 'unavailable' }, @{ autoResponseFormat = 'unknown' },
       @{ autoLongDocument = 'truncate' }, @{ autoVisualDocument = 'unbounded' })) {

@@ -112,3 +112,32 @@ test("selective visual routing is an explicit sealed profile without changing hi
   assert.deepEqual(args.slice(-2), ["--visual-document-profile", "bounded_visual_selective_v2"]);
   assert.equal(validExtractionProfile({ ...profile, visualDocument: "bounded_visual_v1" }), true);
 });
+
+test("keyed strict v2 is explicit, sealed, and does not reinterpret v1 dispatches", () => {
+  const v2: ExtractionProfile = { version: 3, ocr: { engine: "tesseract" },
+    responseFormat: "strict_confirmed_values_v2", longDocument: "bounded_text_segments_v1",
+    visualDocument: "bounded_visual_selective_v2" };
+  assert.equal(validExtractionProfile(v2), true);
+  const args: string[] = [];
+  appendExtractionArguments(args, v2);
+  assert.deepEqual(args, ["--ocr-engine", "tesseract", "--response-format-profile", "strict_confirmed_values_v2",
+    "--long-document-profile", "bounded_text_segments_v1", "--visual-document-profile", "bounded_visual_selective_v2"]);
+  const v1: ExtractionProfile = { ...v2, responseFormat: "strict_confirmed_values_v1" };
+  assert.equal(validExtractionProfile(v1), true);
+  const oldArgs: string[] = [];
+  appendExtractionArguments(oldArgs, v1);
+  assert.equal(oldArgs[3], "strict_confirmed_values_v1");
+  const previous = process.env.IDPO_AUTO_RESPONSE_FORMAT;
+  const previousOcr = process.env.IDPO_AUTO_OCR_ENGINE;
+  try {
+    process.env.IDPO_AUTO_OCR_ENGINE = "tesseract";
+    process.env.IDPO_AUTO_RESPONSE_FORMAT = "strict_confirmed_values_v2";
+    assert.equal(configuredExtractionProfile(true).responseFormat, "strict_confirmed_values_v2");
+    assert.equal(configuredExtractionProfile(false).responseFormat, "plain_json");
+  } finally {
+    if (previous === undefined) delete process.env.IDPO_AUTO_RESPONSE_FORMAT;
+    else process.env.IDPO_AUTO_RESPONSE_FORMAT = previous;
+    if (previousOcr === undefined) delete process.env.IDPO_AUTO_OCR_ENGINE;
+    else process.env.IDPO_AUTO_OCR_ENGINE = previousOcr;
+  }
+});

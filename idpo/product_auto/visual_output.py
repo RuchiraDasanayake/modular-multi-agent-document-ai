@@ -5,12 +5,26 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 
 from idpo.product_auto.logic import parse_values_reply
-from idpo.product_auto.strict_output import _decode_confirmed_values, compile_confirmed_values_response_format
+from idpo.product_auto.strict_output import (
+    _decode_confirmed_values,
+    compile_confirmed_values_response_format,
+    compile_confirmed_values_response_format_v2,
+    project_confirmed_values_v2_reply,
+)
 
 PROFILE = "strict_visual_confirmed_values_v1"
+PROFILE_V2 = "strict_visual_confirmed_values_v2"
 
 
-def compile_visual_response_format(fields: Sequence[Mapping[str, object]]) -> dict[str, object]:
+def compile_visual_response_format(
+    fields: Sequence[Mapping[str, object]], *, profile: str = PROFILE,
+) -> dict[str, object]:
+    if profile not in {PROFILE, PROFILE_V2}:
+        raise ValueError("Unsupported visual response format profile")
+    if profile == PROFILE_V2:
+        result = compile_confirmed_values_response_format_v2(fields, allow_unquoted_cells=True)
+        result["json_schema"]["name"] = "docai_visual_confirmed_values_v2"
+        return result
     result = compile_confirmed_values_response_format(fields)
     named = result["json_schema"]
     named["name"] = "docai_visual_confirmed_values_v1"
@@ -22,8 +36,17 @@ def compile_visual_response_format(fields: Sequence[Mapping[str, object]]) -> di
 
 def parse_visual_values_reply(
     text: str, fields: Sequence[Mapping[str, object]], pages: list[dict[str, object]],
+    *, profile: str = PROFILE,
 ) -> dict[str, dict[str, object]] | None:
     """Validate exact fields and page membership; never infer visual grounding."""
+    if profile == PROFILE_V2:
+        local_text = project_confirmed_values_v2_reply(
+            text, fields, pages, allow_unquoted_cells=True,
+        )
+        return (parse_visual_values_reply(local_text, fields, pages)
+                if local_text is not None else None)
+    if profile != PROFILE:
+        raise ValueError("Unsupported visual response format profile")
     payload = _decode_confirmed_values(text, fields, allow_unquoted_cells=True)
     if payload is None or not pages or any(
         type(page.get("page")) is not int or page["page"] < 1 or not isinstance(page.get("text"), str)

@@ -8,7 +8,7 @@ type OcrProfile = { engine: "tesseract" } | {
 export interface ExtractionProfile {
   version: 1 | 2 | 3;
   ocr: OcrProfile;
-  responseFormat: "plain_json" | "strict_confirmed_values_v1";
+  responseFormat: "plain_json" | "strict_confirmed_values_v1" | "strict_confirmed_values_v2";
   longDocument?: "reject" | "bounded_text_segments_v1";
   visualDocument?: "disabled" | "bounded_visual_v1" | "bounded_visual_selective_v2";
 }
@@ -33,7 +33,7 @@ export function validExtractionProfile(value: unknown): value is ExtractionProfi
   if (keys === null || Object.keys(value).sort().join() !== keys ||
     (value.version !== 1 && !["reject", "bounded_text_segments_v1"].includes(String(value.longDocument))) ||
     (value.version === 3 && !["disabled", "bounded_visual_v1", "bounded_visual_selective_v2"].includes(String(value.visualDocument))) ||
-    !["plain_json", "strict_confirmed_values_v1"].includes(String(value.responseFormat)) ||
+    !["plain_json", "strict_confirmed_values_v1", "strict_confirmed_values_v2"].includes(String(value.responseFormat)) ||
     !object(value.ocr)) return false;
   const ocr = value.ocr;
   if (ocr.engine === "tesseract") return Object.keys(ocr).join() === "engine";
@@ -50,7 +50,7 @@ export function configuredExtractionProfile(confirmedSchema: boolean): Extractio
   const responseFormat = process.env.IDPO_AUTO_RESPONSE_FORMAT?.trim() || "plain_json";
   const longDocument = process.env.IDPO_AUTO_LONG_DOCUMENT?.trim() || "reject";
   const visualDocument = process.env.IDPO_AUTO_VISUAL_DOCUMENT?.trim() || "disabled";
-  if (!["plain_json", "strict_confirmed_values_v1"].includes(responseFormat)) {
+  if (!["plain_json", "strict_confirmed_values_v1", "strict_confirmed_values_v2"].includes(responseFormat)) {
     throw new AccessError("Invalid server response format profile.", 503);
   }
   if (!["reject", "bounded_text_segments_v1"].includes(longDocument)) {
