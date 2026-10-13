@@ -54,6 +54,8 @@ venv.bak/
 # Node.js / Frontend
 node_modules/
 .next/
+.next-native/
+.next-product/
 .turbo/
 out/
 *.tsbuildinfo

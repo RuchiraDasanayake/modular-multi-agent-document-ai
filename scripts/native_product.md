@@ -93,7 +93,26 @@ pwsh -File scripts/start_native_product.ps1 -ConfigPath I:\DocAI-Runtime\native-
 pwsh -File scripts/stop_native_product.ps1 -ConfigPath I:\DocAI-Runtime\native-product.json
 ```
 
-The frontend is at `http://127.0.0.1:3000` with the example config. The launcher currently uses Next.js development mode so a checked-out source tree can start without a build. It waits for PostgreSQL, the gateway's deep health check, and the frontend health route. The separate runtime directory holds process state, logs, PostgreSQL files, and new upload/job data. It does not migrate existing `idpo-data`; with the example `dataDir`, the product opens a fresh workspace.
+The frontend is at `http://127.0.0.1:3000` with the example config. `frontendMode` defaults to `development`
+for existing setups. Set it to `production` for a built Next.js server. Stop the tracked stack, then run:
+
+```powershell
+pwsh -File scripts/build_native_frontend.ps1 -ConfigPath I:\DocAI-Runtime\native-product.json
+pwsh -File scripts/start_native_product.ps1 -ConfigPath I:\DocAI-Runtime\native-product.json
+```
+
+The native build uses `.next-product`, a checked junction into `runtimeRoot\frontend-build\output` so build storage
+can live on the data drive. A sibling dependency junction points to the checkout's existing `node_modules`;
+this preserves Node package resolution from the physical build location. It leaves development and Docker build directories separate. Build logs and
+a source-fingerprint receipt are stored under the private runtime directory. Production startup refuses a
+missing/stale build or a different baked gateway port; rebuild after frontend source/configuration changes.
+The build has a 15-minute bound and will not replace another cache location. It does not need provider credentials.
+The signed process receipt binds the frontend mode; switching mode requires stopping the tracked stack.
+
+Startup waits for PostgreSQL, gateway, worker and frontend health. The runtime directory holds process state,
+logs, PostgreSQL files and new upload/job data. It does not migrate existing `idpo-data`; the example `dataDir`
+opens a fresh workspace. Production compilation removes development-server overhead; it does not establish
+public deployment, multi-host readiness or extraction quality.
 
 Startup refuses any occupied, untracked port. A second start against a healthy tracked stack is safe. If startup stops partway through, inspect `-Status` and the logs, then run the stop script before retrying. Stop verifies the recorded process identity and only terminates tracked gateway/frontend/worker process trees; PostgreSQL uses `pg_ctl stop -m fast`. It preserves runtime data and logs. A missing or altered process receipt is never treated as authority to kill a port listener. Stopping a worker during active extraction produces an uncertain failed attempt; queued attempts persist for restart.
 

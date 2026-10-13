@@ -23,8 +23,13 @@ if ($Status) {
 # Certify the configured extraction interpreter before starting services or
 # reporting an existing stack ready. This makes no provider requests.
 [void](Invoke-NativeProductPreflight -Config $config)
+if ($config.frontendMode -eq 'production') { Assert-NativeFrontendBuild -Config $config }
 
 if ($state) {
+  $runningMode = if ($state.version -ge 3) { $state.frontendMode } else { 'development' }
+  if ($runningMode -ne $config.frontendMode) {
+    throw 'The tracked stack uses another frontend mode. Stop it before starting the configured mode.'
+  }
   $summary = Get-NativeSummary -Config $config -State $state
   if ($summary.postgres.portOwned -and $summary.gateway.portOwned -and $summary.frontend.portOwned -and
     $summary.worker.processVerified -and $summary.worker.healthy -and
@@ -44,7 +49,7 @@ foreach ($port in @($config.postgresPort, $config.gatewayPort, $config.frontendP
 
 New-Item -ItemType Directory -Path $config.runtimeRoot, $config.dataDir, $config.logDir,
   (Split-Path -Parent $config.statePath) -Force | Out-Null
-$state = @{ version = 2; services = @{ }; signature = '' }
+$state = @{ version = 3; frontendMode = $config.frontendMode; services = @{ }; signature = '' }
 
 $pgCtl = Join-Path $config.pgBin 'pg_ctl.exe'
 $postgresExe = [IO.Path]::GetFullPath((Join-Path $config.pgBin 'postgres.exe'))
@@ -106,7 +111,8 @@ try {
     IDPO_DATA_DIR = [string]$config.dataDir
     INTERNAL_API_URL = "http://127.0.0.1:$($config.gatewayPort)"
     NEXT_PUBLIC_API_URL = "http://127.0.0.1:$($config.gatewayPort)"
-    NODE_ENV = 'development'
+    NODE_ENV = $config.frontendMode
+    IDPO_NATIVE_FRONTEND = $(if ($config.frontendMode -eq 'production') { '1' } else { '0' })
     NEXT_TELEMETRY_DISABLED = '1'
     PRODUCT_EXECUTION_MODE = 'postgres'
     PRODUCT_QUEUE_DATABASE_URL = [string]$config.databaseUrl
@@ -138,9 +144,10 @@ try {
     throw "Extraction worker did not become healthy. See $($config.logDir)\worker.err.log"
   }
   $nextCli = Join-Path $config.repoRoot 'frontend\node_modules\next\dist\bin\next'
+  $nextModeArgs = if ($config.frontendMode -eq 'production') { @('start') } else { @('dev', '--webpack') }
   $frontend = Start-NativeChild -Executable $config.nodePath `
-    -Arguments @($nextCli, 'dev', '--webpack', '--hostname', '127.0.0.1', '--port',
-      [string]$config.frontendPort) -WorkingDirectory (Join-Path $config.repoRoot 'frontend') `
+    -Arguments (@($nextCli) + $nextModeArgs + @('--hostname', '127.0.0.1', '--port',
+      [string]$config.frontendPort)) -WorkingDirectory (Join-Path $config.repoRoot 'frontend') `
     -LogDirectory $config.logDir -Name 'frontend' -Environment $frontendEnvironment
   $frontendIdentity = Get-NativeProcessIdentity -Id $frontend.Id
   if (-not $frontendIdentity -or $frontendIdentity.executable -ine $config.nodePath) {

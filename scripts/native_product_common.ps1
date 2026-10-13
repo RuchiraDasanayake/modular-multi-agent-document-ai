@@ -82,6 +82,10 @@ function Get-NativeConfig {
   if (-not $config.ContainsKey('adminUsername') -or -not $config.adminUsername) { $config.adminUsername = 'admin' }
   if ([string]$config.adminUsername -match '[\r\n]') { throw 'adminUsername cannot contain newlines.' }
   $config.configPath = [IO.Path]::GetFullPath($ConfigPath)
+  if (-not $config.ContainsKey('frontendMode')) { $config.frontendMode = 'development' }
+  if ($config.frontendMode -notin @('development', 'production')) {
+    throw 'frontendMode must be development or production.'
+  }
   $config.statePath = Join-Path $config.runtimeRoot 'state\native-product.json'
   $config.logDir = Join-Path $config.runtimeRoot 'logs'
 
@@ -112,6 +116,62 @@ function Get-NativeConfig {
   return $config
 }
 
+function Get-NativeFrontendFingerprint {
+  param($Config)
+  $root = Join-Path $Config.repoRoot 'frontend'
+  $files = [Collections.Generic.List[string]]::new()
+  foreach ($directory in @('src', 'public', 'scripts')) {
+    $folder = Join-Path $root $directory
+    if (Test-Path -LiteralPath $folder -PathType Container) {
+      foreach ($file in Get-ChildItem -LiteralPath $folder -File -Recurse) { $files.Add($file.FullName) }
+    }
+  }
+  foreach ($name in @('package.json', 'package-lock.json', 'next.config.js', 'tsconfig.json',
+      'tailwind.config.ts', 'tailwind.config.js', 'postcss.config.js', 'runner.config.json')) {
+    $file = Join-Path $root $name
+    if (Test-Path -LiteralPath $file -PathType Leaf) { $files.Add($file) }
+  }
+  $manifest = foreach ($file in ($files | Sort-Object -Unique)) {
+    $relative = [IO.Path]::GetRelativePath($root, $file).Replace('\', '/')
+    "$relative=$((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant())"
+  }
+  $bytes = [Text.Encoding]::UTF8.GetBytes(($manifest -join "`n"))
+  return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+}
+
+function Get-NativeFrontendBuildPaths {
+  param($Config)
+  return @{
+    cache = Join-Path $Config.repoRoot 'frontend\.next-product'
+    target = Join-Path $Config.runtimeRoot 'frontend-build\output'
+    dependencies = Join-Path $Config.runtimeRoot 'frontend-build\node_modules'
+    dependencyTarget = Join-Path $Config.repoRoot 'frontend\node_modules'
+    receipt = Join-Path $Config.runtimeRoot 'state\frontend-build.json'
+  }
+}
+
+function Assert-NativeFrontendBuild {
+  param($Config)
+  $paths = Get-NativeFrontendBuildPaths -Config $Config
+  try {
+    $receipt = Get-Content -LiteralPath $paths.receipt -Raw | ConvertFrom-Json -AsHashtable
+    $buildId = (Get-Content -LiteralPath (Join-Path $paths.cache 'BUILD_ID') -Raw).Trim()
+    $cache = Get-Item -LiteralPath $paths.cache
+    $target = [IO.Path]::GetFullPath([string]$cache.Target).TrimEnd('\')
+    $dependencies = Get-Item -LiteralPath $paths.dependencies
+    $valid = $receipt.version -eq 1 -and $receipt.mode -eq 'production' -and
+      $receipt.buildId -eq $buildId -and $buildId.Length -gt 0 -and
+      $receipt.gatewayPort -eq $Config.gatewayPort -and
+      $receipt.sourceSha256 -eq (Get-NativeFrontendFingerprint -Config $Config) -and
+      $cache.LinkType -eq 'Junction' -and $target -ieq [IO.Path]::GetFullPath($paths.target).TrimEnd('\') -and
+      $dependencies.LinkType -eq 'Junction' -and
+      [IO.Path]::GetFullPath([string]$dependencies.Target).TrimEnd('\') -ieq
+        [IO.Path]::GetFullPath($paths.dependencyTarget).TrimEnd('\')
+    if ($valid) { return }
+  } catch { }
+  throw 'Native frontend build is missing, stale or configured for another gateway. Run scripts/build_native_frontend.ps1 with this config before production startup.'
+}
+
 function Get-NativeProcessIdentity {
   param([Parameter(Mandatory)][int]$Id)
   $process = Get-CimInstance Win32_Process -Filter "ProcessId = $Id" -ErrorAction SilentlyContinue
@@ -136,6 +196,10 @@ function Get-NativeState {
   if (-not (Test-Path -LiteralPath $Config.statePath -PathType Leaf)) { return $null }
   try { $state = Get-Content -LiteralPath $Config.statePath -Raw | ConvertFrom-Json -AsHashtable }
   catch { throw "Native process state is unreadable: $($Config.statePath)" }
+  if ($state.version -notin @(1, 2, 3) -or
+      ($state.version -eq 3 -and $state.frontendMode -notin @('development', 'production'))) {
+    throw 'Native process receipt version or frontend mode is invalid.'
+  }
   # PowerShell converts ISO JSON strings to DateTime in some versions. Restore
   # the canonical representation used by the receipt and CIM identity checks.
   if ($state.version -lt 2 -and $state.services['worker']) {
@@ -156,6 +220,7 @@ function Get-NativeStateSignature {
   param($Config, $State)
   $parts = [System.Collections.Generic.List[string]]::new()
   $parts.Add([string]$Config.configPath)
+  if ($State.version -eq 3) { $parts.Add('version3'); $parts.Add([string]$State.frontendMode) }
   $names = @('postgres', 'gateway', 'frontend')
   if ($State.version -ge 2) { $names += 'worker' }
   foreach ($name in $names) {
