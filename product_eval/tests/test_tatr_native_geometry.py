@@ -96,3 +96,14 @@ def test_outside_pixel_box_is_rejected() -> None:
 
     with pytest.raises(GeometryError):
         pixel_box_to_page((10, 10, 101, 20), Identity(), 100, 100)
+
+
+def test_fractional_model_box_uses_enclosing_integer_pdfium_pixels() -> None:
+    class IntegerOnly:
+        def to_page(self, x: int, y: int) -> tuple[float, float]:
+            assert type(x) is int and type(y) is int
+            return float(x), float(y)
+
+    assert pixel_box_to_page((10.25, 20.75, 30.1, 40.2), IntegerOnly(), 100, 100) == (
+        10.0, 20.0, 31.0, 41.0,
+    )

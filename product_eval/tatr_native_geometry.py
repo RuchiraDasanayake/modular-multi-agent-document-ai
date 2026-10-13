@@ -78,7 +78,13 @@ def pixel_box_to_page(
     left, top, right, bottom = pixel_box
     if left < 0 or top < 0 or right > image_width or bottom > image_height:
         raise GeometryError("pixel box lies outside the rendered image")
-    page_box = _bounds(tuple(converter.to_page(x, y) for x, y in _corners(pixel_box)))
+    # PDFium's FPDF_DeviceToPage takes integer raster coordinates. Model boxes
+    # have fractional edges, so expand to enclosing pixels before conversion.
+    # The page-point anchor is conservative by at most one source pixel/edge.
+    integer_box = (
+        math.floor(left), math.floor(top), math.ceil(right), math.ceil(bottom)
+    )
+    page_box = _bounds(tuple(converter.to_page(x, y) for x, y in _corners(integer_box)))
     _rect(page_box)
     return page_box
 
