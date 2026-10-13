@@ -305,6 +305,8 @@ def run_first_pdf(
     *, selection: Path, cohort: Path, corpus_root: Path,
     asset_root: Path, cpu_python: Path, tokenizers_sdist: Path,
     torchvision_wheel: Path, expected_runtime_lock: Path,
+    ocr_python: Path, ocr_runtime_root: Path, ocr_wheelhouse: Path,
+    ocr_notices_root: Path,
     output_dir: Path, host_disk_root: Path, data_disk_root: Path,
 ) -> dict[str, Any]:
     repo_root = Path(__file__).resolve().parents[1]
@@ -330,11 +332,20 @@ def run_first_pdf(
             raise ValueError("first PDF exceeds frozen 2 MB limit")
         if not cpu_python.is_file() or not expected_runtime_lock.is_file():
             raise ValueError("pinned CPU interpreter or runtime lock missing")
+        if (not ocr_python.is_file() or not ocr_runtime_root.is_dir()
+                or not ocr_wheelhouse.is_dir() or not ocr_notices_root.is_dir()):
+            raise ValueError("pinned OCR interpreter, wheelhouse or notices missing")
         cpu_python = cpu_python.resolve(strict=True)
         asset_root = asset_root.resolve(strict=True)
         tokenizers_sdist = tokenizers_sdist.resolve(strict=True)
         torchvision_wheel = torchvision_wheel.resolve(strict=True)
         expected_runtime_lock = expected_runtime_lock.resolve(strict=True)
+        ocr_python = ocr_python.resolve(strict=True)
+        ocr_runtime_root = ocr_runtime_root.resolve(strict=True)
+        ocr_wheelhouse = ocr_wheelhouse.resolve(strict=True)
+        ocr_notices_root = ocr_notices_root.resolve(strict=True)
+        if ocr_python.parent.parent != ocr_runtime_root:
+            raise ValueError("OCR Python executable is outside pinned runtime")
         before = _resource_sample(None, host_disk_root, data_disk_root)
         reason = resource_violation(**before, before_worker=True)
         if reason:
@@ -346,6 +357,10 @@ def run_first_pdf(
             "--tokenizers-sdist", str(tokenizers_sdist),
             "--torchvision-wheel", str(torchvision_wheel),
             "--expected-runtime-lock", str(expected_runtime_lock),
+            "--ocr-python", str(ocr_python),
+            "--ocr-runtime-root", str(ocr_runtime_root),
+            "--ocr-wheelhouse", str(ocr_wheelhouse),
+            "--ocr-notices-root", str(ocr_notices_root),
             "--output-dir", str(output_dir),
         ]
         environment = {
@@ -413,7 +428,7 @@ def run_first_pdf(
     except Exception as exc:  # noqa: BLE001 - every worker/preflight failure needs a receipt
         receipt = {
             "status": "failed", "reason": reason or type(exc).__name__,
-            "message": str(exc), "source_sha256": first_hash,
+            "source_sha256": first_hash,
             "other_selected_documents": "11 unattempted",
             "gold_opened": False, "can_continue_other_11": False,
             "worker_exit_code": exit_code,
@@ -440,6 +455,10 @@ def main() -> None:
     parser.add_argument("--tokenizers-sdist", type=Path, required=True)
     parser.add_argument("--torchvision-wheel", type=Path, required=True)
     parser.add_argument("--expected-runtime-lock", type=Path, required=True)
+    parser.add_argument("--ocr-python", type=Path, required=True)
+    parser.add_argument("--ocr-runtime-root", type=Path, required=True)
+    parser.add_argument("--ocr-wheelhouse", type=Path, required=True)
+    parser.add_argument("--ocr-notices-root", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--host-disk-root", type=Path, required=True)
     parser.add_argument("--data-disk-root", type=Path, required=True)

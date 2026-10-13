@@ -1,8 +1,8 @@
-"""One-document, native-text-only Table Transformer research worker.
+"""One-document Table Transformer worker with a separate OCR page process.
 
 The supervisor starts this module in the pinned CPU environment. It contains no
-gold reader and never substitutes OCR text. A page without valid PDFium words
-fails the document until the separate OCR geometry route is reviewed.
+gold reader. Each page uses PDFium native words when present; an image-only
+page invokes the independently pinned OCR runtime once on its full raster.
 """
 
 from __future__ import annotations
@@ -14,7 +14,6 @@ import math
 import numbers
 import os
 import sys
-import traceback
 from collections.abc import Callable
 from dataclasses import asdict, replace
 from pathlib import Path
@@ -49,6 +48,7 @@ from product_eval.tatr_native_geometry import (
     native_word_tokens,
     page_box_to_pixels,
 )
+from product_eval.tatr_ocr_handoff import OcrPageHandoff
 from product_eval.tatr_output_adapter import CLASS_LABELS, adapt_detr_outputs
 
 DPI = 300
@@ -57,11 +57,11 @@ MAX_FILE_BYTES = 2_000_000
 MAX_RENDER_PIXELS = 35_000_000
 MAX_DETECTED_TABLES_PER_PAGE = 20
 PARSER_ID = "table-transformer-detection+v1.1-all-pinned-cell-functions"
-PARSER_VERSION = "research-native-first-pdf-v1"
+PARSER_VERSION = "research-word-route-first-pdf-v2"
 
 
 class MissingOcrRoute(RuntimeError):
-    """The page needs OCR, whose word geometry has not passed integration review."""
+    """The page has no native words and no OCR handoff was supplied."""
 
 
 def _write_new_json(path: Path, value: Any) -> None:
@@ -145,17 +145,33 @@ def parse_native_page(
     page_number: int,
     infer: Callable[[Any, str], list[dict[str, Any]]],
     official: Any,
+    ocr_handoff: Callable[[Any, int], tuple[list[dict[str, Any]], dict[str, Any]]] | None = None,
 ) -> tuple[SourceUnit, list[Table], dict[str, Any]]:
-    """Project one real PDF page through detector, structure and cell adapters."""
+    """Route whole-page words, then project detector, structure and cells."""
     from PIL import Image
 
     image_size = (bitmap.width, bitmap.height)
     if bitmap.width * bitmap.height > MAX_RENDER_PIXELS:
         raise ValueError("rendered page exceeds the frozen pixel limit")
-    words = native_word_tokens(page, bitmap)
-    if not words:
-        raise MissingOcrRoute(f"page {page_number} has no valid PDFium words")
-    source_text = " ".join(word.text for word in words)
+    page_image = bitmap.to_pil().convert("RGB")
+    native_words = native_word_tokens(page, bitmap)
+    ocr_provenance: dict[str, Any] | None = None
+    if native_words:
+        words: list[WordToken | dict[str, Any]] = native_words
+        word_route = "pdfium_native"
+    else:
+        if ocr_handoff is None:
+            raise MissingOcrRoute(f"page {page_number} has no valid PDFium words")
+        words, ocr_provenance = ocr_handoff(page_image, page_number)
+        word_route = "ocr_word"
+    if not words or any(
+        (word.source if isinstance(word, WordToken) else word.get("source")) != word_route
+        for word in words
+    ):
+        raise ValueError("page word route is empty or mixes native and OCR tokens")
+    source_text = " ".join(
+        word.text if isinstance(word, WordToken) else word["text"] for word in words
+    )
     unit_id = f"page-{page_number}"
     page_width, page_height = page.get_size()
     # PDFium's raw PDF boxes use the unrotated page coordinate system, while
@@ -163,7 +179,6 @@ def parse_native_page(
     # or rotation fields, so dimensions here would misdescribe raw_box. Keep
     # the complete page transform in raw_pages.json and the rendered overlay.
     unit = SourceUnit(unit_id, "pdf_page", page_number - 1, source_text)
-    page_image = bitmap.to_pil().convert("RGB")
     raw_detection = infer(page_image, "detection")
     active = _active_tables(raw_detection)
     converter = bitmap.get_posconv(page)
@@ -176,8 +191,10 @@ def parse_native_page(
         "pdf_cropbox_points": list(page.get_cropbox()),
         "pdf_mediabox_points": list(page.get_mediabox()),
         "pdf_rotation_degrees": page.get_rotation(),
-        "word_route": "pdfium_native",
-        "native_words": [asdict(word) for word in words],
+        "word_route": word_route,
+        "page_words": [asdict(word) if isinstance(word, WordToken) else word
+                       for word in words],
+        "ocr_provenance": ocr_provenance,
         "raw_detection_queries": raw_detection,
         "tables": [],
     }
@@ -187,11 +204,13 @@ def parse_native_page(
         crop_image = page_image.crop(crop.raster_box)
         if rotated:
             crop_image = crop_image.rotate(270, expand=True, resample=Image.Resampling.BICUBIC)
-        crop_words: list[WordToken] = []
+        crop_words: list[WordToken | dict[str, Any]] = []
         for word in words:
-            local_box = page_word_to_crop(crop, word.bbox, rotated_clockwise=rotated)
+            page_word_box = word.bbox if isinstance(word, WordToken) else word["bbox"]
+            local_box = page_word_to_crop(crop, page_word_box, rotated_clockwise=rotated)
             if local_box is not None:
-                crop_words.append(replace(word, bbox=local_box))
+                crop_words.append(replace(word, bbox=local_box) if isinstance(word, WordToken)
+                                  else {**word, "bbox": local_box})
         raw_structure = infer(crop_image, "structure")
         cell_result = cells_from_synthetic_objects(
             official, raw_structure, crop_words, crop_image.size,
@@ -390,6 +409,7 @@ def _overlay_first_nonempty(
 def run_document(
     source: Path, expected_sha256: str, output_dir: Path,
     infer: Callable[[Any, str], list[dict[str, Any]]], official: Any,
+    ocr_handoff: Callable[[Any, int], tuple[list[dict[str, Any]], dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     import pypdfium2 as pdfium
 
@@ -413,7 +433,7 @@ def run_document(
                 bitmap = page.render(scale=scale, rotation=0)
                 try:
                     unit, page_tables, detail = parse_native_page(
-                        page, bitmap, index + 1, infer, official,
+                        page, bitmap, index + 1, infer, official, ocr_handoff,
                     )
                     units.append(unit)
                     tables.extend(page_tables)
@@ -457,6 +477,10 @@ def main() -> None:
     parser.add_argument("--tokenizers-sdist", type=Path, required=True)
     parser.add_argument("--torchvision-wheel", type=Path, required=True)
     parser.add_argument("--expected-runtime-lock", type=Path, required=True)
+    parser.add_argument("--ocr-python", type=Path, required=True)
+    parser.add_argument("--ocr-runtime-root", type=Path, required=True)
+    parser.add_argument("--ocr-wheelhouse", type=Path, required=True)
+    parser.add_argument("--ocr-notices-root", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
     os.environ.update({
@@ -473,6 +497,10 @@ def main() -> None:
         _write_new_json(args.output_dir / "runtime_manifest.json", lock)
         official = load_official_cell_functions(args.asset_root)
         models = PinnedCpuModels(args.asset_root)
+        ocr_handoff = OcrPageHandoff(
+            args.ocr_python, args.ocr_runtime_root, args.ocr_wheelhouse,
+            args.ocr_notices_root, args.output_dir,
+        )
         _write_new_json(args.output_dir / "startup.ready.json", {
             "status": "models_loaded_offline",
             "runtime_lock_sha256": sha256_file(args.expected_runtime_lock),
@@ -481,15 +509,14 @@ def main() -> None:
             "pdf_opened": False,
         })
         receipt = run_document(args.source, args.source_sha256, args.output_dir,
-                               models, official)
+                               models, official, ocr_handoff)
         _write_new_json(args.output_dir / "worker_receipt.json", receipt)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - document failures must receive a bounded receipt
         _write_new_json(args.output_dir / "worker_failure.json", {
             "status": "failed", "error_type": type(exc).__name__,
-            "message": str(exc), "traceback": traceback.format_exc(),
             "gold_opened": False,
         })
-        raise
+        raise SystemExit(1) from None
 
 
 if __name__ == "__main__":

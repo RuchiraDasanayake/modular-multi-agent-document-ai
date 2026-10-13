@@ -161,7 +161,11 @@ def test_synthetic_pdf_cells_keep_source_pixels_and_require_review(tmp_path: Pat
             object_row("table column", (split, 0, width, height)),
         ]
 
-    receipt = run_document(source, sha256_file(source), output, infer, official)
+    def unexpected_ocr(_image, _page_number):
+        raise AssertionError("native words must suppress full-page OCR")
+
+    receipt = run_document(source, sha256_file(source), output, infer, official,
+                           unexpected_ocr)
     assert receipt["status"] == "first_pdf_needs_visual_review"
     assert receipt["gold_opened"] is False
     assert receipt["can_continue_other_11"] is False
