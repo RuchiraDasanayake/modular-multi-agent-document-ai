@@ -19,6 +19,13 @@ from idpo.tests.test_pdf_native_layer import METADATA, VISIBLE, _pdf
 from idpo.tests.test_product_auto_brief_draft import FakeModel, _reply, _request
 
 
+def _preview_reply() -> str:
+    # These tests exercise sample intake, not model-proposed example values.
+    payload = json.loads(_reply())
+    payload["fields"][0]["example_values"] = []
+    return json.dumps(payload)
+
+
 @pytest.fixture(autouse=True)
 def preview_environment(tmp_path, monkeypatch):
     monkeypatch.setenv("IDPO_DATA_DIR", str(tmp_path / "runtime"))
@@ -58,7 +65,7 @@ def test_hidden_metadata_is_rejected_before_draft_model(tmp_path, monkeypatch):
         return VISIBLE, True, None, {"ocr_confidence": 99, "ocr_engine_used": "rapidocr"}
 
     monkeypatch.setattr(OcrAgent, "_ocr_image", ocr)
-    model = FakeModel(_reply())
+    model = FakeModel(_preview_reply())
     result = suggest_fields(_request(source), model)
     assert len(calls) == len(model.calls) == 1
     prompt = json.loads(model.calls[0][1])
@@ -85,7 +92,7 @@ def test_mixed_pages_are_handled_individually_and_third_is_not_inspected(tmp_pat
 
     monkeypatch.setattr(intake, "inspect_native_layer", inspect)
     monkeypatch.setattr(OcrAgent, "_ocr_image", ocr)
-    model = FakeModel(_reply())
+    model = FakeModel(_preview_reply())
     suggest_fields(_request(source), model)
     assert inspections == [0, 1]
     assert ocr_pages == ([1] if scanned_first else [2])
@@ -97,7 +104,7 @@ def test_mixed_pages_are_handled_individually_and_third_is_not_inspected(tmp_pat
 def test_normal_digital_pdf_never_calls_ocr(tmp_path, monkeypatch):
     source = _pdf(tmp_path)
     monkeypatch.setattr(OcrAgent, "_ocr_image", lambda *a, **kw: pytest.fail("Unexpected OCR"))
-    model = FakeModel(_reply())
+    model = FakeModel(_preview_reply())
     suggest_fields(_request(source), model)
     assert json.loads(model.calls[0][1])["sample_excerpts_untrusted"][0]["excerpt"] == VISIBLE
 
@@ -130,7 +137,7 @@ def test_51_page_pdf_rejected_before_text_extraction_render_or_model(tmp_path, m
     monkeypatch.setattr(PageObject, "extract_text", unexpected)
     monkeypatch.setattr(intake, "inspect_native_layer", unexpected)
     monkeypatch.setattr(preprocess, "rasterize_pdf_page", unexpected)
-    model = FakeModel(_reply())
+    model = FakeModel(_preview_reply())
     with pytest.raises(ValueError, match="50-page"):
         suggest_fields(_request(source), model)
     assert model.calls == []
@@ -149,7 +156,7 @@ def test_actual_adapter_resource_failure_prevents_model_and_cleans_raster(tmp_pa
         raise rapid_ocr.RapidOcrError(reason)
 
     monkeypatch.setattr(rapid_ocr, "recognize_image", recognize)
-    model = FakeModel(_reply())
+    model = FakeModel(_preview_reply())
     with pytest.raises(ValueError, match="Sample OCR failed"):
         suggest_fields(_request(source), model)
     assert len(called) == 1
@@ -160,7 +167,7 @@ def test_actual_adapter_resource_failure_prevents_model_and_cleans_raster(tmp_pa
 def test_unreadable_preview_prevents_model(tmp_path, monkeypatch):
     source = _pdf(tmp_path, scan=True, mode=3)
     monkeypatch.setattr(OcrAgent, "_ocr_image", lambda *a, **kw: ("", True, None, {}))
-    model = FakeModel(_reply())
+    model = FakeModel(_preview_reply())
     with pytest.raises(ValueError, match="no readable text"):
         suggest_fields(_request(source), model)
     assert model.calls == []
@@ -178,7 +185,7 @@ def test_image_uses_configured_engine_and_default(tmp_path, monkeypatch, engine)
         return VISIBLE, True, None, {"ocr_confidence": 99}
 
     monkeypatch.setattr(OcrAgent, "_ocr_image", ocr)
-    result = suggest_fields(_request(source), FakeModel(_reply()))
+    result = suggest_fields(_request(source), FakeModel(_preview_reply()))
     expected = engine or "tesseract"
     assert observed == [expected]
     assert result["provenance"]["samples"][0]["parser_id"] == f"intake-image-preview-{expected}-v1"
@@ -187,7 +194,7 @@ def test_image_uses_configured_engine_and_default(tmp_path, monkeypatch, engine)
 def test_invalid_engine_prevents_model(tmp_path, monkeypatch):
     source = _pdf(tmp_path)
     monkeypatch.setenv("IDPO_AUTO_OCR_ENGINE", "misspelled-engine")
-    model = FakeModel(_reply())
+    model = FakeModel(_preview_reply())
     with pytest.raises(ValueError, match="Unsupported sample OCR engine"):
         suggest_fields(_request(source), model)
     assert model.calls == []
