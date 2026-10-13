@@ -147,8 +147,8 @@ results or as the canonical research runtime's outputs.
 The user's target intent-first batch flow is not implemented by this path. The current product screen requires a job
 upload and run selection; it has no natural-language intent-to-schema onboarding, field-meaning confirmation, pinned
 sample preview before the rest of a batch, or durable backpressure for arbitrarily large batches. The current
-candidate is displayed as JSON after review, but no owner-scoped structured download endpoint is in this contract
-yet. The [productization plan](PRODUCTIZATION_PLAN.md) defines these as staged target capabilities. This paragraph
+candidate can be downloaded as reviewed JSON per document, but bulk export is still absent.
+The [productization plan](PRODUCTIZATION_PLAN.md) defines these as staged target capabilities. This paragraph
 describes the current gap, not a promise that every format or field can be extracted accurately.
 
 ## Canonical Research Policy Routing
