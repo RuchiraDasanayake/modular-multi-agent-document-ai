@@ -141,3 +141,30 @@ test("keyed strict v2 is explicit, sealed, and does not reinterpret v1 dispatche
     else process.env.IDPO_AUTO_OCR_ENGINE = previousOcr;
   }
 });
+
+test("lossy JPEG95 is explicit and pinned independently of later server configuration", () => {
+  const keys = ["IDPO_AUTO_OCR_ENGINE", "IDPO_AUTO_RESPONSE_FORMAT", "IDPO_AUTO_LONG_DOCUMENT", "IDPO_AUTO_VISUAL_DOCUMENT"];
+  const previous = keys.map((key) => process.env[key]);
+  try {
+    process.env.IDPO_AUTO_OCR_ENGINE = "tesseract";
+    process.env.IDPO_AUTO_RESPONSE_FORMAT = "strict_confirmed_values_v1";
+    process.env.IDPO_AUTO_LONG_DOCUMENT = "bounded_text_segments_v1";
+    delete process.env.IDPO_AUTO_VISUAL_DOCUMENT;
+    assert.equal(configuredExtractionProfile(true).visualDocument, "disabled");
+    process.env.IDPO_AUTO_VISUAL_DOCUMENT = "bounded_visual_selective_jpeg95_v1";
+    const pinned = configuredExtractionProfile(true);
+    assert.equal(validExtractionProfile(pinned), true);
+    assert.equal(configuredExtractionProfile(false).visualDocument, "disabled");
+    assert.equal(validExtractionProfile({ ...pinned, version: 2 }), false);
+    assert.equal(validExtractionProfile({ ...pinned, visualDocument: "bounded_visual_selective_jpeg90_v1" }), false);
+    process.env.IDPO_AUTO_VISUAL_DOCUMENT = "bounded_visual_selective_v2";
+    const args: string[] = [];
+    appendExtractionArguments(args, pinned);
+    assert.deepEqual(args.slice(-2), ["--visual-document-profile", "bounded_visual_selective_jpeg95_v1"]);
+    assert.equal(configuredExtractionProfile(true).visualDocument, "bounded_visual_selective_v2");
+  } finally {
+    keys.forEach((key, index) => {
+      if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index];
+    });
+  }
+});

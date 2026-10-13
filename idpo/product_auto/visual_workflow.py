@@ -11,13 +11,20 @@ from typing import Callable
 from idpo.product_auto.long_document import SegmentMergeError, merge_segment_values
 from idpo.product_auto.provider import ModelReply
 from idpo.product_auto.segments import MAX_SEGMENT_CHARS
-from idpo.product_auto.visual_input import VisualInputError, prepare_visual_document, plan_visual_requests
+from idpo.product_auto.visual_input import (
+    JPEG95_ENCODING_PROFILE,
+    PNG_ENCODING_PROFILE,
+    VisualInputError,
+    plan_visual_requests,
+    prepare_visual_document,
+)
 from idpo.product_auto.visual_output import parse_visual_values_reply
 from idpo.product_auto.visual_output import PROFILE as VISUAL_VALUES_PROFILE
 
 PROFILE = "bounded_visual_v1"
 SELECTIVE_PROFILE = "bounded_visual_selective_v2"
-PROFILES = frozenset({PROFILE, SELECTIVE_PROFILE})
+JPEG95_PROFILE = "bounded_visual_selective_jpeg95_v1"
+PROFILES = frozenset({PROFILE, SELECTIVE_PROFILE, JPEG95_PROFILE})
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
 
 
@@ -93,15 +100,20 @@ def extract_visual_values(
         joined = [{**page, "ocr_lines": ocr_page.get("ocr_lines") or [],
                    "ocr_provenance": ocr_page.get("ocr_provenance") or {}}
                   for page, ocr_page in zip(pages, ocr_pages, strict=True)]
-        prepared = prepare_visual_document(source, expected_source_sha256=source_sha256, pages=joined)
+        encoding_profile = JPEG95_ENCODING_PROFILE if receipt["profile"] == JPEG95_PROFILE else PNG_ENCODING_PROFILE
+        prepared = prepare_visual_document(source, expected_source_sha256=source_sha256, pages=joined,
+                                           encoding_profile=encoding_profile)
         requests = plan_visual_requests(prepared, fields=fields, intent=intent,
                                         model=model.model, max_tokens=model.max_tokens,
-                                        response_format_profile=response_format_profile)
+                                        response_format_profile=response_format_profile,
+                                        encoding_profile=encoding_profile)
         # Validate all immutable request bodies and current source identity before
         # the first send. The provider also validates again before each send.
         for request in requests:
             request.validated_body(model=model.model, max_tokens=model.max_tokens)
     except VisualInputError as exc:
+        if receipt["profile"] == JPEG95_PROFILE and exc.details is not None:
+            receipt["admission_failure"] = dict(exc.details)
         return fail(str(exc))
     except Exception:
         return fail("visual_preparation_failed")

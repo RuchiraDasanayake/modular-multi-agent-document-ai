@@ -57,6 +57,10 @@ all visual values require review, including exact OCR matches. Queued profile ve
 older jobs do not acquire visual routing from later server configuration. This is an implemented candidate,
 not a validated accuracy claim. See [visual extraction](PRODUCT_VISUAL_BOUNDARY.md).
 
+The explicit `bounded_visual_selective_jpeg95_v1` candidate retains selective-v2 routing and uses full-page
+JPEG95 payloads within the same limits. Its lossy payload hash and codec are distinct from the original OCR
+raster hash. It is opt-in and quality-unvalidated; existing PNG profiles and frozen study definitions are unchanged.
+
 The frontend accepts only known visual proposal metadata: exact source page IDs, optional `text_match` OCR spans,
 and `visual_grounding_verified: false`. It refuses unknown fields, repeated or absent page IDs, and machine-accepted
 visual values. The review page marks them **Image-derived — review required** and shows their source pages beside

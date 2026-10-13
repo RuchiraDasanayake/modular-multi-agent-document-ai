@@ -72,6 +72,10 @@ try {
   $rapid.autoResponseFormat = 'strict_confirmed_values_v2'
   $rapid | ConvertTo-Json | Set-Content -LiteralPath $configPath
   Assert-Test ((Get-NativeConfig -ConfigPath $configPath).autoResponseFormat -eq 'strict_confirmed_values_v2') 'Keyed strict v2 requires explicit native configuration.'
+  Assert-Test ($rapidConfig.autoVisualDocument -eq 'disabled') 'Visual encoding remains disabled by default.'
+  $rapid.autoVisualDocument = 'bounded_visual_selective_jpeg95_v1'
+  $rapid | ConvertTo-Json | Set-Content -LiteralPath $configPath
+  Assert-Test ((Get-NativeConfig -ConfigPath $configPath).autoVisualDocument -eq 'bounded_visual_selective_jpeg95_v1') 'Lossy JPEG95 requires explicit native configuration.'
   foreach ($patch in @(@{ rapidOcrPythonPath = 'relative.exe' }, @{ rapidOcrMaxRssMiB = 2049 },
       @{ rapidOcrTimeoutSeconds = 181 }, @{ autoOcrEngine = 'unavailable' }, @{ autoResponseFormat = 'unknown' },
       @{ autoLongDocument = 'truncate' }, @{ autoVisualDocument = 'unbounded' })) {

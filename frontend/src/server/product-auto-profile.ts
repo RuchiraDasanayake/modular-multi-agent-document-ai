@@ -10,7 +10,7 @@ export interface ExtractionProfile {
   ocr: OcrProfile;
   responseFormat: "plain_json" | "strict_confirmed_values_v1" | "strict_confirmed_values_v2";
   longDocument?: "reject" | "bounded_text_segments_v1";
-  visualDocument?: "disabled" | "bounded_visual_v1" | "bounded_visual_selective_v2";
+  visualDocument?: "disabled" | "bounded_visual_v1" | "bounded_visual_selective_v2" | "bounded_visual_selective_jpeg95_v1";
 }
 
 const RAPID_ENV = ["IDPO_RAPIDOCR_PYTHON", "IDPO_RAPIDOCR_TIMEOUT_S",
@@ -32,7 +32,7 @@ export function validExtractionProfile(value: unknown): value is ExtractionProfi
     value.version === 3 ? "longDocument,ocr,responseFormat,version,visualDocument" : null;
   if (keys === null || Object.keys(value).sort().join() !== keys ||
     (value.version !== 1 && !["reject", "bounded_text_segments_v1"].includes(String(value.longDocument))) ||
-    (value.version === 3 && !["disabled", "bounded_visual_v1", "bounded_visual_selective_v2"].includes(String(value.visualDocument))) ||
+    (value.version === 3 && !["disabled", "bounded_visual_v1", "bounded_visual_selective_v2", "bounded_visual_selective_jpeg95_v1"].includes(String(value.visualDocument))) ||
     !["plain_json", "strict_confirmed_values_v1", "strict_confirmed_values_v2"].includes(String(value.responseFormat)) ||
     !object(value.ocr)) return false;
   const ocr = value.ocr;
@@ -56,7 +56,7 @@ export function configuredExtractionProfile(confirmedSchema: boolean): Extractio
   if (!["reject", "bounded_text_segments_v1"].includes(longDocument)) {
     throw new AccessError("Invalid server long-document profile.", 503);
   }
-  if (!["disabled", "bounded_visual_v1", "bounded_visual_selective_v2"].includes(visualDocument)) {
+  if (!["disabled", "bounded_visual_v1", "bounded_visual_selective_v2", "bounded_visual_selective_jpeg95_v1"].includes(visualDocument)) {
     throw new AccessError("Invalid server visual-document profile.", 503);
   }
   const number = (name: string, fallback: number): number => {
