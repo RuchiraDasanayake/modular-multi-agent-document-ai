@@ -274,6 +274,12 @@ per-owner admission limits. The authenticated synthetic smoke verifies this flow
 establish real-document quality or arbitrary scale. Reviewed JSON is downloadable per document and JSONL per
 completed run under the limits above. UI labels call machine-accepted values **Text matched** because exact OCR quotes do not establish
 correct field meaning or correspondence to the original image. Human review remains a separate decision.
+Browser run starts send a random 32-hex `Idempotency-Key`, retained in session storage until a run is returned or
+reconciled. A repeat with the same key and unchanged selection, source bytes, and schema or recipe revision returns
+the existing queued, completed, or failed attempt. A changed request fails with 409; a claim with no run record also
+fails closed. This prevents a lost HTTP response from silently starting another paid attempt. Older API clients that
+omit the header retain their historical non-idempotent behavior; the queue does not promise transactional exactly-once
+external model calls. A separate attempt requires an explicit new key.
 Schema suggestions request a closed JSON Schema response from the configured provider and are validated again
 locally; provider support does not imply semantic correctness. A repeated row is drafted as one `array[object]`
 field per column, with a shared `group` string. Scalar suggestions use a null group on the provider wire, which

@@ -6,11 +6,13 @@ import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import test from "node:test";
 import { GET as listAutoRoute, POST as startAutoRoute } from "@/app/api/jobs/[jobId]/auto/route";
+import { POST as saveBriefRoute, PATCH as confirmBriefRoute } from "@/app/api/jobs/[jobId]/auto/brief/route";
 import { GET as getAutoDocRoute, POST as reviewAutoDocRoute } from "@/app/api/jobs/[jobId]/auto/[runId]/docs/[docId]/route";
 import { GET as exportAutoDocRoute } from "@/app/api/jobs/[jobId]/auto/[runId]/docs/[docId]/export/route";
 import { GET as getOriginalContentRoute } from "@/app/api/jobs/[jobId]/docs/[docId]/content/route";
 import { idpoApi, parseReportedActiveMinutes } from "@/lib/idpo-api";
 import { loadRunnerConfig, resetConfigCacheForTests } from "./config";
+import { QueueAdmissionError, type ProductExecutionQueue } from "./product-execution-queue";
 import { addDocumentsToJob, createWorkspaceJob } from "./jobs";
 import { deriveProductAutoCorrectedResult, getProductAutoRun, productAutoAvailability,
   recoverProductAutoRuns, startProductAutoRun } from "./product-auto";
@@ -915,6 +917,149 @@ test("direct product execution forwards the server model budget to its child", a
     else process.env.IDPO_AUTO_MAX_OUTPUT_TOKENS = oldTokens;
     if (oldTimeout === undefined) delete process.env.IDPO_AUTO_TIMEOUT_S;
     else process.env.IDPO_AUTO_TIMEOUT_S = oldTimeout;
+  }
+}));
+
+test("a paid run key returns its failed admission once and rejects changed payload, source, and owner", async () => withStorage(async () => {
+  const oldMode = process.env.PRODUCT_EXECUTION_MODE;
+  const oldQueueUrl = process.env.PRODUCT_QUEUE_DATABASE_URL;
+  const holder = globalThis as typeof globalThis & { __productQueue?: ProductExecutionQueue };
+  const oldQueue = holder.__productQueue;
+  try {
+    process.env.PRODUCT_EXECUTION_MODE = "postgres";
+    process.env.PRODUCT_QUEUE_DATABASE_URL = "postgresql://unused.example/unused";
+    process.env.IDPO_AUTO_MODEL = "local-test-model";
+    process.env.IDPO_AUTO_API_BASE_URL = "http://127.0.0.1:1/v1";
+    let admissions = 0;
+    holder.__productQueue = { enqueue: async () => {
+      admissions += 1;
+      throw new QueueAdmissionError("Synthetic queue admission failure.", 409);
+    } } as unknown as ProductExecutionQueue;
+    const job = createWorkspaceJob({ ownerUserId: "admin-id" });
+    const uploaded = await addDocumentsToJob(job.jobId, [
+      new File(["Invoice total 100"], "first.txt"), new File(["Invoice total 200"], "second.txt"),
+    ]);
+    const first = uploaded.documents![0];
+    const second = uploaded.documents![1];
+    const key = "a".repeat(32);
+    const pathName = `/api/jobs/${job.jobId}/auto`;
+    const params = { params: Promise.resolve({ jobId: job.jobId }) };
+    const start = (token: string, fileIds: string[]) => startAutoRoute(request(pathName, token, {
+      method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+      body: JSON.stringify({ selectedFileIds: fileIds }),
+    }), params);
+    assert.equal((await start("admin", [first.fileId])).status, 409);
+    const runId = `auto_${key}`;
+    assert.equal(getProductAutoRun(job.jobId, runId).status, "failed");
+    const replay = await start("admin", [first.fileId]);
+    assert.equal(replay.status, 202);
+    assert.deepEqual(await replay.json(), getProductAutoRun(job.jobId, runId));
+    assert.equal(admissions, 1);
+    assert.equal((await start("admin", [second.fileId])).status, 409);
+    assert.equal((await start("bob", [first.fileId])).status, 404);
+    fs.writeFileSync(path.join(uploaded.uploadsPath!, first.storedName), "Changed source bytes");
+    assert.equal((await start("admin", [first.fileId])).status, 409);
+    assert.equal(admissions, 1);
+  } finally {
+    if (oldMode === undefined) delete process.env.PRODUCT_EXECUTION_MODE;
+    else process.env.PRODUCT_EXECUTION_MODE = oldMode;
+    if (oldQueueUrl === undefined) delete process.env.PRODUCT_QUEUE_DATABASE_URL;
+    else process.env.PRODUCT_QUEUE_DATABASE_URL = oldQueueUrl;
+    holder.__productQueue = oldQueue;
+  }
+}));
+
+test("concurrent exact paid run requests claim one attempt and preserve the key after completion", async () => withStorage(async () => {
+  const oldMode = process.env.PRODUCT_EXECUTION_MODE;
+  const oldQueueUrl = process.env.PRODUCT_QUEUE_DATABASE_URL;
+  const holder = globalThis as typeof globalThis & { __productQueue?: ProductExecutionQueue };
+  const oldQueue = holder.__productQueue;
+  try {
+    process.env.PRODUCT_EXECUTION_MODE = "postgres";
+    process.env.PRODUCT_QUEUE_DATABASE_URL = "postgresql://unused.example/unused";
+    process.env.IDPO_AUTO_MODEL = "local-test-model";
+    process.env.IDPO_AUTO_API_BASE_URL = "http://127.0.0.1:1/v1";
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let admissions = 0;
+    const queueStub = { enqueue: async () => { admissions += 1; await gate; return "synthetic-broker-id"; } };
+    holder.__productQueue = queueStub as unknown as ProductExecutionQueue;
+    const job = createWorkspaceJob({ ownerUserId: "admin-id" });
+    const uploaded = await addDocumentsToJob(job.jobId, [new File(["Invoice total 100"], "invoice.txt")]);
+    const key = "b".repeat(32);
+    const params = { params: Promise.resolve({ jobId: job.jobId }) };
+    const start = () => startAutoRoute(request(`/api/jobs/${job.jobId}/auto`, "admin", {
+      method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+      body: JSON.stringify({ selectedFileIds: [uploaded.documents![0].fileId] }),
+    }), params);
+    const first = start();
+    const deadline = Date.now() + 3000;
+    while (admissions === 0 && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.equal(admissions, 1);
+    const second = await start();
+    assert.equal(second.status, 202);
+    assert.equal((await second.json()).runId, `auto_${key}`);
+    release();
+    const admitted = await first;
+    assert.equal(admitted.status, 202);
+    assert.equal((await admitted.json()).runId, `auto_${key}`);
+    assert.equal((await start()).status, 202);
+    assert.equal(admissions, 1);
+  } finally {
+    if (oldMode === undefined) delete process.env.PRODUCT_EXECUTION_MODE;
+    else process.env.PRODUCT_EXECUTION_MODE = oldMode;
+    if (oldQueueUrl === undefined) delete process.env.PRODUCT_QUEUE_DATABASE_URL;
+    else process.env.PRODUCT_QUEUE_DATABASE_URL = oldQueueUrl;
+    holder.__productQueue = oldQueue;
+  }
+}));
+
+test("a paid run key refuses replay after the confirmed brief revision changes", async () => withStorage(async () => {
+  const oldMode = process.env.PRODUCT_EXECUTION_MODE;
+  const oldQueueUrl = process.env.PRODUCT_QUEUE_DATABASE_URL;
+  const holder = globalThis as typeof globalThis & { __productQueue?: ProductExecutionQueue };
+  const oldQueue = holder.__productQueue;
+  try {
+    process.env.PRODUCT_EXECUTION_MODE = "postgres";
+    process.env.PRODUCT_QUEUE_DATABASE_URL = "postgresql://unused.example/unused";
+    process.env.IDPO_AUTO_MODEL = "local-test-model";
+    process.env.IDPO_AUTO_API_BASE_URL = "http://127.0.0.1:1/v1";
+    let admissions = 0;
+    const queueStub = { enqueue: async () => { admissions += 1; return "synthetic-broker-id"; } };
+    holder.__productQueue = queueStub as unknown as ProductExecutionQueue;
+    const job = createWorkspaceJob({ ownerUserId: "admin-id" });
+    const uploaded = await addDocumentsToJob(job.jobId, [new File(["Invoice total 100"], "invoice.txt")]);
+    const fileId = uploaded.documents![0].fileId;
+    const params = { params: Promise.resolve({ jobId: job.jobId }) };
+    const fields = [{ field_id: "total", type: "string", description: "Printed invoice total", example_values: ["100"] }];
+    const save = (expectedRevision: number, description: string) => saveBriefRoute(request(
+      `/api/jobs/${job.jobId}/auto/brief`, "admin", { method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expectedRevision, intent: "Extract the printed total", fields: fields.map((field) =>
+          ({ ...field, description })), sampleFileIds: [fileId] }), }), params);
+    const draft = (await (await save(0, "Printed invoice total")).json()).brief;
+    const confirmed = (await (await confirmBriefRoute(request(`/api/jobs/${job.jobId}/auto/brief`, "admin", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedRevision: draft.revision, expectedPayloadSha256: draft.payload_sha256 }),
+    }), params)).json()).brief;
+    const key = "c".repeat(32);
+    const start = () => startAutoRoute(request(`/api/jobs/${job.jobId}/auto`, "admin", {
+      method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+      body: JSON.stringify({ selectedFileIds: [fileId], confirmedBrief: {
+        expectedRevision: confirmed.revision, payloadSha256: confirmed.payload_sha256, phase: "preview",
+      } }),
+    }), params);
+    assert.equal((await start()).status, 202);
+    assert.equal(admissions, 1);
+    assert.equal((await save(confirmed.revision, "Revised printed invoice total")).status, 201);
+    assert.equal((await start()).status, 409);
+    assert.equal(admissions, 1);
+  } finally {
+    if (oldMode === undefined) delete process.env.PRODUCT_EXECUTION_MODE;
+    else process.env.PRODUCT_EXECUTION_MODE = oldMode;
+    if (oldQueueUrl === undefined) delete process.env.PRODUCT_QUEUE_DATABASE_URL;
+    else process.env.PRODUCT_QUEUE_DATABASE_URL = oldQueueUrl;
+    holder.__productQueue = oldQueue;
   }
 }));
 

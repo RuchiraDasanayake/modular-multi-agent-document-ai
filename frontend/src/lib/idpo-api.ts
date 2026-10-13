@@ -94,10 +94,10 @@ export const idpoApi = {
   startProductAutoRun(jobId: string, selectedFileIds: string[],
     approvedRecipe?: { recipeId: string; expectedRevision: number },
     confirmedBrief?: { expectedRevision: number; payloadSha256: string; phase: "preview" | "batch";
-      previewRunId?: string }): Promise<ProductAutoRun> {
+      previewRunId?: string }, requestKey?: string): Promise<ProductAutoRun> {
     return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(requestKey ? { "Idempotency-Key": requestKey } : {}) },
       body: JSON.stringify({ selectedFileIds, ...(approvedRecipe ? { approvedRecipe } : {}),
         ...(confirmedBrief ? { confirmedBrief } : {}) }),
     });

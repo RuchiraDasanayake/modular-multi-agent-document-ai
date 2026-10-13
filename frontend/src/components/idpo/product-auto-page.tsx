@@ -6,6 +6,9 @@ import { useParams } from "next/navigation";
 import { IdpoCard } from "@/components/idpo/card";
 import { api } from "@/lib/api";
 import { idpoApi } from "@/lib/idpo-api";
+import { clearPendingProductAutoRunRequest, pendingProductAutoRunRequest,
+  reserveProductAutoRunRequest, type PendingProductAutoRunRequest,
+  type ProductAutoRunPayload } from "@/lib/product-auto-run-request";
 import type { ProductAutoRun, ProductAutoSourceDocument } from "@/types/product-auto";
 import type { ProductAutoRecipeRevision } from "@/types/product-auto-recipes";
 import type { ProductAutoBriefField, ProductAutoBriefRevision, ProductAutoBriefSuggestion } from "@/types/product-auto-brief";
@@ -43,6 +46,13 @@ export function ProductAutoPage() {
   const [starting, setStarting] = useState(false);
   const [downloadingRunId, setDownloadingRunId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [pendingRunRequest, setPendingRunRequest] = useState<PendingProductAutoRunRequest | null>(null);
+  const [pendingRunChecked, setPendingRunChecked] = useState(false);
+
+  useEffect(() => {
+    try { setPendingRunRequest(pendingProductAutoRunRequest(window.sessionStorage, jobId)); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Could not read the previous extraction request."); }
+  }, [jobId]);
 
   useEffect(() => {
     let current = true;
@@ -166,10 +176,11 @@ export function ProductAutoPage() {
     setStarting(true);
     setError("");
     try {
-      const run = await idpoApi.startProductAutoRun(jobId, fileIds, undefined, {
+      const selection = {
         expectedRevision: brief.revision, payloadSha256: brief.payload_sha256, phase,
         ...(phase === "batch" && reviewedPreviewRun ? { previewRunId: reviewedPreviewRun.runId } : {}),
-      });
+      };
+      const run = await startWithRequestReceipt({ selectedFileIds: fileIds, confirmedBrief: selection });
       setRuns((current) => [run, ...current]);
       setActiveRunId(run.runId);
     } catch (cause) {
@@ -183,8 +194,8 @@ export function ProductAutoPage() {
     setError("");
     try {
       const recipe = approvedRecipes.find((item) => item.recipe_id === selectedRecipeId);
-      const run = await idpoApi.startProductAutoRun(jobId, selected, recipe
-        ? { recipeId: recipe.recipe_id, expectedRevision: recipe.revision } : undefined);
+      const run = await startWithRequestReceipt({ selectedFileIds: selected, ...(recipe
+        ? { approvedRecipe: { recipeId: recipe.recipe_id, expectedRevision: recipe.revision } } : {}) });
       setRuns((current) => [run, ...current]);
       setActiveRunId(run.runId);
     } catch (cause) {
@@ -192,6 +203,52 @@ export function ProductAutoPage() {
     } finally {
       setStarting(false);
     }
+  }
+
+  async function startWithRequestReceipt(payload: ProductAutoRunPayload): Promise<ProductAutoRun> {
+    let stored: PendingProductAutoRunRequest;
+    try {
+      stored = reserveProductAutoRunRequest(window.sessionStorage, jobId, payload);
+    } catch (cause) {
+      if (cause instanceof Error) throw cause;
+      throw new Error("Browser session storage is required to safely start extraction.");
+    }
+    setPendingRunRequest(stored);
+    setPendingRunChecked(false);
+    const run = await idpoApi.startProductAutoRun(jobId, payload.selectedFileIds,
+      payload.approvedRecipe, payload.confirmedBrief, stored.key);
+    clearPendingProductAutoRunRequest(window.sessionStorage, jobId, stored.key);
+    setPendingRunRequest(null);
+    return run;
+  }
+
+  async function checkPendingRunRequest() {
+    if (!pendingRunRequest) return;
+    setError("");
+    try {
+      const data = await idpoApi.listProductAutoRuns(jobId);
+      setRuns(data.runs);
+      const matched = data.runs.find((run) => run.runId === `auto_${pendingRunRequest.key}`);
+      if (matched) {
+        clearPendingProductAutoRunRequest(window.sessionStorage, jobId, pendingRunRequest.key);
+        setPendingRunRequest(null);
+        setPendingRunChecked(false);
+        setActiveRunId(matched.runId);
+      } else {
+        setPendingRunChecked(true);
+        setError("No accepted run is listed for the prior request yet. Retrying the same request keeps its key; a separate attempt may incur another model call.");
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not check extraction runs.");
+    }
+  }
+
+  function allowSeparateRunRequest() {
+    if (!pendingRunRequest || !pendingRunChecked) return;
+    clearPendingProductAutoRunRequest(window.sessionStorage, jobId, pendingRunRequest.key);
+    setPendingRunRequest(null);
+    setPendingRunChecked(false);
+    setError("The prior request was not retried. A new extraction request may incur another model call.");
   }
 
   async function downloadReviewedBatch() {
@@ -231,6 +288,16 @@ export function ProductAutoPage() {
       </div>
 
       {error ? <div role="alert" className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-700/40 dark:bg-rose-900/20 dark:text-rose-300">{error}</div> : null}
+      {pendingRunRequest ? <IdpoCard>
+        <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">An extraction start may already have been accepted.</p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Check runs or retry the same selection and schema. The saved request key prevents a repeated paid attempt after a lost response.</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" onClick={() => void checkPendingRunRequest()} disabled={starting}
+            className="rounded-lg border border-cyan-600 px-3 py-2 text-sm font-medium text-cyan-700 disabled:opacity-50 dark:text-cyan-300">Check runs</button>
+          {pendingRunChecked ? <button type="button" onClick={allowSeparateRunRequest} disabled={starting}
+            className="rounded-lg border border-amber-600 px-3 py-2 text-sm font-medium text-amber-800 disabled:opacity-50 dark:text-amber-200">Start a separate attempt</button> : null}
+        </div>
+      </IdpoCard> : null}
 
       <IdpoCard>
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -336,7 +403,7 @@ export function ProductAutoPage() {
           {formDirty && brief ? <span className="text-xs text-amber-700 dark:text-amber-300">Save changes before confirming or previewing.</span> : null}
         </div>
         <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-          AI suggestions use one server model call with bounded excerpts from your saved sample files. The call may incur provider cost. An administrator must run it. Suggestions remain editable and require your confirmation.
+          AI suggestions use one server model call with bounded excerpts from your saved sample files. The call may incur provider cost. An administrator must run it. Suggestions remain editable and require your confirmation. A new extraction run may also incur provider cost.
         </p>
         {suggestion ? <div className="mt-4 rounded-xl border border-cyan-300 bg-cyan-50 p-4 dark:border-cyan-700 dark:bg-cyan-950/30">
           <div className="flex flex-wrap items-start justify-between gap-3">

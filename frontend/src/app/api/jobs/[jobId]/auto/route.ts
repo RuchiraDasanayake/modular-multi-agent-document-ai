@@ -75,8 +75,10 @@ export async function POST(request: Request, { params }: Params) {
       }
       confirmedBrief = selection as typeof confirmedBrief;
     }
+    const requestKey = request.headers.get("idempotency-key");
     const run = await startProductAutoRun(jobId, selectedFileIds, user.role === "admin",
-      approvedRecipe, confirmedBrief);
+      approvedRecipe, confirmedBrief,
+      requestKey === null ? undefined : { key: requestKey, actorUserId: user.id });
     return NextResponse.json(run, { status: 202, headers: noStore });
   } catch (error) {
     if (error instanceof AccessError) return apiError(error);

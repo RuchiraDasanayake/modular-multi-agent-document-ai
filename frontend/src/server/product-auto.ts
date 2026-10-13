@@ -6,6 +6,8 @@ import { AccessError } from "@/server/auth";
 import { getCommandConfig, loadRunnerConfig } from "@/server/config";
 import { getJobOrThrow } from "@/server/jobs";
 import { requireCurrentProductAutoBrief } from "@/server/product-auto-brief";
+import { claimProductAutoRunRequestReceipt, readProductAutoRunRequestReceipt,
+  validProductAutoRunRequestKey } from "@/server/product-auto-run-requests";
 import { productExecutionQueue, QueueAdmissionError, type ProductDispatch } from "@/server/product-execution-queue";
 import { appendExtractionArguments, configuredExtractionProfile, extractionEnvironment,
   validExtractionProfile, type ExtractionProfile } from "@/server/product-auto-profile";
@@ -68,6 +70,7 @@ interface SelectedFile {
 interface RunRecord {
   runId: string;
   jobId: string;
+  idempotencyKey?: string;
   status: "queued" | "running" | "success" | "failed";
   createdAt: string;
   endedAt?: string;
@@ -1028,18 +1031,103 @@ function requireReviewedPreview(jobId: string, previewRunId: string, brief: Prod
   }
 }
 
+function runRequestPayloadSha256(selectedFileIds: string[],
+  approvedRecipeSelection?: { recipeId: string; expectedRevision: number },
+  confirmedBriefSelection?: { expectedRevision: number; payloadSha256: string;
+    phase: "preview" | "batch"; previewRunId?: string }): string {
+  return createHash("sha256").update(JSON.stringify({ selectedFileIds,
+    approvedRecipe: approvedRecipeSelection
+      ? { recipeId: approvedRecipeSelection.recipeId, expectedRevision: approvedRecipeSelection.expectedRevision } : null,
+    confirmedBrief: confirmedBriefSelection
+      ? { expectedRevision: confirmedBriefSelection.expectedRevision,
+        payloadSha256: confirmedBriefSelection.payloadSha256, phase: confirmedBriefSelection.phase,
+        previewRunId: confirmedBriefSelection.previewRunId ?? null } : null,
+  })).digest("hex");
+}
+
+async function replayProductAutoRunRequest(jobId: string, selectedFileIds: string[],
+  job: ReturnType<typeof getJobOrThrow>, key: string, actorUserId: string, payloadSha256: string,
+  approvedRecipeSelection?: { recipeId: string; expectedRevision: number },
+  confirmedBriefSelection?: { expectedRevision: number; payloadSha256: string;
+    phase: "preview" | "batch"; previewRunId?: string }): Promise<ProductAutoRun | null> {
+  const receipt = readProductAutoRunRequestReceipt(storageRoot(), jobId, key);
+  if (!receipt) return null;
+  if (receipt.actorUserId !== actorUserId || receipt.jobOwnerUserId !== (job.ownerUserId ?? null)) {
+    throw new AccessError("Extraction request not found.", 404);
+  }
+  if (receipt.payloadSha256 !== payloadSha256) {
+    throw new AccessError("This extraction request key belongs to different options.", 409);
+  }
+  const brief = confirmedBriefSelection && requireCurrentProductAutoBrief(jobId,
+    confirmedBriefSelection.expectedRevision, confirmedBriefSelection.payloadSha256);
+  if (brief && brief.state !== "confirmed") {
+    throw new AccessError("The confirmed schema changed since this extraction request.", 409);
+  }
+  const recipe = approvedRecipeSelection
+    ? (await import("@/server/product-auto-recipes")).selectApprovedProductAutoRecipe(
+      jobId, approvedRecipeSelection.recipeId, approvedRecipeSelection.expectedRevision)
+    : undefined;
+  const file = runFile(jobId, receipt.runId);
+  if (!fs.existsSync(file)) {
+    throw new AccessError("Extraction admission is incomplete or uncertain. Inspect runs before starting a new attempt.", 409);
+  }
+  const record = readRunRecord(jobId, receipt.runId);
+  if (record.idempotencyKey !== key || record.selectedFiles.length !== selectedFileIds.length ||
+    record.selectedFiles.some((selected, index) => selected.fileId !== selectedFileIds[index]) ||
+    Boolean(record.approvedRecipe) !== Boolean(approvedRecipeSelection) ||
+    Boolean(record.confirmedBrief) !== Boolean(confirmedBriefSelection) ||
+    recipe && (record.approvedRecipe?.recipeId !== recipe.recipe_id ||
+      record.approvedRecipe?.revision !== recipe.revision ||
+      record.approvedRecipe?.auditEventId !== recipe.audit_event_id) ||
+    brief && (record.confirmedBrief?.revision !== brief.revision ||
+      record.confirmedBrief?.payloadSha256 !== brief.payload_sha256 ||
+      record.confirmedBrief?.auditEventId !== brief.audit_event_id ||
+      record.confirmedBrief?.phase !== confirmedBriefSelection?.phase ||
+      record.confirmedBrief?.previewRunId !== confirmedBriefSelection?.previewRunId)) {
+    throw new AccessError("The original extraction request receipt no longer matches its run.", 409);
+  }
+  const config = loadRunnerConfig();
+  const sourceDir = path.resolve(config.uploadsDir, `job_${jobId}`);
+  if (path.dirname(sourceDir) !== path.resolve(config.uploadsDir)) {
+    throw new AccessError("Invalid job upload location.", 409);
+  }
+  for (const selected of record.selectedFiles) {
+    const document = job.documents?.find((item) => item.fileId === selected.fileId);
+    const source = path.resolve(sourceDir, selected.storedName);
+    if (!document || document.storedName !== selected.storedName || document.fileName !== selected.fileName ||
+      path.dirname(source) !== sourceDir || !fs.existsSync(source) || !fs.lstatSync(source).isFile() ||
+      sha256File(source) !== selected.sha256) {
+      throw new AccessError("An extraction source changed since this request.", 409);
+    }
+  }
+  return publicRun(runForDisplay(jobId, receipt.runId));
+}
+
 export async function startProductAutoRun(
   jobId: string, selectedFileIds: string[], admin: boolean,
   approvedRecipeSelection?: { recipeId: string; expectedRevision: number },
   confirmedBriefSelection?: { expectedRevision: number; payloadSha256: string;
     phase: "preview" | "batch"; previewRunId?: string },
+  idempotency?: { key: string; actorUserId: string },
 ): Promise<ProductAutoRun> {
   const config = loadRunnerConfig();
-  if (!productAutoAvailability().available) throw new AccessError("Automatic extraction is unavailable on this deployment.", 503);
   const job = getJobOrThrow(jobId);
   if (!selectedFileIds.length || new Set(selectedFileIds).size !== selectedFileIds.length) {
     throw new AccessError("Select one or more distinct documents.", 400);
   }
+  const requestKey = idempotency?.key;
+  if (requestKey !== undefined && (!validProductAutoRunRequestKey(requestKey) ||
+    !idempotency?.actorUserId)) {
+    throw new AccessError("A valid extraction request key and actor are required.", 400);
+  }
+  const requestPayloadSha256 = requestKey
+    ? runRequestPayloadSha256(selectedFileIds, approvedRecipeSelection, confirmedBriefSelection) : undefined;
+  if (requestKey && requestPayloadSha256) {
+    const existing = await replayProductAutoRunRequest(jobId, selectedFileIds, job, requestKey,
+      idempotency!.actorUserId, requestPayloadSha256, approvedRecipeSelection, confirmedBriefSelection);
+    if (existing) return existing;
+  }
+  if (!productAutoAvailability().available) throw new AccessError("Automatic extraction is unavailable on this deployment.", 503);
   recoverProductAutoRuns(jobId);
   if (listProductAutoRuns(jobId).some((run) => ["queued", "running"].includes(run.status))) {
     throw new AccessError("This job already has an automatic extraction run in progress.", 409);
@@ -1124,13 +1212,28 @@ export async function startProductAutoRun(
   }
   const documents = selectedFileIds.map((fileId) => job.documents?.find((document) => document.fileId === fileId));
   if (documents.some((document) => !document)) throw new AccessError("A selected document was not found.", 400);
-  const runId = `auto_${randomUUID().replace(/-/g, "")}`;
+  const runId = requestKey ? `auto_${requestKey}` : `auto_${randomUUID().replace(/-/g, "")}`;
   const inputDir = stagedInputDir(runId);
   const sourceDir = path.resolve(config.uploadsDir, `job_${jobId}`);
   if (path.dirname(sourceDir) !== path.resolve(config.uploadsDir)) throw new AccessError("Invalid job upload location.", 400);
   const selectedFiles: SelectedFile[] = [];
   const queued = process.env.PRODUCT_EXECUTION_MODE === "postgres";
   if (queued && !job.ownerUserId) throw new AccessError("Queued extraction requires a job owner.", 409);
+  if (requestKey && requestPayloadSha256) {
+    const claimed = claimProductAutoRunRequestReceipt(storageRoot(), jobId, requestKey, {
+      contractVersion: 1, jobId, runId, actorUserId: idempotency!.actorUserId,
+      jobOwnerUserId: job.ownerUserId ?? null, payloadSha256: requestPayloadSha256,
+    });
+    if (!claimed) {
+      const existing = await replayProductAutoRunRequest(jobId, selectedFileIds, job, requestKey,
+        idempotency!.actorUserId, requestPayloadSha256, approvedRecipeSelection, confirmedBriefSelection);
+      if (existing) return existing;
+      throw new AccessError("Extraction admission is incomplete or uncertain. Inspect runs before retrying.", 409);
+    }
+  }
+  if (fs.existsSync(runFile(jobId, runId))) {
+    throw new AccessError("The extraction run identity already exists.", 409);
+  }
   fs.mkdirSync(inputDir, { recursive: true });
   try {
     if (recipeSnapshot && recipeMeta) {
@@ -1179,6 +1282,7 @@ export async function startProductAutoRun(
     }
     const record: RunRecord = {
       runId, jobId, status: queued ? "queued" : "running", createdAt: new Date().toISOString(),
+      ...(requestKey ? { idempotencyKey: requestKey } : {}),
       serverInstanceId: instanceId, selectedFiles, documents: [],
       ...(dispatch && dispatchHash ? { queueDispatch: { ownerId: dispatch.ownerId, sha256: dispatchHash } } : {}),
       ...(recipeMeta ? { approvedRecipe: recipeMeta } : {}),
