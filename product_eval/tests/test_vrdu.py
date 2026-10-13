@@ -10,7 +10,12 @@ import pytest
 
 from idpo.product_auto.workflow import _doc_id as runtime_doc_id
 from product_eval.contracts import load_jsonl
-from product_eval.datasets.vrdu import DATASET_COMMIT, DatasetError, build_vrdu_cohort
+from product_eval.datasets.vrdu import (
+    DATASET_COMMIT,
+    DatasetError,
+    _gold_record,
+    build_vrdu_cohort,
+)
 
 
 def _annotation(text: str, source: str, *, from_index: int = 0) -> list[object]:
@@ -128,6 +133,30 @@ def test_vrdu_repeated_different_values_remain_ordered_and_have_no_single_eviden
     assert reg["gold_schema"][0]["type"] == "array[string]"
     assert reg["gold_values"][0] == {"field_id": "registration_num", "value": ["16/9", "1619"]}
     assert report["annotation_stats"]["divergent_scalar_fields_as_ordered_lists"] == 1
+
+
+def test_vrdu_preserves_explicit_partial_groups_and_varying_column_order() -> None:
+    text = "A 11/ B C 22/ D 33/"
+    source = _row("partial.pdf", text, [
+        [["item", "date"], [[_annotation("A", text), _annotation("11/", text)]]],
+        [["item"], [[_annotation("B", text)]]],
+        [["date", "item"], [
+            [_annotation("22/", text), _annotation("C", text)],
+            [_annotation("33/", text), _annotation("D", text)],
+        ]],
+    ])
+    record, stats = _gold_record(source, "synthetic", {"item": "GeneralStringMatch", "date": "DateMatch"}, {"item", "date"})
+    values = {entry["field_id"]: entry["value"] for entry in record["gold_values"]}
+    assert values["item"] == [
+        {"row": 0, "value": "A"}, {"row": 1, "value": "B"},
+        {"row": 2, "value": "C"}, {"row": 3, "value": "D"},
+    ]
+    # Missing dates keep their group's row ordinal; incomplete source strings
+    # remain incomplete instead of being guessed or re-associated with a row.
+    assert values["date"] == [
+        {"row": 0, "value": "11/"}, {"row": 2, "value": "22/"}, {"row": 3, "value": "33/"},
+    ]
+    assert stats["linked_rows"] == 4
 
 
 def test_vrdu_converts_global_ocr_offset_to_second_page_offset(tmp_path: Path) -> None:
