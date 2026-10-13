@@ -43,14 +43,25 @@ _SUCCESS_REASONS = {"confirmed_schema_requires_review", "confirmed_schema_no_gro
                     "long_document_scalar_conflict"}
 
 
-def sanitized_reply(reply: ModelReply) -> dict:
+def sanitized_reply(reply: ModelReply, *, credential: str | None = None) -> dict:
     payload = dataclasses.asdict(reply)
     # Provider implementations are required to sanitize too; this boundary
     # also protects the private gate receipts from an accidental future change.
-    if payload.get("error") is not None and not re.fullmatch(r"[A-Za-z0-9_]{1,128}", payload["error"]):
+    for key, value in payload.items():
+        if isinstance(value, str):
+            if credential:
+                value = value.replace(credential, "[REDACTED]")
+            payload[key] = re.sub(r"iba_[A-Za-z0-9_-]+", "[REDACTED]", value)
+    if not isinstance(payload.get("text"), str):
+        payload["text"] = ""
+        payload["error"] = "invalid_reply_text"
+    if payload.get("error") is not None and (not isinstance(payload["error"], str) or
+            not re.fullmatch(r"[A-Za-z0-9_]{1,128}", payload["error"])):
         payload["error"] = "provider_error"
     category = payload.get("error_category")
     if category is not None and category not in _ERROR_CATEGORIES:
+        payload["error_category"] = "provider_unknown"
+    if payload.get("error") and payload.get("error_category") is None:
         payload["error_category"] = "provider_unknown"
     if payload.get("finish_reason") not in {None, "stop", "length", "content_filter", "tool_calls", "function_call"}:
         payload["finish_reason"] = "unknown"
@@ -59,13 +70,15 @@ def sanitized_reply(reply: ModelReply) -> dict:
             payload[key] = None
     if type(payload.get("latency_ms")) not in (int, float) or not math.isfinite(payload["latency_ms"]):
         payload["latency_ms"] = None
+    payload["refusal"] = bool(payload.get("refusal"))
     return payload
 
 
 class RecordedModel:
-    def __init__(self, provider, output: Path, doc_id: str):
+    def __init__(self, provider, output: Path, doc_id: str, *, credential: str | None = None):
         self.provider, self.output, self.doc_id = provider, output, doc_id
         self.model = provider.model
+        self._credential = credential
         self.ledger = Ledger(output / "ledger.sqlite3")
         self.replies: list[dict] = []
 
@@ -76,8 +89,10 @@ class RecordedModel:
                    {"role": "user", "content": prompt}], "max_tokens": self.provider.max_tokens,
                    "response_format": response_format}
         request_sha = digest_json(request)
-        requests = self.output / "requests"
-        requests.mkdir(exist_ok=True)
+        # Distinct workers own distinct source directories. Identical bodies
+        # cannot expose another worker's not-yet-fsynced request file.
+        requests = self.output / "requests" / self.doc_id
+        requests.mkdir(parents=True, exist_ok=True)
         path = requests / f"{request_sha}.json"
         try:
             write_new(path, request)
@@ -88,7 +103,7 @@ class RecordedModel:
         # has committed to SQLite with synchronous=FULL.
         attempt_id, _ = self.ledger.begin_attempt(self.doc_id, request_sha)
         reply = self.provider.complete_json(system=system, prompt=prompt, response_format=response_format)
-        payload = sanitized_reply(reply)
+        payload = sanitized_reply(reply, credential=self._credential)
         reply_dir = self.output / "replies"
         reply_dir.mkdir(exist_ok=True)
         reply_sha = write_new(reply_dir / f"{attempt_id:06d}.json", payload)
@@ -191,7 +206,7 @@ def _run_source(output_s: str, row: dict, protocol: dict, api_key_env: str) -> s
                                         max_tokens=profile["max_tokens"])
         if provider.client.max_retries != 0:
             raise ValueError("SDK retries must be disabled")
-        model = RecordedModel(provider, output, row["doc_id"])
+        model = RecordedModel(provider, output, row["doc_id"], credential=os.environ.get(api_key_env))
         stage = "product_execution"
         visual_kwargs = ({"visual_document_profile": profile["visual_document_profile"]}
                          if "visual_document_profile" in inspect.signature(process_auto).parameters else {})
@@ -248,7 +263,7 @@ def _verify_existing(output: Path, snapshot: dict, protocol: dict, sha: str) -> 
                 if not item.is_relative_to(output.resolve()) or digest_file(item) != expected:
                     raise ValueError("Sealed product artifact changed")
     for attempt in snapshot["attempts"]:
-        if digest_file(output / "requests" / f"{attempt['request_sha256']}.json") != attempt["request_sha256"]:
+        if digest_file(output / "requests" / attempt["doc_id"] / f"{attempt['request_sha256']}.json") != attempt["request_sha256"]:
             raise ValueError("Sealed request changed")
         if attempt["reply_sha256"] and digest_file(output / "replies" / f"{attempt['attempt_id']:06d}.json") != attempt["reply_sha256"]:
             raise ValueError("Sealed model reply changed")

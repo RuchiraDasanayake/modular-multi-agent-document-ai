@@ -12,6 +12,17 @@ class GateStopped(RuntimeError):
     """No request may be sent under the current frozen gate state."""
 
 
+_RESUMABLE_STOPS = {"authentication", "rate_limit", "repeated_transport_failure"}
+
+
+def _record_stop(db, reason: str) -> None:
+    existing = db.execute("SELECT value FROM settings WHERE key='stop_reason'").fetchone()[0]
+    # A late concurrent response cannot turn an integrity/budget stop into one
+    # an operator may acknowledge and resume. Preserve the first critical stop.
+    if not existing or existing in _RESUMABLE_STOPS and reason not in _RESUMABLE_STOPS:
+        db.execute("UPDATE settings SET value=? WHERE key='stop_reason'", (reason,))
+
+
 class Ledger:
     def __init__(self, path: Path):
         self.path = path
@@ -109,7 +120,7 @@ class Ledger:
 
     def finish_attempt(self, attempt_id: int, reply_sha256: str, reply: dict) -> None:
         category = reply.get("error_category")
-        uncertain = bool(category and (category.startswith("transport_") or category in {
+        uncertain = reply.get("sdk_attempts") != 1 or bool(reply.get("error") and not category) or bool(category and (category.startswith("transport_") or category in {
             "provider_server", "provider_other", "provider_unknown", "unknown",
         }))
         with self.transaction() as db:
@@ -124,13 +135,13 @@ class Ledger:
             failures = int(db.execute("SELECT value FROM settings WHERE key='consecutive_transport_failures'").fetchone()[0])
             failures = failures + 1 if uncertain else 0
             db.execute("UPDATE settings SET value=? WHERE key='consecutive_transport_failures'", (str(failures),))
-            stop = ("authentication" if category == "authentication" or reply.get("error") == "http_403" else
+            stop = ("sdk_retry_contract_violation" if reply.get("sdk_attempts") != 1 else
+                    "authentication" if category == "authentication" or reply.get("error") == "http_403" else
                     "rate_limit" if category == "rate_limit" else
                     "request_rejected" if category == "request_rejected" else
-                    "repeated_transport_failure" if failures >= 2 else
-                    "sdk_retry_contract_violation" if reply.get("sdk_attempts") != 1 else None)
+                    "repeated_transport_failure" if failures >= 2 else None)
             if stop:
-                db.execute("UPDATE settings SET value=? WHERE key='stop_reason'", (stop,))
+                _record_stop(db, stop)
 
     def seal_source(self, doc_id: str, receipt_sha256: str, reason: str | None = None) -> None:
         with self.transaction() as db:
@@ -150,15 +161,13 @@ class Ledger:
 
     def stop(self, reason: str) -> None:
         with self.transaction() as db:
-            db.execute("UPDATE settings SET value=? WHERE key='stop_reason'", (reason,))
+            _record_stop(db, reason)
 
     def acknowledge_stop(self, expected: str) -> None:
         """Explicitly resume untouched sources without resetting paid attempts."""
         with self.transaction() as db:
             actual = db.execute("SELECT value FROM settings WHERE key='stop_reason'").fetchone()[0]
-            if not actual or expected != actual or actual not in {
-                "authentication", "rate_limit", "repeated_transport_failure",
-            }:
+            if not actual or expected != actual or actual not in _RESUMABLE_STOPS:
                 raise GateStopped("stop_acknowledgement_mismatch_or_nonresumable")
             db.execute("INSERT INTO controls(event, reason, updated) VALUES ('operator_resume', ?, ?)", (actual, time.time()))
             db.execute("UPDATE settings SET value='' WHERE key='stop_reason'")

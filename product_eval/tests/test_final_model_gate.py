@@ -63,7 +63,7 @@ def test_request_begun_is_committed_before_provider_invocation(tmp_path):
         def complete_json(self, **_):
             state = Ledger(tmp_path / "ledger.sqlite3").snapshot()
             assert state["attempts"][0]["state"] == "request_begun"
-            assert (tmp_path / "requests" / f"{state['attempts'][0]['request_sha256']}.json").exists()
+            assert (tmp_path / "requests" / doc_id / f"{state['attempts'][0]['request_sha256']}.json").exists()
             return reply()
 
     model = gate.RecordedModel(Provider(), tmp_path, doc_id)
@@ -321,6 +321,102 @@ def test_raw_error_messages_are_redacted():
     assert "secret" not in json.dumps(payload)
 
 
+def test_active_credential_and_key_patterns_are_redacted_before_private_reply_and_parsing(tmp_path):
+    ledger, rows = ledger_fixture(tmp_path)
+    ledger.claim(rows[0]["doc_id"])
+    credential = "synthetic-active-key-without-provider-prefix"
+    provider = SimpleNamespace(model="innobot-luna-6", max_tokens=8192,
+        complete_json=lambda **_: dataclasses.replace(reply(), text=credential + " iba_other_synthetic_key_123"))
+    result = gate.RecordedModel(provider, tmp_path, rows[0]["doc_id"], credential=credential).complete_json(
+        system="s", prompt="p", response_format={"type": "json_schema"})
+    assert result.text == "[REDACTED] [REDACTED]"
+    stored = (tmp_path / "replies/000001.json").read_text()
+    assert credential not in stored and "iba_other" not in stored
+
+
+def test_identical_concurrent_requests_publish_to_independent_source_paths(tmp_path, monkeypatch):
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    ledger, rows = ledger_fixture(tmp_path)
+    for row in rows:
+        ledger.claim(row["doc_id"])
+    barrier = threading.Barrier(2)
+    original = gate.write_new
+    def slow_request_write(path, value):
+        if "requests" not in path.parts:
+            return original(path, value)
+        # Both workers expose an incomplete file simultaneously. Source-scoped
+        # paths ensure neither inspects the other's partial publication.
+        raw = freezer.encoded(value)
+        with path.open("xb") as stream:
+            stream.write(raw[:1])
+            stream.flush()
+            barrier.wait(timeout=10)
+            stream.write(raw[1:])
+        return freezer.digest_json(value)
+    monkeypatch.setattr(gate, "write_new", slow_request_write)
+    provider = SimpleNamespace(model="innobot-luna-6", max_tokens=8192, complete_json=lambda **_: reply())
+    def complete(row):
+        return gate.RecordedModel(provider, tmp_path, row["doc_id"]).complete_json(
+            system="same", prompt="same", response_format={"type": "json_schema"})
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        replies = list(pool.map(complete, rows))
+    assert all(item.finish_reason == "stop" for item in replies)
+    attempts = ledger.snapshot()["attempts"]
+    assert len({item["request_sha256"] for item in attempts}) == 1
+    for item in attempts:
+        assert freezer.digest_file(tmp_path / "requests" / item["doc_id"] / f"{item['request_sha256']}.json") == item["request_sha256"]
+
+
+@pytest.mark.parametrize("sdk_attempts", [None, 0, 2])
+def test_unknown_or_non_single_sdk_attempts_are_uncertain(tmp_path, sdk_attempts):
+    ledger, rows = ledger_fixture(tmp_path)
+    ledger.claim(rows[0]["doc_id"])
+    attempt, _ = ledger.begin_attempt(rows[0]["doc_id"], "b" * 64)
+    payload = dataclasses.asdict(dataclasses.replace(reply(), sdk_attempts=sdk_attempts))
+    ledger.finish_attempt(attempt, "c" * 64, payload)
+    state = ledger.snapshot()
+    assert state["attempts"][0]["state"] == "uncertain"
+    assert state["settings"]["stop_reason"] == "sdk_retry_contract_violation"
+
+
+def test_uncategorized_provider_error_cannot_become_known_success(tmp_path):
+    payload = gate.sanitized_reply(reply(error="APIConnectionError"))
+    assert payload["error_category"] == "provider_unknown"
+    ledger, rows = ledger_fixture(tmp_path)
+    ledger.claim(rows[0]["doc_id"])
+    attempt, _ = ledger.begin_attempt(rows[0]["doc_id"], "b" * 64)
+    ledger.finish_attempt(attempt, "c" * 64, payload)
+    assert ledger.snapshot()["attempts"][0]["state"] == "uncertain"
+
+
+def test_late_provider_reply_cannot_weaken_an_integrity_stop(tmp_path):
+    ledger, rows = ledger_fixture(tmp_path)
+    ledger.claim(rows[0]["doc_id"])
+    attempt, _ = ledger.begin_attempt(rows[0]["doc_id"], "b" * 64)
+    ledger.stop("worker_execution_failed")
+    ledger.finish_attempt(attempt, "c" * 64, dataclasses.asdict(reply(error="http_401", error_category="authentication")))
+    assert ledger.snapshot()["settings"]["stop_reason"] == "worker_execution_failed"
+    with pytest.raises(GateStopped):
+        ledger.acknowledge_stop("authentication")
+
+
+def test_integrity_stop_supersedes_a_resumable_provider_stop(tmp_path):
+    ledger, _ = ledger_fixture(tmp_path)
+    ledger.stop("rate_limit")
+    ledger.stop("worker_execution_failed")
+    assert ledger.snapshot()["settings"]["stop_reason"] == "worker_execution_failed"
+
+
+def test_retry_contract_violation_cannot_be_acknowledged_as_authentication(tmp_path):
+    ledger, rows = ledger_fixture(tmp_path)
+    ledger.claim(rows[0]["doc_id"])
+    attempt, _ = ledger.begin_attempt(rows[0]["doc_id"], "b" * 64)
+    value = dataclasses.replace(reply(error="http_401", error_category="authentication"), sdk_attempts=2)
+    ledger.finish_attempt(attempt, "c" * 64, dataclasses.asdict(value))
+    assert ledger.snapshot()["settings"]["stop_reason"] == "sdk_retry_contract_violation"
+
+
 @pytest.mark.parametrize("text", ["Total: 42", ("Total: 42\n\n" + "padding words " * 1000 + "\n\n") * 3], ids=["short", "segmented"])
 def test_actual_product_intake_writes_verified_receipts_with_mock_model_only(tmp_path, monkeypatch, text):
     # TXT avoids OCR entirely; the real product workflow and strict parser run.
@@ -391,9 +487,10 @@ def test_modified_reply_receipt_blocks_resume(frozen):
     protocol = freezer.read_json(output / "protocol.json")
     ledger = Ledger(output / "ledger.sqlite3")
     ledger.claim(rows[0]["doc_id"])
-    (output / "requests").mkdir()
-    request_sha = freezer.write_new(output / "requests" / "temporary.json", {"synthetic": True})
-    (output / "requests/temporary.json").rename(output / "requests" / f"{request_sha}.json")
+    request_dir = output / "requests" / rows[0]["doc_id"]
+    request_dir.mkdir(parents=True)
+    request_sha = freezer.write_new(request_dir / "temporary.json", {"synthetic": True})
+    (request_dir / "temporary.json").rename(request_dir / f"{request_sha}.json")
     attempt, _ = ledger.begin_attempt(rows[0]["doc_id"], request_sha)
     (output / "replies").mkdir()
     response_path = output / "replies/000001.json"

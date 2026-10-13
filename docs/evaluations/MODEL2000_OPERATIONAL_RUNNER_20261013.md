@@ -58,6 +58,12 @@ The hard global cap is 2,500 requests, with at most four per original, up to 8,1
 
 SQLite uses WAL and `synchronous=FULL`. A source claim is committed before a worker starts. Each request payload is persisted and fsynced, then a `request_begun` row is committed **before** the provider method can run. Only sanitized `ModelReply` fields and reply text are saved. Raw provider error strings, HTTP error bodies, credentials, and headers are excluded.
 
+Private request paths are scoped by source (`requests/<doc_id>/<digest>.json`), so concurrent workers with identical
+request bodies cannot inspect each other's partially written file. The active credential is passed explicitly to
+the reply wrapper; literal matches and `iba_` token patterns are redacted before both private reply storage and
+product parsing. Unknown/non-single SDK attempt counts and uncategorized provider errors remain uncertain.
+A late concurrent provider reply cannot weaken a nonresumable integrity or budget stop into a resumable one.
+
 After a response, the reply hash, usage, latency, finish/refusal/error state, and SDK attempt count are sealed. Product run/manifest/result receipts are verified and all produced files are hashed before the source outcome is sealed. A crash in between leaves the source or attempt uncertain. An OS file lock prevents competing coordinators and releases automatically if the coordinator dies.
 
 ```powershell
