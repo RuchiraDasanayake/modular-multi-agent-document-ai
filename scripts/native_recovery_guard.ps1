@@ -2,6 +2,7 @@
 param([ValidateSet('Protect', 'Private', 'PrivateTree', 'Stopped', 'PassiveRunning')][string]$Action, [string]$Path)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'native_product_common.ps1')
+. (Join-Path $PSScriptRoot 'native_recovery_passive_common.ps1')
 
 function Get-RecoveryAllowedSids {
   return @([Security.Principal.WindowsIdentity]::GetCurrent().User.Value, 'S-1-5-18', 'S-1-5-32-544')
@@ -119,11 +120,10 @@ function Assert-RecoveryStopped {
 
 function Assert-RecoveryRunning {
   param([string]$ConfigPath)
-  . (Join-Path $PSScriptRoot 'native_recovery_passive_common.ps1')
   $config = Get-NativeConfig -ConfigPath $ConfigPath
   Assert-PassiveRecoveryConfig $config
   $state = Get-NativeState -Config $config
-  if (-not $state -or $state.services.worker) { throw 'Passive recovery process receipt is missing or includes a worker.' }
+  if (-not $state -or $state.services['worker']) { throw 'Passive recovery process receipt is missing or includes a worker.' }
   $expected = @{
     postgres = @((Join-Path $config.pgBin 'postgres.exe'), $config.postgresPort)
     gateway = @($config.gatewayPythonPath, $config.gatewayPort)

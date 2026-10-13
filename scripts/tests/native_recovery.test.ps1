@@ -49,6 +49,7 @@ try {
   # Stopped-state checks are exercised with synthetic identities, never a live database.
   $config = @{ configPath = $secret; pgData = $target; dataDir = $target; repoRoot = 'C:\fixture';
     pythonPath = 'C:\fixture\python.exe'; gatewayPythonPath = 'C:\fixture\gateway.exe'; pgBin = 'C:\fixture\pg';
+    nodePath = 'C:\fixture\node.exe';
     postgresPort = 55432; gatewayPort = 8000; frontendPort = 3000 }
   function Get-NativeConfig { param($ConfigPath) return $config }
   function Assert-RecoveryPrivate { param($LiteralPath, [switch]$Recurse) }
@@ -61,7 +62,21 @@ try {
   function Assert-NativePortFree { param($Port) }
   '123' | Set-Content -LiteralPath (Join-Path $target 'postmaster.pid')
   Assert-Throws { Assert-RecoveryStopped $secret } 'A remaining PID file refuses backup.'
-  Write-Output 'PASS: private ACLs, junction rejection, isolated child environment and stopped-process guards.'
+  function Assert-PassiveRecoveryConfig { param($Config) }
+  $runningState = @{ services = @{
+    postgres = @{ executable = 'C:\fixture\pg\postgres.exe'; pid = 1 }
+    gateway = @{ executable = 'C:\fixture\gateway.exe'; pid = 2 }
+    frontend = @{ executable = 'C:\fixture\node.exe'; pid = 3 }
+  } }
+  function Get-NativeState { param($Config) return $runningState }
+  function Test-NativePortOwnership { param($Port, $Identity) return $true }
+  Assert-RecoveryRunning $secret
+  $runningState.services.worker = @{ executable = 'C:\fixture\node.exe'; pid = 4 }
+  Assert-Throws { Assert-RecoveryRunning $secret } 'A worker in the passive receipt is rejected.'
+  [void]$runningState.services.Remove('worker')
+  function Test-NativePortOwnership { param($Port, $Identity) return $false }
+  Assert-Throws { Assert-RecoveryRunning $secret } 'Wrong port ownership prevents passive HTTP verification.'
+  Write-Output 'PASS: private ACLs, junction rejection, isolated environment, stopped guards and passive process ownership.'
 } finally {
   Remove-Item Env:UNUSUAL_PROVIDER_SECRET -ErrorAction SilentlyContinue
   Remove-Item Env:NODE_OPTIONS -ErrorAction SilentlyContinue
