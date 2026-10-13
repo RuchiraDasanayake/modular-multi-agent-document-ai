@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { IdpoCard } from "@/components/idpo/card";
 import { idpoApi } from "@/lib/idpo-api";
-import { isVisualProposal, machineProposalLabel, visualLinkedCellsReviewable } from "./product-auto-visual-review";
+import { isVisualProposal, machineProposalLabel, pdfSourcePageUrl, visualLinkedCellsReviewable } from "./product-auto-visual-review";
 import type { ProductAutoAddedFieldInput, ProductAutoAddedLinkedFieldInput, ProductAutoAddedScalarFieldInput, ProductAutoDocumentDetail, ProductAutoEvidence, ProductAutoLinkedCell, ProductAutoLinkedCorrectionRow, ProductAutoReviewDecision, ProductAutoReviewField, ProductAutoScalarType } from "@/types/product-auto";
 
 type Draft = Record<string, { decision: ProductAutoReviewDecision | ""; corrected_value: string; note: string }>;
@@ -90,12 +90,14 @@ export function ProductAutoDocumentPage() {
   const [reportedActiveMinutes, setReportedActiveMinutes] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [sourcePage, setSourcePage] = useState<number | null>(null);
 
   useEffect(() => {
     let current = true;
     void idpoApi.getProductAutoDocument(jobId, runId, docId).then((data) => {
       if (!current) return;
       setDetail(data);
+      setSourcePage(null);
       const reviews = new Map(data.review?.fields.map((field) => [field.field_id, field]) ?? []);
       setDraft(Object.fromEntries(data.candidate.proposed_schema.map((field) => {
         const review = reviews.get(field.field_id);
@@ -220,6 +222,15 @@ export function ProductAutoDocumentPage() {
   const exportUrl = `/api/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(runId)}/docs/${encodeURIComponent(docId)}/export`;
   const previewable = /\.(pdf|png|jpe?g|txt|json)$/i.test(detail.fileName);
   const nativeFormat = /\.(docx|xlsx|pptx|html|eml)$/i.test(detail.fileName);
+  const selectedPageUrl = sourcePage === null ? null :
+    pdfSourcePageUrl(originalUrl, detail.fileName, sourcePage, detail.sourcePages);
+
+  function showSourcePage(page: number) {
+    if (!detail) return;
+    const target = pdfSourcePageUrl(originalUrl, detail.fileName, page, detail.sourcePages);
+    if (target) setSourcePage(page);
+    document.getElementById("original-source")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
@@ -241,10 +252,11 @@ export function ProductAutoDocumentPage() {
       <IdpoCard className="lg:sticky lg:top-6">
         <h2 id="original-source" className="text-lg font-semibold text-slate-900 dark:text-white">Original document</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Compare each proposed value and quote against the uploaded source.</p>
+        {selectedPageUrl ? <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">Showing PDF page {sourcePage}. <a className="text-cyan-700 underline dark:text-cyan-300" href={selectedPageUrl} target="_blank" rel="noopener noreferrer">Open this page in a new tab</a></p> : null}
         {previewable ? (
           <iframe
             title={`Original document: ${detail.fileName}`}
-            src={originalUrl}
+            src={selectedPageUrl ?? originalUrl}
             sandbox="allow-downloads"
             loading="lazy"
             referrerPolicy="no-referrer"
@@ -314,7 +326,7 @@ export function ProductAutoDocumentPage() {
                             ? <><span className="font-medium">{detail.parsedDocument?.units[cell.evidence.page - 1]?.label ?? `Page ${cell.evidence.page}`}:</span> <q>{cell.evidence.quote}</q>
                               {cell.evidence.kind === "text_match" ? <span className="mt-1 block text-amber-700 dark:text-amber-300">OCR text match; image position and meaning require review.</span> : null}
                               {nativeContext(detail, cell.evidence) ? <code className="mt-1 block break-all text-[11px]">{nativeContext(detail, cell.evidence)}</code> : null}</>
-                            : cell.visual_page ? <><a href="#original-source" className="font-medium text-cyan-700 underline dark:text-cyan-300">Page {cell.visual_page} · inspect original</a>
+                            : cell.visual_page ? <><button type="button" onClick={() => showSourcePage(cell.visual_page!)} className="font-medium text-cyan-700 underline dark:text-cyan-300">Page {cell.visual_page} · inspect original</button>
                               <span className="mt-1 block text-amber-700 dark:text-amber-300">No verified pixel location or OCR span</span></>
                               : <span className="text-amber-700 dark:text-amber-300">No verified source span</span>}</td>
                         </tr>)}</tbody>
@@ -323,7 +335,7 @@ export function ProductAutoDocumentPage() {
                     </div>
                   ) : <p className="mt-3 break-words text-sm text-slate-800 dark:text-slate-200">{displayValue(value?.value)}</p>}
                   {!linked && visualProposal && value?.visual_pages ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-                    Image-derived — review required. Check {value.visual_pages.map((page) => `page ${page}`).join(", ")} in the <a href="#original-source" className="underline">original document</a>; no pixel location is verified.
+                    Image-derived — review required. Check {value.visual_pages.map((page, index) => <span key={page}>{index > 0 ? ", " : ""}<button type="button" onClick={() => showSourcePage(page)} className="underline">page {page}</button></span>)} in the original document; no pixel location is verified.
                   </p> : null}
                   {reviewed ? (
                     <p className="mt-2 break-words text-xs font-medium text-violet-700 dark:text-violet-300">

@@ -16,6 +16,7 @@ export class UploadBatchError<T> extends Error {
     readonly total: number,
     readonly remaining: File[],
     readonly latest: T | null,
+    readonly retryKey: string,
   ) {
     super(message);
   }
@@ -47,19 +48,21 @@ export function planUploadBatches(files: readonly File[]): File[][] {
 
 export async function uploadInBatches<T>(
   files: readonly File[],
-  send: (batch: File[]) => Promise<T>,
+  send: (batch: File[], idempotencyKey: string) => Promise<T>,
   onProgress?: (progress: UploadProgress<T>) => void,
+  firstBatchKey?: string,
 ): Promise<T> {
   const batches = planUploadBatches(files);
   if (!batches.length) throw new Error("Select at least one file.");
   let uploaded = 0;
   let latest: T | null = null;
-  for (const batch of batches) {
+  for (const [index, batch] of batches.entries()) {
+    const key = index === 0 && firstBatchKey ? firstBatchKey : crypto.randomUUID().replaceAll("-", "");
     try {
-      latest = await send(batch);
+      latest = await send(batch, key);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Upload failed.";
-      throw new UploadBatchError(message, uploaded, files.length, files.slice(uploaded), latest);
+      throw new UploadBatchError(message, uploaded, files.length, files.slice(uploaded), latest, key);
     }
     uploaded += batch.length;
     onProgress?.({ uploaded, total: files.length, latest });

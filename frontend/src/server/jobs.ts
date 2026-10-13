@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { writeFileSync as writeFileAtomicSync } from "atomically";
 import type {
   JobAHMNSummary,
@@ -27,6 +27,8 @@ import {
 const inMemoryJobs = new Map<string, JobStatus>();
 const JOB_FILE_PATTERN = /^[a-f0-9]{32}\.json$/i;
 const JOB_ID_PATTERN = /^[a-f0-9]{32}$/i;
+const UPLOAD_KEY_PATTERN = /^[a-f0-9]{32}$/;
+const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const INTERRUPTED_JOB_ERROR = "Interrupted: the server restarted while this job was running. Run it again.";
 
 // Kept on globalThis so dev-mode module reloads in the same process keep the same id.
@@ -454,8 +456,38 @@ export async function addDocumentsToJob(jobId: string, files: File[]): Promise<J
   }
 }
 
-export function addStagedDocumentsToJob(jobId: string, staged: readonly StagedUpload[]): JobStatus {
+function stagedFileSha256(filePath: string): string {
+  const hash = createHash("sha256");
+  const handle = fs.openSync(filePath, "r");
+  const buffer = Buffer.allocUnsafe(1024 * 1024);
+  try {
+    let read: number;
+    while ((read = fs.readSync(handle, buffer, 0, buffer.length, null)) > 0) {
+      hash.update(buffer.subarray(0, read));
+    }
+  } finally { fs.closeSync(handle); }
+  return hash.digest("hex");
+}
+
+function uploadReceipt(job: JobStatus, key: string): NonNullable<JobStatus["uploadReceipts"]>[string] | null {
+  const raw = job.uploadReceipts?.[key];
+  if (raw === undefined) return null;
+  if (!raw || raw.contractVersion !== 1 || !SHA256_PATTERN.test(raw.payloadSha256) ||
+    !Array.isArray(raw.files) || raw.files.length < 1 || raw.files.length > MAX_UPLOAD_REQUEST_FILES ||
+    raw.files.some((file) => !file || !JOB_ID_PATTERN.test(file.fileId) ||
+      !SHA256_PATTERN.test(file.sourceSha256)) ||
+    new Set(raw.files.map((file) => file.fileId)).size !== raw.files.length) {
+    throw new UploadRequestError("The upload retry receipt is invalid.", 409);
+  }
+  return raw;
+}
+
+export function addStagedDocumentsToJob(jobId: string, staged: readonly StagedUpload[],
+  idempotencyKey?: string): JobStatus {
   const current = getJobOrThrow(jobId);
+  if (idempotencyKey !== undefined && !UPLOAD_KEY_PATTERN.test(idempotencyKey)) {
+    throw new UploadRequestError("Invalid upload idempotency key.");
+  }
   if (staged.length < 1 || staged.length > MAX_UPLOAD_REQUEST_FILES) {
     throw new UploadRequestError("Upload requires 1–32 files.");
   }
@@ -464,6 +496,29 @@ export function addStagedDocumentsToJob(jobId: string, staged: readonly StagedUp
     throw new UploadRequestError("Job upload directory is invalid.");
   }
   for (const file of staged) validateStagedUpload(jobId, file);
+  const sourceHashes = idempotencyKey ? staged.map((file) => stagedFileSha256(file.tempPath)) : [];
+  const payloadSha256 = idempotencyKey ? createHash("sha256").update(JSON.stringify(staged.map((file, index) =>
+    ({ name: file.name, type: file.type, size: file.size, sha256: sourceHashes[index] })))).digest("hex") : null;
+  if (idempotencyKey) {
+    const receipt = uploadReceipt(current, idempotencyKey);
+    if (receipt) {
+      if (receipt.payloadSha256 !== payloadSha256 || receipt.files.length !== staged.length) {
+        throw new UploadRequestError("This upload retry key was used for different file contents.", 409);
+      }
+      for (const [index, file] of receipt.files.entries()) {
+        const document = current.documents?.find((item) => item.fileId === file.fileId);
+        const original = document && path.resolve(uploadDir, document.storedName);
+        if (!document || document.fileName !== staged[index].name || document.size !== staged[index].size ||
+          !original || path.dirname(original) !== path.resolve(uploadDir) ||
+          !fs.existsSync(original) || !fs.lstatSync(original).isFile() ||
+          stagedFileSha256(original) !== file.sourceSha256 ||
+          sourceHashes[index] !== file.sourceSha256) {
+          throw new UploadRequestError("The original upload receipt no longer matches this job.", 409);
+        }
+      }
+      return current;
+    }
+  }
 
   const moved: string[] = [];
   const records: JobDocumentRecord[] = [];
@@ -489,6 +544,15 @@ export function addStagedDocumentsToJob(jobId: string, staged: readonly StagedUp
         throw new UploadRequestError("Job upload directory changed during upload.");
       }
       job.documents = [...(job.documents ?? []), ...records];
+      if (idempotencyKey && payloadSha256) {
+        if (uploadReceipt(job, idempotencyKey)) {
+          throw new UploadRequestError("This upload retry key changed during commit.", 409);
+        }
+        job.uploadReceipts = { ...job.uploadReceipts,
+          [idempotencyKey]: { contractVersion: 1, payloadSha256,
+            files: records.map((record, index) => ({ fileId: record.fileId,
+              sourceSha256: sourceHashes[index] })) } };
+      }
       if (job.status !== "running") job.status = "queued";
       return job;
     });

@@ -83,6 +83,7 @@ export function ProductAutoPage() {
   }, [briefLoading, brief, sampleFileIds.length, documents]);
 
   const running = runs.some((run) => run.status === "running" || (run.status as string) === "queued");
+  const modelActionBlocked = modelConfigured && !isAdmin;
   useEffect(() => {
     if (!running) return undefined;
     const timer = window.setInterval(() => {
@@ -224,6 +225,9 @@ export function ProductAutoPage() {
         <p className="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-300">
           Discover fields from each document or explicitly select an approved schema. Verify source evidence and review every proposed value.
         </p>
+        {modelActionBlocked ? <p role="status" className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
+          This deployment allows only administrators to request paid model suggestions and extraction. You can save a draft, but an administrator must run its preview and batch.
+        </p> : null}
       </div>
 
       {error ? <div role="alert" className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-700/40 dark:bg-rose-900/20 dark:text-rose-300">{error}</div> : null}
@@ -372,13 +376,13 @@ export function ProductAutoPage() {
         {!modelConfigured ? <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">A server model is required for this schema. Ask an administrator to configure one.</p> : null}
         {!available ? <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">The extraction runner is unavailable on this deployment.</p> : null}
         <div className="mt-4 flex flex-wrap gap-3">
-          <button type="button" disabled={!confirmed || !available || !modelConfigured || running || starting || briefBusy}
+          <button type="button" disabled={!confirmed || !available || !modelConfigured || modelActionBlocked || running || starting || briefBusy}
             onClick={() => void startConfirmedRun("preview")}
             className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50">
             {starting ? "Starting…" : previewRun ? "Run preview again" : "Preview sample files"}
           </button>
           <button type="button" disabled={!confirmed || !reviewedPreviewRun || remainingSelected.length === 0 ||
-            !available || !modelConfigured || running || starting || briefBusy} onClick={() => void startConfirmedRun("batch")}
+            !available || !modelConfigured || modelActionBlocked || running || starting || briefBusy} onClick={() => void startConfirmedRun("batch")}
             className="rounded-lg border border-cyan-600 px-4 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-50 disabled:opacity-50 dark:text-cyan-300">
             Apply to {remainingSelected.length} remaining files
           </button>
@@ -406,7 +410,7 @@ export function ProductAutoPage() {
               {modelConfigured ? "Server configured model proposals with local evidence checks." : "Local deterministic field discovery. Configure a server model for AI proposals."}
             </p>
           </div>
-          <button type="button" onClick={() => void start()} disabled={!available || starting || running || selected.length === 0}
+          <button type="button" onClick={() => void start()} disabled={!available || modelActionBlocked || starting || running || selected.length === 0}
             className="rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50">
             {starting ? "Starting…" : `Extract ${selected.length} selected`}
           </button>

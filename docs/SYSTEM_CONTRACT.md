@@ -98,6 +98,12 @@ temporary files, and a failed job metadata save removes only that request's fina
 serializes commits only within one server process; cross-process writers and per-owner storage quotas remain open
 scaling work.
 
+Browser upload batches carry a fresh idempotency key. The job JSON atomically stores that key, an ordered digest of
+the staged names, types and bytes, and the committed file IDs. Retrying the same key and payload returns the current
+job without adding duplicates; reusing it for different bytes or after the original changes returns 409. The UI keeps
+the failed batch key when a response is lost. This guarantee is for one frontend process; a transactional metadata
+store is needed before running multiple frontend writers.
+
 On a single host, the runner executes `idpo.cli process-auto` directly. In Compose, the frontend invokes a Node
 bridge to a private Python worker over a Unix socket in the shared data volume. That Docker path has passed static
 Compose checks, a frontend build and focused tests but has **not** completed a live container extraction smoke here.

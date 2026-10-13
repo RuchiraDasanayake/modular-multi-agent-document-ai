@@ -18,3 +18,10 @@ export function visualLinkedCellsReviewable(
     cell.review_state === "pending" && cell.visual_grounding_verified === false &&
     Number.isSafeInteger(cell.visual_page) && pages.has(cell.visual_page!));
 }
+
+export function pdfSourcePageUrl(sourceUrl: string, fileName: string, page: number,
+  sourcePages: readonly { page: number }[]): string | null {
+  if (!/\.pdf$/i.test(fileName) || !Number.isSafeInteger(page) || page < 1 ||
+    !sourcePages.some((source) => source.page === page)) return null;
+  return `${sourceUrl}#page=${page}`;
+}
