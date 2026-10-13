@@ -17,6 +17,7 @@ from email import policy
 from email.parser import BytesParser
 from pathlib import Path
 
+from idpo.product_auto import native_formats, parsed_document
 from idpo.product_auto.native_formats import parse_native_document
 from idpo.product_auto.parsed_document import (
     ParsedDocument,
@@ -32,7 +33,7 @@ MAX_CELLS = 256
 MAX_COLUMNS = 12
 MAX_ROWS = 64
 MAX_CELL_CHARS = 500
-MAX_MODEL_INPUT_BYTES = 24_000
+MAX_SERIALIZED_BYTES = 24_000
 FIXTURE_MANIFEST_SHA256 = "dca2d96ecb8e863d4081f113979d0175564968a402eba3b2fe16b40a9743ca23"
 FIXTURE_NAMES = ("order.docx", "order.xlsx", "order.html", "order.eml", "order.pptx")
 
@@ -61,6 +62,19 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _code_locks() -> tuple[str, str]:
+    """Hash repository parser/graph bytes, not merely installed package versions."""
+    try:
+        parser_modules = {
+            "native_formats.py": _sha256(Path(native_formats.__file__)),
+            "parsed_document.py": _sha256(Path(parsed_document.__file__)),
+        }
+        return (hashlib.sha256(_canonical(parser_modules).encode("utf-8")).hexdigest(),
+                _sha256(Path(__file__)))
+    except (OSError, TypeError) as exc:
+        raise SourceGraphError("parser_code_unavailable") from exc
+
+
 @dataclass(frozen=True)
 class SourceNode:
     node_id: str
@@ -68,6 +82,8 @@ class SourceNode:
     parser_id: str
     parser_version: str
     parser_config_sha256: str | None
+    parser_source_sha256: str
+    graph_rules_sha256: str
     table_id: str
     unit_id: str
     row: int
@@ -113,12 +129,14 @@ class SourceGraph:
     parser_id: str
     parser_version: str
     parser_config_sha256: str | None
+    parser_source_sha256: str
+    graph_rules_sha256: str
     nodes: tuple[SourceNode, ...]
     tables: tuple[TableCandidate, ...]
     abstentions: tuple[TableAbstention, ...]
 
-    def model_input(self) -> bytes:
-        """Serialize atomically. Oversize input abstains instead of truncating."""
+    def research_payload(self) -> bytes:
+        """Serialize atomically for inspection; this does not admit inference."""
         nodes = {node.node_id: node for node in self.nodes}
         if len(nodes) != len(self.nodes):
             raise SourceGraphError("duplicate_node_id")
@@ -126,6 +144,8 @@ class SourceGraph:
                or node.parser_id != self.parser_id
                or node.parser_version != self.parser_version
                or node.parser_config_sha256 != self.parser_config_sha256
+               or node.parser_source_sha256 != self.parser_source_sha256
+               or node.graph_rules_sha256 != self.graph_rules_sha256
                for node in self.nodes):
             raise SourceGraphError("node_source_mismatch")
         for table in self.tables:
@@ -146,13 +166,19 @@ class SourceGraph:
             "source_format": self.source_format,
             "parser": {"id": self.parser_id, "version": self.parser_version},
             "parser_config_sha256": self.parser_config_sha256,
+            "parser_source_sha256": self.parser_source_sha256,
+            "graph_rules_sha256": self.graph_rules_sha256,
             "nodes": [asdict(node) for node in self.nodes],
             "tables": [asdict(table) for table in self.tables],
             "abstentions": [asdict(item) for item in self.abstentions],
         }).encode("utf-8")
-        if len(payload) > MAX_MODEL_INPUT_BYTES:
-            raise SourceGraphError("model_input_limit")
+        if len(payload) > MAX_SERIALIZED_BYTES:
+            raise SourceGraphError("serialized_input_limit")
         return payload
+
+    def inference_payload(self) -> bytes:
+        """Fail closed until config and installed parser dependencies are byte-locked."""
+        raise SourceGraphError("inference_not_admitted")
 
 
 def _native_locator(anchor: SourceAnchor) -> dict[str, object]:
@@ -362,24 +388,42 @@ def _resolver(path: Path, source_format: str) -> Iterator[Callable[[TableCell, s
             table = next(iter(element.iterancestors("table")), None)
             if table is None or table not in tables or table_id != f"table-{tables.index(table) + 1}":
                 raise _RejectTable("native_locator_mismatch")
-            rows = table.xpath("./tr | ./thead/tr | ./tbody/tr | ./tfoot/tr")
-            rows = [row for row in rows if not any(_html_hidden(item)
-                    for item in (row, *row.iterancestors()))]
+            visible = lambda item: not any(_html_hidden(ancestor)
+                                           for ancestor in (item, *item.iterancestors()))
+            headers = [section for section in table.xpath("./thead") if visible(section)]
+            bodies = [section for section in table.xpath("./tbody") if visible(section)]
+            footers = [section for section in table.xpath("./tfoot") if visible(section)]
+            direct_rows = [row for row in table.xpath("./tr") if visible(row)]
+            if any(visible(row) for section in footers for row in section.xpath("./tr")):
+                raise _RejectTable("html_footer_ambiguous")
+            if len(headers) == len(bodies) == 1 and not direct_rows:
+                header_rows = [row for row in headers[0].xpath("./tr") if visible(row)]
+                body_rows = [row for row in bodies[0].xpath("./tr") if visible(row)]
+                if len(header_rows) != 1 or not body_rows:
+                    raise _RejectTable("html_header_or_body_rows_ambiguous")
+                rows = [*header_rows, *body_rows]
+                header_basis = "html_thead"
+            elif not headers and not bodies and len(direct_rows) >= 2:
+                rows = direct_rows
+                header_basis = "first_row_candidate"
+            else:
+                raise _RejectTable("html_section_ambiguous")
             if cell.row >= len(rows) or element.getparent() is not rows[cell.row]:
                 raise _RejectTable("native_locator_mismatch")
             columns = [item for item in rows[cell.row].xpath("./th | ./td")
                        if not _html_hidden(item)]
             if cell.column >= len(columns) or columns[cell.column] is not element:
                 raise _RejectTable("native_locator_mismatch")
-            header_basis = ("html_thead" if rows[0].getparent().tag == "thead"
-                            and all(item.tag == "th" for item in rows[0].xpath("./th | ./td"))
-                            else "first_row_candidate")
+            if (cell.row == 0 and element.tag != "th"
+                    or cell.row > 0 and element.tag != "td"):
+                raise _RejectTable("html_cell_role_ambiguous")
             return _html_visible_cell_text(element), header_basis
 
         yield resolve
 
 
-def _validated_node(parsed: ParsedDocument, table_id: str, cell: TableCell,
+def _validated_node(parsed: ParsedDocument, parser_source_sha256: str,
+                    graph_rules_sha256: str, table_id: str, cell: TableCell,
                     resolve: Callable[[TableCell, str], tuple[str, str]]) -> tuple[SourceNode, str]:
     if len(cell.anchors) != 1:
         raise _RejectTable("ambiguous_cell_anchor")
@@ -402,11 +446,12 @@ def _validated_node(parsed: ParsedDocument, table_id: str, cell: TableCell,
     if source_text != cell.text:
         raise _RejectTable("native_text_mismatch")
     identity = [parsed.source_sha256, parsed.parser_id, parsed.parser_version,
-                parsed.parser_config_sha256,
+                parsed.parser_config_sha256, parser_source_sha256, graph_rules_sha256,
                 table_id, anchor.unit_id, cell.row, cell.column,
                 anchor.native_locator, anchor.text_span]
     return SourceNode(_identity("n", identity), parsed.source_sha256,
                       parsed.parser_id, parsed.parser_version, parsed.parser_config_sha256,
+                      parser_source_sha256, graph_rules_sha256,
                       table_id, anchor.unit_id,
                       cell.row, cell.column, cell.text, anchor.text_span,
                       anchor.native_locator or _canonical(locator)), header_basis
@@ -426,6 +471,7 @@ def build_source_graph(parsed: ParsedDocument, source_path: Path) -> SourceGraph
         raise SourceGraphError("source_unavailable") from exc
     if len(parsed.tables) > MAX_TABLES or sum(len(table.cells) for table in parsed.tables) > MAX_CELLS:
         raise SourceGraphError("graph_limit")
+    parser_source_sha256, graph_rules_sha256 = _code_locks()
 
     nodes: list[SourceNode] = []
     tables: list[TableCandidate] = []
@@ -435,7 +481,8 @@ def build_source_graph(parsed: ParsedDocument, source_path: Path) -> SourceGraph
             for table in parsed.tables:
                 try:
                     grid = _grid(table)
-                    table_nodes = [_validated_node(parsed, table.table_id, cell, resolve)
+                    table_nodes = [_validated_node(parsed, parser_source_sha256,
+                                                   graph_rules_sha256, table.table_id, cell, resolve)
                                    for row in grid for cell in row]
                     if parsed.source_format == "xlsx":
                         from openpyxl.utils.cell import range_boundaries
@@ -479,6 +526,7 @@ def build_source_graph(parsed: ParsedDocument, source_path: Path) -> SourceGraph
                                for column in range(len(grid[0]))] for index in range(len(grid))]
                     identity = [parsed.source_sha256, parsed.parser_id,
                                 parsed.parser_version, parsed.parser_config_sha256,
+                                parser_source_sha256, graph_rules_sha256,
                                 table.table_id]
                     columns = tuple(ColumnCandidate(_identity("c", [*identity, cell.column]),
                                                     cell.node_id, _label_hint(cell.text), cell.column)
@@ -506,8 +554,9 @@ def build_source_graph(parsed: ParsedDocument, source_path: Path) -> SourceGraph
         raise SourceGraphError("source_unavailable") from exc
     graph = SourceGraph(parsed.source_sha256, parsed.source_format, parsed.parser_id,
                         parsed.parser_version, parsed.parser_config_sha256,
+                        parser_source_sha256, graph_rules_sha256,
                         tuple(nodes), tuple(tables), tuple(abstentions))
-    graph.model_input()
+    graph.research_payload()
     return graph
 
 
@@ -543,20 +592,26 @@ def locked_fixture_receipt(directory: Path) -> dict[str, object]:
             raise SourceGraphError("fixture_source_mismatch")
         try:
             graph = parse_source_graph(path)
-            model_input = graph.model_input()
+            research_payload = graph.research_payload()
             records.append({
                 "name": name,
                 "source_sha256": graph.source_sha256,
                 "status": "candidate" if graph.tables else "abstained",
                 "parser_id": graph.parser_id,
                 "parser_version": graph.parser_version,
+                "parser_config_sha256": graph.parser_config_sha256,
+                "parser_source_sha256": graph.parser_source_sha256,
+                "graph_rules_sha256": graph.graph_rules_sha256,
                 "source_nodes": len(graph.nodes),
+                "header_nodes": sum(len(table.columns) for table in graph.tables),
+                "data_cell_nodes": sum(len(table.columns) * len(table.rows)
+                                       for table in graph.tables),
                 "table_candidates": len(graph.tables),
                 "column_candidates": sum(len(table.columns) for table in graph.tables),
                 "row_candidates": sum(len(table.rows) for table in graph.tables),
                 "abstentions": [asdict(item) for item in graph.abstentions],
-                "model_input_bytes": len(model_input),
-                "model_input_sha256": hashlib.sha256(model_input).hexdigest(),
+                "research_payload_bytes": len(research_payload),
+                "research_payload_sha256": hashlib.sha256(research_payload).hexdigest(),
             })
         except SourceGraphError as exc:
             records.append({"name": name, "source_sha256": files[name],
@@ -564,10 +619,12 @@ def locked_fixture_receipt(directory: Path) -> dict[str, object]:
     return {"protocol": "native_s1_source_graph_v1",
             "fixture_manifest_sha256": FIXTURE_MANIFEST_SHA256,
             "model_calls": 0, "gold_access": False, "product_extraction_calls": 0,
+            "inference_admitted": False,
             "scope": "five self-created native files sharing one synthetic table",
             "limitations": [
                 "Counts measure source-pointer enumeration, not schema or extraction accuracy.",
                 "First-row labels in DOCX and PPTX are provisional; no semantic approval occurs.",
+                "Parser config and installed dependency bytes are unsealed; inference is closed.",
                 "No PDF/image OCR, unseen language, long document, real family, or HITL cost tested.",
             ],
             "records": records}

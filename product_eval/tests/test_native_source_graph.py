@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import replace
+from email.message import EmailMessage
 from pathlib import Path
 
 import pytest
@@ -27,14 +28,22 @@ def test_locked_native_fixtures_have_stable_source_only_candidates(name: str) ->
     table = first.tables[0]
     assert len(table.columns) == 3
     assert len(table.rows) == 2
+    assert len(table.columns) + sum(len(row.cell_node_ids) for row in table.rows) == 9
     assert [row.source_row for row in table.rows] == [1, 2]
     nodes = {node.node_id: node for node in first.nodes}
     assert len(nodes) == 9
     for row in table.rows:
         assert [nodes[node_id].row for node_id in row.cell_node_ids] == [row.source_row] * 3
         assert [nodes[node_id].column for node_id in row.cell_node_ids] == [0, 1, 2]
-    assert first.model_input() == second.model_input()
-    assert len(first.model_input()) <= graph.MAX_MODEL_INPUT_BYTES
+    assert first.research_payload() == second.research_payload()
+    assert len(first.research_payload()) <= graph.MAX_SERIALIZED_BYTES
+    assert len(first.parser_source_sha256) == len(first.graph_rules_sha256) == 64
+    assert all(node.parser_source_sha256 == first.parser_source_sha256
+               and node.graph_rules_sha256 == first.graph_rules_sha256
+               for node in first.nodes)
+    assert first.parser_config_sha256 is None
+    with pytest.raises(graph.SourceGraphError, match="^inference_not_admitted$"):
+        first.inference_payload()
 
 
 def test_rows_use_source_grid_even_when_values_repeat(tmp_path: Path) -> None:
@@ -51,6 +60,35 @@ def test_rows_use_source_grid_even_when_values_repeat(tmp_path: Path) -> None:
     assert [[nodes[node_id].text for node_id in row.cell_node_ids] for row in table.rows] == [
         ["same", "1"], ["same", "1"]]
     assert table.header_basis == "html_thead"
+
+
+@pytest.mark.parametrize("format_name", ["html", "eml"])
+@pytest.mark.parametrize("section,reason", [
+    (("<thead><tr><th>Item</th><th>Amount</th></tr>"
+      "<tr><th>Code</th><th>Value</th></tr></thead>"
+      "<tbody><tr><td>A</td><td>1</td></tr></tbody>"),
+     "html_header_or_body_rows_ambiguous"),
+    (("<thead><tr><th>Item</th><th>Amount</th></tr></thead>"
+      "<tbody><tr><td>A</td><td>1</td></tr></tbody>"
+      "<tfoot><tr><td>Total</td><td>1</td></tr></tfoot>"),
+     "html_footer_ambiguous"),
+])
+def test_multiple_headers_or_footer_never_become_data_rows(
+    tmp_path: Path, format_name: str, section: str, reason: str,
+) -> None:
+    path = tmp_path / f"source.{format_name}"
+    html = f"<html><body><table>{section}</table></body></html>"
+    if format_name == "html":
+        path.write_text(html, encoding="utf-8")
+    else:
+        message = EmailMessage()
+        message.set_content("Synthetic plain body")
+        message.add_alternative(html, subtype="html")
+        path.write_bytes(message.as_bytes())
+    result = graph.parse_source_graph(path)
+    assert not result.tables
+    assert not result.nodes
+    assert result.abstentions == (graph.TableAbstention("table-1", reason),)
 
 
 @pytest.mark.parametrize("labels", [("Amount", "Amount"), ("Net total", "Net-total")])
@@ -115,22 +153,26 @@ def test_serialization_rejects_invented_candidate_pointer_and_oversize(tmp_path:
                     "<tr><td>A</td><td>1</td></tr></table>", encoding="utf-8")
     original = graph.parse_source_graph(path)
     table = original.tables[0]
+    assert table.header_basis == "first_row_candidate"
     forged_row = replace(table.rows[0], cell_node_ids=("n_invented", *table.rows[0].cell_node_ids[1:]))
     forged = replace(original, tables=(replace(table, rows=(forged_row,)),))
     with pytest.raises(graph.SourceGraphError, match="^invalid_candidate_pointer$"):
-        forged.model_input()
-    too_long = replace(original.nodes[0], text="x" * graph.MAX_MODEL_INPUT_BYTES)
-    with pytest.raises(graph.SourceGraphError, match="^model_input_limit$"):
-        replace(original, nodes=(too_long, *original.nodes[1:])).model_input()
+        forged.research_payload()
+    too_long = replace(original.nodes[0], text="x" * graph.MAX_SERIALIZED_BYTES)
+    with pytest.raises(graph.SourceGraphError, match="^serialized_input_limit$"):
+        replace(original, nodes=(too_long, *original.nodes[1:])).research_payload()
 
 
 def test_receipt_contains_hashes_and_counts_without_source_text() -> None:
     receipt = graph.locked_fixture_receipt(FIXTURES)
     serialized = json.dumps(receipt, sort_keys=True)
     assert receipt["model_calls"] == 0
+    assert receipt["inference_admitted"] is False
     assert receipt["gold_access"] is False
     assert receipt["product_extraction_calls"] == 0
     assert len(receipt["records"]) == 5
     assert all(record["status"] == "candidate" for record in receipt["records"])
+    assert all(record["header_nodes"] == 3 and record["data_cell_nodes"] == 6
+               for record in receipt["records"])
     assert "Widget" not in serialized
     assert "SYN-1001" not in serialized
