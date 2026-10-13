@@ -1,15 +1,50 @@
 # Optional image and OCR extraction boundary
 
-Status: local helpers and provider transport only, 13 October 2026. This is **not yet a product workflow route**.
-No model calls were made to validate this implementation. The earlier three-source
+Status: an explicit product workflow profile is implemented, disabled by default, 13 October 2026.
+No model calls were made to validate this workflow integration. The earlier three-source
 [vision diagnostic](evaluations/ICORE_VISION_DEV3_V2_RESULTS_20261013.md) established that bounded inline images can
 reach the configured provider. It did not validate this strict visual schema or a general accuracy improvement.
+A separate, frozen helper-only capability probe has since returned a valid strict visual response from Luna 6
+for one previously inspected receipt; that is provider compatibility evidence, not a fresh product quality test.
 
 These `idpo/product_auto` helpers are core candidate components with the primary action `keep`: retain a small,
 explicit boundary for source provenance, complete coverage and review-only proposals. They do not add another
 orchestrator or replace the existing text route. Existing text schema semantics remain unchanged.
 
 ## Integration contract
+
+Call `process_auto(..., visual_document_profile="bounded_visual_v1", confirmed_schema=..., model=...)` to
+explicitly select this route. The default is `disabled`, retaining the existing text behavior and artifact shape.
+Before creating artifacts, enabled mode requires a confirmed schema and a model with both text/visual methods,
+a model ID, and an integer output-token budget in 1–16,384.
+
+Routing is deterministic after local parsing/OCR:
+
+- A single-frame image uses the full original image.
+- A PDF with any page requiring OCR uses **all original pages**, including native pages as context.
+- An all-native PDF, ordinary text, JSON or Office file uses strict confirmed text extraction and the separately
+  configured long-document policy. It does not send an image.
+- Empty OCR text can remain an empty aid when the complete page enumeration exists. An OCR exception or missing
+  pages cannot silently synthesize coverage. An invalid visual plan makes no model calls.
+
+Enabled mode resolves the text fallback to `strict_confirmed_values_v1`. Artifacts preserve
+`configured_response_format_profile`; each document's `response_format_profile`/hash records its actual strict
+text or visual format. The run also records `effective_response_format_profiles` across all documents.
+
+Every image and request is prepared before the first send. A provider error, refusal, non-stop completion,
+invalid response or failed merge makes the **entire candidate failed**, with no extracted values exposed.
+Earlier valid proposals remain only in the private sidecar. There is no model retry or text inference fallback.
+The existing conservative segment merger appends linked rows with common group offsets and turns conflicting
+scalars into null, review-required values with source-page alternatives. Text evidence offsets already refer to
+complete source pages and are never segment-remapped in this route.
+
+`visual_document` receipts in the private sidecar, manifest and run record the route/reason, source hash,
+plan/request hashes, page coverage, request outcomes, usage, and planned/attempted/valid counts. A successful
+adapter call is not proof of billable provider execution; unknown SDK attempts or tokens remain unknown.
+Unattempted requests after a failure are explicit. `full_source_covered` is true only after all planned pages
+produce locally valid responses and merging succeeds. It does not imply factual correctness or approval.
+
+The lower-level helpers remain available for controlled diagnostics:
 
 ```python
 from pathlib import Path
@@ -44,10 +79,10 @@ hash, line text, offsets and bounded convex polygons match the freshly prepared 
 or preprocessing transform is rejected rather than assigning its old boxes to a new image. Native text and
 OCR without line geometry have no invented pixel boxes.
 
-The application still owns source admission/authorization, choosing the explicit profile, freezing the schema,
-planned-call budget admission, execution, cancellation, result merging and review/export state. Per-request
-zero-based row IDs do **not** establish correspondence across different requests. A workflow must namespace or
-deliberately reconcile rows across requests, preserve page provenance and keep them pending review.
+The application owns source admission/authorization, explicit profile selection, schema confirmation, durable
+execution/cancellation and review/export state. The workflow implements complete planning, conservative row offsets,
+page provenance and pending review. Row offsets across requests preserve order; they do not infer a semantic
+relationship between physically repeated or continued rows on separate requests.
 
 ## Bounds and provenance
 
@@ -62,6 +97,11 @@ deliberately reconcile rows across requests, preserve page provenance and keep t
   12-million-pixel raster bounds. Source images have the same raster bounds. Encrypted PDFs and multiframe images
   are explicitly unsupported. Rendering itself shares the existing renderer's execution-time limitations.
 - Full pages are converted to RGB PNG and optionally downscaled with Lanczos to at most 2048 pixels per edge.
+  Version `full_page_original_grid_rgb_png_lanczos_2048_v2` preserves the decoded original pixel grid, matching
+  RapidOCR rather than applying EXIF rotation only on the visual side. The receipt records the source EXIF
+  orientation and that it was not transposed. The transmitted PNG strips metadata, including orientation tags,
+  so a provider cannot apply an undeclared EXIF transform. Sideways source images may remain sideways; this is a
+  quality limitation. Their boxes still refer to the documented pixel grid.
   Each encoded PNG is at most 3,000,000 bytes. There is no crop, tile, lossy JPEG rewrite or hidden retry. This
   limit can make small text illegible; it is an explicit quality limit, not a readability guarantee.
 - The complete body, including images, text, geometry, schema, model and output-token budget, is at most 4 MiB.
@@ -80,7 +120,7 @@ deliberately reconcile rows across requests, preserve page provenance and keep t
 `strict_visual_confirmed_values_v1` retains the closed, complete confirmed-field envelope and local field/type
 validation. It permits a null quote for linked cells readable only in the image. Every non-null value must name a
 page in that request. Extra keys, missing fields, invalid types, duplicate field/row IDs, and malformed JSON are
-rejected locally. Provider schema enforcement remains an unverified hint until a frozen provider test.
+rejected locally. A provider's schema support does not replace these local checks.
 
 All non-null results and linked cells are `needs_review` / `pending`, even with an exact OCR quote. Exact quotes
 retain their source offsets as `text_match` evidence. They are not pixel-grounding proof or semantic validation.
@@ -90,16 +130,21 @@ Image-only values retain their source page with no invented quote, offset or box
 
 ```powershell
 python -m pytest idpo/tests/test_product_visual_boundary.py idpo/tests/test_product_auto_strict_output.py `
-  idpo/tests/test_product_auto_provider_format.py idpo/tests/test_product_auto_linked.py `
-  idpo/tests/test_product_auto_grounding.py -q
+  idpo/tests/test_product_auto_provider_format.py idpo/tests/test_product_visual_workflow.py `
+  idpo/tests/test_product_auto_long_document.py idpo/tests/test_confirmed_schema_routing.py `
+  idpo/tests/test_product_auto.py -q
 ```
 
-44 tests passed in the configured product environment. Tests include real two-page scanned PDF rendering,
+106 tests passed in the configured product environment. Tests include real two-page scanned PDF rendering,
 RGB source/resize/geometry hashes, malformed or foreign OCR metadata, changed sources and request bodies,
 complete 48-page packing and 49-page refusal, request-byte limits, repeated values on distinct pages, null-quote
 visual cells, unchanged text strictness, the real SDK against a local mock transport, one-attempt rejection,
-and a changed SDK encoding stopped before the transport receives bytes. No API request or new quality score is
-part of this validation. A frozen small development trial is the next quality gate after workflow integration.
+and a changed SDK encoding stopped before the transport receives bytes. Product tests also exercise mixed PDFs,
+native/text/Office and long-text routing, empty OCR aids with complete image coverage, no model fallback, failure
+in a later request with private partial proposals, scalar conflicts, source changes after intake, pre-artifact
+configuration validation, and EXIF-tagged JPEGs with source-matched OCR geometry and metadata-free payload PNGs.
+No API request or new quality score is part of this validation. A frozen small development trial is the next
+quality gate after this local integration validation.
 
 An additional local compatibility check reused the two already inspected development receipt originals and their
 corrected RapidOCR sidecars. Both raster hashes and all 12/25 line records matched; each planned one request

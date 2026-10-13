@@ -102,5 +102,8 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg).*)"],
+  // Upload POST authenticates and checks ownership in its route before reading
+  // the body. Avoid Next's proxy clone, which buffers and truncates at 10 MiB;
+  // the route instead streams the original bytes through its explicit limits.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|api/jobs/[^/]+/documents/?$).*)"],
 };

@@ -99,6 +99,16 @@ review, and never silently merges a row across segment boundaries. Requests that
 cannot be completely covered within those bounds fail explicitly. Extraction
 profile version 2 pins this policy; version 1 retains the historical text limit.
 
+Optional `autoVisualDocument` selects `disabled` (default) or `bounded_visual_v1`.
+Version 3 extraction profiles seal this choice. With a confirmed schema, images
+and PDFs requiring OCR use complete original page images plus OCR aids; all-native
+PDFs and other native/text formats use strict text responses. The visual path
+prepares every page before any model call, with at most four requests, 12 images
+and 4 MiB per request, and a 2,048-pixel image edge. A source that cannot fit fails
+explicitly. Every visual proposal requires review. This option sends source
+images to the configured model endpoint; it requires a measured quality/cost
+comparison before deployment. See [visual extraction](../docs/PRODUCT_VISUAL_BOUNDARY.md).
+
 The launcher sets `PRODUCT_EXECUTION_MODE=postgres` and `PRODUCT_QUEUE_DATABASE_URL` from `databaseUrl`.
 The app role needs schema creation privileges in its own database: pg-boss manages `docai_queue`, and the queue
 adapter initializes `product.execution_dispatches` under a database lock. No existing product metadata is imported

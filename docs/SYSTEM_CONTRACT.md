@@ -34,6 +34,22 @@ must have verified coverage before model execution. Invalid or incomplete replie
 conflicting scalar values require review. Complete processing is distinct from correct extraction. Older dispatches
 retain their original behavior. See [long documents](PRODUCT_LONG_DOCUMENT_SEGMENTS.md).
 
+The opt-in `bounded_visual_v1` profile routes confirmed-schema images and PDFs requiring OCR to complete
+page images with OCR text/geometry aids. All-native PDFs and other supported native/text formats use strict
+text extraction. Image requests are prepared before sending any page and require complete coverage within
+four requests (at most 12 images and 4 MiB each). Invalid or incomplete visual replies fail the whole candidate;
+all visual values require review, including exact OCR matches. Queued profile version 3 seals this choice;
+older jobs do not acquire visual routing from later server configuration. This is an implemented candidate,
+not a validated accuracy claim. See [visual extraction](PRODUCT_VISUAL_BOUNDARY.md).
+
+The frontend accepts only known visual proposal metadata: exact source page IDs, optional `text_match` OCR spans,
+and `visual_grounding_verified: false`. It refuses unknown fields, repeated or absent page IDs, and machine-accepted
+visual values. The review page marks them **Image-derived — review required** and shows their source pages beside
+the original file. A reviewer can explicitly confirm all visible linked cells after inspecting that original;
+the revisioned review binds the decision to the source and machine-result hashes. A completed reviewed export then
+marks the field `human_verified`. Nested cell status and `visual_grounding_verified` still describe the original
+machine proposal, not OCR or pixel verification. Image-derived candidates cannot seed a reusable approved recipe.
+
 The current runtime must remain understandable, stable and auditable while product stabilization proceeds. Its research
 policy outputs are retained for the frozen October internal study, which is separate from the author-reported accepted
 May submission; whether adaptive routing belongs in the future product is an open measurement decision.
@@ -72,6 +88,15 @@ That is the path cleanup work should protect.
 The separate, experimental product path is:
 
 `owner-scoped job upload -> POST /api/jobs/<job_id>/auto -> frontend server runner -> product extraction worker -> IDPO_DATA_DIR/product_runs/<run_id>`
+
+Document uploads use bounded streams: 20 MiB per file, 32 MiB per raw request including multipart framing, and
+32 files or parts per request. The browser sends sequential batches of at most eight files and 30 MiB, reports
+accepted versus unconfirmed files after a failed batch, and never silently replays a successful batch. The exact
+`POST /api/jobs/<job_id>/documents` route skips Next's proxy body clone so the route can count the original stream;
+it authenticates the user and checks job ownership before staging bytes. An aborted or invalid request removes its
+temporary files, and a failed job metadata save removes only that request's final files. The current JSON job store
+serializes commits only within one server process; cross-process writers and per-owner storage quotas remain open
+scaling work.
 
 On a single host, the runner executes `idpo.cli process-auto` directly. In Compose, the frontend invokes a Node
 bridge to a private Python worker over a Unix socket in the shared data volume. That Docker path has passed static
@@ -150,7 +175,7 @@ but remain null until provider prices, compute rates and review work are recorde
 frontend checks source hashes and artifact consistency before displaying a completed run. Owner-scoped result and
 source routes lead to a field review page. A reviewer can correct or remove proposed scalar fields, add missing
 scalar fields, inspect or correct bounded linked cells by row, and add a wholly missed linked column. The server checks
-each machine cell's text evidence and requires a unique exact OCR quote and page for every new linked cell; it also
+text-backed machine cell evidence and requires a unique exact OCR quote and page for every new linked cell; it also
 requires an exact source quote for a newly added scalar. It accepts a human row correction only as a typed array.
 The API derives a document-scoped `correctedResult` from the
 immutable machine candidate and latest review snapshot. Undecided machine values remain in review; human corrections

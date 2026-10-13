@@ -53,6 +53,17 @@ test("auth proxy matcher covers protected routes and skips static assets", () =>
   }
 });
 
+test("only the authenticated upload route skips the proxy body clone", () => {
+  for (const path of ["/api/jobs/job-1/documents", "/api/jobs/job-1/documents/",
+    "/api/jobs/job-1/documents?name=sample.pdf"]) {
+    assert.equal(unstable_doesMiddlewareMatch({ config, url: `http://localhost:3000${path}` }), false, path);
+  }
+  for (const path of ["/api/jobs/job-1", "/api/jobs/job-1/documents/file-1", "/api/jobs/job-1/documents-extra",
+    "/api/jobs/job-1/auto", "/api/jobs/job-1/review", "/dashboard/idpo"]) {
+    assert.equal(unstable_doesMiddlewareMatch({ config, url: `http://localhost:3000${path}` }), true, path);
+  }
+});
+
 test("job API requires a session the gateway accepts", async () => {
   const valid = jwtShapedToken("valid-user");
   const forged = jwtShapedToken("forged-user");

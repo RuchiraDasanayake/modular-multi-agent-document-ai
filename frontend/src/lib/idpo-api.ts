@@ -10,6 +10,7 @@ import type {
 import type { ProductAutoAddedFieldInput, ProductAutoCorrectedResult, ProductAutoDocumentDetail, ProductAutoReview, ProductAutoReviewField, ProductAutoRun, ProductAutoSourceDocument } from "@/types/product-auto";
 import type { ProductAutoRecipeRevision } from "@/types/product-auto-recipes";
 import type { ProductAutoBriefDetail, ProductAutoBriefField, ProductAutoBriefRevision, ProductAutoBriefSuggestion } from "@/types/product-auto-brief";
+import { uploadInBatches, type UploadProgress } from "./upload-batches";
 
 function handleUnauthorized(res: Response): void {
   if (res.status === 401 && typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
@@ -201,16 +202,15 @@ export const idpoApi = {
     );
   },
 
-  uploadJobDocuments(jobId: string, files: File[]): Promise<JobStatus> {
-    const formData = new FormData();
-    files.forEach((file) => formData.append("files", file));
-    return localRequest(
-      `/api/jobs/${encodeURIComponent(jobId)}/documents`,
-      {
+  uploadJobDocuments(jobId: string, files: File[], onProgress?: (progress: UploadProgress<JobStatus>) => void): Promise<JobStatus> {
+    return uploadInBatches(files, (batch) => {
+      const formData = new FormData();
+      batch.forEach((file) => formData.append("files", file));
+      return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/documents`, {
         method: "POST",
         body: formData,
-      },
-    );
+      });
+    }, onProgress);
   },
 
   runOverview(runId: string): Promise<RunOverview> {

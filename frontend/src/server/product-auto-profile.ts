@@ -6,10 +6,11 @@ type OcrProfile = { engine: "tesseract" } | {
   engine: "rapidocr"; python: string; timeoutSeconds: number; maxRssMiB: number; workDir: string;
 };
 export interface ExtractionProfile {
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   ocr: OcrProfile;
   responseFormat: "plain_json" | "strict_confirmed_values_v1";
   longDocument?: "reject" | "bounded_text_segments_v1";
+  visualDocument?: "disabled" | "bounded_visual_v1";
 }
 
 const RAPID_ENV = ["IDPO_RAPIDOCR_PYTHON", "IDPO_RAPIDOCR_TIMEOUT_S",
@@ -25,9 +26,13 @@ function absolute(value: unknown): value is string {
 }
 
 export function validExtractionProfile(value: unknown): value is ExtractionProfile {
-  if (!object(value) || (value.version === 1 ? Object.keys(value).sort().join() !== "ocr,responseFormat,version" :
-    value.version !== 2 || Object.keys(value).sort().join() !== "longDocument,ocr,responseFormat,version" ||
-    !["reject", "bounded_text_segments_v1"].includes(String(value.longDocument))) ||
+  if (!object(value)) return false;
+  const keys = value.version === 1 ? "ocr,responseFormat,version" :
+    value.version === 2 ? "longDocument,ocr,responseFormat,version" :
+    value.version === 3 ? "longDocument,ocr,responseFormat,version,visualDocument" : null;
+  if (keys === null || Object.keys(value).sort().join() !== keys ||
+    (value.version !== 1 && !["reject", "bounded_text_segments_v1"].includes(String(value.longDocument))) ||
+    (value.version === 3 && !["disabled", "bounded_visual_v1"].includes(String(value.visualDocument))) ||
     !["plain_json", "strict_confirmed_values_v1"].includes(String(value.responseFormat)) ||
     !object(value.ocr)) return false;
   const ocr = value.ocr;
@@ -44,18 +49,22 @@ export function configuredExtractionProfile(confirmedSchema: boolean): Extractio
   const engine = process.env.IDPO_AUTO_OCR_ENGINE?.trim() || "tesseract";
   const responseFormat = process.env.IDPO_AUTO_RESPONSE_FORMAT?.trim() || "plain_json";
   const longDocument = process.env.IDPO_AUTO_LONG_DOCUMENT?.trim() || "reject";
+  const visualDocument = process.env.IDPO_AUTO_VISUAL_DOCUMENT?.trim() || "disabled";
   if (!["plain_json", "strict_confirmed_values_v1"].includes(responseFormat)) {
     throw new AccessError("Invalid server response format profile.", 503);
   }
   if (!["reject", "bounded_text_segments_v1"].includes(longDocument)) {
     throw new AccessError("Invalid server long-document profile.", 503);
   }
+  if (!["disabled", "bounded_visual_v1"].includes(visualDocument)) {
+    throw new AccessError("Invalid server visual-document profile.", 503);
+  }
   const number = (name: string, fallback: number): number => {
     const value = process.env[name] || String(fallback);
     return /^[1-9][0-9]*$/.test(value) ? Number(value) : NaN;
   };
   const profile = {
-    version: 2,
+    version: 3,
     ocr: engine === "tesseract" ? { engine } : {
       engine, python: process.env.IDPO_RAPIDOCR_PYTHON || "",
       timeoutSeconds: number("IDPO_RAPIDOCR_TIMEOUT_S", 120),
@@ -64,6 +73,7 @@ export function configuredExtractionProfile(confirmedSchema: boolean): Extractio
     },
     responseFormat: confirmedSchema ? responseFormat : "plain_json",
     longDocument: confirmedSchema ? longDocument : "reject",
+    visualDocument: confirmedSchema ? visualDocument : "disabled",
   };
   if (!validExtractionProfile(profile)) throw new AccessError("Invalid server extraction profile.", 503);
   if (profile.ocr.engine === "rapidocr") {
@@ -80,6 +90,7 @@ export function appendExtractionArguments(args: string[], profile?: ExtractionPr
   if (profile.ocr.engine === "rapidocr") args.push("--ocr-page-budget-s", String(profile.ocr.timeoutSeconds));
   if (profile.responseFormat !== "plain_json") args.push("--response-format-profile", profile.responseFormat);
   if (profile.longDocument === "bounded_text_segments_v1") args.push("--long-document-profile", profile.longDocument);
+  if (profile.visualDocument === "bounded_visual_v1") args.push("--visual-document-profile", profile.visualDocument);
 }
 
 export function extractionEnvironment(base: NodeJS.ProcessEnv, profile?: ExtractionProfile): NodeJS.ProcessEnv {

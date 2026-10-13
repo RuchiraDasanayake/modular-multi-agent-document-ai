@@ -55,6 +55,16 @@ from idpo.product_auto.strict_output import (
     compile_confirmed_values_response_format,
     parse_confirmed_strict_values_reply,
 )
+from idpo.product_auto.visual_workflow import (
+    PROFILE as BOUNDED_VISUAL_PROFILE,
+    extract_visual_values,
+    select_visual_route,
+    visual_receipt,
+)
+from idpo.product_auto.visual_output import (
+    PROFILE as STRICT_VISUAL_PROFILE,
+    compile_visual_response_format,
+)
 
 CONTRACT_VERSION = 1
 SUPPORTED_INPUT_EXTS = {".json", ".txt", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"} | NATIVE_EXTENSIONS
@@ -84,6 +94,7 @@ def process_auto(
     confirmed_schema: ConfirmedSchema | None = None,
     response_format_profile: str = "plain_json",
     long_document_profile: str = "reject",
+    visual_document_profile: str = "disabled",
     output_root: Path | None = None,
 ) -> dict[str, object]:
     """Write versioned product candidates under IDPO_DATA_DIR/product_runs.
@@ -123,6 +134,18 @@ def process_auto(
         raise ValueError("Unsupported product long document profile")
     if long_document_profile == BOUNDED_TEXT_SEGMENTS_PROFILE and confirmed_schema is None:
         raise ValueError("Bounded long documents require a confirmed schema")
+    configured_response_format_profile = response_format_profile
+    if visual_document_profile not in {"disabled", BOUNDED_VISUAL_PROFILE}:
+        raise ValueError("Unsupported product visual document profile")
+    if visual_document_profile == BOUNDED_VISUAL_PROFILE:
+        if confirmed_schema is None or model is None:
+            raise ValueError("Bounded visual documents require a confirmed schema and model")
+        if not callable(getattr(model, "complete_visual_json", None)) or not callable(getattr(model, "complete_json", None)):
+            raise ValueError("Bounded visual documents require a visual-capable model adapter")
+        if not isinstance(getattr(model, "model", None), str) or not model.model.strip() or \
+                type(getattr(model, "max_tokens", None)) is not int or not 1 <= model.max_tokens <= 16_384:
+            raise ValueError("Bounded visual documents require a model ID and bounded output tokens")
+        response_format_profile = STRICT_CONFIRMED_VALUES_PROFILE
     strict_response_format = (
         compile_confirmed_values_response_format(confirmed_schema.candidate_fields)
         if response_format_profile == STRICT_CONFIRMED_VALUES_PROFILE and confirmed_schema is not None else None
@@ -222,6 +245,7 @@ def process_auto(
             candidate, sidecar = _process_document(
                 doc_id, document, ctx, ocr, model, initial_reason, native_parsed, approved_recipe,
                 confirmed_schema, strict_response_format, response_format_sha256, long_document_profile,
+                visual_document_profile, file_path, container_hash,
             )
             doc_resources_ended = resource_probe.snapshot()
             duration_ms = round(shared_prepare_ms + (time.perf_counter() - started) * 1000, 3)
@@ -249,6 +273,8 @@ def process_auto(
                 "document_status": candidate["document_status"],
                 "candidate": candidate,
             })
+            if visual_document_profile == BOUNDED_VISUAL_PROFILE:
+                sidecar["configured_response_format_profile"] = configured_response_format_profile
             doc_dir = run_dir / "docs" / doc_id
             doc_dir.mkdir(parents=True, exist_ok=False)
             _write_json(doc_dir / "result.json", sidecar)
@@ -272,12 +298,15 @@ def process_auto(
                 "page_count": len(sidecar["pages"]),
                 "model_call_count": len(sidecar["model_calls"]),
                 "model_sdk_attempt_count": _known_sdk_attempts(sidecar["model_calls"]),
-                "response_format_profile": response_format_profile,
-                "response_format_sha256": response_format_sha256,
+                "response_format_profile": sidecar["response_format_profile"],
+                "response_format_sha256": sidecar["response_format_sha256"],
                 "long_document": _long_document_summary(sidecar),
                 "resource_usage": resource_usage,
                 **({"approved_recipe": approved_recipe.receipt} if approved_recipe else {}),
                 **({"confirmed_schema": confirmed_schema.receipt} if confirmed_schema else {}),
+                **({"visual_document": _visual_document_summary(sidecar),
+                    "configured_response_format_profile": configured_response_format_profile}
+                   if visual_document_profile == BOUNDED_VISUAL_PROFILE else {}),
             })
 
     _write_jsonl(run_dir / "candidates.jsonl", candidates)
@@ -342,6 +371,19 @@ def process_auto(
         "compute_cost_usd": None,
         "total_cost_usd": None,
     }
+    if visual_document_profile == BOUNDED_VISUAL_PROFILE:
+        run_payload["configured_response_format_profile"] = configured_response_format_profile
+        run_payload["effective_response_format_profiles"] = sorted({receipt["response_format_profile"] for receipt in receipts})
+        run_payload["visual_document"] = {
+            "profile": visual_document_profile,
+            "document_receipts": [{"doc_id": receipt["doc_id"], **receipt["visual_document"]} for receipt in receipts],
+            "visual_doc_count": sum(receipt["visual_document"]["route"] == "visual" for receipt in receipts),
+            "text_doc_count": sum(receipt["visual_document"]["route"] == "text" for receipt in receipts),
+            "planned_requests": sum(receipt["visual_document"]["planned_requests"] for receipt in receipts),
+            "attempted_requests": sum(receipt["visual_document"]["attempted_requests"] for receipt in receipts),
+            "valid_requests": sum(receipt["visual_document"]["valid_requests"] for receipt in receipts),
+            "full_source_covered_docs": sum(receipt["visual_document"]["full_source_covered"] is True for receipt in receipts),
+        }
     _write_json(run_dir / "run.json", run_payload)
     return {"run_id": resolved_run_id, "run_dir": str(run_dir), "status_counts": counts, "doc_count": len(candidates)}
 
@@ -359,6 +401,9 @@ def _process_document(
     strict_response_format: dict[str, object] | None = None,
     response_format_sha256: str | None = None,
     long_document_profile: str = "reject",
+    visual_document_profile: str = "disabled",
+    original_source: Path | None = None,
+    original_source_sha256: str | None = None,
 ) -> tuple[dict[str, object], dict[str, object]]:
     candidate: dict[str, object] = {
         "contract_version": CONTRACT_VERSION,
@@ -386,10 +431,18 @@ def _process_document(
         sidecar["approved_recipe"] = approved_recipe.receipt
     if confirmed_schema is not None:
         sidecar["confirmed_schema"] = confirmed_schema.receipt
+    if visual_document_profile == BOUNDED_VISUAL_PROFILE:
+        assert original_source is not None and original_source_sha256 is not None
+        sidecar["visual_document"] = visual_receipt(original_source_sha256)
     if document is None or initial_reason is not None:
+        if "visual_document" in sidecar:
+            sidecar["visual_document"].update(route_reason="source_preparation_failed", failure_reason=initial_reason)
         return candidate, sidecar
     sidecar["source_document_id"] = document.doc_id
     document.doc_id = doc_id
+    original_page_numbers = [page.number for page in document.pages]
+    if "visual_document" in sidecar:
+        sidecar["visual_document"]["source_pages"] = original_page_numbers
     ocr_started = time.perf_counter()
     if native_parsed is not None:
         # OCR normalizes whitespace. Keep the parser's exact text so each
@@ -442,8 +495,38 @@ def _process_document(
             sidecar["stage_timings_ms"]["ocr"] = round((time.perf_counter() - ocr_started) * 1000, 3)
             sidecar["reason"] = "ocr_failed"
             candidate["document_status"] = "failed"
+            if "visual_document" in sidecar:
+                sidecar["visual_document"].update(route_reason="ocr_preparation_failed", failure_reason="ocr_failed")
             return candidate, sidecar
     sidecar["stage_timings_ms"]["ocr"] = round((time.perf_counter() - ocr_started) * 1000, 3)
+
+    if visual_document_profile == BOUNDED_VISUAL_PROFILE:
+        use_visual, route_reason = select_visual_route(original_source.suffix.lower(), pages,
+                                                       sidecar["ocr_pages"], original_page_numbers)
+        sidecar["visual_document"].update(route="visual" if use_visual else "text", route_reason=route_reason)
+        if use_visual:
+            assert confirmed_schema is not None and model is not None
+            schema = confirmed_schema.candidate_fields
+            visual_format = compile_visual_response_format(schema)
+            sidecar["response_format_profile"] = STRICT_VISUAL_PROFILE
+            sidecar["response_format_sha256"] = hashlib.sha256(json.dumps(
+                visual_format, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+            sidecar["visual_ocr_failure"] = ocr_failure
+            proposed, conflicts, failure = extract_visual_values(
+                source=original_source, source_sha256=original_source_sha256, pages=pages,
+                ocr_pages=sidecar["ocr_pages"], fields=[dict(field) for field in confirmed_schema.fields],
+                schema=schema, intent=confirmed_schema.intent, model=model, sidecar=sidecar,
+                record_call=_record_model_call,
+            )
+            candidate["proposed_schema"] = schema
+            # A partial visual result stays private; never publish it as a usable
+            # document merely because an earlier request was structurally valid.
+            candidate["extracted_values"] = list(proposed.values()) if proposed is not None else []
+            candidate["document_status"] = "failed" if failure else "needs_review"
+            sidecar["reason"] = failure or ("visual_scalar_conflict" if conflicts else "visual_values_require_review")
+            if conflicts:
+                sidecar["scalar_conflicts"] = conflicts
+            return candidate, sidecar
 
     if not pages or not any(str(page["text"]).strip() for page in pages):
         # An unavailable OCR dependency is an execution failure, not proof that
@@ -703,6 +786,8 @@ def _extract_long_document_values(
 
 
 def _long_document_summary(sidecar: dict[str, object]) -> dict[str, object] | None:
+    if isinstance(sidecar.get("visual_document"), dict) and sidecar["visual_document"].get("route") == "visual":
+        return None
     if sidecar.get("long_document_profile") != BOUNDED_TEXT_SEGMENTS_PROFILE:
         return None
     pages = sidecar.get("pages")
@@ -728,6 +813,15 @@ def _long_document_summary(sidecar: dict[str, object]) -> dict[str, object] | No
         "attempted_segments": coverage.get("attempted_segments", 0),
         "completed_segments": coverage.get("completed_segments", 0),
         "full_source_covered": coverage.get("full_source_covered", False),
+    }
+
+
+def _visual_document_summary(sidecar: dict[str, object]) -> dict[str, object]:
+    receipt = sidecar["visual_document"]
+    return {key: value for key, value in receipt.items() if key != "requests"} | {
+        "request_receipts": [{"request_sha256": item["request_sha256"], "request_bytes": item["request_bytes"],
+                              "covered_pages": item["covered_pages"], "outcome": item["outcome"],
+                              "usage": item.get("usage")} for item in receipt["requests"]],
     }
 
 

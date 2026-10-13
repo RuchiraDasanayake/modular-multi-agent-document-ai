@@ -8,6 +8,7 @@ export interface ProductAutoEvidence {
   start: number;
   end: number;
   quote: string;
+  kind?: "text_match";
 }
 
 export interface ProductAutoParsedDocument {
@@ -32,6 +33,10 @@ export interface ProductAutoLinkedCell {
   value: string;
   status: "accepted" | "needs_review";
   evidence?: ProductAutoEvidence;
+  // Present only on image-derived machine proposals. This is a page hint, not pixel evidence.
+  visual_page?: number;
+  visual_grounding_verified?: false;
+  review_state?: "pending";
 }
 
 export interface ProductAutoLinkedCorrectionRow {
@@ -51,6 +56,8 @@ export interface ProductAutoValue {
   status: ProductAutoValueStatus;
   review_state: "none" | "pending" | "completed";
   evidence?: ProductAutoEvidence;
+  visual_pages?: number[];
+  visual_grounding_verified?: false;
 }
 
 export interface ProductAutoCandidate {
@@ -162,6 +169,8 @@ export interface ProductAutoCorrectedField {
   status: "accepted" | "needs_review" | "missing";
   provenance: "machine" | "human_verified" | "human_correction" | "human_added";
   evidence?: ProductAutoValue["evidence"];
+  visual_pages?: number[];
+  visual_grounding_verified?: false;
 }
 
 export interface ProductAutoCorrectedResult {
@@ -228,6 +237,7 @@ export interface ProductAutoDocumentDetail {
   fileName: string;
   candidate: ProductAutoCandidate;
   sourcePages: Array<{ page: number; text: string }>;
+  visualRoute?: "visual" | "text" | "not_executed";
   parsedDocument?: ProductAutoParsedDocument;
   correctedResult: ProductAutoCorrectedResult;
   review: ProductAutoReview | null;

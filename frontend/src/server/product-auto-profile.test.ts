@@ -17,16 +17,22 @@ test("extraction profile validates bounds and excludes unknown configuration", (
 });
 
 test("only explicit confirmed schemas use configured strict output", () => {
-  const keys = ["IDPO_AUTO_OCR_ENGINE", "IDPO_AUTO_RESPONSE_FORMAT", "IDPO_AUTO_LONG_DOCUMENT"];
+  const keys = ["IDPO_AUTO_OCR_ENGINE", "IDPO_AUTO_RESPONSE_FORMAT", "IDPO_AUTO_LONG_DOCUMENT", "IDPO_AUTO_VISUAL_DOCUMENT"];
   const previous = keys.map((key) => process.env[key]);
   try {
     process.env.IDPO_AUTO_OCR_ENGINE = "tesseract";
     process.env.IDPO_AUTO_RESPONSE_FORMAT = "strict_confirmed_values_v1";
     process.env.IDPO_AUTO_LONG_DOCUMENT = "bounded_text_segments_v1";
+    process.env.IDPO_AUTO_VISUAL_DOCUMENT = "bounded_visual_v1";
     assert.equal(configuredExtractionProfile(true).responseFormat, "strict_confirmed_values_v1");
     assert.equal(configuredExtractionProfile(false).responseFormat, "plain_json");
     assert.equal(configuredExtractionProfile(true).longDocument, "bounded_text_segments_v1");
     assert.equal(configuredExtractionProfile(false).longDocument, "reject");
+    assert.equal(configuredExtractionProfile(true).visualDocument, "bounded_visual_v1");
+    assert.equal(configuredExtractionProfile(false).visualDocument, "disabled");
+    process.env.IDPO_AUTO_VISUAL_DOCUMENT = "unbounded";
+    assert.throws(() => configuredExtractionProfile(true), /visual-document/);
+    process.env.IDPO_AUTO_VISUAL_DOCUMENT = "disabled";
     process.env.IDPO_AUTO_RESPONSE_FORMAT = "bad";
     assert.throws(() => configuredExtractionProfile(false), /response format/);
     process.env.IDPO_AUTO_RESPONSE_FORMAT = "plain_json";
@@ -50,6 +56,28 @@ test("long-document policy is versioned and validated independently of output fo
   const args: string[] = [];
   appendExtractionArguments(args, profile);
   assert.deepEqual(args, ["--ocr-engine", "tesseract", "--long-document-profile", "bounded_text_segments_v1"]);
+});
+
+test("visual routing is sealed only in version three and never inherited by older profiles", () => {
+  const profile: ExtractionProfile = { version: 3, ocr: { engine: "tesseract" },
+    responseFormat: "plain_json", longDocument: "reject", visualDocument: "bounded_visual_v1" };
+  assert.equal(validExtractionProfile(profile), true);
+  assert.equal(validExtractionProfile({ ...profile, version: 2 }), false);
+  assert.equal(validExtractionProfile({ ...profile, version: 1 }), false);
+  assert.equal(validExtractionProfile({ ...profile, visualDocument: undefined }), false);
+  assert.equal(validExtractionProfile({ ...profile, visualDocument: "unbounded" }), false);
+  const args: string[] = [];
+  appendExtractionArguments(args, profile);
+  assert.deepEqual(args, ["--ocr-engine", "tesseract", "--visual-document-profile", "bounded_visual_v1"]);
+  for (const old of [
+    { version: 1, ocr: { engine: "tesseract" }, responseFormat: "plain_json" },
+    { version: 2, ocr: { engine: "tesseract" }, responseFormat: "plain_json", longDocument: "reject" },
+  ] as ExtractionProfile[]) {
+    assert.equal(validExtractionProfile(old), true);
+    const oldArgs: string[] = [];
+    appendExtractionArguments(oldArgs, old);
+    assert.deepEqual(oldArgs, ["--ocr-engine", "tesseract"]);
+  }
 });
 
 test("sealed extraction arguments and environment override later process configuration", () => {

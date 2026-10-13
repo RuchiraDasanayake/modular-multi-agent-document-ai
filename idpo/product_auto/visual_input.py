@@ -16,12 +16,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image, ImageOps
+from PIL import Image
 
 from idpo.product_auto.rapid_ocr_protocol import sha256_file, validate_lines
 from idpo.product_auto.visual_output import compile_visual_response_format
 
-TRANSFORM_VERSION = "full_page_rgb_png_lanczos_2048_v1"
+TRANSFORM_VERSION = "full_page_original_grid_rgb_png_lanczos_2048_v2"
 PACK_VERSION = "ordered_complete_pages_4x12_4mib_v1"
 MAX_SOURCE_BYTES = 100 * 1024 * 1024
 MAX_PAGES = 50
@@ -128,7 +128,12 @@ def _prepare_page(image: Image.Image, *, source_path: Path, source_hash: str, nu
     size = (max(1, int(image.width * scale)), max(1, int(image.height * scale)))
     resized = image.resize(size, Image.Resampling.LANCZOS) if size != image.size else image
     try:
-        png = _png(resized)
+        # The original raster hash includes its decoded source metadata, matching
+        # OCR. The transmitted PNG contains pixels only: retaining an EXIF rotate
+        # tag could make a provider display a different grid from these boxes.
+        with resized.copy() as payload_image:
+            payload_image.info.clear()
+            png = _png(payload_image)
     finally:
         if resized is not image:
             resized.close()
@@ -147,6 +152,7 @@ def _prepare_page(image: Image.Image, *, source_path: Path, source_hash: str, nu
                "payload_geometry_sha256": _sha(_json_bytes(geometry)), "ocr_line_count": len(lines),
                "ocr_payload_sha256": _sha(ocr_json),
                "transform_version": TRANSFORM_VERSION, "scale_xy": [sx, sy], "render": render,
+               "payload_metadata_stripped": True,
                "coverage": "complete_page", "visual_grounding_verified": False}
     return PreparedVisualPage(source_path, source_hash, number, total, png, ocr_json, _json_bytes(receipt))
 
@@ -224,8 +230,13 @@ def prepare_visual_document(
                 if raw.width > 4096 or raw.height > 4096 or raw.width * raw.height > 12_000_000:
                     raise VisualInputError("visual_raster_size_unsupported")
                 validate_coverage(1)
-                with ImageOps.exif_transpose(raw).convert("RGB") as image:
-                    accept(image, 1, 1, {"renderer": "source_image_exif_rgb"})
+                orientation = raw.getexif().get(274)
+                # RapidOCR receives the decoded original grid without EXIF
+                # transposition. Preserve that grid so its boxes and hash agree.
+                with raw.convert("RGB") as image:
+                    accept(image, 1, 1, {"renderer": "source_image_original_grid_rgb",
+                           "source_exif_orientation": orientation if orientation in range(1, 9) else None,
+                           "exif_transpose_applied": False})
         except (Image.DecompressionBombError, OSError) as exc:
             raise VisualInputError("visual_image_decode_failed") from exc
     if sha256_file(source_path) != expected_source_sha256:

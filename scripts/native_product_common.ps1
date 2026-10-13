@@ -73,6 +73,10 @@ function Get-NativeConfig {
   if ($config.autoLongDocument -notin @('reject', 'bounded_text_segments_v1')) {
     throw 'autoLongDocument must be reject or bounded_text_segments_v1.'
   }
+  if (-not $config.ContainsKey('autoVisualDocument')) { $config.autoVisualDocument = 'disabled' }
+  if ($config.autoVisualDocument -notin @('disabled', 'bounded_visual_v1')) {
+    throw 'autoVisualDocument must be disabled or bounded_visual_v1.'
+  }
   if ($config.autoOcrEngine -eq 'rapidocr') {
     foreach ($key in @('rapidOcrPythonPath', 'rapidOcrWorkDir')) {
       if (-not $config.ContainsKey($key) -or -not [IO.Path]::IsPathFullyQualified([string]$config[$key]) -or

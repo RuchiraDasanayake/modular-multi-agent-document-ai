@@ -13,6 +13,16 @@ import type {
   JobStatus,
 } from "@/types/idpo";
 import { loadRunnerConfig } from "@/server/config";
+import {
+  cleanupStagedUploads,
+  jobUploadDirectory,
+  MAX_UPLOAD_REQUEST_BYTES,
+  MAX_UPLOAD_REQUEST_FILES,
+  stageFileObject,
+  type StagedUpload,
+  UploadRequestError,
+  validateStagedUpload,
+} from "@/server/upload-stream";
 
 const inMemoryJobs = new Map<string, JobStatus>();
 const JOB_FILE_PATTERN = /^[a-f0-9]{32}\.json$/i;
@@ -385,18 +395,6 @@ function persistJob(job: JobStatus): void {
   inMemoryJobs.set(normalized.jobId, normalized);
 }
 
-function validateUpload(file: File, allowedExtensions: string[], maxUploadMb: number): void {
-  const ext = path.extname(file.name).toLowerCase();
-  if (!allowedExtensions.includes(ext)) {
-    throw new Error(`Unsupported file extension: ${ext || "(none)"}`);
-  }
-
-  const maxBytes = maxUploadMb * 1024 * 1024;
-  if (file.size > maxBytes) {
-    throw new Error(`File '${file.name}' exceeds ${maxUploadMb} MB limit`);
-  }
-}
-
 export function createWorkspaceJob(
   options?: {
     ownerUserId?: string;
@@ -442,42 +440,62 @@ export async function addDocumentsToJob(jobId: string, files: File[]): Promise<J
   if (!Array.isArray(files) || files.length === 0) {
     return getJobOrThrow(jobId);
   }
-  const config = loadRunnerConfig();
-  const job = getJobOrThrow(jobId);
-  const nextDocs = [...(job.documents ?? [])];
-
-  for (const file of files) {
-    validateUpload(file, config.allowedExtensions, config.maxUploadMb);
+  if (files.length > MAX_UPLOAD_REQUEST_FILES) throw new UploadRequestError("Upload exceeds 32 files.", 413);
+  if (files.reduce((size, file) => size + file.size, 0) > MAX_UPLOAD_REQUEST_BYTES) {
+    throw new UploadRequestError("Upload exceeds 32 MiB.", 413);
   }
-  for (const file of files) {
-    const fileId = randomUUID().replace(/-/g, "");
-    const safeName = sanitizeFilename(file.name);
-    const storedName = `${fileId}__${safeName}`;
-    const target = path.join(job.uploadsPath ?? getJobUploadDir(jobId), storedName);
-    const arrayBuffer = await file.arrayBuffer();
-    fs.writeFileSync(target, Buffer.from(arrayBuffer));
-    nextDocs.push({
-      fileId,
-      fileName: file.name,
-      storedName,
-      size: file.size,
-      selected: true,
-      status: "loaded",
-      errorSummary: null,
-      reviewState: null,
-      reviewStatus: "unreviewed",
-      reviewSource: null,
-      latestRoute: null,
-      latestPolicy: null,
-      latestRunId: null,
-      latestDocId: null,
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
-      outcomes: [],
+  getJobOrThrow(jobId);
+  const staged: StagedUpload[] = [];
+  try {
+    for (const file of files) staged.push(await stageFileObject(jobId, file));
+    return addStagedDocumentsToJob(jobId, staged);
+  } finally {
+    cleanupStagedUploads(staged);
+  }
+}
+
+export function addStagedDocumentsToJob(jobId: string, staged: readonly StagedUpload[]): JobStatus {
+  const current = getJobOrThrow(jobId);
+  if (staged.length < 1 || staged.length > MAX_UPLOAD_REQUEST_FILES) {
+    throw new UploadRequestError("Upload requires 1–32 files.");
+  }
+  const uploadDir = jobUploadDirectory(jobId);
+  if (path.resolve(current.uploadsPath ?? "") !== path.resolve(uploadDir)) {
+    throw new UploadRequestError("Job upload directory is invalid.");
+  }
+  for (const file of staged) validateStagedUpload(jobId, file);
+
+  const moved: string[] = [];
+  const records: JobDocumentRecord[] = [];
+  try {
+    for (const file of staged) {
+      const fileId = randomUUID().replace(/-/g, "");
+      const storedName = `${fileId}__${sanitizeFilename(file.name)}`;
+      const target = path.join(uploadDir, storedName);
+      if (fs.existsSync(target)) throw new UploadRequestError("Upload artifact name collision.");
+      fs.renameSync(file.tempPath, target);
+      moved.push(target);
+      const timestamp = nowIso();
+      records.push({
+        fileId, fileName: file.name, storedName, size: file.size,
+        selected: true, status: "loaded", errorSummary: null, reviewState: null,
+        reviewStatus: "unreviewed", reviewSource: null, latestRoute: null,
+        latestPolicy: null, latestRunId: null, latestDocId: null,
+        createdAt: timestamp, updatedAt: timestamp, outcomes: [],
+      });
+    }
+    return mutateJob(jobId, (job) => {
+      if (path.resolve(job.uploadsPath ?? "") !== path.resolve(uploadDir)) {
+        throw new UploadRequestError("Job upload directory changed during upload.");
+      }
+      job.documents = [...(job.documents ?? []), ...records];
+      if (job.status !== "running") job.status = "queued";
+      return job;
     });
+  } catch (error) {
+    for (const target of moved) fs.rmSync(target, { force: true });
+    throw error;
   }
-
-  return updateJob(jobId, { documents: nextDocs, status: nextDocs.length > 0 ? "queued" : job.status });
 }
 
 export function getJobOrThrow(jobId: string): JobStatus {

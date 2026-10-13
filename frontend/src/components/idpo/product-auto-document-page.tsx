@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { IdpoCard } from "@/components/idpo/card";
 import { idpoApi } from "@/lib/idpo-api";
+import { isVisualProposal, machineProposalLabel, visualLinkedCellsReviewable } from "./product-auto-visual-review";
 import type { ProductAutoAddedFieldInput, ProductAutoAddedLinkedFieldInput, ProductAutoAddedScalarFieldInput, ProductAutoDocumentDetail, ProductAutoEvidence, ProductAutoLinkedCell, ProductAutoLinkedCorrectionRow, ProductAutoReviewDecision, ProductAutoReviewField, ProductAutoScalarType } from "@/types/product-auto";
 
 type Draft = Record<string, { decision: ProductAutoReviewDecision | ""; corrected_value: string; note: string }>;
@@ -238,7 +239,7 @@ export function ProductAutoDocumentPage() {
 
       <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
       <IdpoCard className="lg:sticky lg:top-6">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Original document</h2>
+        <h2 id="original-source" className="text-lg font-semibold text-slate-900 dark:text-white">Original document</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Compare each proposed value and quote against the uploaded source.</p>
         {previewable ? (
           <iframe
@@ -269,7 +270,10 @@ export function ProductAutoDocumentPage() {
 
       <IdpoCard>
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Proposed schema and values</h2>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Text matched means the value occurs in the extracted text. Check the original document and field meaning before approving it.</p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Text matched means the value occurs in the extracted text. Image-derived proposals have page hints, not verified pixel locations. Check the original document and field meaning before approving either.</p>
+        {detail.visualRoute === "visual" ? <p className="mt-2 text-sm font-medium text-amber-700 dark:text-amber-300">
+          Image-derived extraction — review required. This visual route does not produce reusable recipe evidence, even when all proposed values are corrected or confirmed.
+        </p> : null}
         {candidate.proposed_schema.length === 0 ? (
           <p className="mt-4 text-sm text-amber-700 dark:text-amber-300">No fields were proposed. Inspect the source and add missed scalar fields or linked columns below.</p>
         ) : (
@@ -281,6 +285,8 @@ export function ProductAutoDocumentPage() {
               const linked = field.type === "array[object]";
               const machineCells = linked ? linkedCells(value?.value) : [];
               const fullyGrounded = machineCells.length > 0 && machineCells.every((cell) => cell.status === "accepted" && cell.evidence);
+              const visualProposal = isVisualProposal(value);
+              const visualLinkedReviewable = visualProposal && visualLinkedCellsReviewable(machineCells, detail.sourcePages);
               return (
                 <section key={field.field_id} className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
                   <div className="flex flex-wrap items-start justify-between gap-2">
@@ -289,7 +295,7 @@ export function ProductAutoDocumentPage() {
                       <p className="text-xs text-slate-500 dark:text-slate-400">{field.type}{field.group ? ` · ${field.group}` : ""}</p>
                     </div>
                     <span className={`text-xs font-semibold ${value?.status === "accepted" ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}`}>
-                      {value?.status === "accepted" ? "Text matched" : value?.status?.replaceAll("_", " ") ?? "no value"}
+                      {machineProposalLabel(value)}
                     </span>
                   </div>
                   {linked ? (
@@ -302,16 +308,23 @@ export function ProductAutoDocumentPage() {
                         <tbody>{machineCells.map((cell) => <tr key={cell.row} className="border-b border-slate-100 align-top dark:border-slate-800">
                           <td className="px-2 py-2 tabular-nums">{cell.row + 1}</td>
                           <td className="px-2 py-2 break-words">{cell.value}</td>
-                          <td className="px-2 py-2">{cell.status === "accepted" ? "Text matched" : cell.status.replaceAll("_", " ")}</td>
+                          <td className="px-2 py-2">{cell.visual_grounding_verified === false ? "Image-derived — review required" :
+                            cell.status === "accepted" ? "Text matched" : cell.status.replaceAll("_", " ")}</td>
                           <td className="px-2 py-2 break-words">{cell.evidence
                             ? <><span className="font-medium">{detail.parsedDocument?.units[cell.evidence.page - 1]?.label ?? `Page ${cell.evidence.page}`}:</span> <q>{cell.evidence.quote}</q>
+                              {cell.evidence.kind === "text_match" ? <span className="mt-1 block text-amber-700 dark:text-amber-300">OCR text match; image position and meaning require review.</span> : null}
                               {nativeContext(detail, cell.evidence) ? <code className="mt-1 block break-all text-[11px]">{nativeContext(detail, cell.evidence)}</code> : null}</>
-                            : <span className="text-amber-700 dark:text-amber-300">No verified source span</span>}</td>
+                            : cell.visual_page ? <><a href="#original-source" className="font-medium text-cyan-700 underline dark:text-cyan-300">Page {cell.visual_page} · inspect original</a>
+                              <span className="mt-1 block text-amber-700 dark:text-amber-300">No verified pixel location or OCR span</span></>
+                              : <span className="text-amber-700 dark:text-amber-300">No verified source span</span>}</td>
                         </tr>)}</tbody>
                       </table>
                       {machineCells.length === 0 ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">No linked cells proposed.</p> : null}
                     </div>
                   ) : <p className="mt-3 break-words text-sm text-slate-800 dark:text-slate-200">{displayValue(value?.value)}</p>}
+                  {!linked && visualProposal && value?.visual_pages ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                    Image-derived — review required. Check {value.visual_pages.map((page) => `page ${page}`).join(", ")} in the <a href="#original-source" className="underline">original document</a>; no pixel location is verified.
+                  </p> : null}
                   {reviewed ? (
                     <p className="mt-2 break-words text-xs font-medium text-violet-700 dark:text-violet-300">
                       Human review: {reviewed.decision.replaceAll("_", " ")}{reviewed.corrected_value
@@ -320,7 +333,7 @@ export function ProductAutoDocumentPage() {
                   ) : null}
                   {!linked && value?.evidence ? (
                     <div className="mt-3 rounded-lg border-l-4 border-cyan-500 bg-cyan-50 p-3 text-sm dark:bg-cyan-900/20">
-                      <div className="text-xs font-medium text-cyan-800 dark:text-cyan-200">Evidence · {detail.parsedDocument?.units[value.evidence.page - 1]?.label ?? `page ${value.evidence.page}`}</div>
+                      <div className="text-xs font-medium text-cyan-800 dark:text-cyan-200">{value.evidence.kind === "text_match" ? "OCR text match · image still requires review" : "Evidence"} · {detail.parsedDocument?.units[value.evidence.page - 1]?.label ?? `page ${value.evidence.page}`}</div>
                       {nativeContext(detail, value.evidence) ? <code className="mt-1 block break-all text-[11px]">{nativeContext(detail, value.evidence)}</code> : null}
                       <blockquote className="mt-1 whitespace-pre-wrap break-words text-slate-700 dark:text-slate-200">{value.evidence.quote}</blockquote>
                     </div>
@@ -330,7 +343,7 @@ export function ProductAutoDocumentPage() {
                       <select value={row.decision} onChange={(event) => updateDraft(field.field_id, { decision: event.target.value as ProductAutoReviewDecision | "" })}
                         className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950">
                         <option value="">Not reviewed</option>
-                        <option value="correct" disabled={linked && !fullyGrounded}>Correct</option>
+                        <option value="correct" disabled={linked && !fullyGrounded && !visualLinkedReviewable}>{visualProposal ? "Verified from original image" : "Correct"}</option>
                         <option value="incorrect">Incorrect value</option>
                         <option value="corrected">{linked ? "Correct linked rows" : "Corrected value"}</option>
                         <option value="not_present">Field not present (remove)</option>
@@ -342,6 +355,9 @@ export function ProductAutoDocumentPage() {
                         className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950" />
                     </label> : null}
                   </div>
+                  {visualLinkedReviewable ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                    “Verified from original image” confirms every proposed cell in this column after you inspect the original. The page hints do not prove the values or row alignment.
+                  </p> : null}
                   {linked && row.decision === "corrected" ? (
                     <div className="mt-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
                       <p className="text-xs text-slate-600 dark:text-slate-300">Edit the linked cells by row number. These are human corrections; inspect the original source before saving.</p>
@@ -517,7 +533,7 @@ export function ProductAutoDocumentPage() {
 
       <IdpoCard>
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Corrected structured result</h2>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Derived from the preserved machine candidate and latest saved review. Revision {detail.correctedResult.review_revision}; {detail.correctedResult.review_status}.</p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Derived from the preserved machine candidate and latest saved review. Revision {detail.correctedResult.review_revision}; {detail.correctedResult.review_status}. For image-derived linked cells, nested status describes the machine proposal; field provenance records the human decision. Page hints are not verified pixel evidence.</p>
         {detail.correctedResult.review_status === "completed" ? (
           <a href={exportUrl} className="mt-3 inline-block rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700">
             Download reviewed JSON

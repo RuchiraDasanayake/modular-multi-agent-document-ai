@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/idpo/status-badge";
 import { Icon } from "@/components/icons";
 import { api } from "@/lib/api";
 import { idpoApi } from "@/lib/idpo-api";
+import { UploadBatchError } from "@/lib/upload-batches";
 import type {
   JobDocumentRecord,
   JobDocumentRunOutcome,
@@ -174,6 +175,8 @@ export function JobDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [busyAction, setBusyAction] = useState<"upload" | "process" | "retry" | "review" | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{ uploaded: number; total: number } | null>(null);
+  const [unconfirmedFiles, setUnconfirmedFiles] = useState<File[]>([]);
   const [error, setError] = useState("");
   const [pollFailed, setPollFailed] = useState(false);
   const [jobName, setJobName] = useState("");
@@ -350,34 +353,47 @@ export function JobDetailPage() {
     }
   }
 
-  async function handleUpload(files: FileList | null) {
+  function acceptUploadedJob(updated: JobStatus) {
+    setJob(updated);
+    setSelectedFileIds((current) => {
+      const known = new Set(current);
+      const next = [...current];
+      for (const document of updated.documents ?? []) {
+        if (!known.has(document.fileId) && document.selected) {
+          next.push(document.fileId);
+          known.add(document.fileId);
+        }
+      }
+      return next;
+    });
+  }
+
+  async function handleUpload(files: FileList | File[] | null) {
     if (!files || files.length === 0) {
       return;
     }
     const selectedFiles = Array.from(files);
+    setUnconfirmedFiles([]);
+    setUploadProgress({ uploaded: 0, total: selectedFiles.length });
     setSaving(true);
     setBusyAction("upload");
     try {
-      const updated = await idpoApi.uploadJobDocuments(jobId, selectedFiles);
-      setJob(updated);
-      setSelectedFileIds((current) => {
-        const known = new Set(current);
-        const next = [...current];
-        for (const document of updated.documents ?? []) {
-          if (!known.has(document.fileId) && document.selected) {
-            next.push(document.fileId);
-            known.add(document.fileId);
-          }
-        }
-        return next;
+      const updated = await idpoApi.uploadJobDocuments(jobId, selectedFiles, (progress) => {
+        acceptUploadedJob(progress.latest);
+        setUploadProgress({ uploaded: progress.uploaded, total: progress.total });
       });
+      acceptUploadedJob(updated);
       setError("");
-      if (uploadRef.current) {
-        uploadRef.current.value = "";
-      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to upload documents");
+      if (err instanceof UploadBatchError) {
+        if (err.latest) acceptUploadedJob(err.latest as JobStatus);
+        setUnconfirmedFiles(err.remaining);
+        setError(`${err.uploaded} of ${err.total} files uploaded. ${err.remaining.length} not confirmed: ${err.message}`);
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to upload documents");
+      }
     } finally {
+      if (uploadRef.current) uploadRef.current.value = "";
       setSaving(false);
       setBusyAction(null);
     }
@@ -893,6 +909,12 @@ export function JobDetailPage() {
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 DOCX, XLSX, PPTX, HTML and EML run through Automatic extraction only; the research runner does not process them.
               </p>
+              {uploadProgress ? <p className="mt-1 text-xs text-slate-500 dark:text-slate-400" role="status">
+                Uploaded {uploadProgress.uploaded} of {uploadProgress.total} files.
+              </p> : null}
+              {unconfirmedFiles.length > 0 ? <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                Check the document list before retrying {unconfirmedFiles.length} unconfirmed file{unconfirmedFiles.length === 1 ? "" : "s"}; a lost response may hide a completed upload.
+              </p> : null}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <input
@@ -912,6 +934,12 @@ export function JobDetailPage() {
                 <Icon name="upload" className="h-4 w-4" />
                 {busyAction === "upload" ? "Uploading..." : "Upload files"}
               </button>
+              {unconfirmedFiles.length > 0 ? <button
+                type="button"
+                onClick={() => void handleUpload(unconfirmedFiles)}
+                disabled={saving}
+                className={secondaryButton}
+              >Retry unconfirmed ({unconfirmedFiles.length})</button> : null}
               {canonicalRunnerAvailable && queueSummary.failed > 0 ? (
                 <button
                   type="button"
@@ -954,7 +982,7 @@ export function JobDetailPage() {
             >
               <Icon name="upload" className="h-6 w-6" />
               <span className="font-medium">Drop files here or click to upload</span>
-              <span className="text-xs">PDF, PNG, JPG, TIFF, BMP, TXT or JSON, up to 50 MB each</span>
+              <span className="text-xs">PDF, images, office files, TXT, JSON, HTML or EML; up to 20 MiB each</span>
             </button>
           ) : (
             <div className="mt-4 overflow-x-auto">
