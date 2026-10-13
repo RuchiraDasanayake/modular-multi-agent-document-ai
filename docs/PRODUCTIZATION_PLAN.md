@@ -35,9 +35,15 @@ matched 0/20 exact gold schema IDs and 0/22 gold linked rows; provider price
 and data terms remain unknown. A corrected local Qwen3-VL-2B blind diagnostic
 in a separate evaluation worktree produced no valid schema or value calls on
 six selected documents. Its result is a small development diagnostic. A
-source-locked Granite-Docling trial is prepared for local PDF table parsing,
-but its first source run stopped at the host disk guard before parsing. None
-of these candidates has earned product integration. Preserve the existing
+source-locked Granite-Docling trial was prepared for local PDF table parsing,
+but its first source run stopped at the host disk guard before parsing. A
+later [source-free Granite API smoke](evaluations/GRANITE_DOCLING_SOURCE_FREE_SMOKE_20261013.md)
+loaded the pinned model locally and parsed a synthetic 2×3 grid, but missed
+one header cell and supplied **zero cell-level boxes**. Its real-PDF trial is
+on hold. The [TATR first-PDF trials](evaluations/TATR_FIRST_PDF_GUARDED_RUNNER_20261013.md)
+also produced no table result; a separate source-only diagnostic isolated the
+v3 stop to native words crossing a detected crop boundary. None of these
+candidates has earned product integration. Preserve the existing
 native-format table path while comparing PDF parsers on exact linked rows and
 source geometry.
 Separately, a [12-source public schema-diagnostic candidate](evaluations/SCHEMA12_PUBLIC_CANDIDATE_STAGING_20261013.md)
