@@ -1,4 +1,4 @@
-# Guarded first-PDF TATR runner: source-free integration result
+# Guarded first-PDF TATR runner and research trial
 
 **Status: synthetic integration passed; the first selected PDF was attempted once and failed.**
 This is a research-only runner for the first source in the frozen VRDU ad-buy
@@ -19,7 +19,7 @@ selection. It is not wired into product extraction, human review, or the
   It writes the runtime/package/notice manifest and a startup-ready marker
   before document conversion.
 - Pages render with PDFium at 300 DPI. Native PDFium words follow source
-  character order. A page with no valid native words goes through one full-page
+  character order. A page with no projectable native words goes through one full-page
   pass in the separate pinned RapidOCR CPU subprocess. The detector operates
   on the full page; each retained
   `table` or `table rotated` query at score at least 0.5 becomes a five-pixel
@@ -57,8 +57,8 @@ source order and engine/revision IDs. The integrated orientation guard rejects
 180-degree and uncertain lines before word-box construction. The TATR worker
 checks the returned line/word consistency and accepts no mixed native/OCR page,
 partial OCR result, retry or score-based word filter. An OCR failure fails the
-document. The parser version for this word-route integration is
-`research-word-route-first-pdf-v2`.
+document. The initial parser version was `research-word-route-first-pdf-v2`;
+the amended geometry-fallback version is `research-word-route-first-pdf-v3`.
 
 Child environments are allowlisted and offline; host cloud/API credentials,
 proxy and cache overrides are not passed through. The supervisor records the
@@ -67,7 +67,7 @@ hashes, and actual C:/I: volume roots/IDs. A separate committed first-PDF
 research gate must match the source selection, cohort, code and CPU/OCR locks
 before document inference; the earlier CPU **synthetic** receipt's
 `document_inference_permitted: false` remains true for that receipt.
-The committed [research gate](../../product_eval/fixtures/tatr_first_pdf_research_gate_v1.json),
+The v1 committed [research gate](../../product_eval/fixtures/tatr_first_pdf_research_gate_v1.json),
 SHA-256 `3fce9f540882f9051dc0a31fa5831967bea2c7f607aa663efa23567c84c62dfc`,
 permits exactly one selected PDF with no gold access, tied to every local Python
 file under `product_eval` and `idpo/product_auto` (plus `idpo/__init__.py`),
@@ -155,3 +155,23 @@ projection fails the entire PDF on the first out-of-page character. This
 explains the bounded failure without consulting gold or parser scores. A
 separately frozen rule for visible native characters and an independently
 reviewed v2 gate are required before another model inference.
+
+## Frozen v2 corrective trial
+
+The correction catches `GeometryError` only while constructing native page
+words. It discards that incomplete native attempt, invokes one pinned full-page
+OCR pass, and records `native_route_rejected: unprojectable_native_character`
+in the page detail. Detector, crop, cell and source-anchor geometry failures
+still fail the document. OCR absence, empty words or failure also stops it.
+The synthetic off-page-word regression verifies one OCR call and a single
+source route. The parser version is `research-word-route-first-pdf-v3`.
+
+The new committed [v2 one-document gate](../../product_eval/fixtures/tatr_first_pdf_research_gate_v2.json),
+SHA-256 `699993c0b7eb10ea00737d62323795702e2a65587215a20d1efb2f7bc98ae8a1`,
+binds the unchanged source selection, cohort and CPU/OCR runtime locks, all
+**132 local Python files** in this checkout, the immutable v1 failure receipt
+hash, and the fresh `I:\DocAI-Benchmarks\tatr-adbuy12-v2` destination. It
+permits exactly one selected PDF without gold access. The first source must
+produce a nonempty source-pixel overlay and pass independent visual review
+before any of the other eleven may run. This gate does not authorize product
+adoption or establish quality.
