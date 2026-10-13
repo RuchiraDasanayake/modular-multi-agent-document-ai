@@ -1566,9 +1566,16 @@ export function getProductAutoReviewedExport(jobId: string, runId: string, docId
   return reviewedExportFromRecord(readRunRecord(jobId, runId), docId);
 }
 
+function assertReviewableDocument(candidate: ProductAutoCandidate): void {
+  if (candidate.document_status === "failed" || candidate.document_status === "unsupported") {
+    throw new AccessError("Failed or unsupported documents cannot be reviewed or exported. Start a new run.", 409);
+  }
+}
+
 function reviewedExportFromRecord(record: RunRecord, docId: string): ProductAutoReviewedExport {
   const { jobId, runId } = record;
   const { detail, machineResultHash, sourceHash: verifiedSourceHash } = loadProductAutoDocument(jobId, runId, docId, record);
+  assertReviewableDocument(detail.candidate);
   const review = detail.review;
   if (!review || detail.correctedResult.review_status !== "completed" ||
     detail.correctedResult.fields.some((field) => field.status === "needs_review")) {
@@ -1977,12 +1984,26 @@ function saveProductAutoReviewWithRevision(
   jobId: string, runId: string, docId: string, reviewerUserId: string, expectedRevision: number, fields: unknown,
   addedFields: unknown, reportedActiveReviewSeconds: number | undefined,
 ): ProductAutoReview {
-  if (readRunRecord(jobId, runId).status === "running") recoverProductAutoRuns(jobId);
+  const record = readRunRecord(jobId, runId);
+  if (record.status === "running") {
+    if (fs.existsSync(path.join(outputDir(runId), "run.json"))) {
+      // Reject failed results before recovery can publish a terminal run record.
+      let candidate: ProductAutoCandidate;
+      try { candidate = loadProductAutoDocument(jobId, runId, docId, record).detail.candidate; }
+      catch (error) {
+        if (error instanceof AccessError) throw error;
+        throw new AccessError("The extraction artifacts could not be verified. Start a new run.", 409);
+      }
+      assertReviewableDocument(candidate);
+    }
+    recoverProductAutoRuns(jobId);
+  }
   const runDocument = readRunRecord(jobId, runId).documents.find((item) => item.docId === docId);
   if (!runDocument?.machineResultSha256) {
     throw new AccessError("This extraction predates sealed artifacts or has not completed. Start a new run.", 409);
   }
   const { detail, machineResultHash } = loadProductAutoDocument(jobId, runId, docId);
+  assertReviewableDocument(detail.candidate);
   if ((detail.review?.revision ?? 0) !== expectedRevision) {
     throw new AccessError("Review changed since you opened it. Reload before saving.", 409);
   }

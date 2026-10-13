@@ -5,7 +5,10 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import test from "node:test";
 import { GET as exportBatchRoute } from "@/app/api/jobs/[jobId]/auto/[runId]/export/route";
-import { POST as reviewDocumentRoute } from "@/app/api/jobs/[jobId]/auto/[runId]/docs/[docId]/route";
+import { GET as getDocumentRoute, POST as reviewDocumentRoute } from "@/app/api/jobs/[jobId]/auto/[runId]/docs/[docId]/route";
+import { GET as exportDocumentRoute } from "@/app/api/jobs/[jobId]/auto/[runId]/docs/[docId]/export/route";
+import { GET as getOriginalContentRoute } from "@/app/api/jobs/[jobId]/docs/[docId]/content/route";
+import type { ProductAutoAuditEvent, ProductAutoReview } from "@/types/product-auto";
 import { resetConfigCacheForTests } from "./config";
 import { addDocumentsToJob, createWorkspaceJob } from "./jobs";
 
@@ -50,7 +53,8 @@ async function withStorage(run: (dataDir: string) => Promise<void>): Promise<voi
   }
 }
 
-async function fixture(dataDir: string) {
+async function fixture(dataDir: string, status: "processed" | "failed" | "unsupported" = "processed",
+  runStatus: "success" | "running" = "success") {
   const job = createWorkspaceJob({ ownerUserId: "alice-id" });
   const texts = ["Invoice number: INV-1\nTotal: 10", "Invoice number: INV-2\nTotal: 20"];
   const updated = await addDocumentsToJob(job.jobId, texts.map((text, index) =>
@@ -69,10 +73,12 @@ async function fixture(dataDir: string) {
     const quote = `INV-${index + 1}`;
     const start = texts[index].indexOf(quote);
     const result = { pages: [{ page: 1, text: texts[index] }], candidate: {
-      contract_version: 1, doc_id: docId, document_status: "processed",
+      contract_version: 1, doc_id: docId, document_status: status,
       proposed_schema: [{ field_id: "invoice_number", type: "string" }],
-      extracted_values: [{ field_id: "invoice_number", value: quote, status: "accepted", review_state: "none",
-        evidence: { page: 1, start, end: start + quote.length, quote } }],
+      extracted_values: status === "processed"
+        ? [{ field_id: "invoice_number", value: quote, status: "accepted", review_state: "none",
+          evidence: { page: 1, start, end: start + quote.length, quote } }]
+        : [{ field_id: "invoice_number", value: null, status: "missing", review_state: "pending" }],
     } };
     const resultPath = path.join(runDir, "docs", docId, "result.json");
     fs.mkdirSync(path.dirname(resultPath), { recursive: true });
@@ -80,28 +86,114 @@ async function fixture(dataDir: string) {
     const resultHash = sha256(fs.readFileSync(resultPath));
     receipts.push({ contract_version: 1, run_id: runId, doc_id: docId,
       source_file: source.storedName, source_container_sha256: sourceHash,
-      document_status: "processed", result_sha256: resultHash });
-    documents.push({ docId, fileId: source.fileId, fileName: source.fileName, status: "processed",
-      fieldCount: 1, acceptedCount: 1, reviewStatus: "unreviewed", machineResultSha256: resultHash });
+      document_status: status, result_sha256: resultHash });
+    documents.push({ docId, fileId: source.fileId, fileName: source.fileName, status,
+      fieldCount: 1, acceptedCount: status === "processed" ? 1 : 0,
+      reviewStatus: "unreviewed", machineResultSha256: resultHash });
     selectedFiles.push({ fileId: source.fileId, fileName: source.fileName,
       storedName: source.storedName, sha256: sourceHash });
   }
   fs.writeFileSync(path.join(runDir, "run.json"), JSON.stringify({ contract_version: 1, run_id: runId, doc_count: 2 }));
   fs.writeFileSync(path.join(runDir, "manifest.jsonl"), receipts.map((receipt) => JSON.stringify(receipt)).join("\n") + "\n");
-  const record = { runId, jobId: job.jobId, status: "success", createdAt: new Date().toISOString(),
-    serverInstanceId: "fixture", selectedFiles: [...selectedFiles].reverse(), documents };
+  const record = { runId, jobId: job.jobId, status: runStatus, createdAt: new Date().toISOString(),
+    serverInstanceId: "fixture", selectedFiles: [...selectedFiles].reverse(),
+    documents: runStatus === "running" ? [] : documents };
   const recordDir = path.join(dataDir, "frontend", "auto_runs", job.jobId);
   fs.mkdirSync(recordDir, { recursive: true });
   fs.writeFileSync(path.join(recordDir, `${runId}.json`), JSON.stringify(record));
-  fs.writeFileSync(path.join(recordDir, `${runId}.terminal.json`), JSON.stringify(record));
+  if (runStatus === "success") fs.writeFileSync(path.join(recordDir, `${runId}.terminal.json`), JSON.stringify(record));
   const batchUrl = `/api/jobs/${job.jobId}/auto/${runId}/export`;
   const batchParams = { params: Promise.resolve({ jobId: job.jobId, runId }) };
-  const review = (docId: string) => reviewDocumentRoute(request(
+  const review = (docId: string, revision = 0) => reviewDocumentRoute(request(
     `/api/jobs/${job.jobId}/auto/${runId}/docs/${docId}`, "alice", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ expected_revision: 0, fields: [{ field_id: "invoice_number", decision: "correct" }] }),
+      body: JSON.stringify({ expected_revision: revision, fields: [{ field_id: "invoice_number",
+        ...(status === "processed" ? { decision: "correct" }
+          : { decision: "corrected", corrected_value: `INV-${docId.slice(-1)}` }) }] }),
     }), { params: Promise.resolve({ jobId: job.jobId, runId, docId }) });
-  return { batchUrl, batchParams, review, sources, updated, runDir, recordDir, runId };
+  return { batchUrl, batchParams, review, sources, updated, runDir, recordDir, runId, job, texts, documents, selectedFiles };
+}
+
+for (const status of ["failed", "unsupported"] as const) {
+  for (const runStatus of ["success", "running"] as const) {
+    test(`${status} document refuses review and export without writes in a ${runStatus} run`, async () =>
+      withStorage(async (dataDir) => {
+        const setup = await fixture(dataDir, status, runStatus);
+        const recordPath = path.join(setup.recordDir, `${setup.runId}.json`);
+        const recordBefore = fs.readFileSync(recordPath);
+        const terminalPath = path.join(setup.recordDir, `${setup.runId}.terminal.json`);
+        const terminalBefore = fs.existsSync(terminalPath) ? fs.readFileSync(terminalPath) : null;
+        const docUrl = `/api/jobs/${setup.job.jobId}/auto/${setup.runId}/docs/doc1`;
+        const params = { params: Promise.resolve({ jobId: setup.job.jobId, runId: setup.runId, docId: "doc1" }) };
+        const detail = await getDocumentRoute(request(docUrl, "alice"), params);
+        assert.equal(detail.status, 200);
+        assert.equal((await detail.json()).sourcePages[0].text, setup.texts[0]);
+        assert.equal((await exportDocumentRoute(request(`${docUrl}/export`, "bob"), params)).status, 404);
+        const rejectedReview = await setup.review("doc1");
+        const rejectedExport = await exportDocumentRoute(request(`${docUrl}/export`, "alice"), params);
+        for (const response of [rejectedReview, rejectedExport]) {
+          assert.equal(response.status, 409);
+          assert.match((await response.json()).error, /Failed or unsupported documents cannot be reviewed or exported/);
+        }
+        const batch = await exportBatchRoute(request(setup.batchUrl, "alice"), setup.batchParams);
+        assert.equal(batch.status, 409);
+        assert.match((await batch.json()).error, runStatus === "success" ? /2 failed or unsupported/ : /Complete the run/);
+        assert.equal(fs.existsSync(path.join(dataDir, "frontend", "auto_reviews")), false);
+        assert.deepEqual(fs.readFileSync(recordPath), recordBefore);
+        assert.deepEqual(fs.existsSync(terminalPath) ? fs.readFileSync(terminalPath) : null, terminalBefore);
+        const sourceParams = { params: Promise.resolve({ jobId: setup.job.jobId, docId: setup.sources[0].fileId }) };
+        const source = await getOriginalContentRoute(request(
+          `/api/jobs/${setup.job.jobId}/docs/${setup.sources[0].fileId}/content`, "alice"), sourceParams);
+        assert.equal(source.status, 200);
+        assert.equal(await source.text(), setup.texts[0]);
+      }));
+  }
+
+  test(`${status} document with a valid legacy completed review still cannot export`, async () =>
+    withStorage(async (dataDir) => {
+      const setup = await fixture(dataDir, status);
+      const auditPaths: string[] = [];
+      for (const [index, document] of setup.documents.entries()) {
+        const review: ProductAutoReview = {
+          review_version: 1, job_id: setup.job.jobId, run_id: setup.runId, doc_id: document.docId,
+          status: "completed", reviewer_user_id: "alice-id", updated_at: "2026-10-13T00:00:00Z",
+          fields: [{ field_id: "invoice_number", decision: "corrected", corrected_value: `INV-${index + 1}`, note: null }],
+          source_container_sha256: setup.selectedFiles[index].sha256,
+          source_pages_sha256: sha256(Buffer.from(JSON.stringify([{ page: 1, text: setup.texts[index] }]))),
+          machine_result_sha256: document.machineResultSha256, revision: 1, audit_event_id: "a".repeat(32),
+        };
+        const event: ProductAutoAuditEvent = {
+          audit_event_id: review.audit_event_id, revision: 1, previous_event_id: null,
+          created_at: review.updated_at, reviewer_user_id: review.reviewer_user_id, review_snapshot: review,
+          machine_fields: [{ field_id: "invoice_number", value: null, status: "missing" }],
+          review_fields: review.fields, source_container_sha256: review.source_container_sha256,
+          source_pages_sha256: review.source_pages_sha256, machine_result_sha256: review.machine_result_sha256,
+        };
+        const auditPath = path.join(dataDir, "frontend", "auto_reviews", setup.job.jobId,
+          setup.runId, "events", document.docId, "000000000001.json");
+        fs.mkdirSync(path.dirname(auditPath), { recursive: true });
+        fs.writeFileSync(auditPath, JSON.stringify(event));
+        auditPaths.push(auditPath);
+      }
+      const auditBefore = auditPaths.map((file) => fs.readFileSync(file));
+      const docUrl = `/api/jobs/${setup.job.jobId}/auto/${setup.runId}/docs/doc1`;
+      const params = { params: Promise.resolve({ jobId: setup.job.jobId, runId: setup.runId, docId: "doc1" }) };
+      const detail = await getDocumentRoute(request(docUrl, "alice"), params);
+      assert.equal(detail.status, 200);
+      assert.equal((await detail.json()).correctedResult.review_status, "completed");
+      for (const response of [await setup.review("doc1", 1),
+        await exportDocumentRoute(request(`${docUrl}/export`, "alice"), params)]) {
+        assert.equal(response.status, 409);
+        assert.match((await response.json()).error, /Failed or unsupported documents cannot be reviewed or exported/);
+      }
+      const batch = await exportBatchRoute(request(setup.batchUrl, "alice"), setup.batchParams);
+      assert.equal(batch.status, 409);
+      assert.match((await batch.json()).error, /0 reviewed, 0 unreviewed, 2 failed or unsupported/);
+      for (const [index, auditPath] of auditPaths.entries()) {
+        assert.deepEqual(fs.readFileSync(auditPath), auditBefore[index]);
+        assert.deepEqual(fs.readdirSync(path.dirname(auditPath)), ["000000000001.json"]);
+      }
+    }));
 }
 
 test("reviewed JSONL batch refuses nonowners and partial reviews, then preserves selected order", async () =>
