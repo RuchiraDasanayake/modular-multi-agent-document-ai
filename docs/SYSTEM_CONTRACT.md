@@ -22,6 +22,15 @@ is still a configured filesystem shared by web and worker; this does not establi
 resume, or high availability. The historical direct subprocess mode remains for existing deployments/tests. See
 [`scripts/native_product.md`](../scripts/native_product.md) for setup, startup and ownership-checked shutdown.
 
+Office intake checks ZIP structure and bounded decoded XML before invoking its readers. Spreadsheet cell coordinates,
+merged ranges and hyperlink ranges are checked before allocation, including UTF-16 and relationship targets with
+nonstandard names. Complex valid files can exceed these limits and receive an explicit unsupported result. See the
+[allocation guard receipt](evaluations/OOXML_ALLOCATION_GUARD_20261013.md) for the reproduced defect and tests.
+
+Product image intake and schema sampling require single-frame sources. Multipage TIFFs and animated PNGs are
+explicitly rejected before OCR or model calls; they must be split into separate files. Reading only their first
+frame would falsely imply complete coverage. This check does not change the frozen PDF/PNG benchmark checkouts.
+
 New product queue dispatches also seal the selected OCR engine and response format. Optional local RapidOCR
 uses a separate pinned CPU environment with page resource bounds and exact line evidence. Optional strict
 confirmed-schema output sends an explicit JSON Schema to the provider and independently validates the response
@@ -213,6 +222,13 @@ partial, failed, missing or stale results return a conflict instead of an incomp
 export is bounded to 5,000 documents and 64 MiB. Shared sealed-run and source verification avoids rereading the
 entire run for every exported document.
 
+For failed or unsupported documents, the owner-scoped detail API may expose an allowlisted `outcomeReason` code from
+the sealed result sidecar. It never returns an arbitrary sidecar error string. The document page maps that code to
+fixed cause and next-step copy, keeps the original available, and withholds review and export controls because the
+run has no complete reviewable result. Unknown reasons use a generic explanation.
+The review-save and individual-export APIs also reject these document statuses with HTTP 409, including previously
+saved completed reviews. A failed result cannot become exportable through a direct API call or a legacy review.
+
 The owner-scoped `/api/jobs/<job_id>/auto/brief` API stores a revisioned extraction brief with plain-language intent,
 typed field meanings and examples, and 1–5 sample file IDs bound to source SHA-256 hashes. `GET` reports stale sample
 IDs; `POST` requires the current revision and appends an immutable draft event. `PATCH` explicitly confirms the current
@@ -269,6 +285,12 @@ per-owner admission limits. The authenticated synthetic smoke verifies this flow
 establish real-document quality or arbitrary scale. Reviewed JSON is downloadable per document and JSONL per
 completed run under the limits above. UI labels call machine-accepted values **Text matched** because exact OCR quotes do not establish
 correct field meaning or correspondence to the original image. Human review remains a separate decision.
+Model-backed HTTP run starts require a random 32-hex `Idempotency-Key`; browser requests retain it in session storage until a run is returned or
+reconciled. A repeat with the same key and unchanged selection, source bytes, and schema or recipe revision returns
+the existing queued, completed, or failed attempt. The server stores a separate random run ID so different jobs can safely reuse the same key. A changed request fails with 409; a claim with no run record also
+fails closed. This prevents a lost HTTP response from silently starting another paid attempt. Older API clients that
+omit the header can only use the model-free path; direct internal calls retain their legacy behavior. The queue does not promise transactional exactly-once
+external model calls. A separate attempt requires an explicit new key.
 Schema suggestions request a closed JSON Schema response from the configured provider and are validated again
 locally; provider support does not imply semantic correctness. A repeated row is drafted as one `array[object]`
 field per column, with a shared `group` string. Scalar suggestions use a null group on the provider wire, which

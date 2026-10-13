@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -12,7 +13,9 @@ import { addDocumentsToJob, createWorkspaceJob } from "./jobs";
 
 function request(url: string, token: string, method: string, body: unknown): Request {
   return new Request(`http://localhost${url}`, {
-    method, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    method, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json",
+      ...(url.endsWith("/auto") && method === "POST"
+        ? { "Idempotency-Key": randomUUID().replaceAll("-", "") } : {}) },
     body: JSON.stringify(body),
   });
 }

@@ -46,9 +46,24 @@ require an admin. The lower-level command-line extraction entry point is:
 python -m idpo.cli process-auto --input path/to/document.pdf
 ```
 
-The opt-in product path accepts PDF, common raster images, TXT, JSON, DOCX, XLSX, PPTX, HTML, and EML. The last five
-use source-native text and table-cell locators; they have no invented pixel boxes. The separate research `process-inbox`
-runtime has a narrower input list. New formats remain review-only and have no measured accuracy claim.
+### Product file support
+
+| Input | What the product reads | Important boundary |
+| --- | --- | --- |
+| PDF | Native text, or rendered pages with OCR; eligible sources can use image extraction | Up to 50 pages; model and rendering budgets also apply |
+| PNG, JPEG, TIFF, BMP | One image frame with OCR and optional image extraction | Split multipage TIFFs and animated images into separate files |
+| TXT | UTF-8 text | Long-text extraction uses the configured bounded segment profile |
+| JSON | Document objects containing text pages | This input contract does not ingest arbitrary JSON structures or server-side image paths |
+| DOCX | Top-level paragraphs and native tables | Embedded images and nested tables are outside this reader |
+| XLSX | Worksheet cells and native cell addresses | Formulas are preserved, not evaluated; grid and expansion limits apply |
+| PPTX | Native slide text and tables | Notes, embedded images and grouped shapes are outside this reader |
+| HTML | Local visible text and native tables | No remote resources or scripts are executed; nested tables are unsupported |
+| EML | Selected plain-text or HTML message body | Attachments are excluded |
+
+Files are limited to 20 MiB each. Uploads are admitted in bounded batches. Office, HTML and email text/table locators
+refer to the original source without invented pixel boxes. These are implemented parser boundaries, not accuracy
+guarantees for every document using an accepted extension. See the [runtime checks](docs/PRODUCT_RUNTIME_PREFLIGHT.md)
+and [Office allocation limits](docs/evaluations/OOXML_ALLOCATION_GUARD_20261013.md).
 
 Add `--model MODEL_ID --api-base-url HTTPS_OR_LOCAL_URL` to use a configured OpenAI-compatible model; the server reads
 the key from `ICORE_API_KEY` by default for remote providers. A loopback HTTP model server can run without an API key.
@@ -84,7 +99,7 @@ document-processing path:
 | **Procurement** | Purchase Order, Receipt                  | PO numbers, suppliers, line items, totals                 |
 | **Generic**     | Any other                                | Entities extracted via regex + LLM (no schema validation) |
 
-### Supported File Formats
+### Research Pipeline File Formats
 
 | Format              | Extensions                                       | Text Extraction                                   |
 | ------------------- | ------------------------------------------------ | ------------------------------------------------- |
@@ -104,9 +119,13 @@ document-processing path:
 
 ## Architecture Overview
 
-The diagram below shows the research services available through the `research` Compose profile. The default
-product pilot uses the gateway, frontend, product worker, PostgreSQL, and Redis; Automatic extraction does not
-call AHMN, Guardrails, XAI-HITL, or the legacy IDPO HTTP service.
+The native Windows product uses the gateway, frontend, a separate extraction worker, PostgreSQL and shared local
+file storage. It does not require Docker or Redis. Its current single-host storage and queue boundary is described
+in the [system contract](docs/SYSTEM_CONTRACT.md); the [recovery guide](scripts/native_recovery.md) describes its
+new cold-backup and passive-readback tooling. A live recovery drill is still pending.
+
+The diagram below shows the separate research services available through the `research` Compose profile.
+Automatic extraction does not call AHMN, Guardrails, XAI-HITL, or the legacy IDPO HTTP service.
 
 ```
                         ┌──────────────────────────────────┐

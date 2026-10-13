@@ -1,4 +1,9 @@
 export type ProductAutoDocumentStatus = "processed" | "needs_review" | "unsupported" | "failed";
+export const PRODUCT_AUTO_OUTCOME_REASONS = [
+  "unsupported_file_type", "file_too_large", "too_many_pages", "native_limit_exceeded",
+  "multi_frame_image_unsupported", "native_parser_unavailable", "parse_failed", "ocr_failed",
+] as const;
+export type ProductAutoOutcomeReason = typeof PRODUCT_AUTO_OUTCOME_REASONS[number];
 export type ProductAutoValueStatus = "accepted" | "needs_review" | "missing" | "rejected";
 export type ProductAutoReviewDecision = "correct" | "incorrect" | "corrected" | "not_present" | "remove";
 export type ProductAutoScalarType = "string" | "integer" | "decimal" | "boolean" | "date";
@@ -232,6 +237,8 @@ export interface ProductAutoRunDocument {
 
 export interface ProductAutoRun {
   runId: string;
+  // Owner-scoped key for reconciling an uncertain browser response; never the run identity.
+  idempotencyKey?: string;
   status: "queued" | "running" | "success" | "failed";
   createdAt: string;
   endedAt?: string;
@@ -248,6 +255,8 @@ export interface ProductAutoDocumentDetail {
   fileId: string;
   fileName: string;
   candidate: ProductAutoCandidate;
+  // Only a fixed allowlist from the sealed sidecar can reach this owner-scoped API response.
+  outcomeReason?: ProductAutoOutcomeReason;
   sourcePages: Array<{ page: number; text: string }>;
   visualRoute?: "visual" | "text" | "not_executed";
   parsedDocument?: ProductAutoParsedDocument;

@@ -6,11 +6,13 @@ import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import test from "node:test";
 import { GET as listAutoRoute, POST as startAutoRoute } from "@/app/api/jobs/[jobId]/auto/route";
+import { POST as saveBriefRoute, PATCH as confirmBriefRoute } from "@/app/api/jobs/[jobId]/auto/brief/route";
 import { GET as getAutoDocRoute, POST as reviewAutoDocRoute } from "@/app/api/jobs/[jobId]/auto/[runId]/docs/[docId]/route";
 import { GET as exportAutoDocRoute } from "@/app/api/jobs/[jobId]/auto/[runId]/docs/[docId]/export/route";
 import { GET as getOriginalContentRoute } from "@/app/api/jobs/[jobId]/docs/[docId]/content/route";
 import { idpoApi, parseReportedActiveMinutes } from "@/lib/idpo-api";
 import { loadRunnerConfig, resetConfigCacheForTests } from "./config";
+import { QueueAdmissionError, type ProductExecutionQueue } from "./product-execution-queue";
 import { addDocumentsToJob, createWorkspaceJob } from "./jobs";
 import { deriveProductAutoCorrectedResult, getProductAutoRun, productAutoAvailability,
   recoverProductAutoRuns, startProductAutoRun } from "./product-auto";
@@ -330,6 +332,51 @@ test("automatic extraction keeps source access private and rejects conflicting r
   candidate.extracted_values[0].evidence = evidenceFor("2026-02-10");
   writeCandidate();
   assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 409);
+}));
+
+test("failed document details expose only allowlisted outcome codes to the owner", async () => withStorage(async (dataDir) => {
+  const job = createWorkspaceJob({ ownerUserId: "alice-id" });
+  const uploaded = await addDocumentsToJob(job.jobId, [new File(["synthetic image bytes"], "frames.tiff")]);
+  const source = uploaded.documents![0];
+  const sourceHash = createHash("sha256").update(fs.readFileSync(path.join(uploaded.uploadsPath!, source.storedName))).digest("hex");
+  const cases = [
+    { suffix: "c", status: "unsupported", reason: "multi_frame_image_unsupported", expected: "multi_frame_image_unsupported" },
+    { suffix: "d", status: "failed", reason: "provider exception: private raw diagnostic", expected: undefined },
+  ] as const;
+  for (const item of cases) {
+    const runId = `auto_${item.suffix.repeat(32)}`;
+    const docId = `doc_${item.suffix}`;
+    const runDir = path.join(dataDir, "product_runs", runId);
+    const resultDir = path.join(runDir, "docs", docId);
+    fs.mkdirSync(resultDir, { recursive: true });
+    const resultBytes = Buffer.from(JSON.stringify({ pages: [], reason: item.reason,
+      candidate: { contract_version: 1, doc_id: docId, document_status: item.status,
+        proposed_schema: [], extracted_values: [] } }));
+    const resultHash = createHash("sha256").update(resultBytes).digest("hex");
+    fs.writeFileSync(path.join(resultDir, "result.json"), resultBytes);
+    fs.writeFileSync(path.join(runDir, "run.json"), JSON.stringify({ contract_version: 1, run_id: runId, doc_count: 1 }));
+    fs.writeFileSync(path.join(runDir, "manifest.jsonl"), JSON.stringify({ contract_version: 1,
+      run_id: runId, doc_id: docId, source_file: source.storedName, source_container_sha256: sourceHash,
+      document_status: item.status, result_sha256: resultHash }) + "\n");
+    const recordDir = path.join(dataDir, "frontend", "auto_runs", job.jobId);
+    fs.mkdirSync(recordDir, { recursive: true });
+    fs.writeFileSync(path.join(recordDir, `${runId}.json`), JSON.stringify({
+      runId, jobId: job.jobId, status: "success", createdAt: "2026-10-13T00:00:00Z",
+      serverInstanceId: "synthetic", selectedFiles: [{ fileId: source.fileId, fileName: source.fileName,
+        storedName: source.storedName, sha256: sourceHash }],
+      documents: [{ docId, fileId: source.fileId, fileName: source.fileName, status: item.status,
+        fieldCount: 0, acceptedCount: 0, reviewStatus: "unreviewed", machineResultSha256: resultHash }],
+    }));
+    const url = `/api/jobs/${job.jobId}/auto/${runId}/docs/${docId}`;
+    const params = { params: Promise.resolve({ jobId: job.jobId, runId, docId }) };
+    assert.equal((await getAutoDocRoute(request(url, "bob"), params)).status, 404);
+    const response = await getAutoDocRoute(request(url, "alice"), params);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.outcomeReason, item.expected);
+    assert.equal(body.sourcePages.length, 0);
+    assert.equal(JSON.stringify(body).includes("private raw diagnostic"), false);
+  }
 }));
 
 test("native source downloads safely and exposes only a hash-matched parsed artifact", async () => withStorage(async (dataDir) => {
@@ -853,7 +900,7 @@ test("invalid server model budgets reject admission before any extraction run", 
       process.env.IDPO_AUTO_MAX_OUTPUT_TOKENS = tokens;
       process.env.IDPO_AUTO_TIMEOUT_S = timeout;
       const response = await startAutoRoute(request(url, "admin", { method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": "f".repeat(32) },
         body: JSON.stringify({ selectedFileIds: [uploaded.documents![0].fileId] }),
       }), { params: Promise.resolve({ jobId: job.jobId }) });
       assert.equal(response.status, 503, `${tokens}/${timeout}`);
@@ -915,6 +962,250 @@ test("direct product execution forwards the server model budget to its child", a
     else process.env.IDPO_AUTO_MAX_OUTPUT_TOKENS = oldTokens;
     if (oldTimeout === undefined) delete process.env.IDPO_AUTO_TIMEOUT_S;
     else process.env.IDPO_AUTO_TIMEOUT_S = oldTimeout;
+  }
+}));
+
+test("a paid run key returns its failed admission once and rejects changed payload, source, and owner", async () => withStorage(async (dataDir) => {
+  const oldMode = process.env.PRODUCT_EXECUTION_MODE;
+  const oldQueueUrl = process.env.PRODUCT_QUEUE_DATABASE_URL;
+  const holder = globalThis as typeof globalThis & { __productQueue?: ProductExecutionQueue };
+  const oldQueue = holder.__productQueue;
+  try {
+    process.env.PRODUCT_EXECUTION_MODE = "postgres";
+    process.env.PRODUCT_QUEUE_DATABASE_URL = "postgresql://unused.example/unused";
+    process.env.IDPO_AUTO_MODEL = "local-test-model";
+    process.env.IDPO_AUTO_API_BASE_URL = "http://127.0.0.1:1/v1";
+    let admissions = 0;
+    holder.__productQueue = { enqueue: async () => {
+      admissions += 1;
+      throw new QueueAdmissionError("Synthetic queue admission failure.", 409);
+    } } as unknown as ProductExecutionQueue;
+    const job = createWorkspaceJob({ ownerUserId: "admin-id" });
+    const uploaded = await addDocumentsToJob(job.jobId, [
+      new File(["Invoice total 100"], "first.txt"), new File(["Invoice total 200"], "second.txt"),
+    ]);
+    const first = uploaded.documents![0];
+    const second = uploaded.documents![1];
+    const key = "a".repeat(32);
+    const pathName = `/api/jobs/${job.jobId}/auto`;
+    const params = { params: Promise.resolve({ jobId: job.jobId }) };
+    const unkeyed = await startAutoRoute(request(pathName, "admin", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ selectedFileIds: [first.fileId] }),
+    }), params);
+    assert.equal(unkeyed.status, 400);
+    assert.equal(admissions, 0);
+    const start = (token: string, fileIds: string[]) => startAutoRoute(request(pathName, token, {
+      method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+      body: JSON.stringify({ selectedFileIds: fileIds }),
+    }), params);
+    const failedAdmission = await start("admin", [first.fileId]);
+    assert.equal(failedAdmission.status, 409);
+    const runId = fs.readdirSync(path.join(dataDir, "frontend", "auto_runs", job.jobId))
+      .find((name) => /^auto_[a-f0-9]{32}\.json$/.test(name))?.replace(/\.json$/, "");
+    assert.ok(runId);
+    assert.match(runId, /^auto_[a-f0-9]{32}$/);
+    assert.equal(getProductAutoRun(job.jobId, runId).status, "failed");
+    const replay = await start("admin", [first.fileId]);
+    assert.equal(replay.status, 202);
+    assert.deepEqual(await replay.json(), getProductAutoRun(job.jobId, runId));
+    assert.equal(admissions, 1);
+    assert.equal((await start("admin", [second.fileId])).status, 409);
+    assert.equal((await start("bob", [first.fileId])).status, 404);
+    fs.writeFileSync(path.join(uploaded.uploadsPath!, first.storedName), "Changed source bytes");
+    assert.equal((await start("admin", [first.fileId])).status, 409);
+    assert.equal(admissions, 1);
+  } finally {
+    if (oldMode === undefined) delete process.env.PRODUCT_EXECUTION_MODE;
+    else process.env.PRODUCT_EXECUTION_MODE = oldMode;
+    if (oldQueueUrl === undefined) delete process.env.PRODUCT_QUEUE_DATABASE_URL;
+    else process.env.PRODUCT_QUEUE_DATABASE_URL = oldQueueUrl;
+    holder.__productQueue = oldQueue;
+  }
+}));
+
+test("concurrent exact paid run requests claim one attempt and preserve the key after completion", async () => withStorage(async () => {
+  const oldMode = process.env.PRODUCT_EXECUTION_MODE;
+  const oldQueueUrl = process.env.PRODUCT_QUEUE_DATABASE_URL;
+  const holder = globalThis as typeof globalThis & { __productQueue?: ProductExecutionQueue };
+  const oldQueue = holder.__productQueue;
+  try {
+    process.env.PRODUCT_EXECUTION_MODE = "postgres";
+    process.env.PRODUCT_QUEUE_DATABASE_URL = "postgresql://unused.example/unused";
+    process.env.IDPO_AUTO_MODEL = "local-test-model";
+    process.env.IDPO_AUTO_API_BASE_URL = "http://127.0.0.1:1/v1";
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let admissions = 0;
+    const queueStub = { enqueue: async () => { admissions += 1; await gate; return "synthetic-broker-id"; } };
+    holder.__productQueue = queueStub as unknown as ProductExecutionQueue;
+    const job = createWorkspaceJob({ ownerUserId: "admin-id" });
+    const uploaded = await addDocumentsToJob(job.jobId, [new File(["Invoice total 100"], "invoice.txt")]);
+    const key = "b".repeat(32);
+    const params = { params: Promise.resolve({ jobId: job.jobId }) };
+    const start = () => startAutoRoute(request(`/api/jobs/${job.jobId}/auto`, "admin", {
+      method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+      body: JSON.stringify({ selectedFileIds: [uploaded.documents![0].fileId] }),
+    }), params);
+    const first = start();
+    const deadline = Date.now() + 3000;
+    while (admissions === 0 && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.equal(admissions, 1);
+    const second = await start();
+    assert.equal(second.status, 202);
+    const secondRun = await second.json();
+    assert.match(secondRun.runId, /^auto_[a-f0-9]{32}$/);
+    assert.equal(secondRun.idempotencyKey, key);
+    release();
+    const admitted = await first;
+    assert.equal(admitted.status, 202);
+    assert.equal((await admitted.json()).runId, secondRun.runId);
+    const recordPath = path.join(process.env.IDPO_DATA_DIR!, "frontend", "auto_runs", job.jobId, `${secondRun.runId}.json`);
+    const terminalPath = recordPath.replace(/\.json$/, ".terminal.json");
+    const record = JSON.parse(fs.readFileSync(recordPath, "utf8"));
+    fs.writeFileSync(terminalPath, JSON.stringify({ ...record, status: "success", documents: [],
+      endedAt: "2026-10-13T00:00:00Z" }));
+    const terminalReplay = await start();
+    assert.equal(terminalReplay.status, 202);
+    assert.equal((await terminalReplay.json()).status, "success");
+    assert.equal(admissions, 1);
+  } finally {
+    if (oldMode === undefined) delete process.env.PRODUCT_EXECUTION_MODE;
+    else process.env.PRODUCT_EXECUTION_MODE = oldMode;
+    if (oldQueueUrl === undefined) delete process.env.PRODUCT_QUEUE_DATABASE_URL;
+    else process.env.PRODUCT_QUEUE_DATABASE_URL = oldQueueUrl;
+    holder.__productQueue = oldQueue;
+  }
+}));
+
+test("an interrupted paid admission keeps its claim and cannot enqueue on replay", async () => withStorage(async (dataDir) => {
+  const oldMode = process.env.PRODUCT_EXECUTION_MODE;
+  const oldQueueUrl = process.env.PRODUCT_QUEUE_DATABASE_URL;
+  const holder = globalThis as typeof globalThis & { __productQueue?: ProductExecutionQueue };
+  const oldQueue = holder.__productQueue;
+  try {
+    process.env.PRODUCT_EXECUTION_MODE = "postgres";
+    process.env.PRODUCT_QUEUE_DATABASE_URL = "postgresql://unused.example/unused";
+    process.env.IDPO_AUTO_MODEL = "local-test-model";
+    process.env.IDPO_AUTO_API_BASE_URL = "http://127.0.0.1:1/v1";
+    let admissions = 0;
+    holder.__productQueue = { enqueue: async () => { admissions += 1; return "broker"; } } as unknown as ProductExecutionQueue;
+    const job = createWorkspaceJob({ ownerUserId: "admin-id" });
+    const uploaded = await addDocumentsToJob(job.jobId, [new File(["Will disappear"], "source.txt")]);
+    fs.unlinkSync(path.join(uploaded.uploadsPath!, uploaded.documents![0].storedName));
+    const key = "e".repeat(32);
+    const start = () => startAutoRoute(request(`/api/jobs/${job.jobId}/auto`, "admin", {
+      method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+      body: JSON.stringify({ selectedFileIds: [uploaded.documents![0].fileId] }),
+    }), { params: Promise.resolve({ jobId: job.jobId }) });
+    assert.equal((await start()).status, 400);
+    assert.equal(fs.readdirSync(path.join(dataDir, "frontend", "auto_run_requests", job.jobId)).length, 1);
+    assert.equal((await start()).status, 409);
+    assert.equal(admissions, 0);
+  } finally {
+    if (oldMode === undefined) delete process.env.PRODUCT_EXECUTION_MODE;
+    else process.env.PRODUCT_EXECUTION_MODE = oldMode;
+    if (oldQueueUrl === undefined) delete process.env.PRODUCT_QUEUE_DATABASE_URL;
+    else process.env.PRODUCT_QUEUE_DATABASE_URL = oldQueueUrl;
+    holder.__productQueue = oldQueue;
+  }
+}));
+
+test("the same paid request key on different jobs has separate global staging and run identities", async () => withStorage(async (dataDir) => {
+  const oldMode = process.env.PRODUCT_EXECUTION_MODE;
+  const oldQueueUrl = process.env.PRODUCT_QUEUE_DATABASE_URL;
+  const holder = globalThis as typeof globalThis & { __productQueue?: ProductExecutionQueue };
+  const oldQueue = holder.__productQueue;
+  try {
+    process.env.PRODUCT_EXECUTION_MODE = "postgres";
+    process.env.PRODUCT_QUEUE_DATABASE_URL = "postgresql://unused.example/unused";
+    process.env.IDPO_AUTO_MODEL = "local-test-model";
+    process.env.IDPO_AUTO_API_BASE_URL = "http://127.0.0.1:1/v1";
+    let admissions = 0;
+    holder.__productQueue = { enqueue: async () => { admissions += 1; return `broker-${admissions}`; } } as unknown as ProductExecutionQueue;
+    const jobA = createWorkspaceJob({ ownerUserId: "admin-id" });
+    const jobB = createWorkspaceJob({ ownerUserId: "admin-id" });
+    const uploadedA = await addDocumentsToJob(jobA.jobId, [new File(["Job A distinct bytes"], "source.txt")]);
+    const uploadedB = await addDocumentsToJob(jobB.jobId, [new File(["Job B distinct bytes"], "source.txt")]);
+    const key = "d".repeat(32);
+    const start = (jobId: string, fileId: string) => startAutoRoute(request(`/api/jobs/${jobId}/auto`, "admin", {
+      method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+      body: JSON.stringify({ selectedFileIds: [fileId] }),
+    }), { params: Promise.resolve({ jobId }) });
+    const [responseA, responseB] = await Promise.all([
+      start(jobA.jobId, uploadedA.documents![0].fileId),
+      start(jobB.jobId, uploadedB.documents![0].fileId),
+    ]);
+    assert.equal(responseA.status, 202);
+    assert.equal(responseB.status, 202);
+    const runA = await responseA.json();
+    const runB = await responseB.json();
+    assert.notEqual(runA.runId, runB.runId);
+    assert.equal(runA.idempotencyKey, key);
+    assert.equal(runB.idempotencyKey, key);
+    assert.equal(admissions, 2);
+    assert.equal(fs.readFileSync(path.join(dataDir, "frontend", "auto_inputs", runA.runId,
+      uploadedA.documents![0].storedName), "utf8"), "Job A distinct bytes");
+    assert.equal(fs.readFileSync(path.join(dataDir, "frontend", "auto_inputs", runB.runId,
+      uploadedB.documents![0].storedName), "utf8"), "Job B distinct bytes");
+    assert.equal((await (await start(jobA.jobId, uploadedA.documents![0].fileId)).json()).runId, runA.runId);
+    assert.equal((await (await start(jobB.jobId, uploadedB.documents![0].fileId)).json()).runId, runB.runId);
+    assert.equal(admissions, 2);
+  } finally {
+    if (oldMode === undefined) delete process.env.PRODUCT_EXECUTION_MODE;
+    else process.env.PRODUCT_EXECUTION_MODE = oldMode;
+    if (oldQueueUrl === undefined) delete process.env.PRODUCT_QUEUE_DATABASE_URL;
+    else process.env.PRODUCT_QUEUE_DATABASE_URL = oldQueueUrl;
+    holder.__productQueue = oldQueue;
+  }
+}));
+
+test("a paid run key refuses replay after the confirmed brief revision changes", async () => withStorage(async () => {
+  const oldMode = process.env.PRODUCT_EXECUTION_MODE;
+  const oldQueueUrl = process.env.PRODUCT_QUEUE_DATABASE_URL;
+  const holder = globalThis as typeof globalThis & { __productQueue?: ProductExecutionQueue };
+  const oldQueue = holder.__productQueue;
+  try {
+    process.env.PRODUCT_EXECUTION_MODE = "postgres";
+    process.env.PRODUCT_QUEUE_DATABASE_URL = "postgresql://unused.example/unused";
+    process.env.IDPO_AUTO_MODEL = "local-test-model";
+    process.env.IDPO_AUTO_API_BASE_URL = "http://127.0.0.1:1/v1";
+    let admissions = 0;
+    const queueStub = { enqueue: async () => { admissions += 1; return "synthetic-broker-id"; } };
+    holder.__productQueue = queueStub as unknown as ProductExecutionQueue;
+    const job = createWorkspaceJob({ ownerUserId: "admin-id" });
+    const uploaded = await addDocumentsToJob(job.jobId, [new File(["Invoice total 100"], "invoice.txt")]);
+    const fileId = uploaded.documents![0].fileId;
+    const params = { params: Promise.resolve({ jobId: job.jobId }) };
+    const fields = [{ field_id: "total", type: "string", description: "Printed invoice total", example_values: ["100"] }];
+    const save = (expectedRevision: number, description: string) => saveBriefRoute(request(
+      `/api/jobs/${job.jobId}/auto/brief`, "admin", { method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expectedRevision, intent: "Extract the printed total", fields: fields.map((field) =>
+          ({ ...field, description })), sampleFileIds: [fileId] }), }), params);
+    const draft = (await (await save(0, "Printed invoice total")).json()).brief;
+    const confirmed = (await (await confirmBriefRoute(request(`/api/jobs/${job.jobId}/auto/brief`, "admin", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedRevision: draft.revision, expectedPayloadSha256: draft.payload_sha256 }),
+    }), params)).json()).brief;
+    const key = "c".repeat(32);
+    const start = () => startAutoRoute(request(`/api/jobs/${job.jobId}/auto`, "admin", {
+      method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+      body: JSON.stringify({ selectedFileIds: [fileId], confirmedBrief: {
+        expectedRevision: confirmed.revision, payloadSha256: confirmed.payload_sha256, phase: "preview",
+      } }),
+    }), params);
+    assert.equal((await start()).status, 202);
+    assert.equal(admissions, 1);
+    assert.equal((await save(confirmed.revision, "Revised printed invoice total")).status, 201);
+    assert.equal((await start()).status, 409);
+    assert.equal(admissions, 1);
+  } finally {
+    if (oldMode === undefined) delete process.env.PRODUCT_EXECUTION_MODE;
+    else process.env.PRODUCT_EXECUTION_MODE = oldMode;
+    if (oldQueueUrl === undefined) delete process.env.PRODUCT_QUEUE_DATABASE_URL;
+    else process.env.PRODUCT_QUEUE_DATABASE_URL = oldQueueUrl;
+    holder.__productQueue = oldQueue;
   }
 }));
 

@@ -6,10 +6,13 @@ import { AccessError } from "@/server/auth";
 import { getCommandConfig, loadRunnerConfig } from "@/server/config";
 import { getJobOrThrow } from "@/server/jobs";
 import { requireCurrentProductAutoBrief } from "@/server/product-auto-brief";
+import { claimProductAutoRunRequestReceipt, readProductAutoRunRequestReceipt,
+  validProductAutoRunRequestKey } from "@/server/product-auto-run-requests";
 import { productExecutionQueue, QueueAdmissionError, type ProductDispatch } from "@/server/product-execution-queue";
 import { appendExtractionArguments, configuredExtractionProfile, extractionEnvironment,
   validExtractionProfile, type ExtractionProfile } from "@/server/product-auto-profile";
 import type { ProductAutoBriefRevision } from "@/types/product-auto-brief";
+import { PRODUCT_AUTO_OUTCOME_REASONS } from "@/types/product-auto";
 import type {
   ProductAutoAddedField,
   ProductAutoAddedLinkedCell,
@@ -32,6 +35,7 @@ import type {
 } from "@/types/product-auto";
 
 const SAFE_ID = /^[a-zA-Z0-9_-]{1,100}$/;
+const SAFE_OUTCOME_REASONS = new Set<string>(PRODUCT_AUTO_OUTCOME_REASONS);
 const MAX_REVIEW_NOTE = 2000;
 const MAX_CORRECTION = 10000;
 const MAX_LINKED_CORRECTION = 300000;
@@ -68,6 +72,7 @@ interface SelectedFile {
 interface RunRecord {
   runId: string;
   jobId: string;
+  idempotencyKey?: string;
   status: "queued" | "running" | "success" | "failed";
   createdAt: string;
   endedAt?: string;
@@ -937,6 +942,7 @@ export function startProductAutoRecoveryLoop(): void {
 function publicRun(record: RunRecord): ProductAutoRun {
   return {
     runId: record.runId,
+    ...(record.idempotencyKey ? { idempotencyKey: record.idempotencyKey } : {}),
     status: record.status,
     createdAt: record.createdAt,
     endedAt: record.endedAt,
@@ -1028,29 +1034,114 @@ function requireReviewedPreview(jobId: string, previewRunId: string, brief: Prod
   }
 }
 
+function runRequestPayloadSha256(selectedFileIds: string[],
+  approvedRecipeSelection?: { recipeId: string; expectedRevision: number },
+  confirmedBriefSelection?: { expectedRevision: number; payloadSha256: string;
+    phase: "preview" | "batch"; previewRunId?: string }): string {
+  return createHash("sha256").update(JSON.stringify({ selectedFileIds,
+    approvedRecipe: approvedRecipeSelection
+      ? { recipeId: approvedRecipeSelection.recipeId, expectedRevision: approvedRecipeSelection.expectedRevision } : null,
+    confirmedBrief: confirmedBriefSelection
+      ? { expectedRevision: confirmedBriefSelection.expectedRevision,
+        payloadSha256: confirmedBriefSelection.payloadSha256, phase: confirmedBriefSelection.phase,
+        previewRunId: confirmedBriefSelection.previewRunId ?? null } : null,
+  })).digest("hex");
+}
+
+async function replayProductAutoRunRequest(jobId: string, selectedFileIds: string[],
+  job: ReturnType<typeof getJobOrThrow>, key: string, actorUserId: string, payloadSha256: string,
+  approvedRecipeSelection?: { recipeId: string; expectedRevision: number },
+  confirmedBriefSelection?: { expectedRevision: number; payloadSha256: string;
+    phase: "preview" | "batch"; previewRunId?: string }): Promise<ProductAutoRun | null> {
+  const receipt = readProductAutoRunRequestReceipt(storageRoot(), jobId, key);
+  if (!receipt) return null;
+  if (receipt.actorUserId !== actorUserId || receipt.jobOwnerUserId !== (job.ownerUserId ?? null)) {
+    throw new AccessError("Extraction request not found.", 404);
+  }
+  if (receipt.payloadSha256 !== payloadSha256) {
+    throw new AccessError("This extraction request key belongs to different options.", 409);
+  }
+  const brief = confirmedBriefSelection && requireCurrentProductAutoBrief(jobId,
+    confirmedBriefSelection.expectedRevision, confirmedBriefSelection.payloadSha256);
+  if (brief && brief.state !== "confirmed") {
+    throw new AccessError("The confirmed schema changed since this extraction request.", 409);
+  }
+  const recipe = approvedRecipeSelection
+    ? (await import("@/server/product-auto-recipes")).selectApprovedProductAutoRecipe(
+      jobId, approvedRecipeSelection.recipeId, approvedRecipeSelection.expectedRevision)
+    : undefined;
+  const file = runFile(jobId, receipt.runId);
+  if (!fs.existsSync(file)) {
+    throw new AccessError("Extraction admission is incomplete or uncertain. Inspect runs before starting a new attempt.", 409);
+  }
+  const record = readRunRecord(jobId, receipt.runId);
+  if (record.idempotencyKey !== key || record.selectedFiles.length !== selectedFileIds.length ||
+    record.selectedFiles.some((selected, index) => selected.fileId !== selectedFileIds[index]) ||
+    Boolean(record.approvedRecipe) !== Boolean(approvedRecipeSelection) ||
+    Boolean(record.confirmedBrief) !== Boolean(confirmedBriefSelection) ||
+    recipe && (record.approvedRecipe?.recipeId !== recipe.recipe_id ||
+      record.approvedRecipe?.revision !== recipe.revision ||
+      record.approvedRecipe?.auditEventId !== recipe.audit_event_id) ||
+    brief && (record.confirmedBrief?.revision !== brief.revision ||
+      record.confirmedBrief?.payloadSha256 !== brief.payload_sha256 ||
+      record.confirmedBrief?.auditEventId !== brief.audit_event_id ||
+      record.confirmedBrief?.phase !== confirmedBriefSelection?.phase ||
+      record.confirmedBrief?.previewRunId !== confirmedBriefSelection?.previewRunId)) {
+    throw new AccessError("The original extraction request receipt no longer matches its run.", 409);
+  }
+  const config = loadRunnerConfig();
+  const sourceDir = path.resolve(config.uploadsDir, `job_${jobId}`);
+  if (path.dirname(sourceDir) !== path.resolve(config.uploadsDir)) {
+    throw new AccessError("Invalid job upload location.", 409);
+  }
+  for (const selected of record.selectedFiles) {
+    const document = job.documents?.find((item) => item.fileId === selected.fileId);
+    const source = path.resolve(sourceDir, selected.storedName);
+    if (!document || document.storedName !== selected.storedName || document.fileName !== selected.fileName ||
+      path.dirname(source) !== sourceDir || !fs.existsSync(source) || !fs.lstatSync(source).isFile() ||
+      sha256File(source) !== selected.sha256) {
+      throw new AccessError("An extraction source changed since this request.", 409);
+    }
+  }
+  return publicRun(runForDisplay(jobId, receipt.runId));
+}
+
 export async function startProductAutoRun(
   jobId: string, selectedFileIds: string[], admin: boolean,
   approvedRecipeSelection?: { recipeId: string; expectedRevision: number },
   confirmedBriefSelection?: { expectedRevision: number; payloadSha256: string;
     phase: "preview" | "batch"; previewRunId?: string },
+  idempotency?: { key: string; actorUserId: string },
 ): Promise<ProductAutoRun> {
   const config = loadRunnerConfig();
-  if (!productAutoAvailability().available) throw new AccessError("Automatic extraction is unavailable on this deployment.", 503);
   const job = getJobOrThrow(jobId);
   if (!selectedFileIds.length || new Set(selectedFileIds).size !== selectedFileIds.length) {
     throw new AccessError("Select one or more distinct documents.", 400);
   }
+  const model = process.env.IDPO_AUTO_MODEL?.trim();
+  if (model && !admin) throw new AccessError("Admin access is required to start model-backed extraction.", 403);
+  const requestKey = idempotency?.key;
+  if (requestKey !== undefined && (!validProductAutoRunRequestKey(requestKey) ||
+    !idempotency?.actorUserId)) {
+    throw new AccessError("A valid extraction request key and actor are required.", 400);
+  }
+  const requestPayloadSha256 = requestKey
+    ? runRequestPayloadSha256(selectedFileIds, approvedRecipeSelection, confirmedBriefSelection) : undefined;
+  if (requestKey && requestPayloadSha256) {
+    const existing = await replayProductAutoRunRequest(jobId, selectedFileIds, job, requestKey,
+      idempotency!.actorUserId, requestPayloadSha256, approvedRecipeSelection, confirmedBriefSelection);
+    if (existing) return existing;
+  }
+  if (!productAutoAvailability().available) throw new AccessError("Automatic extraction is unavailable on this deployment.", 503);
   recoverProductAutoRuns(jobId);
   if (listProductAutoRuns(jobId).some((run) => ["queued", "running"].includes(run.status))) {
     throw new AccessError("This job already has an automatic extraction run in progress.", 409);
   }
-  const model = process.env.IDPO_AUTO_MODEL?.trim();
   const baseUrl = process.env.IDPO_AUTO_API_BASE_URL?.trim();
   if (Boolean(model) !== Boolean(baseUrl)) throw new AccessError("The server model configuration is incomplete.", 503);
   if (baseUrl && modelEndpointRequiresKey(baseUrl) && !process.env.ICORE_API_KEY?.trim()) {
     throw new AccessError("The server model key is missing.", 503);
   }
-  if (model && !admin) throw new AccessError("Admin access is required to start model-backed extraction.", 403);
   const modelBudget = model ? configuredModelBudget() : undefined;
   const extractionProfile = configuredExtractionProfile(Boolean(confirmedBriefSelection));
   if (approvedRecipeSelection && !model) {
@@ -1131,6 +1222,21 @@ export async function startProductAutoRun(
   const selectedFiles: SelectedFile[] = [];
   const queued = process.env.PRODUCT_EXECUTION_MODE === "postgres";
   if (queued && !job.ownerUserId) throw new AccessError("Queued extraction requires a job owner.", 409);
+  if (requestKey && requestPayloadSha256) {
+    const claimed = claimProductAutoRunRequestReceipt(storageRoot(), jobId, requestKey, {
+      contractVersion: 1, jobId, runId, actorUserId: idempotency!.actorUserId,
+      jobOwnerUserId: job.ownerUserId ?? null, payloadSha256: requestPayloadSha256,
+    });
+    if (!claimed) {
+      const existing = await replayProductAutoRunRequest(jobId, selectedFileIds, job, requestKey,
+        idempotency!.actorUserId, requestPayloadSha256, approvedRecipeSelection, confirmedBriefSelection);
+      if (existing) return existing;
+      throw new AccessError("Extraction admission is incomplete or uncertain. Inspect runs before retrying.", 409);
+    }
+  }
+  if (fs.existsSync(runFile(jobId, runId))) {
+    throw new AccessError("The extraction run identity already exists.", 409);
+  }
   fs.mkdirSync(inputDir, { recursive: true });
   try {
     if (recipeSnapshot && recipeMeta) {
@@ -1179,6 +1285,7 @@ export async function startProductAutoRun(
     }
     const record: RunRecord = {
       runId, jobId, status: queued ? "queued" : "running", createdAt: new Date().toISOString(),
+      ...(requestKey ? { idempotencyKey: requestKey } : {}),
       serverInstanceId: instanceId, selectedFiles, documents: [],
       ...(dispatch && dispatchHash ? { queueDispatch: { ownerId: dispatch.ownerId, sha256: dispatchHash } } : {}),
       ...(recipeMeta ? { approvedRecipe: recipeMeta } : {}),
@@ -1401,6 +1508,9 @@ function loadProductAutoDocument(jobId: string, runId: string, docId: string, se
   }
   const result = parseResultBytes(bytes);
   const candidate = candidateFromArtifact(result.candidate, docId, result.pages);
+  const outcomeReason = (candidate.document_status === "failed" || candidate.document_status === "unsupported") &&
+    typeof result.reason === "string" && SAFE_OUTCOME_REASONS.has(result.reason)
+    ? result.reason as ProductAutoDocumentDetail["outcomeReason"] : undefined;
   const sourcePages = readSourcePages(result);
   let visualRoute: ProductAutoDocumentDetail["visualRoute"];
   if (result.visual_document !== undefined) {
@@ -1440,7 +1550,8 @@ function loadProductAutoDocument(jobId: string, runId: string, docId: string, se
     sourceHash,
     detail: {
       runId, fileId: document.fileId, fileName: document.fileName,
-      candidate, sourcePages, ...(visualRoute ? { visualRoute } : {}),
+      candidate, sourcePages, ...(outcomeReason ? { outcomeReason } : {}),
+      ...(visualRoute ? { visualRoute } : {}),
       ...(parsedDocument ? { parsedDocument } : {}), review, auditTrail,
       correctedResult: deriveProductAutoCorrectedResult(candidate, review, visualRoute),
     },
@@ -1455,9 +1566,16 @@ export function getProductAutoReviewedExport(jobId: string, runId: string, docId
   return reviewedExportFromRecord(readRunRecord(jobId, runId), docId);
 }
 
+function assertReviewableDocument(candidate: ProductAutoCandidate): void {
+  if (candidate.document_status === "failed" || candidate.document_status === "unsupported") {
+    throw new AccessError("Failed or unsupported documents cannot be reviewed or exported. Start a new run.", 409);
+  }
+}
+
 function reviewedExportFromRecord(record: RunRecord, docId: string): ProductAutoReviewedExport {
   const { jobId, runId } = record;
   const { detail, machineResultHash, sourceHash: verifiedSourceHash } = loadProductAutoDocument(jobId, runId, docId, record);
+  assertReviewableDocument(detail.candidate);
   const review = detail.review;
   if (!review || detail.correctedResult.review_status !== "completed" ||
     detail.correctedResult.fields.some((field) => field.status === "needs_review")) {
@@ -1866,12 +1984,26 @@ function saveProductAutoReviewWithRevision(
   jobId: string, runId: string, docId: string, reviewerUserId: string, expectedRevision: number, fields: unknown,
   addedFields: unknown, reportedActiveReviewSeconds: number | undefined,
 ): ProductAutoReview {
-  if (readRunRecord(jobId, runId).status === "running") recoverProductAutoRuns(jobId);
+  const record = readRunRecord(jobId, runId);
+  if (record.status === "running") {
+    if (fs.existsSync(path.join(outputDir(runId), "run.json"))) {
+      // Reject failed results before recovery can publish a terminal run record.
+      let candidate: ProductAutoCandidate;
+      try { candidate = loadProductAutoDocument(jobId, runId, docId, record).detail.candidate; }
+      catch (error) {
+        if (error instanceof AccessError) throw error;
+        throw new AccessError("The extraction artifacts could not be verified. Start a new run.", 409);
+      }
+      assertReviewableDocument(candidate);
+    }
+    recoverProductAutoRuns(jobId);
+  }
   const runDocument = readRunRecord(jobId, runId).documents.find((item) => item.docId === docId);
   if (!runDocument?.machineResultSha256) {
     throw new AccessError("This extraction predates sealed artifacts or has not completed. Start a new run.", 409);
   }
   const { detail, machineResultHash } = loadProductAutoDocument(jobId, runId, docId);
+  assertReviewableDocument(detail.candidate);
   if ((detail.review?.revision ?? 0) !== expectedRevision) {
     throw new AccessError("Review changed since you opened it. Reload before saving.", 409);
   }

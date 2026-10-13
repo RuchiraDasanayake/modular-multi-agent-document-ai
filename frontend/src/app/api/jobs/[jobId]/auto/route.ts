@@ -75,8 +75,13 @@ export async function POST(request: Request, { params }: Params) {
       }
       confirmedBrief = selection as typeof confirmedBrief;
     }
+    const requestKey = request.headers.get("idempotency-key");
+    if (process.env.IDPO_AUTO_MODEL?.trim() && user.role === "admin" && requestKey === null) {
+      throw new AccessError("An Idempotency-Key header is required for model-backed extraction.", 400);
+    }
     const run = await startProductAutoRun(jobId, selectedFileIds, user.role === "admin",
-      approvedRecipe, confirmedBrief);
+      approvedRecipe, confirmedBrief,
+      requestKey === null ? undefined : { key: requestKey, actorUserId: user.id });
     return NextResponse.json(run, { status: 202, headers: noStore });
   } catch (error) {
     if (error instanceof AccessError) return apiError(error);

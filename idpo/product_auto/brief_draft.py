@@ -13,6 +13,7 @@ import unicodedata
 from pathlib import Path
 from typing import Protocol
 
+from idpo.product_auto.image_frames import require_single_frame_image
 from idpo.product_auto.native_formats import NATIVE_EXTENSIONS, parse_native_document
 from idpo.product_auto.provider import ModelReply, OpenAICompatibleChat
 
@@ -133,6 +134,7 @@ def _ocr_sample(path: Path) -> tuple[str, str]:
         with Image.open(path) as image:
             if image.width * image.height > 12_000_000:
                 raise ValueError("Sample image exceeds the pixel limit")
+            require_single_frame_image(image)
         document = intake.ingest(str(path))[0]
         parser = f"intake-image-preview-{engine}-v1"
     config = PipelineConfig()

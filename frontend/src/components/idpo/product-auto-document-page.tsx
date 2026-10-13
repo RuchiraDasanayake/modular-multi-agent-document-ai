@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { IdpoCard } from "@/components/idpo/card";
 import { idpoApi } from "@/lib/idpo-api";
+import { productAutoOutcomeCopy } from "./product-auto-outcome";
 import { isVisualProposal, machineProposalLabel, pdfSourcePageUrl, sourceTextPanelCopy, visualLinkedCellsReviewable } from "./product-auto-visual-review";
 import type { ProductAutoAddedFieldInput, ProductAutoAddedLinkedFieldInput, ProductAutoAddedScalarFieldInput, ProductAutoDocumentDetail, ProductAutoEvidence, ProductAutoLinkedCell, ProductAutoLinkedCorrectionRow, ProductAutoReviewDecision, ProductAutoReviewField, ProductAutoScalarType } from "@/types/product-auto";
 
@@ -220,6 +221,7 @@ export function ProductAutoDocumentPage() {
   if (!detail) return <div role="alert" className="p-6 text-sm text-rose-700">{error || "Document result not found."}</div>;
 
   const { candidate } = detail;
+  const outcome = productAutoOutcomeCopy(candidate.document_status, detail.outcomeReason, detail.sourcePages.length);
   const values = new Map(candidate.extracted_values.map((item) => [item.field_id, item]));
   const removedProposals = candidate.proposed_schema.filter((field) =>
     draft[field.field_id]?.decision === "remove" || draft[field.field_id]?.decision === "not_present").length;
@@ -287,7 +289,12 @@ export function ProductAutoDocumentPage() {
         </details>
       </IdpoCard>
 
-      <IdpoCard>
+      {outcome ? <IdpoCard>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{outcome.title}</h2>
+        <p role="alert" className="mt-3 text-sm font-medium text-rose-700 dark:text-rose-300">{outcome.cause}</p>
+        <p className="mt-3 text-sm text-slate-700 dark:text-slate-200">{outcome.action}</p>
+        <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">{outcome.sourceNote}</p>
+      </IdpoCard> : <IdpoCard>
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Proposed schema and values</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Text matched means the value occurs in the extracted text. Image-derived proposals have page hints, not verified pixel locations. Check the original document and field meaning before approving either.</p>
         {detail.visualRoute === "visual" ? <p className="mt-2 text-sm font-medium text-amber-700 dark:text-amber-300">
@@ -570,10 +577,10 @@ export function ProductAutoDocumentPage() {
             className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950" />
           <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">Count only your active work since the previous save. Exclude breaks; leave blank if unknown.</span>
         </label>
-      </IdpoCard>
+      </IdpoCard>}
       </div>
 
-      <IdpoCard>
+      {!outcome ? <IdpoCard>
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Corrected structured result</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Derived from the preserved machine candidate and latest saved review. Revision {detail.correctedResult.review_revision}; {detail.correctedResult.review_status}. Existing image-derived linked cells retain their machine status. Added values with a reviewer-observed page record a human decision, not OCR or pixel verification.</p>
         {detail.correctedResult.review_status === "completed" ? (
@@ -582,7 +589,7 @@ export function ProductAutoDocumentPage() {
           </a>
         ) : <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">Complete the review to download a structured result.</p>}
         <pre className="mt-3 max-h-96 overflow-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-100">{JSON.stringify(detail.correctedResult, null, 2)}</pre>
-      </IdpoCard>
+      </IdpoCard> : null}
 
       {detail.auditTrail.length > 0 ? (
         <IdpoCard>
