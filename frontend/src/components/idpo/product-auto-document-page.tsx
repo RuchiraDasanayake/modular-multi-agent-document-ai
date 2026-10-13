@@ -269,7 +269,7 @@ export function ProductAutoDocumentPage() {
 
       <IdpoCard>
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Proposed schema and values</h2>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Accepted values have exact text evidence. Other values need review or are missing.</p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Text matched means the value occurs in the extracted text. Check the original document and field meaning before approving it.</p>
         {candidate.proposed_schema.length === 0 ? (
           <p className="mt-4 text-sm text-amber-700 dark:text-amber-300">No fields were proposed. Inspect the source and add missed scalar fields or linked columns below.</p>
         ) : (
@@ -289,7 +289,7 @@ export function ProductAutoDocumentPage() {
                       <p className="text-xs text-slate-500 dark:text-slate-400">{field.type}{field.group ? ` · ${field.group}` : ""}</p>
                     </div>
                     <span className={`text-xs font-semibold ${value?.status === "accepted" ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}`}>
-                      {value?.status?.replaceAll("_", " ") ?? "no value"}
+                      {value?.status === "accepted" ? "Text matched" : value?.status?.replaceAll("_", " ") ?? "no value"}
                     </span>
                   </div>
                   {linked ? (
@@ -302,7 +302,7 @@ export function ProductAutoDocumentPage() {
                         <tbody>{machineCells.map((cell) => <tr key={cell.row} className="border-b border-slate-100 align-top dark:border-slate-800">
                           <td className="px-2 py-2 tabular-nums">{cell.row + 1}</td>
                           <td className="px-2 py-2 break-words">{cell.value}</td>
-                          <td className="px-2 py-2">{cell.status.replaceAll("_", " ")}</td>
+                          <td className="px-2 py-2">{cell.status === "accepted" ? "Text matched" : cell.status.replaceAll("_", " ")}</td>
                           <td className="px-2 py-2 break-words">{cell.evidence
                             ? <><span className="font-medium">{detail.parsedDocument?.units[cell.evidence.page - 1]?.label ?? `Page ${cell.evidence.page}`}:</span> <q>{cell.evidence.quote}</q>
                               {nativeContext(detail, cell.evidence) ? <code className="mt-1 block break-all text-[11px]">{nativeContext(detail, cell.evidence)}</code> : null}</>

@@ -14,12 +14,12 @@ const stats = [
 
 const features = [
     {
-        title: "Automatic Schema Proposals",
-        desc: "The opt-in extraction workflow proposes fields for each document with local heuristics or a configured chat model.",
+        title: "Confirm Your Schema",
+        desc: "Describe what you need, ask AI to suggest fields from sample files, and confirm what each field means before extraction.",
     },
     {
-        title: "Grounded Validation",
-        desc: "Proposed values need an exact source-text quote and a matching typed value for machine acceptance; uncertain fields remain for review.",
+        title: "Source Evidence",
+        desc: "Inspect the text supporting each proposed value alongside the original document. Text matches still need a check for the right meaning.",
     },
     {
         title: "Human-in-the-Loop Review",
@@ -31,7 +31,7 @@ const features = [
     },
     {
         title: "Scans, Photos, and PDFs",
-        desc: "Digital PDFs use their text layer when available. Scanned pages and images use local OCR, with Tesseract as the product default.",
+        desc: "Read supported digital files and scanned pages, with local text extraction and the original available for review.",
     },
     {
         title: "Inspectable Runs",
@@ -43,22 +43,22 @@ const steps = [
     {
         step: "01",
         title: "Upload Documents",
-        desc: "Create a job and upload PDFs, images, or text files.",
+        desc: "Create a job and upload supported PDFs, images, text, or Office files.",
     },
     {
         step: "02",
-        title: "Propose Fields",
-        desc: "The opt-in workflow reads each document and proposes a schema and values; AI proposals require a configured model.",
+        title: "Define Fields",
+        desc: "Enter the information you need, choose representative samples, and confirm field names and meanings.",
     },
     {
         step: "03",
-        title: "Validate & Review",
-        desc: "Exact text evidence is checked, and proposed fields remain available for human review.",
+        title: "Preview & Extract",
+        desc: "Review the sample results first, then process the remaining files with the same confirmed schema.",
     },
     {
         step: "04",
-        title: "Review & Inspect",
-        desc: "Save corrections and inspect the resulting structured JSON and review history.",
+        title: "Review & Export",
+        desc: "Check values against their sources, save corrections, and download the reviewed structured JSON.",
     },
 ];
 

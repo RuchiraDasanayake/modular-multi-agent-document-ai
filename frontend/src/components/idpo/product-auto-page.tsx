@@ -437,7 +437,7 @@ export function ProductAutoPage() {
         {activeRun?.status === "success" ? (
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[600px] text-sm">
-              <thead><tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-700"><th className="py-2 pr-3">Document</th><th className="py-2 pr-3">Status</th><th className="py-2 pr-3">Fields</th><th className="py-2 pr-3">Accepted</th><th className="py-2 pr-3">Human review</th></tr></thead>
+              <thead><tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-700"><th className="py-2 pr-3">Document</th><th className="py-2 pr-3">Status</th><th className="py-2 pr-3">Fields</th><th className="py-2 pr-3">Text matched</th><th className="py-2 pr-3">Human review</th></tr></thead>
               <tbody>{activeRun.documents.map((document) => (
                 <tr key={document.docId} className="border-b border-slate-100 dark:border-slate-800">
                   <td className="py-2 pr-3"><Link className="font-medium text-cyan-700 hover:underline dark:text-cyan-300" href={`/dashboard/idpo/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(activeRun.runId)}/docs/${encodeURIComponent(document.docId)}`}>{document.fileName}</Link></td>

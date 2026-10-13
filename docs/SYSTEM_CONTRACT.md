@@ -179,19 +179,21 @@ The job-scoped recipe API separately records owner-scoped draft, approval, and d
 requires explicit linked-row group confirmation and can configure one explicitly selected run.
 This is not geometric table annotation.
 
-The single-host path runs as a child process of the frontend server; Docker sends it to one private worker that admits
-one active run and returns a busy error for another. It has no durable queue, cancellation, runtime recipe matcher,
-reusable row extraction policy, per-user cloud quota, or verified live Docker execution. Model-backed
-UI runs are admin-only until cloud data and spend controls exist. It does not use the AHMN policy router, Guardrails
+The native launcher uses the durable PostgreSQL queue described above. The historical direct mode runs a child
+process of the frontend; Docker uses a private worker that admits one run and returns busy for another. The Docker
+bridge does not support confirmed-schema preview and batch arguments. Automatic recipe matching, per-document
+resume, reusable visual row extraction policies, per-user cloud credit quotas and verified live Docker execution
+remain absent. Model-backed UI runs are admin-only until cloud data and spend controls exist. It does not use the AHMN policy router, Guardrails
 service, or the separate XAI-HITL service. Its benchmarks and outputs must never be represented as the submitted paper's
 results or as the canonical research runtime's outputs.
 
-The user's target intent-first batch flow is not implemented by this path. The current product screen requires a job
-upload and run selection; it has no natural-language intent-to-schema onboarding, field-meaning confirmation, pinned
-sample preview before the rest of a batch, or durable backpressure for arbitrarily large batches. The current
-candidate can be downloaded as reviewed JSON per document, but bulk export is still absent.
-The [productization plan](PRODUCTIZATION_PLAN.md) defines these as staged target capabilities. This paragraph
-describes the current gap, not a promise that every format or field can be extracted accurately.
+The native product screen implements intent entry, bounded AI schema suggestions, field-meaning confirmation,
+source-pinned sample preview and a reviewed-preview gate before the remaining batch. The queue enforces finite
+per-owner admission limits. The authenticated synthetic smoke verifies this flow on two text invoices; it does not
+establish real-document quality or arbitrary scale. Reviewed JSON is downloadable per document; bulk export is
+still absent. UI labels call machine-accepted values **Text matched** because exact OCR quotes do not establish
+correct field meaning or correspondence to the original image. Human review remains a separate decision.
+The [productization plan](PRODUCTIZATION_PLAN.md) records the remaining quality, cost and deployment gates.
 
 ## Canonical Research Policy Routing
 
