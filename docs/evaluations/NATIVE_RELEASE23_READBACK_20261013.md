@@ -29,9 +29,28 @@ several cases belong to the same batch. The source/review cases were not modifie
 | Selected job run identities and states | Unchanged: two runs |
 | Model calls submitted by these checks | Zero |
 
-The negative admission requests used an existing uploaded file identity. They never sent a valid key, so this check
-does not demonstrate a successful paid admission/replay over HTTP. Concurrency, changed payloads, cross-job identity
-and replay behavior are covered by the server regression tests; a live successful-admission check is separate.
+The negative admission requests used an existing uploaded file identity. They never sent a valid key. The separate
+successful-admission check below used a new synthetic job; it did not modify those ten baseline cases.
+
+## Concurrent paid admission and replay
+
+A second, one-shot script created a new, explicitly named synthetic job with one 100-byte TXT invoice. It supplied
+and confirmed two fields manually, so no schema-suggestion call was needed. The script pinned the production build
+receipt and eight relevant source-file hashes, then durably reserved one request key before sending two concurrent
+identical preview requests. It refused reuse of its own state/output files and did not create a replacement key.
+
+Both initial requests returned **HTTP 202 with the same run identity**. Exactly one new broker job, durable dispatch
+and product output appeared. The run succeeded with one document still requiring review. Its run, manifest and
+sidecar receipts all recorded **one model call and one SDK attempt**: 461 input tokens and 174 output tokens, with no
+recorded provider error. These are reported tokens, not a monetary charge or semantic quality score.
+
+After completion, an exact-key replay returned the original completed run with HTTP 202. Changing the preview
+options while retaining that key returned HTTP 409. Queue identities/states and the per-run model receipt remained
+unchanged after both replays; the seven pre-existing broker and dispatch records were unchanged.
+
+This is a live single-source regression for concurrent admission and replay. It does not prove exactly-once
+execution at the provider across arbitrary process, disk or network failures. Unknown admissions still fail closed;
+cross-job isolation, damaged claims, source/schema drift and failed-attempt reuse remain separately tested cases.
 
 ## Retained receipts
 
@@ -45,6 +64,15 @@ and replay behavior are covered by the server regression tests; a live successfu
   `4b6c4aaf684404c0df557596bf6fee642547defa7c423f624e330d8a5caa0f43`.
 - Offline capability receipt at this startup: SHA-256
   `97ffbde83b3ec9fc9898d777600841a8a8d50e23072400b36d5013b179a76caf`.
+- Private paid-admission script: `I:/DocAI-Runtime/paid-idempotency-smoke-v1/paid_idempotency_smoke.py`; SHA-256
+  `9684ae18cf70cc60b7eb89f969218cadcb739b46d47a4d6ca34021490af0f138`.
+- Paid-admission receipt: `I:/DocAI-Runtime/paid-idempotency-smoke-v1/receipt.json`; SHA-256
+  `ddb184c9d0e793c9771fa37c2c436f5c16d63124f40afe0b2c9bd78c2f81c413`.
+- Synthetic TXT source: SHA-256 `eb3830b8630dc90a65461203fc59ec4a46296b9a6bac248e91d307f8b5ce4533`.
+- Completed run / manifest / result SHA-256:
+  `61fe5b5b89d640e8a6aaf072b2328c8a6e9d619ce01e2f8dc1130becdf20f200`,
+  `83ccc59481915f91f08db8293374165b887f4c145610a0c71b94daab5094f63b`,
+  `32eb44f0d891f7ccaa19e043313b802cf86d0fa6aa77146a780bc26587f674da`.
 
 The script pins the deployed source revision and baseline hashes, refuses to overwrite its result, uses bounded
 requests with no proxy/redirect/retry, and keeps credentials and response bodies out of its output. Root independently
