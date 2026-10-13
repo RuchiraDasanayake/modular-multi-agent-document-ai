@@ -6,6 +6,8 @@ import base64
 import builtins
 import hashlib
 import importlib.util
+import json
+import os
 import py_compile
 import zipfile
 from pathlib import Path
@@ -20,7 +22,9 @@ from product_eval.tatr_ocr_word_source_free import (
     _verify_installed_record,
     _verify_site_packages_inventory,
     _verify_wheel_payload,
+    guarded_rapidocr_class,
     rapidocr_words_to_tatr_tokens,
+    run_synthetic,
 )
 
 
@@ -203,3 +207,85 @@ def test_pinned_wheel_bytes_reject_changed_installed_file(tmp_path) -> None:
         module.write_bytes(b"changed!")
         with pytest.raises(ValueError, match="pinned wheel"):
             _verify_wheel_payload(wheel, tmp_path)
+
+
+def test_orientation_guard_runs_before_word_box_construction() -> None:
+    class FakeRapidOCR:
+        def __init__(self, labels: list[tuple[str, float]]) -> None:
+            self.labels = labels
+            self.text_cls = SimpleNamespace(cls_thresh=0.9)
+            self.word_box_calls = 0
+
+        def __call__(self) -> None:
+            self.run_ocr_steps(None, {})
+            self.calc_word_boxes()
+
+        def run_ocr_steps(self, img, op_record):
+            return (SimpleNamespace(boxes=[object() for _ in self.labels]),
+                    SimpleNamespace(cls_res=self.labels), None, [])
+
+        def calc_word_boxes(self) -> None:
+            self.word_box_calls += 1
+
+    guarded = guarded_rapidocr_class(FakeRapidOCR)
+    upright = guarded([("0", 0.99)])
+    upright()
+    assert upright.word_box_calls == 1
+    assert upright.word_box_build_count == 1
+    assert upright.last_line_orientations == [("0", 0.99)]
+
+    upside_down = guarded([("180", 1.0)])
+    with pytest.raises(ValueError, match="confidently upright"):
+        upside_down()
+    assert upside_down.word_box_calls == 0
+    assert not hasattr(upside_down, "word_box_build_count")
+    assert upside_down.last_line_orientations == [("180", 1.0)]
+
+    uncertain = guarded([("0", 0.8)])
+    with pytest.raises(ValueError, match="confidently upright"):
+        uncertain()
+    assert uncertain.word_box_calls == 0
+    assert not hasattr(uncertain, "word_box_build_count")
+
+
+def test_frozen_zero_line_threshold_preserves_low_score_result() -> None:
+    rapidocr = pytest.importorskip("rapidocr")
+    np = pytest.importorskip("numpy")
+    from rapidocr.utils.output import RapidOCROutput
+
+    engine = rapidocr.RapidOCR(params={"Global.text_score": 0.0})
+    assert engine.text_score == 0.0
+    quad = [[0, 0], [10, 0], [10, 10], [0, 10]]
+    result = RapidOCROutput(
+        boxes=np.zeros((2, 4, 2)), txts=("LOW", "HIGH"), scores=(0.2, 0.9),
+        word_results=((('LOW', 0.2, quad),), (('HIGH', 0.9, quad),)),
+    )
+    filtered = engine.filter_by_text_score(result)
+    assert filtered.txts == ("LOW", "HIGH")
+    assert filtered.scores == (0.2, 0.9)
+    assert len(filtered.word_results) == 2
+
+
+def test_pinned_source_free_orientation_probe(tmp_path: Path) -> None:
+    names = ("TATR_OCR_RUNTIME_ROOT", "TATR_OCR_WHEELHOUSE",
+             "TATR_OCR_NOTICES_ROOT", "TATR_OCR_FONT")
+    if not all(os.environ.get(name) for name in names):
+        pytest.skip("pinned source-free OCR runtime paths were not supplied")
+    result = run_synthetic(
+        runtime_root=Path(os.environ[names[0]]),
+        wheelhouse=Path(os.environ[names[1]]),
+        notices_root=Path(os.environ[names[2]]),
+        font_path=Path(os.environ[names[3]]),
+        output_dir=tmp_path / "probe",
+    )
+    receipt = json.loads(Path(result["receipt"]).read_text(encoding="utf-8"))
+    assert [token["text"] for token in receipt["word_tokens"]] == [
+        "NORTH", "SOUTH", "ALPHA", "BETA"
+    ]
+    assert receipt["line_score_threshold"] == 0.0
+    assert receipt["low_score_filter_probe_scores"] == [0.2, 0.9]
+    assert receipt["low_score_filter_probe_retained_lines"] == ["NORTH SOUTH", "ALPHA BETA"]
+    assert all(label == "0" for label, _ in receipt["upright_line_orientations"])
+    assert all(label == "180" for label, _ in receipt["rotated_line_orientations_rejected"])
+    assert receipt["word_box_builder_calls_before_rotation"] == 1
+    assert receipt["word_box_builder_calls_after_rotation"] == 1

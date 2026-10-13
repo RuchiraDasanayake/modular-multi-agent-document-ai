@@ -14,12 +14,14 @@ import importlib.metadata
 import importlib.util
 import json
 import math
+import numbers
 import os
 import re
 import stat
 import sys
 import zipfile
 from collections.abc import Sequence
+from copy import copy
 from pathlib import Path
 from typing import Any
 
@@ -312,6 +314,49 @@ def rapidocr_words_to_tatr_tokens(result: Any, image_size: tuple[int, int]) -> l
     return tokens
 
 
+def guarded_rapidocr_class(base_class: type[Any]) -> type[Any]:
+    """Reject uncertain line orientation before the pinned word-box builder runs.
+
+    RapidOCR 3.10.0 rotates classified 180-degree crops for recognition but
+    calculates word boxes from the original crops. Its public result omits the
+    classifier labels, so the guard must run inside its pinned call sequence.
+    """
+
+    class GuardedRapidOCR(base_class):
+        def calc_word_boxes(self, *args: Any, **kwargs: Any) -> Any:
+            self.word_box_build_count = getattr(self, "word_box_build_count", 0) + 1
+            return super().calc_word_boxes(*args, **kwargs)
+
+        def run_ocr_steps(self, img: Any, op_record: dict[str, Any]) -> Any:
+            self.last_line_orientations = None
+            output = super().run_ocr_steps(img, op_record)
+            det_res, cls_res, _, _ = output
+            boxes = getattr(det_res, "boxes", None)
+            labels = getattr(cls_res, "cls_res", None)
+            classifier = getattr(self, "text_cls", None)
+            threshold = getattr(classifier, "cls_thresh", None)
+            if (boxes is None or not isinstance(labels, (list, tuple))
+                    or len(labels) != len(boxes) or not labels
+                    or not isinstance(threshold, numbers.Real) or isinstance(threshold, bool)
+                    or not math.isfinite(threshold) or not 0 <= threshold <= 1):
+                raise ValueError("RapidOCR line orientation metadata is absent or misaligned")
+            orientations: list[tuple[str, float]] = []
+            for item in labels:
+                if (not isinstance(item, (list, tuple)) or len(item) != 2
+                        or not isinstance(item[0], str)
+                        or not isinstance(item[1], numbers.Real)
+                        or isinstance(item[1], bool) or not math.isfinite(item[1])
+                        or not 0 <= item[1] <= 1):
+                    raise ValueError("invalid RapidOCR line orientation result")
+                orientations.append((item[0], float(item[1])))
+            self.last_line_orientations = orientations
+            if any(label != "0" or score <= threshold for label, score in orientations):
+                raise ValueError("RapidOCR word geometry requires confidently upright lines")
+            return output
+
+    return GuardedRapidOCR
+
+
 def run_synthetic(*, runtime_root: Path, wheelhouse: Path, notices_root: Path, font_path: Path,
                   output_dir: Path) -> dict[str, Any]:
     """Probe fixed English words without a document or gold path."""
@@ -330,7 +375,8 @@ def run_synthetic(*, runtime_root: Path, wheelhouse: Path, notices_root: Path, f
     draw.text((50, 60), EXPECTED_LINES[0], font=font, fill="black")
     draw.text((50, 190), EXPECTED_LINES[1], font=font, fill="black")
     model_dir = runtime_root / "Lib" / "site-packages" / "rapidocr" / "models"
-    engine = RapidOCR(params={
+    engine = guarded_rapidocr_class(RapidOCR)(params={
+        "Global.text_score": 0.0,
         "Det.lang_type": "en", "Rec.lang_type": "en",
         "Det.model_path": str(model_dir / "PP-OCRv6_det_small.onnx"),
         "Cls.model_path": str(model_dir / "ch_ppocr_mobile_v2.0_cls_mobile.onnx"),
@@ -341,6 +387,7 @@ def run_synthetic(*, runtime_root: Path, wheelhouse: Path, notices_root: Path, f
         "EngineConfig.onnxruntime.use_dml": False,
     })
     result = engine(np.asarray(image), return_word_box=True, return_single_char_box=False)
+    upright_orientations = engine.last_line_orientations
     providers = {
         part: getattr(engine, part).session.session.get_providers()
         for part in ("text_det", "text_cls", "text_rec")
@@ -356,12 +403,29 @@ def run_synthetic(*, runtime_root: Path, wheelhouse: Path, notices_root: Path, f
             raise ValueError("synthetic adjacent words lack separate geometry")
     if len(prepared) != 4:
         raise ValueError("TATR did not accept four OCR word tokens")
+    word_box_builds_before_rotation = engine.word_box_build_count
+    low_score_probe = copy(result)
+    low_score_probe.scores = (0.2, 0.9)
+    retained = engine.filter_by_text_score(low_score_probe)
+    if tuple(retained.txts) != EXPECTED_LINES or len(retained.word_results) != 2:
+        raise ValueError("the frozen zero line threshold dropped a low-score line")
+    try:
+        engine(np.asarray(image.rotate(180)), return_word_box=True,
+               return_single_char_box=False)
+    except ValueError as exc:
+        if str(exc) != "RapidOCR word geometry requires confidently upright lines":
+            raise
+    else:
+        raise ValueError("upside-down synthetic words were not rejected")
+    if engine.word_box_build_count != word_box_builds_before_rotation:
+        raise ValueError("upside-down synthetic words reached word-box construction")
+    rotated_orientations = engine.last_line_orientations
     output_dir.mkdir(parents=True, exist_ok=False)
     image_path = output_dir / "synthetic.png"
     image.save(image_path)
     receipt = {
         "status": "source_free_word_token_pass",
-        "scope": "one artificial raster; no selected PDF, gold, product extraction or parser score",
+        "scope": "one artificial raster and its 180-degree negative control; no selected PDF, gold, product extraction or parser score",
         "source_pdfs_opened": 0,
         "gold_records_opened": 0,
         "runtime": runtime,
@@ -372,6 +436,13 @@ def run_synthetic(*, runtime_root: Path, wheelhouse: Path, notices_root: Path, f
         "lines": list(result.txts),
         "line_boxes": result.boxes.tolist(),
         "line_scores": list(result.scores),
+        "line_score_threshold": engine.text_score,
+        "low_score_filter_probe_scores": [0.2, 0.9],
+        "low_score_filter_probe_retained_lines": list(retained.txts),
+        "upright_line_orientations": upright_orientations,
+        "rotated_line_orientations_rejected": rotated_orientations,
+        "word_box_builder_calls_before_rotation": word_box_builds_before_rotation,
+        "word_box_builder_calls_after_rotation": engine.word_box_build_count,
         "word_tokens": tokens,
         "tatr_prepared_token_count": len(prepared),
         "providers_available": ort.get_available_providers(),
