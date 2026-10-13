@@ -98,6 +98,16 @@ between samples. Temporary raster/result files are removed on exit; the caller
 stores returned provenance. Results are capped at 16 MiB, 10,000 lines and two
 million text characters. Input PNGs are capped at 64 MiB.
 
+## Color input revision
+
+Revision `rgb-pil-lines-v2` passes a typed Pillow RGB image into RapidOCR's loader,
+which converts it to BGR. The initial `lines-v1` adapter copied an older research
+worker's RGB ndarray pattern; RapidOCR treats ndarrays as already BGR, so red and
+blue channels were exchanged. Generated grayscale OCR tests did not expose that
+boundary error. A red/blue pixel regression now verifies the input type and color
+values. Preserve earlier sealed runs as measurements of their recorded revision;
+do not relabel them as measurements of the corrected worker.
+
 ## Validation
 
 Run `python -m pytest idpo/tests/test_product_rapid_ocr.py`. The normal suite tests

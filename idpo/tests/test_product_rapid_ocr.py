@@ -7,6 +7,7 @@ import json
 import os
 import runpy
 import sys
+import types
 from copy import deepcopy
 from pathlib import Path
 
@@ -161,6 +162,32 @@ def test_pins_match_previously_verified_models_and_tampering_is_rejected(tmp_pat
     (tmp_path / name).write_bytes(b"wrong local model; must never download a replacement")
     with pytest.raises(RuntimeError, match="rapidocr_model_mismatch"):
         worker_module["verify_models"](tmp_path)
+
+
+def test_worker_passes_typed_rgb_image_not_an_array_interpreted_as_bgr(tmp_path, worker_module, monkeypatch):
+    source = tmp_path / "colored.png"
+    image = Image.new("RGB", (200, 100), (255, 0, 0))
+    image.putpixel((1, 0), (0, 0, 255))
+    image.save(source)
+    observed = []
+    class Engine:
+        def __init__(self, *, params):
+            for part in PROVIDERS:
+                session = types.SimpleNamespace(get_providers=lambda: ["CPUExecutionProvider"])
+                setattr(self, part, types.SimpleNamespace(session=types.SimpleNamespace(session=session)))
+        def __call__(self, raster):
+            assert isinstance(raster, Image.Image)
+            assert raster.mode == "RGB"
+            observed.append((raster.getpixel((0, 0)), raster.getpixel((1, 0))))
+            return types.SimpleNamespace(txts=["red blue"], scores=[0.9], boxes=types.SimpleNamespace(
+                tolist=lambda: [[[1, 1], [150, 1], [150, 20], [1, 20]]]))
+    monkeypatch.setitem(worker_module["recognize_png"].__globals__, "verify_runtime", lambda: tmp_path)
+    monkeypatch.setitem(sys.modules, "rapidocr", types.SimpleNamespace(RapidOCR=Engine))
+    monkeypatch.setitem(sys.modules, "rapidocr.utils.download_file", types.SimpleNamespace(
+        DownloadFile=type("Downloader", (), {})))
+    output = worker_module["recognize_png"](source, hashlib.sha256(source.read_bytes()).hexdigest(), (200, 100))
+    assert observed == [((255, 0, 0), (0, 0, 255))]
+    assert output["lines"][0]["text"] == "red blue"
 
 
 @pytest.mark.parametrize("event", ["socket.connect", "socket.getaddrinfo", "socket.bind",

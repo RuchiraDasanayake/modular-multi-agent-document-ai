@@ -200,6 +200,7 @@ def recognize_image(image: Any, *, config: RapidOcrConfig | None = None) -> Rapi
                     "result_sha256": sha256_file(result_json), "image_size_px": list(size),
                     "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
                     "coordinate_space": "input_raster_pixels", "offset_unit": "unicode_code_points",
+                    "engine_input_color": "RGB_PIL_converted_to_BGR_by_RapidOCR",
                     "reading_order": "engine_output", "line_score_threshold": LINE_SCORE_THRESHOLD,
                     "model_sha256": MODEL_SHA256.copy(),
                     "providers": {part: list(selected) for part, selected in PROVIDERS.items()},

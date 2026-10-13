@@ -60,7 +60,6 @@ def recognize_png(input_png: Path, input_hash: str, size: tuple[int, int]) -> di
             or sha256_file(input_png) != input_hash):
         raise RapidOcrError("rapidocr_input_mismatch")
     model_root = verify_runtime()
-    import numpy as np
     from PIL import Image
     from rapidocr import RapidOCR
     from rapidocr.utils.download_file import DownloadFile
@@ -70,11 +69,6 @@ def recognize_png(input_png: Path, input_hash: str, size: tuple[int, int]) -> di
     def no_download(*_args, **_kwargs):
         raise RapidOcrError("rapidocr_offline_policy")
     DownloadFile.run = no_download
-    with Image.open(input_png) as image:
-        if image.format != "PNG" or image.mode != "RGB" or image.size != size:
-            raise RapidOcrError("rapidocr_input_mismatch")
-        image.load()
-        raster = np.asarray(image)
     engine = RapidOCR(params={
         "Global.text_score": LINE_SCORE_THRESHOLD,
         "Global.log_level": "error",
@@ -89,7 +83,13 @@ def recognize_png(input_png: Path, input_hash: str, size: tuple[int, int]) -> di
         "EngineConfig.onnxruntime.use_cann": False,
         "EngineConfig.onnxruntime.use_coreml": False,
     })
-    output = engine(raster)
+    with Image.open(input_png) as image:
+        if image.format != "PNG" or image.mode != "RGB" or image.size != size:
+            raise RapidOcrError("rapidocr_input_mismatch")
+        image.load()
+        # RapidOCR treats ndarray inputs as BGR, while Pillow images are RGB.
+        # Pass the typed image so its loader performs the correct conversion.
+        output = engine(image)
     if output.txts is None or not len(output.txts):
         raise RapidOcrError("rapidocr_no_text")
     providers = {part: getattr(engine, part).session.session.get_providers() for part in PROVIDERS}
