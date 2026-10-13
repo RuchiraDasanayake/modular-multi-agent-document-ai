@@ -1,5 +1,7 @@
 """Source-free checks for the pinned RapidTable contract."""
 
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest import TestCase
 
@@ -8,6 +10,7 @@ import numpy as np
 from product_eval.rapidtable_adbuy12_preflight import (
     validate_ocr_tuple,
     validate_result,
+    write_receipt_exclusive,
 )
 
 
@@ -38,9 +41,47 @@ class RapidTablePreflightTests(TestCase):
             logic_points=[np.array([[0, 0, 0, 0], [0, 0, 1, 1]], dtype=np.int64)],
             elapse=0.01,
         )
-        stats = validate_result(result, 20, 20, ("A", "B"))
+        expected = {(0, 0, 0, 0): "A", (0, 0, 1, 1): "B"}
+        stats = validate_result(result, 20, 20, ("A", "B"), expected)
         self.assertEqual(stats["physical_html_cells"], 2)
         self.assertEqual(stats["logic_points"], 2)
+        self.assertEqual(stats["exact_synthetic_grid_cells"], 2)
+
+    def test_synthetic_grid_rejects_swapped_cell_text(self) -> None:
+        result = self._two_cell_result("B", "A")
+        expected = {(0, 0, 0, 0): "A", (0, 0, 1, 1): "B"}
+        with self.assertRaisesRegex(ValueError, "incorrect cell text or position"):
+            validate_result(result, 20, 20, ("A", "B"), expected)
+
+    def test_synthetic_grid_rejects_substring_only_match(self) -> None:
+        result = self._two_cell_result("AB", "B")
+        expected = {(0, 0, 0, 0): "A", (0, 0, 1, 1): "B"}
+        with self.assertRaisesRegex(ValueError, "incorrect cell text or position"):
+            validate_result(result, 20, 20, ("A", "B"), expected)
+
+    def test_exclusive_receipt_refuses_duplicate_path(self) -> None:
+        with TemporaryDirectory() as directory:
+            output = Path(directory) / "receipt.json"
+            write_receipt_exclusive(output, {"status": "first"})
+            with self.assertRaises(FileExistsError):
+                write_receipt_exclusive(output, {"status": "second"})
+            self.assertIn('"first"', output.read_text(encoding="utf-8"))
+            self.assertNotIn('"second"', output.read_text(encoding="utf-8"))
+
+    @staticmethod
+    def _two_cell_result(first: str, second: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            imgs=[np.zeros((20, 20, 3), dtype=np.uint8)],
+            pred_htmls=[f"<table><tr><td>{first}</td><td>{second}</td></tr></table>"],
+            cell_bboxes=[
+                np.array(
+                    [[1, 1, 9, 1, 9, 9, 1, 9], [10, 1, 19, 1, 19, 9, 10, 9]],
+                    dtype=np.float32,
+                )
+            ],
+            logic_points=[np.array([[0, 0, 0, 0], [0, 0, 1, 1]], dtype=np.int64)],
+            elapse=0.01,
+        )
 
     def test_source_geometry_overrun_fails_closed(self) -> None:
         result = SimpleNamespace(

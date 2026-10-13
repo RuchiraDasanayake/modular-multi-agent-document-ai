@@ -88,7 +88,7 @@ def validate_ocr_tuple(value: Any) -> None:
 def verify_runtime_lock(
     lock_file: Path, wheel_dir: Path, model: Path
 ) -> dict[str, Any]:
-    """Check the exact offline wheel closure and model bytes before model loading."""
+    """Check cached wheel bytes, installed versions, model bytes and one cv2 binary."""
     if sha256_file(lock_file) != RUNTIME_LOCK_SHA256:
         raise ValueError("RapidTable wheel lock changed")
     lock = json.loads(lock_file.read_text(encoding="utf-8"))
@@ -147,6 +147,8 @@ def verify_runtime_lock(
         "wheel_count": len(wheels),
         "wheel_lock_sha256": RUNTIME_LOCK_SHA256,
         "model_sha256": MODEL_SHA256,
+        "installed_distribution_versions_verified": len(wheels),
+        "installed_distribution_contents_verified": False,
         "installed_cv2_binary_sha256": INSTALLED_CV2_SHA256,
         "onnxruntime_available_providers": ort.get_available_providers(),
         "unresolved_wheel_notices": [
@@ -156,7 +158,11 @@ def verify_runtime_lock(
 
 
 def validate_result(
-    result: Any, width: int, height: int, supplied_texts: tuple[str, ...]
+    result: Any,
+    width: int,
+    height: int,
+    supplied_texts: tuple[str, ...],
+    expected_grid: dict[tuple[int, int, int, int], str] | None = None,
 ) -> dict[str, Any]:
     """Check the vendor output contract; do not infer source evidence from it."""
     import numpy as np
@@ -207,7 +213,18 @@ def validate_result(
             raise ValueError("RapidTable cell box has zero area")
     if not any(text in " ".join(parsed.cells) for text in supplied_texts):
         raise ValueError("HTML has no supplied OCR text")
-    return {
+    if expected_grid is not None:
+        observed_grid: dict[tuple[int, int, int, int], str] = {}
+        for point, cell in zip(logic, parsed.cells, strict=True):
+            coordinate = tuple(int(number) for number in point)
+            if coordinate in observed_grid:
+                raise ValueError("synthetic logical grid has duplicate cell position")
+            observed_grid[coordinate] = cell
+        if observed_grid != expected_grid:
+            raise ValueError(
+                "synthetic logical grid has incorrect cell text or position"
+            )
+    stats = {
         "physical_html_cells": len(parsed.cells),
         "cell_boxes": len(boxes),
         "logic_points": len(logic),
@@ -217,6 +234,16 @@ def validate_result(
         ],
         "elapsed_seconds_per_image": float(result.elapse),
     }
+    if expected_grid is not None:
+        stats["exact_synthetic_grid_cells"] = len(expected_grid)
+    return stats
+
+
+def write_receipt_exclusive(output: Path, receipt: dict[str, Any]) -> None:
+    """Prevent a competing run from replacing an existing receipt."""
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("x", encoding="utf-8") as stream:
+        stream.write(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
 
 
 def make_synthetic_table() -> tuple[
@@ -294,24 +321,24 @@ def preflight(
                 use_ocr=True,
             )
         )
-        result = engine(image, ocr_results=[ocr_tuple])
-        contract = validate_result(result, image.shape[1], image.shape[0], ocr_tuple[1])
-        expected_logic = [[row, row, col, col] for row in range(2) for col in range(3)]
-        if (
-            contract["physical_html_cells"] != 6
-            or contract["nonempty_cells"] != 6
-            or contract["supplied_texts_present"] != list(ocr_tuple[1])
-            or result.logic_points[0].tolist() != expected_logic
-        ):
+        providers = engine.table_structure.session.session.get_providers()
+        if providers != ["CPUExecutionProvider"]:
             raise ValueError(
-                "synthetic table text or 2x3 logical grid differs from fixture"
+                f"unexpected RapidTable model session providers: {providers}"
             )
+        result = engine(image, ocr_results=[ocr_tuple])
+        expected_grid = {
+            (row, row, col, col): ocr_tuple[1][row * 3 + col]
+            for row in range(2)
+            for col in range(3)
+        }
+        contract = validate_result(
+            result, image.shape[1], image.shape[0], ocr_tuple[1], expected_grid
+        )
+        receipt["synthetic_model_session_providers"] = providers
         receipt["synthetic_contract"] = contract
         receipt["status"] = "synthetic_contract_pass"
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(
-        json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    write_receipt_exclusive(output, receipt)
     return receipt
 
 
