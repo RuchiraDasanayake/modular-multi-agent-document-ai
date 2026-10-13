@@ -46,3 +46,20 @@ test("failed later batch reports only unconfirmed files without replaying succes
   assert.deepEqual(calls.map((batch) => batch.length), [8, 2]);
   assert.deepEqual(progress, [8]);
 });
+
+test("client retry reuses the failed batch key after a lost response", async () => {
+  const files = [file("invoice.txt")];
+  let originalKey = "";
+  let retryKey = "";
+  const failure = await uploadInBatches(files, async (_batch, key) => {
+    originalKey = key;
+    throw new Error("Response lost after commit");
+  }).catch((error: unknown) => error);
+  assert.ok(failure instanceof UploadBatchError);
+  assert.equal(failure.retryKey, originalKey);
+  await uploadInBatches(failure.remaining, async (_batch, key) => {
+    retryKey = key;
+    return { ok: true };
+  }, undefined, failure.retryKey);
+  assert.equal(retryKey, originalKey);
+});

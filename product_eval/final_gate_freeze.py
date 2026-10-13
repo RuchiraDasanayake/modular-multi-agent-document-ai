@@ -98,10 +98,10 @@ def require_interfaces(profile: dict | None = None) -> None:
         raise ValueError("Required bounded long-document profile is not implemented")
     if PROFILE != DEFAULT_PROFILE["response_format_profile"] or "response_format" not in inspect.signature(OpenAICompatibleChat.complete_json).parameters:
         raise ValueError("Required strict response interface is not implemented")
-    if profile and profile["visual_document_profile"] == "bounded_visual_v1":
-        from idpo.product_auto.visual_workflow import PROFILE as VISUAL_PROFILE
+    if profile and profile["visual_document_profile"] != "disabled":
+        from idpo.product_auto.visual_workflow import PROFILES as VISUAL_PROFILES
         from idpo.product_auto.visual_input import MAX_IMAGES, MAX_REQUESTS, MAX_REQUEST_BYTES, MAX_EDGE
-        if (VISUAL_PROFILE != profile["visual_document_profile"] or
+        if (profile["visual_document_profile"] not in VISUAL_PROFILES or
                 "visual_document_profile" not in inspect.signature(process_auto).parameters or
                 not callable(getattr(OpenAICompatibleChat, "complete_visual_json", None)) or
                 "request" not in inspect.signature(OpenAICompatibleChat.complete_visual_json).parameters or
@@ -116,7 +116,7 @@ def validate_profile(raw: dict) -> dict:
                 "base_url", "model", "max_calls_per_source", "batch_size"):
         if raw[key] != DEFAULT_PROFILE[key] or type(raw[key]) is not type(DEFAULT_PROFILE[key]):
             raise ValueError(f"Unsupported profile field: {key}")
-    if not isinstance(raw["visual_document_profile"], str) or raw["visual_document_profile"] not in {"disabled", "bounded_visual_v1"}:
+    if not isinstance(raw["visual_document_profile"], str) or raw["visual_document_profile"] not in {"disabled", "bounded_visual_v1", "bounded_visual_selective_v2"}:
         raise ValueError("Unsupported profile field: visual_document_profile")
     for key, low, high in (("max_tokens", 256, 8192), ("timeout_s", 1, 180),
                            ("max_calls", TARGET_SOURCES, 2500), ("workers", 1, 4)):

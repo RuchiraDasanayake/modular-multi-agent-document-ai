@@ -18,6 +18,7 @@ import type {
   ProductAutoCorrectedResult,
   ProductAutoDocumentDetail,
   ProductAutoEvidence,
+  ProductAutoHumanSourcePage,
   ProductAutoLinkedCell,
   ProductAutoLinkedCorrectionRow,
   ProductAutoParsedDocument,
@@ -373,6 +374,14 @@ function hasEvidenceShape(value: unknown): value is ProductAutoEvidence {
     typeof evidence.quote === "string" && evidence.quote.length > 0;
 }
 
+function hasHumanSourcePageShape(value: unknown): value is ProductAutoHumanSourcePage {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const source = value as Record<string, unknown>;
+  return Object.keys(source).sort().join(",") === "kind,page" &&
+    source.kind === "human_observed_page" && typeof source.page === "number" &&
+    Number.isSafeInteger(source.page) && source.page > 0;
+}
+
 function assertSourceEvidence(value: unknown, pages: unknown): asserts value is ProductAutoEvidence {
   if (!hasEvidenceShape(value)) throw new Error("Invalid candidate evidence.");
   const page = Array.isArray(pages) ? pages.find((item) => item && typeof item === "object" && item.page === value.page) : null;
@@ -665,11 +674,42 @@ function readReview(jobId: string, runId: string, docId: string): ProductAutoRev
   return readAuditTrail(jobId, runId, docId).at(-1)?.review_snapshot ?? null;
 }
 
+function assertStoredObservedPages(
+  review: ProductAutoReview, sourcePages: Array<{ page: number; text: string }>,
+  visualRoute: ProductAutoDocumentDetail["visualRoute"],
+): void {
+  const actualPages = new Set(sourcePages.map((page) => page.page));
+  const assertSource = (record: Record<string, unknown>) => {
+    if (!("human_source_page" in record)) return;
+    const observed = record.human_source_page;
+    if ("evidence" in record || visualRoute !== "visual" || !sealedVisualReview(review) ||
+      !hasHumanSourcePageShape(observed) || !actualPages.has(observed.page)) {
+      throw new AccessError("The saved reviewer page reference is not bound to this visual source.", 409);
+    }
+  };
+  if (!review.added_fields) return;
+  if (!Array.isArray(review.added_fields)) throw new AccessError("Invalid saved added fields.", 409);
+  for (const added of review.added_fields) {
+    if (!added || typeof added !== "object") throw new AccessError("Invalid saved added field.", 409);
+    if (added.type === "array[object]") {
+      if (!Array.isArray(added.value)) throw new AccessError("Invalid saved linked cells.", 409);
+      for (const cell of added.value) {
+        if (!cell || typeof cell !== "object") throw new AccessError("Invalid saved linked cell.", 409);
+        assertSource(cell as unknown as Record<string, unknown>);
+      }
+    } else {
+      assertSource(added as unknown as Record<string, unknown>);
+    }
+  }
+}
+
 function effectiveReviewStatus(review: ProductAutoReview | null): "unreviewed" | "pending" | "completed" {
   if (!review) return "unreviewed";
   return review.added_fields?.some((field) => field.type === "array[object]"
-    ? !field.value.length || field.value.some((cell) => !hasEvidenceShape(cell.evidence))
-    : !hasEvidenceShape(field.evidence)) ? "pending" : review.status;
+    ? !field.value.length || field.value.some((cell) => !hasEvidenceShape(cell.evidence) &&
+      !(hasHumanSourcePageShape(cell.human_source_page) && sealedVisualReview(review)))
+    : !hasEvidenceShape(field.evidence) &&
+      !(hasHumanSourcePageShape(field.human_source_page) && sealedVisualReview(review))) ? "pending" : review.status;
 }
 
 function recordedReviewStatus(record: RunRecord, document: RunRecord["documents"][number]):
@@ -1222,7 +1262,7 @@ function verifiedDispatch(request: ProductDispatch): { record: RunRecord; prepar
   }
   if ((prepared.extractionProfile?.responseFormat === "strict_confirmed_values_v1" ||
       prepared.extractionProfile?.longDocument === "bounded_text_segments_v1" ||
-      prepared.extractionProfile?.visualDocument === "bounded_visual_v1") &&
+      (prepared.extractionProfile?.visualDocument !== undefined && prepared.extractionProfile.visualDocument !== "disabled")) &&
       (!record.confirmedBrief || !prepared.model)) throw new Error("Selected extraction profile requires a confirmed schema and model.");
   return { record, prepared };
 }
@@ -1373,6 +1413,7 @@ function loadProductAutoDocument(jobId: string, runId: string, docId: string, se
   }
   const parsedDocument = readParsedDocument(result);
   const auditTrail = readAuditTrail(jobId, runId, docId);
+  for (const event of auditTrail) assertStoredObservedPages(event.review_snapshot, sourcePages, visualRoute);
   const review = auditTrail.at(-1)?.review_snapshot ?? null;
   const receipts = auditTrail.flatMap((event) => [event, event.review_snapshot]);
   if (review && (!document.machineResultSha256 ||
@@ -1401,7 +1442,7 @@ function loadProductAutoDocument(jobId: string, runId: string, docId: string, se
       runId, fileId: document.fileId, fileName: document.fileName,
       candidate, sourcePages, ...(visualRoute ? { visualRoute } : {}),
       ...(parsedDocument ? { parsedDocument } : {}), review, auditTrail,
-      correctedResult: deriveProductAutoCorrectedResult(candidate, review),
+      correctedResult: deriveProductAutoCorrectedResult(candidate, review, visualRoute),
     },
   };
 }
@@ -1535,6 +1576,7 @@ export function getProductAutoReviewedBatchExport(jobId: string, runId: string):
 
 export function deriveProductAutoCorrectedResult(
   candidate: ProductAutoCandidate, review: ProductAutoReview | null,
+  visualRoute?: ProductAutoDocumentDetail["visualRoute"],
 ): ProductAutoCorrectedResult {
   const machineValues = new Map(candidate.extracted_values.map((item) => [item.field_id, item]));
   const decisions = new Map(review?.fields.map((item) => [item.field_id, item]) ?? []);
@@ -1577,19 +1619,29 @@ export function deriveProductAutoCorrectedResult(
     }
   }
   let unsafeAddedReview = false;
+  const visualAdditionApproved = visualRoute === "visual" && review?.status === "completed" && sealedVisualReview(review);
   for (const added of [...(review?.added_fields ?? [])].sort((left, right) => left.field_id.localeCompare(right.field_id))) {
     if (added.type === "array[object]") {
-      const grounded = added.value.length > 0 && added.value.every((cell) => hasEvidenceShape(cell.evidence));
+      const grounded = added.value.length > 0 && added.value.every((cell) => hasEvidenceShape(cell.evidence) ||
+        visualAdditionApproved && hasHumanSourcePageShape(cell.human_source_page));
       if (!grounded) unsafeAddedReview = true;
-      fields.push({ field_id: added.field_id, type: added.type, group: added.group, value: added.value,
-        status: grounded ? "accepted" : "needs_review", provenance: "human_added" });
+      const value = added.value.map((cell) => ({ ...cell,
+        status: hasEvidenceShape(cell.evidence) || visualAdditionApproved &&
+          hasHumanSourcePageShape(cell.human_source_page) ? "accepted" as const : "needs_review" as const }));
+      fields.push({ field_id: added.field_id, type: added.type, group: added.group, value,
+        status: grounded ? "accepted" : "needs_review", provenance: "human_added",
+        ...(added.value.some((cell) => hasHumanSourcePageShape(cell.human_source_page))
+          ? { visual_grounding_verified: false as const } : {}) });
       continue;
     }
-    const grounded = hasEvidenceShape(added.evidence);
+    const grounded = hasEvidenceShape(added.evidence) ||
+      visualAdditionApproved && hasHumanSourcePageShape(added.human_source_page);
     if (!grounded) unsafeAddedReview = true;
     fields.push({ field_id: added.field_id, type: added.type, value: added.value,
       status: grounded ? "accepted" : "needs_review", provenance: "human_added",
-      ...(grounded ? { evidence: added.evidence } : {}) });
+      ...(hasEvidenceShape(added.evidence) ? { evidence: added.evidence } : {}),
+      ...(hasHumanSourcePageShape(added.human_source_page)
+        ? { human_source_page: added.human_source_page, visual_grounding_verified: false as const } : {}) });
   }
   return { scope: "document", doc_id: candidate.doc_id, review_revision: review?.revision ?? 0,
     review_status: unsafeLinkedReview || unsafeAddedReview ? "pending" : review?.status ?? "unreviewed", fields, removed_field_ids };
@@ -1694,8 +1746,27 @@ function resolveAddedEvidence(
   return evidence;
 }
 
+function resolveAddedSource(
+  input: Record<string, unknown>, value: string, sourcePages: Array<{ page: number; text: string }>,
+  visualRoute: ProductAutoDocumentDetail["visualRoute"], linkedCell = false,
+): { evidence: ProductAutoEvidence } | { human_source_page: ProductAutoHumanSourcePage } {
+  if (("evidence" in input) === ("human_source_page" in input)) {
+    throw new AccessError("Choose exactly one source quote or reviewer-observed page.", 400);
+  }
+  if ("evidence" in input) {
+    return { evidence: resolveAddedEvidence(input.evidence, value, sourcePages, linkedCell) };
+  }
+  const observedPage = input.human_source_page;
+  if (visualRoute !== "visual" || !hasHumanSourcePageShape(observedPage) ||
+    !sourcePages.some((page) => page.page === observedPage.page)) {
+    throw new AccessError("A reviewer-observed page requires a visual extraction and an actual source page.", 400);
+  }
+  return { human_source_page: observedPage };
+}
+
 function parseAddedLinkedCells(
   value: unknown, sourcePages: Array<{ page: number; text: string }>,
+  visualRoute: ProductAutoDocumentDetail["visualRoute"],
 ): ProductAutoAddedLinkedCell[] {
   if (!Array.isArray(value) || value.length < 1 || value.length > MAX_LINKED_ROWS) {
     throw new AccessError("An added linked column needs 1 to 128 cells.", 400);
@@ -1705,23 +1776,28 @@ function parseAddedLinkedCells(
   return value.map((raw): ProductAutoAddedLinkedCell => {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new AccessError("Invalid added linked cell.", 400);
     const cell = raw as Record<string, unknown>;
-    if (Object.keys(cell).sort().join(",") !== "evidence,row,value" ||
+    if (Object.keys(cell).some((key) => !["evidence", "human_source_page", "row", "value"].includes(key)) ||
       !Number.isSafeInteger(cell.row) || typeof cell.row !== "number" || cell.row < 0 ||
       cell.row >= MAX_LINKED_ROWS || rows.has(cell.row) ||
       typeof cell.value !== "string" || !cell.value.trim() || [...cell.value].length > 500) {
       throw new AccessError("Invalid or repeated linked row or cell value.", 400);
     }
     rows.add(cell.row);
-    const evidence = resolveAddedEvidence(cell.evidence, cell.value.trim(), sourcePages, true);
-    const span = `${evidence.page}:${evidence.start}:${evidence.end}`;
-    if (spans.has(span)) throw new AccessError("One source quote cannot support two rows in the same column.", 400);
-    spans.add(span);
-    return { row: cell.row, value: cell.value.trim(), status: "accepted", evidence };
+    const source = resolveAddedSource(cell, cell.value.trim(), sourcePages, visualRoute, true);
+    if ("evidence" in source) {
+      const span = `${source.evidence.page}:${source.evidence.start}:${source.evidence.end}`;
+      if (spans.has(span)) throw new AccessError("One source quote cannot support two rows in the same column.", 400);
+      spans.add(span);
+    }
+    return { row: cell.row, value: cell.value.trim(),
+      status: "evidence" in source ? "accepted" : "needs_review", ...source,
+      ...("human_source_page" in source ? { visual_grounding_verified: false as const } : {}) };
   }).sort((left, right) => left.row - right.row);
 }
 
 function parseAddedFields(
   values: unknown, proposedIds: Set<string>, sourcePages: Array<{ page: number; text: string }>,
+  visualRoute: ProductAutoDocumentDetail["visualRoute"],
 ): ProductAutoAddedField[] {
   if (!Array.isArray(values)) throw new AccessError("Added fields must be a list.", 400);
   if (values.length > MAX_ADDED_FIELDS) throw new AccessError("Too many added fields.", 400);
@@ -1745,12 +1821,13 @@ function parseAddedFields(
         throw new AccessError("Added linked columns need a valid group and column identity.", 400);
       }
       return { field_id: fieldId, type, group: item.group,
-        value: parseAddedLinkedCells(item.value, sourcePages), note };
+        value: parseAddedLinkedCells(item.value, sourcePages, visualRoute), note };
     }
-    if (typeof item.value !== "string") throw new AccessError("Invalid added field value.", 400);
+    if (Object.keys(item).some((key) => !["field_id", "type", "value", "evidence", "human_source_page", "note"].includes(key)) ||
+      typeof item.value !== "string") throw new AccessError("Invalid added field value.", 400);
     const parsedValue = parseCorrectedValue(item.value, type as string);
-    const evidence = resolveAddedEvidence(item.evidence, item.value.trim(), sourcePages);
-    return { field_id: fieldId, type: type as ProductAutoScalarType, value: parsedValue, evidence, note };
+    const source = resolveAddedSource(item, item.value.trim(), sourcePages, visualRoute);
+    return { field_id: fieldId, type: type as ProductAutoScalarType, value: parsedValue, ...source, note };
   });
 }
 
@@ -1838,7 +1915,7 @@ function saveProductAutoReviewWithRevision(
       corrected_value: storedCorrection, note });
     seen.add(fieldId);
   }
-  const parsedAdded = parseAddedFields(addedFields, allowed, detail.sourcePages);
+  const parsedAdded = parseAddedFields(addedFields, allowed, detail.sourcePages, detail.visualRoute);
   const sourceHash = verifiedReviewSourceHash(jobId, runId, detail.fileId);
   const sourcePagesHash = createHash("sha256").update(JSON.stringify(detail.sourcePages)).digest("hex");
   const removedCount = parsed.filter((field) => field.decision === "not_present" || field.decision === "remove").length;

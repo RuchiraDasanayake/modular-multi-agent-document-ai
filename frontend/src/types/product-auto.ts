@@ -11,6 +11,12 @@ export interface ProductAutoEvidence {
   kind?: "text_match";
 }
 
+// A reviewer-observed page is a location in the original image, not OCR or pixel evidence.
+export interface ProductAutoHumanSourcePage {
+  kind: "human_observed_page";
+  page: number;
+}
+
 export interface ProductAutoParsedDocument {
   contract_version: 2;
   source_sha256: string;
@@ -82,6 +88,7 @@ export interface ProductAutoAddedScalarField {
   value: string | number | boolean;
   // Optional only for audit events saved before source-backed additions.
   evidence?: ProductAutoEvidence;
+  human_source_page?: ProductAutoHumanSourcePage;
   note?: string | null;
 }
 
@@ -89,15 +96,18 @@ export interface ProductAutoAddedScalarFieldInput {
   field_id: string;
   type: ProductAutoScalarType;
   value: string;
-  evidence: Pick<ProductAutoEvidence, "page" | "quote">;
+  evidence?: Pick<ProductAutoEvidence, "page" | "quote">;
+  human_source_page?: ProductAutoHumanSourcePage;
   note?: string | null;
 }
 
 export interface ProductAutoAddedLinkedCell {
   row: number;
   value: string;
-  status: "accepted";
-  evidence: ProductAutoEvidence;
+  status: "accepted" | "needs_review";
+  evidence?: ProductAutoEvidence;
+  human_source_page?: ProductAutoHumanSourcePage;
+  visual_grounding_verified?: false;
 }
 
 export interface ProductAutoAddedLinkedField {
@@ -112,7 +122,8 @@ export interface ProductAutoAddedLinkedFieldInput {
   field_id: string;
   type: "array[object]";
   group: string;
-  value: Array<{ row: number; value: string; evidence: Pick<ProductAutoEvidence, "page" | "quote"> }>;
+  value: Array<{ row: number; value: string; evidence?: Pick<ProductAutoEvidence, "page" | "quote">;
+    human_source_page?: ProductAutoHumanSourcePage }>;
   note?: string | null;
 }
 
@@ -169,6 +180,7 @@ export interface ProductAutoCorrectedField {
   status: "accepted" | "needs_review" | "missing";
   provenance: "machine" | "human_verified" | "human_correction" | "human_added";
   evidence?: ProductAutoValue["evidence"];
+  human_source_page?: ProductAutoHumanSourcePage;
   visual_pages?: number[];
   visual_grounding_verified?: false;
 }

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { IdpoCard } from "@/components/idpo/card";
 import { idpoApi } from "@/lib/idpo-api";
-import { isVisualProposal, machineProposalLabel, visualLinkedCellsReviewable } from "./product-auto-visual-review";
+import { isVisualProposal, machineProposalLabel, pdfSourcePageUrl, visualLinkedCellsReviewable } from "./product-auto-visual-review";
 import type { ProductAutoAddedFieldInput, ProductAutoAddedLinkedFieldInput, ProductAutoAddedScalarFieldInput, ProductAutoDocumentDetail, ProductAutoEvidence, ProductAutoLinkedCell, ProductAutoLinkedCorrectionRow, ProductAutoReviewDecision, ProductAutoReviewField, ProductAutoScalarType } from "@/types/product-auto";
 
 type Draft = Record<string, { decision: ProductAutoReviewDecision | ""; corrected_value: string; note: string }>;
@@ -70,10 +70,13 @@ function addedDrafts(detail: ProductAutoDocumentDetail): AddedDraft[] {
   return (detail.review?.added_fields ?? []).map((field): AddedDraft => field.type === "array[object]"
     ? { field_id: field.field_id, type: field.type, group: field.group, note: field.note,
       value: field.value.map((cell) => ({ row: cell.row, value: cell.value,
-        evidence: { page: cell.evidence.page, quote: cell.evidence.quote } })), clientId: field.field_id }
+        ...(cell.human_source_page ? { human_source_page: cell.human_source_page } :
+          { evidence: { page: cell.evidence?.page ?? detail.sourcePages[0]?.page ?? 1,
+            quote: cell.evidence?.quote ?? "" } }) })), clientId: field.field_id }
     : { field_id: field.field_id, type: field.type, value: String(field.value), note: field.note,
-      evidence: { page: field.evidence?.page ?? detail.sourcePages[0]?.page ?? 1,
-        quote: field.evidence?.quote ?? "" }, clientId: field.field_id });
+      ...(field.human_source_page ? { human_source_page: field.human_source_page } :
+        { evidence: { page: field.evidence?.page ?? detail.sourcePages[0]?.page ?? 1,
+          quote: field.evidence?.quote ?? "" } }), clientId: field.field_id });
 }
 
 export function ProductAutoDocumentPage() {
@@ -90,12 +93,14 @@ export function ProductAutoDocumentPage() {
   const [reportedActiveMinutes, setReportedActiveMinutes] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [sourcePage, setSourcePage] = useState<number | null>(null);
 
   useEffect(() => {
     let current = true;
     void idpoApi.getProductAutoDocument(jobId, runId, docId).then((data) => {
       if (!current) return;
       setDetail(data);
+      setSourcePage(null);
       const reviews = new Map(data.review?.fields.map((field) => [field.field_id, field]) ?? []);
       setDraft(Object.fromEntries(data.candidate.proposed_schema.map((field) => {
         const review = reviews.get(field.field_id);
@@ -143,7 +148,9 @@ export function ProductAutoDocumentPage() {
       const used = new Set(field.value.map((cell) => cell.row));
       const row = Array.from({ length: 128 }, (_, index) => index).find((index) => !used.has(index));
       return row === undefined ? field : { ...field, value: [...field.value, { row, value: "",
-        evidence: { page: detail?.sourcePages[0]?.page ?? 1, quote: "" } }] };
+        ...(detail?.visualRoute === "visual"
+          ? { human_source_page: { kind: "human_observed_page" as const, page: detail.sourcePages[0]?.page ?? 1 } }
+          : { evidence: { page: detail?.sourcePages[0]?.page ?? 1, quote: "" } }) }] };
     }));
     setMessage("");
   }
@@ -192,7 +199,8 @@ export function ProductAutoDocumentPage() {
     try {
       const addedFields: ProductAutoAddedFieldInput[] = addedDraft.map((field) => field.type === "array[object]"
         ? { field_id: field.field_id, type: field.type, group: field.group, value: field.value, note: field.note }
-        : { field_id: field.field_id, type: field.type, value: field.value, evidence: field.evidence,
+        : { field_id: field.field_id, type: field.type, value: field.value,
+          ...(field.human_source_page ? { human_source_page: field.human_source_page } : { evidence: field.evidence }),
           note: field.note });
       const result = await idpoApi.saveProductAutoReview(jobId, runId, docId, detail.review?.revision ?? 0,
         fields, addedFields, reportedActiveMinutes);
@@ -220,6 +228,15 @@ export function ProductAutoDocumentPage() {
   const exportUrl = `/api/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(runId)}/docs/${encodeURIComponent(docId)}/export`;
   const previewable = /\.(pdf|png|jpe?g|txt|json)$/i.test(detail.fileName);
   const nativeFormat = /\.(docx|xlsx|pptx|html|eml)$/i.test(detail.fileName);
+  const selectedPageUrl = sourcePage === null ? null :
+    pdfSourcePageUrl(originalUrl, detail.fileName, sourcePage, detail.sourcePages);
+
+  function showSourcePage(page: number) {
+    if (!detail) return;
+    const target = pdfSourcePageUrl(originalUrl, detail.fileName, page, detail.sourcePages);
+    if (target) setSourcePage(page);
+    document.getElementById("original-source")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
@@ -241,10 +258,11 @@ export function ProductAutoDocumentPage() {
       <IdpoCard className="lg:sticky lg:top-6">
         <h2 id="original-source" className="text-lg font-semibold text-slate-900 dark:text-white">Original document</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Compare each proposed value and quote against the uploaded source.</p>
+        {selectedPageUrl ? <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">Showing PDF page {sourcePage}. <a className="text-cyan-700 underline dark:text-cyan-300" href={selectedPageUrl} target="_blank" rel="noopener noreferrer">Open this page in a new tab</a></p> : null}
         {previewable ? (
           <iframe
             title={`Original document: ${detail.fileName}`}
-            src={originalUrl}
+            src={selectedPageUrl ?? originalUrl}
             sandbox="allow-downloads"
             loading="lazy"
             referrerPolicy="no-referrer"
@@ -314,7 +332,7 @@ export function ProductAutoDocumentPage() {
                             ? <><span className="font-medium">{detail.parsedDocument?.units[cell.evidence.page - 1]?.label ?? `Page ${cell.evidence.page}`}:</span> <q>{cell.evidence.quote}</q>
                               {cell.evidence.kind === "text_match" ? <span className="mt-1 block text-amber-700 dark:text-amber-300">OCR text match; image position and meaning require review.</span> : null}
                               {nativeContext(detail, cell.evidence) ? <code className="mt-1 block break-all text-[11px]">{nativeContext(detail, cell.evidence)}</code> : null}</>
-                            : cell.visual_page ? <><a href="#original-source" className="font-medium text-cyan-700 underline dark:text-cyan-300">Page {cell.visual_page} · inspect original</a>
+                            : cell.visual_page ? <><button type="button" onClick={() => showSourcePage(cell.visual_page!)} className="font-medium text-cyan-700 underline dark:text-cyan-300">Page {cell.visual_page} · inspect original</button>
                               <span className="mt-1 block text-amber-700 dark:text-amber-300">No verified pixel location or OCR span</span></>
                               : <span className="text-amber-700 dark:text-amber-300">No verified source span</span>}</td>
                         </tr>)}</tbody>
@@ -323,7 +341,7 @@ export function ProductAutoDocumentPage() {
                     </div>
                   ) : <p className="mt-3 break-words text-sm text-slate-800 dark:text-slate-200">{displayValue(value?.value)}</p>}
                   {!linked && visualProposal && value?.visual_pages ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-                    Image-derived — review required. Check {value.visual_pages.map((page) => `page ${page}`).join(", ")} in the <a href="#original-source" className="underline">original document</a>; no pixel location is verified.
+                    Image-derived — review required. Check {value.visual_pages.map((page, index) => <span key={page}>{index > 0 ? ", " : ""}<button type="button" onClick={() => showSourcePage(page)} className="underline">page {page}</button></span>)} in the original document; no pixel location is verified.
                   </p> : null}
                   {reviewed ? (
                     <p className="mt-2 break-words text-xs font-medium text-violet-700 dark:text-violet-300">
@@ -393,11 +411,15 @@ export function ProductAutoDocumentPage() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className="font-semibold text-slate-900 dark:text-white">Missed scalar fields</h3>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Each value needs a page and an exact quote from the OCR text. The typed value must appear in that quote.</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{detail.visualRoute === "visual"
+                ? "Inspect the original image, then record the page where you observed each added value. This is a human observation, not verified OCR or pixel evidence."
+                : "Each value needs a page and an exact quote from the OCR text. The typed value must appear in that quote."}</p>
             </div>
             <button type="button" disabled={atFieldLimit || detail.sourcePages.length === 0}
               onClick={() => setAddedDraft((current) => [...current, { clientId: crypto.randomUUID(), field_id: "", type: "string", value: "",
-                evidence: { page: detail.sourcePages[0]?.page ?? 1, quote: "" }, note: "" }])}
+                ...(detail.visualRoute === "visual"
+                  ? { human_source_page: { kind: "human_observed_page" as const, page: detail.sourcePages[0]?.page ?? 1 } }
+                  : { evidence: { page: detail.sourcePages[0]?.page ?? 1, quote: "" } }), note: "" }])}
               className="rounded-lg border border-cyan-600 px-3 py-2 text-sm font-medium text-cyan-700 hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-cyan-300 dark:hover:bg-cyan-900/20">Add field</button>
           </div>
           <div className="mt-3 space-y-3">
@@ -427,20 +449,30 @@ export function ProductAutoDocumentPage() {
                       className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950" />
                   )}
                 </label>
-                <div className="mt-3 grid gap-3 sm:grid-cols-[110px,minmax(0,1fr)]">
+                {field.human_source_page ? <div className="mt-3 flex flex-wrap items-end gap-3">
+                  <label className="text-sm text-slate-700 dark:text-slate-200">Observed in original image · page
+                    <select value={field.human_source_page.page} onChange={(event) => updateAdded(field.clientId,
+                      { human_source_page: { kind: "human_observed_page", page: Number(event.target.value) } })}
+                      className="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950">
+                      {detail.sourcePages.map((page) => <option key={page.page} value={page.page}>{page.page}</option>)}
+                    </select>
+                  </label>
+                  <button type="button" onClick={() => showSourcePage(field.human_source_page!.page)}
+                    className="text-sm text-cyan-700 underline dark:text-cyan-300">View source page</button>
+                </div> : <div className="mt-3 grid gap-3 sm:grid-cols-[110px,minmax(0,1fr)]">
                   <label className="text-sm text-slate-700 dark:text-slate-200">OCR page
-                    <select value={field.evidence.page} onChange={(event) => updateAdded(field.clientId,
-                      { evidence: { ...field.evidence, page: Number(event.target.value) } })}
+                    <select value={field.evidence?.page ?? detail.sourcePages[0]?.page ?? 1} onChange={(event) => updateAdded(field.clientId,
+                      { evidence: { page: Number(event.target.value), quote: field.evidence?.quote ?? "" } })}
                       className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950">
                       {detail.sourcePages.map((page) => <option key={page.page} value={page.page}>{page.page}</option>)}
                     </select>
                   </label>
                   <label className="text-sm text-slate-700 dark:text-slate-200">Exact OCR quote
-                    <textarea value={field.evidence.quote} onChange={(event) => updateAdded(field.clientId,
-                      { evidence: { ...field.evidence, quote: event.target.value } })} rows={2} maxLength={500}
+                    <textarea value={field.evidence?.quote ?? ""} onChange={(event) => updateAdded(field.clientId,
+                      { evidence: { page: field.evidence?.page ?? detail.sourcePages[0]?.page ?? 1, quote: event.target.value } })} rows={2} maxLength={500}
                       className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950" />
                   </label>
-                </div>
+                </div>}
                 <label className="mt-3 block text-sm text-slate-700 dark:text-slate-200">Review note
                   <textarea value={field.note ?? ""} onChange={(event) => updateAdded(field.clientId, { note: event.target.value })} rows={2} maxLength={2000}
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950" />
@@ -455,12 +487,16 @@ export function ProductAutoDocumentPage() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className="font-semibold text-slate-900 dark:text-white">Missed linked columns</h3>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Give related columns the same group and row numbers. Every cell needs a page and a unique exact OCR quote containing its value. A recipe needs at least two columns aligned on each row.</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{detail.visualRoute === "visual"
+                ? "Give related columns the same group and row numbers. Inspect each cell in the original image and record its page; these are reviewer observations, not machine-verified evidence. Image-derived results cannot seed a reusable recipe."
+                : "Give related columns the same group and row numbers. Every cell needs a page and a unique exact OCR quote containing its value. A recipe needs at least two columns aligned on each row."}</p>
             </div>
             <button type="button" disabled={atFieldLimit || detail.sourcePages.length === 0}
               onClick={() => setAddedDraft((current) => [...current, { clientId: crypto.randomUUID(), field_id: "",
                 type: "array[object]", group: "line_items", value: [{ row: 0, value: "",
-                  evidence: { page: detail.sourcePages[0]?.page ?? 1, quote: "" } }], note: "" }])}
+                  ...(detail.visualRoute === "visual"
+                    ? { human_source_page: { kind: "human_observed_page" as const, page: detail.sourcePages[0]?.page ?? 1 } }
+                    : { evidence: { page: detail.sourcePages[0]?.page ?? 1, quote: "" } }) }], note: "" }])}
               className="rounded-lg border border-cyan-600 px-3 py-2 text-sm font-medium text-cyan-700 hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-cyan-300 dark:hover:bg-cyan-900/20">Add linked column</button>
           </div>
           <div className="mt-3 space-y-3">
@@ -479,7 +515,7 @@ export function ProductAutoDocumentPage() {
                   </label>
                 </div>
                 <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[680px] text-left text-xs">
-                  <thead><tr><th className="p-2">Row</th><th className="p-2">Cell value</th><th className="p-2">OCR page</th><th className="p-2">Unique exact OCR quote</th><th className="p-2">Action</th></tr></thead>
+                  <thead><tr><th className="p-2">Row</th><th className="p-2">Cell value</th><th className="p-2">Source page</th><th className="p-2">Source reference</th><th className="p-2">Action</th></tr></thead>
                   <tbody>{field.value.map((cell, index) => <tr key={index} className="align-top">
                     <td className="p-2"><input type="number" min={1} max={128} aria-label={`${field.field_id || "New column"} row number ${index + 1}`}
                       value={cell.row < 0 ? "" : cell.row + 1}
@@ -489,18 +525,23 @@ export function ProductAutoDocumentPage() {
                     <td className="p-2"><input aria-label={`${field.field_id || "New column"} row ${index + 1} value`} value={cell.value}
                       onChange={(event) => updateAddedLinkedCell(field.clientId, index, { value: event.target.value })}
                       maxLength={500} className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 dark:border-slate-700 dark:bg-slate-950" /></td>
-                    <td className="p-2"><select value={cell.evidence.page}
-                      aria-label={`${field.field_id || "New column"} row ${index + 1} OCR page`}
-                      onChange={(event) => updateAddedLinkedCell(field.clientId, index,
-                        { evidence: { ...cell.evidence, page: Number(event.target.value) } })}
+                    <td className="p-2"><select value={cell.human_source_page?.page ?? cell.evidence?.page ?? detail.sourcePages[0]?.page ?? 1}
+                      aria-label={`${field.field_id || "New column"} row ${index + 1} ${cell.human_source_page ? "observed image" : "OCR"} page`}
+                      onChange={(event) => updateAddedLinkedCell(field.clientId, index, cell.human_source_page
+                        ? { human_source_page: { kind: "human_observed_page", page: Number(event.target.value) } }
+                        : { evidence: { page: Number(event.target.value), quote: cell.evidence?.quote ?? "" } })}
                       className="rounded-lg border border-slate-300 bg-white px-2 py-1 dark:border-slate-700 dark:bg-slate-950">
                       {detail.sourcePages.map((page) => <option key={page.page} value={page.page}>{page.page}</option>)}
                     </select></td>
-                    <td className="p-2"><textarea value={cell.evidence.quote}
-                      aria-label={`${field.field_id || "New column"} row ${index + 1} exact OCR quote`}
-                      onChange={(event) => updateAddedLinkedCell(field.clientId, index,
-                        { evidence: { ...cell.evidence, quote: event.target.value } })}
-                      rows={2} maxLength={500} className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 dark:border-slate-700 dark:bg-slate-950" /></td>
+                    <td className="p-2">{cell.human_source_page ? <button type="button"
+                      onClick={() => showSourcePage(cell.human_source_page!.page)}
+                      className="text-cyan-700 underline dark:text-cyan-300">Observed in original image · view page</button>
+                      : <textarea value={cell.evidence?.quote ?? ""}
+                        aria-label={`${field.field_id || "New column"} row ${index + 1} exact OCR quote`}
+                        onChange={(event) => updateAddedLinkedCell(field.clientId, index,
+                          { evidence: { page: cell.evidence?.page ?? detail.sourcePages[0]?.page ?? 1,
+                            quote: event.target.value } })}
+                        rows={2} maxLength={500} className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 dark:border-slate-700 dark:bg-slate-950" />}</td>
                     <td className="p-2"><button type="button" onClick={() => removeAddedLinkedCell(field.clientId, index)}
                       className="text-rose-700 hover:underline dark:text-rose-300">Remove</button></td>
                   </tr>)}</tbody>
@@ -520,7 +561,7 @@ export function ProductAutoDocumentPage() {
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <button type="button" onClick={() => void save()} disabled={saving}
             className="rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50">{saving ? "Saving…" : "Save human review"}</button>
-          <span className="text-xs text-slate-500 dark:text-slate-400">A review is complete when every proposed field has a decision and added fields have source-backed values. Linked columns need at least two aligned values per row before a reusable recipe can be approved.</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">A review is complete when every proposed field has a decision and added fields have source references. Image page references become approved only with a completed human review; image-derived results cannot seed a reusable recipe.</span>
         </div>
         <label className="mt-4 block max-w-xs text-sm text-slate-700 dark:text-slate-200">Active minutes spent on this save (optional, self-reported)
           <input type="number" min="0.1" max="240" step="0.1" inputMode="decimal"
@@ -533,7 +574,7 @@ export function ProductAutoDocumentPage() {
 
       <IdpoCard>
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Corrected structured result</h2>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Derived from the preserved machine candidate and latest saved review. Revision {detail.correctedResult.review_revision}; {detail.correctedResult.review_status}. For image-derived linked cells, nested status describes the machine proposal; field provenance records the human decision. Page hints are not verified pixel evidence.</p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Derived from the preserved machine candidate and latest saved review. Revision {detail.correctedResult.review_revision}; {detail.correctedResult.review_status}. Existing image-derived linked cells retain their machine status. Added values with a reviewer-observed page record a human decision, not OCR or pixel verification.</p>
         {detail.correctedResult.review_status === "completed" ? (
           <a href={exportUrl} className="mt-3 inline-block rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700">
             Download reviewed JSON
@@ -564,12 +605,15 @@ export function ProductAutoDocumentPage() {
                     <li key={`added-${field.field_id}`} className="break-words">
                       <span className="font-medium">{field.field_id}</span>: added linked column in {field.group}
                       <ul className="ml-4 list-disc">{field.value.map((cell) => <li key={cell.row}>
-                        Row {cell.row + 1}: {cell.value} · page {cell.evidence.page}: <q>{cell.evidence.quote}</q>
+                        Row {cell.row + 1}: {cell.value}{cell.human_source_page
+                          ? ` · reviewer observed original image page ${cell.human_source_page.page}`
+                          : cell.evidence ? <> · OCR page {cell.evidence.page}: <q>{cell.evidence.quote}</q></> : " · no source reference"}
                       </li>)}</ul>
                     </li>
                   ) : (
                     <li key={`added-${field.field_id}`} className="break-words"><span className="font-medium">{field.field_id}</span>: added {field.type} value {displayValue(field.value)}
-                      {field.evidence ? <> · page {field.evidence.page}: <q>{field.evidence.quote}</q></> : " · no source evidence"}</li>
+                      {field.human_source_page ? ` · reviewer observed original image page ${field.human_source_page.page}` :
+                        field.evidence ? <> · OCR page {field.evidence.page}: <q>{field.evidence.quote}</q></> : " · no source reference"}</li>
                   ))}
                 </ul>
               </li>

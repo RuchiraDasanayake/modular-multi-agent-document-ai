@@ -177,6 +177,7 @@ export function JobDetailPage() {
   const [busyAction, setBusyAction] = useState<"upload" | "process" | "retry" | "review" | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{ uploaded: number; total: number } | null>(null);
   const [unconfirmedFiles, setUnconfirmedFiles] = useState<File[]>([]);
+  const [unconfirmedRetryKey, setUnconfirmedRetryKey] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [pollFailed, setPollFailed] = useState(false);
   const [jobName, setJobName] = useState("");
@@ -368,12 +369,13 @@ export function JobDetailPage() {
     });
   }
 
-  async function handleUpload(files: FileList | File[] | null) {
+  async function handleUpload(files: FileList | File[] | null, retryKey?: string) {
     if (!files || files.length === 0) {
       return;
     }
     const selectedFiles = Array.from(files);
     setUnconfirmedFiles([]);
+    setUnconfirmedRetryKey(null);
     setUploadProgress({ uploaded: 0, total: selectedFiles.length });
     setSaving(true);
     setBusyAction("upload");
@@ -381,13 +383,14 @@ export function JobDetailPage() {
       const updated = await idpoApi.uploadJobDocuments(jobId, selectedFiles, (progress) => {
         acceptUploadedJob(progress.latest);
         setUploadProgress({ uploaded: progress.uploaded, total: progress.total });
-      });
+      }, retryKey);
       acceptUploadedJob(updated);
       setError("");
     } catch (err) {
       if (err instanceof UploadBatchError) {
         if (err.latest) acceptUploadedJob(err.latest as JobStatus);
         setUnconfirmedFiles(err.remaining);
+        setUnconfirmedRetryKey(err.retryKey);
         setError(`${err.uploaded} of ${err.total} files uploaded. ${err.remaining.length} not confirmed: ${err.message}`);
       } else {
         setError(err instanceof Error ? err.message : "Failed to upload documents");
@@ -913,7 +916,7 @@ export function JobDetailPage() {
                 Uploaded {uploadProgress.uploaded} of {uploadProgress.total} files.
               </p> : null}
               {unconfirmedFiles.length > 0 ? <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                Check the document list before retrying {unconfirmedFiles.length} unconfirmed file{unconfirmedFiles.length === 1 ? "" : "s"}; a lost response may hide a completed upload.
+                Retry checks the original batch receipt for {unconfirmedFiles.length} unconfirmed file{unconfirmedFiles.length === 1 ? "" : "s"}. A committed upload will be returned without adding duplicates.
               </p> : null}
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -936,8 +939,8 @@ export function JobDetailPage() {
               </button>
               {unconfirmedFiles.length > 0 ? <button
                 type="button"
-                onClick={() => void handleUpload(unconfirmedFiles)}
-                disabled={saving}
+                onClick={() => void handleUpload(unconfirmedFiles, unconfirmedRetryKey ?? undefined)}
+                disabled={saving || !unconfirmedRetryKey}
                 className={secondaryButton}
               >Retry unconfirmed ({unconfirmedFiles.length})</button> : null}
               {canonicalRunnerAvailable && queueSummary.failed > 0 ? (

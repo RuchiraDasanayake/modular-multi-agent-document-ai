@@ -50,6 +50,19 @@ the revisioned review binds the decision to the source and machine-result hashes
 marks the field `human_verified`. Nested cell status and `visual_grounding_verified` still describe the original
 machine proposal, not OCR or pixel verification. Image-derived candidates cannot seed a reusable approved recipe.
 
+On a sealed visual route, a reviewer may add missed scalar values or linked cells using exactly one source
+reference: an exact OCR quote, or `human_source_page: {kind: "human_observed_page", page: N}` for an actual page of
+the original image. Page observations remain pending until the reviewer completes the revisioned audit. Export
+preserves the page reference and `visual_grounding_verified: false` so consumers can distinguish a human observation
+from machine-grounded evidence. Text-route additions still require exact OCR quotes; visual additions remain
+ineligible to seed reusable recipes.
+
+The selective visual routing v2 profile chooses a path before any model call: short scalar OCR documents use strict
+text extraction, while repeated columns, sources over 24,000 text characters, and images or OCR PDFs without usable
+text use visual extraction. Native formats and PDFs with usable native text keep their existing paths. It does not
+automatically retry a failed paid call through the other path; older v1 dispatches retain their frozen routing.
+See [selective visual routing v2](evaluations/SELECTIVE_VISUAL_ROUTING_V2_20261013.md).
+
 The current runtime must remain understandable, stable and auditable while product stabilization proceeds. Its research
 policy outputs are retained for the frozen October internal study, which is separate from the author-reported accepted
 May submission; whether adaptive routing belongs in the future product is an open measurement decision.
@@ -97,6 +110,12 @@ it authenticates the user and checks job ownership before staging bytes. An abor
 temporary files, and a failed job metadata save removes only that request's final files. The current JSON job store
 serializes commits only within one server process; cross-process writers and per-owner storage quotas remain open
 scaling work.
+
+Browser upload batches carry a fresh idempotency key. The job JSON atomically stores that key, an ordered digest of
+the staged names, types and bytes, and the committed file IDs. Retrying the same key and payload returns the current
+job without adding duplicates; reusing it for different bytes or after the original changes returns 409. The UI keeps
+the failed batch key when a response is lost. This guarantee is for one frontend process; a transactional metadata
+store is needed before running multiple frontend writers.
 
 On a single host, the runner executes `idpo.cli process-auto` directly. In Compose, the frontend invokes a Node
 bridge to a private Python worker over a Unix socket in the shared data volume. That Docker path has passed static

@@ -19,7 +19,8 @@ export async function POST(request: Request, { params }: Params) {
     const { jobId } = await params;
     requireJob(jobId, user);
     staged = await stageUploadRequest(request, jobId);
-    const updated = addStagedDocumentsToJob(jobId, staged);
+    const key = request.headers.get("idempotency-key") ?? undefined;
+    const updated = addStagedDocumentsToJob(jobId, staged, key);
     return NextResponse.json(updated, { status: 201 });
   } catch (error) {
     return apiError(error, error instanceof UploadRequestError ? error.status : 400);

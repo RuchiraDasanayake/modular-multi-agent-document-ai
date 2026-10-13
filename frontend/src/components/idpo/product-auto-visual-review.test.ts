@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import type { ProductAutoCandidate, ProductAutoLinkedCell } from "@/types/product-auto";
-import { machineProposalLabel, visualLinkedCellsReviewable } from "./product-auto-visual-review";
+import { machineProposalLabel, pdfSourcePageUrl, visualLinkedCellsReviewable } from "./product-auto-visual-review";
 
 const fixture = JSON.parse(fs.readFileSync(path.join(process.cwd(), "src", "server", "fixtures",
   "visual-review-workflow.json"), "utf8")) as { variants: Record<string, {
@@ -26,4 +26,13 @@ test("review control disables visual confirmation without complete source page r
   assert.equal(visualLinkedCellsReviewable([{ ...cells[0]!, visual_page: 99 }], variant.pages), false);
   assert.equal(visualLinkedCellsReviewable([{ ...cells[0]!, status: "accepted" }], variant.pages), false);
   assert.equal(machineProposalLabel({ field_id: "text", value: "x", status: "accepted", review_state: "none" }), "Text matched");
+});
+
+test("PDF page navigation only uses validated source page numbers", () => {
+  const url = "/api/jobs/job/docs/file/content";
+  const pages = [{ page: 1 }, { page: 3 }];
+  assert.equal(pdfSourcePageUrl(url, "scan.pdf", 3, pages), `${url}#page=3`);
+  assert.equal(pdfSourcePageUrl(url, "scan.pdf", 2, pages), null);
+  assert.equal(pdfSourcePageUrl(url, "scan.pdf", -1, pages), null);
+  assert.equal(pdfSourcePageUrl(url, "scan.png", 1, pages), null);
 });

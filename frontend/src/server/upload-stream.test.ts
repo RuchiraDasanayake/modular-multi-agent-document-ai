@@ -156,6 +156,80 @@ test("valid multipart commits exactly two files in request order", async () => {
   });
 });
 
+test("lost upload response can be retried with the same key without a second document", async () => {
+  await withStorage(async () => {
+    const job = createWorkspaceJob({ ownerUserId: "owner" });
+    const key = "a".repeat(32);
+    const send = () => {
+      const form = new FormData();
+      form.append("files", new File(["invoice bytes"], "invoice.txt", { type: "text/plain" }));
+      return post(job.jobId, request(job.jobId, "owner", form, { "idempotency-key": key }));
+    };
+    const first = await send();
+    assert.equal(first.status, 201);
+    const originalId = getJob(job.jobId)?.documents?.[0]?.fileId;
+    assert.ok(originalId);
+    const retry = await send();
+    assert.equal(retry.status, 201);
+    assert.deepEqual((await retry.json()).documents.map((item: { fileId: string }) => item.fileId), [originalId]);
+    assert.deepEqual(getJob(job.jobId)?.documents?.map((item) => item.fileId), [originalId]);
+    assert.equal(fs.readdirSync(job.uploadsPath!).length, 1);
+    assert.equal(getJob(job.jobId)?.uploadReceipts?.[key]?.files[0]?.fileId, originalId);
+  });
+});
+
+test("concurrent retries with one key commit one batch", async () => {
+  await withStorage(async () => {
+    const job = createWorkspaceJob({ ownerUserId: "owner" });
+    const key = "b".repeat(32);
+    const send = () => {
+      const form = new FormData();
+      form.append("files", new File(["same bytes"], "invoice.txt"));
+      return post(job.jobId, request(job.jobId, "owner", form, { "idempotency-key": key }));
+    };
+    const responses = await Promise.all([send(), send()]);
+    assert.deepEqual(responses.map((response) => response.status), [201, 201]);
+    assert.equal(getJob(job.jobId)?.documents?.length, 1);
+    assert.equal(fs.readdirSync(job.uploadsPath!).length, 1);
+  });
+});
+
+test("upload retry key cannot be reused with different bytes or by another owner", async () => {
+  await withStorage(async () => {
+    const job = createWorkspaceJob({ ownerUserId: "owner" });
+    const key = "c".repeat(32);
+    const send = (token: string, content: string) => {
+      const form = new FormData();
+      form.append("files", new File([content], "invoice.txt"));
+      return post(job.jobId, request(job.jobId, token, form, { "idempotency-key": key }));
+    };
+    assert.equal((await send("owner", "original")).status, 201);
+    assert.equal((await send("owner", "different")).status, 409);
+    assert.equal((await send("other", "original")).status, 404);
+    assert.equal(getJob(job.jobId)?.documents?.length, 1);
+    assert.equal(fs.readdirSync(job.uploadsPath!).length, 1);
+  });
+});
+
+test("upload replay refuses a changed original and invalid keys", async () => {
+  await withStorage(async () => {
+    const job = createWorkspaceJob({ ownerUserId: "owner" });
+    const key = "d".repeat(32);
+    const send = (retryKey: string) => {
+      const form = new FormData();
+      form.append("files", new File(["original"], "invoice.txt"));
+      return post(job.jobId, request(job.jobId, "owner", form, { "idempotency-key": retryKey }));
+    };
+    assert.equal((await send("invalid-key")).status, 400);
+    assertNoArtifacts(job.jobId, job.uploadsPath!);
+    assert.equal((await send(key)).status, 201);
+    const original = getJob(job.jobId)!.documents![0]!;
+    fs.writeFileSync(path.join(job.uploadsPath!, original.storedName), "changed!");
+    assert.equal((await send(key)).status, 409);
+    assert.deepEqual(getJob(job.jobId)?.documents?.map((item) => item.fileId), [original.fileId]);
+  });
+});
+
 test("malformed multipart removes completed and incomplete request files", async () => {
   await withStorage(async () => {
     const job = createWorkspaceJob({ ownerUserId: "owner" });

@@ -172,6 +172,11 @@ export interface JobStatus {
   counts?: JobCounts;
   latestRunId?: string | null;
   uploadsPath?: string | null;
+  uploadReceipts?: Record<string, {
+    contractVersion: 1;
+    payloadSha256: string;
+    files: Array<{ fileId: string; sourceSha256: string }>;
+  }>;
   reviewContext?: JobValidationContextArtifact | null;
   error?: string;
   serverInstanceId?: string;

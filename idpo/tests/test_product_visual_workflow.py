@@ -91,8 +91,8 @@ class Model:
         return reply(quote="Widget")
 
 
-def run_product(tmp_path, source, model, *, profile="bounded_visual_v1", **kwargs):
-    schema_path, digest = snapshot(tmp_path, fields=FIELDS)
+def run_product(tmp_path, source, model, *, profile="bounded_visual_v1", fields=FIELDS, **kwargs):
+    schema_path, digest = snapshot(tmp_path, fields=fields)
     schema = load_confirmed_schema(schema_path, digest)
     result = process_auto(source, model=model, confirmed_schema=schema, visual_document_profile=profile,
                           run_id="visual", output_root=tmp_path / "runs", **kwargs)
@@ -102,6 +102,60 @@ def run_product(tmp_path, source, model, *, profile="bounded_visual_v1", **kwarg
     manifest = json.loads((directory / "manifest.jsonl").read_text())
     marker = json.loads((directory / "run.json").read_text())
     return candidate, sidecar, manifest, marker
+
+
+@pytest.mark.parametrize("text,fields,expected_reason", [
+    ("Widget 100", FIELDS, "selective_repeated_fields"),
+    ("", [FIELDS[1]], "selective_no_usable_text"),
+    ("Widget 100 " + "x" * 24_000, [FIELDS[1]], "selective_long_text"),
+    ("Widget 100", [FIELDS[1]], "selective_scalar_text"),
+], ids=["repeated_fields", "empty_ocr", "long_text", "scalar_text"])
+def test_selective_route_runs_only_the_chosen_model_path(tmp_path, monkeypatch, text, fields, expected_reason):
+    source = source_image(tmp_path)
+    fake_ocr(monkeypatch, texts=[text])
+
+    class SelectiveModel(Model):
+        def _answer(self, visual):
+            values = [{"field_id": "total", "value": 100, "page": 1, "quote": None if visual else "100"}]
+            if len(fields) == 2:
+                values.insert(0, {"field_id": "item", "value": [
+                    {"row": 0, "value": "Widget", "page": 1, "quote": None}], "page": None, "quote": None})
+            return ModelReply(text=json.dumps({"values": values}), latency_ms=1, finish_reason="stop", sdk_attempts=1)
+
+        def complete_visual_json(self, request):
+            self.visual_calls.append(request.receipt())
+            return self._answer(True)
+
+        def complete_json(self, **kwargs):
+            self.text_calls.append(kwargs)
+            return self._answer(False)
+
+    model = SelectiveModel()
+    candidate, sidecar, manifest, marker = run_product(tmp_path, source, model, fields=fields,
+        profile="bounded_visual_selective_v2", long_document_profile="bounded_text_segments_v1")
+    visual = expected_reason != "selective_scalar_text"
+    assert (len(model.visual_calls), len(model.text_calls)) == ((1, 0) if visual else (0, 1))
+    assert candidate["document_status"] == "needs_review"
+    assert candidate["extracted_values"][-1]["value"] == 100
+    assert sidecar["visual_document"]["route_reason"] == expected_reason
+    for receipt in (sidecar["visual_document"], manifest["visual_document"], marker["visual_document"]):
+        assert receipt["profile"] == "bounded_visual_selective_v2"
+    if visual:
+        assert all(value["status"] == "needs_review" for value in candidate["extracted_values"])
+    else:
+        assert model.text_calls[0]["response_format"]["json_schema"]["strict"] is True
+
+
+def test_selective_router_keeps_coverage_guards_and_exact_text_boundary():
+    from idpo.product_auto.visual_workflow import select_visual_route
+    profile = "bounded_visual_selective_v2"
+    pages = [{"page": 1, "text": "x" * 24_000}]
+    ocr = [{"page": 1, "engine": "rapidocr"}]
+    assert select_visual_route(".png", pages, ocr, [1], profile=profile) == (False, "selective_scalar_text")
+    assert select_visual_route(".pdf", pages, ocr, [1, 2], profile=profile) == (True, "pdf_ocr_page_coverage_incomplete")
+    assert select_visual_route(".pdf", pages, [{"page": 1, "engine": "native_text"}], [1],
+        profile=profile, fields=tuple(FIELDS)) == (False, "pdf_all_native_text")
+    assert select_visual_route(".txt", pages, ocr, [1], profile=profile, fields=tuple(FIELDS)) == (False, "native_or_text_source")
 
 
 def test_image_empty_ocr_uses_original_and_keeps_all_proposals_pending(tmp_path, monkeypatch):

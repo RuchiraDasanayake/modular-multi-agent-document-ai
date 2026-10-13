@@ -202,15 +202,17 @@ export const idpoApi = {
     );
   },
 
-  uploadJobDocuments(jobId: string, files: File[], onProgress?: (progress: UploadProgress<JobStatus>) => void): Promise<JobStatus> {
-    return uploadInBatches(files, (batch) => {
+  uploadJobDocuments(jobId: string, files: File[], onProgress?: (progress: UploadProgress<JobStatus>) => void,
+    retryKey?: string): Promise<JobStatus> {
+    return uploadInBatches(files, (batch, idempotencyKey) => {
       const formData = new FormData();
       batch.forEach((file) => formData.append("files", file));
       return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/documents`, {
         method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
         body: formData,
       });
-    }, onProgress);
+    }, onProgress, retryKey);
   },
 
   runOverview(runId: string): Promise<RunOverview> {

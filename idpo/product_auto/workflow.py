@@ -56,7 +56,7 @@ from idpo.product_auto.strict_output import (
     parse_confirmed_strict_values_reply,
 )
 from idpo.product_auto.visual_workflow import (
-    PROFILE as BOUNDED_VISUAL_PROFILE,
+    PROFILES as BOUNDED_VISUAL_PROFILES,
     extract_visual_values,
     select_visual_route,
     visual_receipt,
@@ -135,9 +135,9 @@ def process_auto(
     if long_document_profile == BOUNDED_TEXT_SEGMENTS_PROFILE and confirmed_schema is None:
         raise ValueError("Bounded long documents require a confirmed schema")
     configured_response_format_profile = response_format_profile
-    if visual_document_profile not in {"disabled", BOUNDED_VISUAL_PROFILE}:
+    if visual_document_profile not in {"disabled", *BOUNDED_VISUAL_PROFILES}:
         raise ValueError("Unsupported product visual document profile")
-    if visual_document_profile == BOUNDED_VISUAL_PROFILE:
+    if visual_document_profile in BOUNDED_VISUAL_PROFILES:
         if confirmed_schema is None or model is None:
             raise ValueError("Bounded visual documents require a confirmed schema and model")
         if not callable(getattr(model, "complete_visual_json", None)) or not callable(getattr(model, "complete_json", None)):
@@ -273,7 +273,7 @@ def process_auto(
                 "document_status": candidate["document_status"],
                 "candidate": candidate,
             })
-            if visual_document_profile == BOUNDED_VISUAL_PROFILE:
+            if visual_document_profile in BOUNDED_VISUAL_PROFILES:
                 sidecar["configured_response_format_profile"] = configured_response_format_profile
             doc_dir = run_dir / "docs" / doc_id
             doc_dir.mkdir(parents=True, exist_ok=False)
@@ -306,7 +306,7 @@ def process_auto(
                 **({"confirmed_schema": confirmed_schema.receipt} if confirmed_schema else {}),
                 **({"visual_document": _visual_document_summary(sidecar),
                     "configured_response_format_profile": configured_response_format_profile}
-                   if visual_document_profile == BOUNDED_VISUAL_PROFILE else {}),
+                   if visual_document_profile in BOUNDED_VISUAL_PROFILES else {}),
             })
 
     _write_jsonl(run_dir / "candidates.jsonl", candidates)
@@ -371,7 +371,7 @@ def process_auto(
         "compute_cost_usd": None,
         "total_cost_usd": None,
     }
-    if visual_document_profile == BOUNDED_VISUAL_PROFILE:
+    if visual_document_profile in BOUNDED_VISUAL_PROFILES:
         run_payload["configured_response_format_profile"] = configured_response_format_profile
         run_payload["effective_response_format_profiles"] = sorted({receipt["response_format_profile"] for receipt in receipts})
         run_payload["visual_document"] = {
@@ -431,9 +431,9 @@ def _process_document(
         sidecar["approved_recipe"] = approved_recipe.receipt
     if confirmed_schema is not None:
         sidecar["confirmed_schema"] = confirmed_schema.receipt
-    if visual_document_profile == BOUNDED_VISUAL_PROFILE:
+    if visual_document_profile in BOUNDED_VISUAL_PROFILES:
         assert original_source is not None and original_source_sha256 is not None
-        sidecar["visual_document"] = visual_receipt(original_source_sha256)
+        sidecar["visual_document"] = visual_receipt(original_source_sha256, visual_document_profile)
     if document is None or initial_reason is not None:
         if "visual_document" in sidecar:
             sidecar["visual_document"].update(route_reason="source_preparation_failed", failure_reason=initial_reason)
@@ -500,9 +500,10 @@ def _process_document(
             return candidate, sidecar
     sidecar["stage_timings_ms"]["ocr"] = round((time.perf_counter() - ocr_started) * 1000, 3)
 
-    if visual_document_profile == BOUNDED_VISUAL_PROFILE:
+    if visual_document_profile in BOUNDED_VISUAL_PROFILES:
         use_visual, route_reason = select_visual_route(original_source.suffix.lower(), pages,
-                                                       sidecar["ocr_pages"], original_page_numbers)
+                                                       sidecar["ocr_pages"], original_page_numbers,
+                                                       profile=visual_document_profile, fields=confirmed_schema.fields)
         sidecar["visual_document"].update(route="visual" if use_visual else "text", route_reason=route_reason)
         if use_visual:
             assert confirmed_schema is not None and model is not None

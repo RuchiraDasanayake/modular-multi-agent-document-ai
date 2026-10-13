@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireJob } from "@/server/access";
 import { AccessError, requireUser } from "@/server/auth";
 import { apiError } from "@/server/api/response";
-import { deriveProductAutoCorrectedResult, getProductAutoDocument, saveProductAutoReview } from "@/server/product-auto";
+import { getProductAutoDocument, saveProductAutoReview } from "@/server/product-auto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,8 +40,8 @@ export async function POST(request: Request, { params }: Params) {
       ? (body as Record<string, unknown>).reported_active_review_seconds : undefined;
     const review = saveProductAutoReview(jobId, runId, docId, user.id, expectedRevision, fields, addedFields,
       reportedActiveReviewSeconds);
-    const candidate = getProductAutoDocument(jobId, runId, docId).candidate;
-    return NextResponse.json({ review, correctedResult: deriveProductAutoCorrectedResult(candidate, review) }, { headers: noStore });
+    const detail = getProductAutoDocument(jobId, runId, docId);
+    return NextResponse.json({ review, correctedResult: detail.correctedResult }, { headers: noStore });
   } catch (error) {
     if (error instanceof AccessError) return apiError(error);
     if (error instanceof SyntaxError) return NextResponse.json({ error: "Invalid JSON request." }, { status: 400, headers: noStore });

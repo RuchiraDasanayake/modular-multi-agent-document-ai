@@ -1,7 +1,7 @@
 # Modular Multi-Agent Document AI
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg?logo=docker&logoColor=white)](docker-compose.yml)
+[![Native Windows](https://img.shields.io/badge/Windows-Native%20deployment-0078D4.svg)](scripts/native_product.md)
 [![Python 3.10](https://img.shields.io/badge/Python-3.10-3776AB.svg?logo=python&logoColor=white)](SETUP.md)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-000000.svg?logo=next.js&logoColor=white)](frontend/package.json)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.114+-009485.svg?logo=fastapi&logoColor=white)](gateway/requirements.txt)
@@ -15,9 +15,14 @@ It includes a separate research pipeline for studying adaptive document policies
 > **Release status — 13 October 2026:** The native workflow now has a persistent PostgreSQL queue,
 > confirmed schemas, sample preview, batch extraction, owner-scoped review and reviewed JSON export.
 > The [authenticated two-file synthetic workflow](docs/evaluations/PRODUCT_STAGED_SYNTHETIC_SMOKE_20261013.md)
-> passed using Luna 6. Real-document quality remains below the release target: the
-> [latest six-source development comparison](docs/evaluations/ICORE_PDF_PAINT_GUARD_DEV6_RESULTS_20261013.md)
-> matched 12/32 exact scalar strings, with weak repeated rows and every document requiring review.
+> passed using Luna 6. The [running production app](docs/evaluations/NATIVE_STREAM_UPLOAD_VERIFICATION_20261013.md)
+> preserved large and concurrent uploads and reproduced reviewed exports.
+> In the [six-source paired development comparison](docs/evaluations/PAIRED_PRODUCT_DEV6_RESULTS_20261013.md),
+> bounded image extraction matched 20/34 scalar targets and 29/43 whole rows, versus 14/34 and 0/43
+> for text alone. It used 3.83 times as many tokens; all image proposals required review.
+> An explicit [selective routing candidate](docs/evaluations/SELECTIVE_VISUAL_ROUTING_V2_20261013.md)
+> now reserves image input for repeated fields, long text and missing OCR text on eligible sources.
+> Its held-out quality and cost comparison remains pending.
 > General-purpose accuracy, cost per correct document and production readiness are **not yet validated**.
 > A fresh model-assisted 2,000-document run is still required after the extraction changes.
 > The [productization plan](docs/PRODUCTIZATION_PLAN.md) retains the earlier failed baselines and release gates;
