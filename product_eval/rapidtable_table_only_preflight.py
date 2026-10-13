@@ -17,8 +17,9 @@ import re
 import sys
 import sysconfig
 import zipfile
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from product_eval.rapidtable_adbuy12_preflight import (
     MODEL_SHA256,
@@ -133,9 +134,8 @@ def _verify_import_roots(site_packages: Path, recorded: set[Path]) -> None:
         spec = importlib.util.find_spec(name)
         if spec is None:
             raise ValueError(f"vendor import root is missing: {name}")
-        if spec.origin not in (None, "namespace"):
-            if Path(spec.origin).resolve() not in recorded:
-                raise ValueError(f"vendor import resolves to unsealed file: {name}")
+        if spec.origin not in (None, "namespace") and Path(spec.origin).resolve() not in recorded:
+            raise ValueError(f"vendor import resolves to unsealed file: {name}")
         locations = spec.submodule_search_locations or ()
         if any(not Path(path).resolve().is_relative_to(site_packages) for path in locations):
             raise ValueError(f"vendor import searches outside runtime: {name}")

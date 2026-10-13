@@ -91,9 +91,9 @@ class RapidTableTableOnlyPreflightTests(TestCase):
             with (
                 patch.object(preflight, "VENDOR_IMPORT_ROOTS", ("rapid_table",)),
                 patch.object(preflight.importlib.util, "find_spec", return_value=spec),
+                self.assertRaisesRegex(ValueError, "unsealed file"),
             ):
-                with self.assertRaisesRegex(ValueError, "unsealed file"):
-                    preflight._verify_import_roots(site, set())
+                preflight._verify_import_roots(site, set())
 
     def test_loaded_vendor_module_from_unsealed_file_fails(self) -> None:
         with TemporaryDirectory() as directory:
@@ -104,9 +104,9 @@ class RapidTableTableOnlyPreflightTests(TestCase):
             with (
                 patch.object(preflight, "VENDOR_TOP_LEVEL", {"fixture_vendor"}),
                 patch.dict(sys.modules, {"fixture_vendor": module}),
+                self.assertRaisesRegex(ValueError, "unsealed file"),
             ):
-                with self.assertRaisesRegex(ValueError, "unsealed file"):
-                    preflight._verify_loaded_vendor_modules(site, set())
+                preflight._verify_loaded_vendor_modules(site, set())
 
     def test_supplied_ocr_text_is_distinct_from_drawn_text(self) -> None:
         boxes = object()
