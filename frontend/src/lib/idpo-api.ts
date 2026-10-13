@@ -11,22 +11,35 @@ import type { ProductAutoAddedFieldInput, ProductAutoCorrectedResult, ProductAut
 import type { ProductAutoRecipeRevision } from "@/types/product-auto-recipes";
 import type { ProductAutoBriefDetail, ProductAutoBriefField, ProductAutoBriefRevision, ProductAutoBriefSuggestion } from "@/types/product-auto-brief";
 
+function handleUnauthorized(res: Response): void {
+  if (res.status === 401 && typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+    removeToken();
+    window.location.href = "/login";
+  }
+}
+
 async function localRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
     cache: "no-store",
     ...options,
   });
-
-  if (res.status === 401 && typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
-    removeToken();
-    window.location.href = "/login";
-  }
+  handleUnauthorized(res);
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || body.detail || `API ${res.status}`);
   }
   return res.json() as Promise<T>;
+}
+
+async function localDownload(path: string): Promise<Blob> {
+  const res = await fetch(path, { cache: "no-store" });
+  handleUnauthorized(res);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || body.detail || `API ${res.status}`);
+  }
+  return res.blob();
 }
 
 export function parseReportedActiveMinutes(input: string): number | undefined {
@@ -91,6 +104,10 @@ export const idpoApi = {
 
   getProductAutoDocument(jobId: string, runId: string, docId: string): Promise<ProductAutoDocumentDetail> {
     return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(runId)}/docs/${encodeURIComponent(docId)}`);
+  },
+
+  downloadProductAutoReviewedBatch(jobId: string, runId: string): Promise<Blob> {
+    return localDownload(`/api/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(runId)}/export`);
   },
 
   saveProductAutoReview(jobId: string, runId: string, docId: string, expectedRevision: number, fields: ProductAutoReviewField[], addedFields: ProductAutoAddedFieldInput[], reportedActiveMinutes = ""): Promise<{ review: ProductAutoReview; correctedResult: ProductAutoCorrectedResult }> {

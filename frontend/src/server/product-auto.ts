@@ -43,6 +43,8 @@ const DEFAULT_MODEL_MAX_OUTPUT_TOKENS = 8192;
 const MAX_MODEL_MAX_OUTPUT_TOKENS = 16384;
 const DEFAULT_MODEL_TIMEOUT_S = 180;
 const MAX_MODEL_TIMEOUT_S = 600;
+const MAX_REVIEWED_BATCH_DOCUMENTS = 5000;
+const MAX_REVIEWED_BATCH_BYTES = 64 * 1024 * 1024;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const LEASE_TIMEOUT_MS = 5 * 60_000;
 const RECOVERY_INTERVAL_MS = 30_000;
@@ -637,6 +639,13 @@ function readAuditTrail(jobId: string, runId: string, docId: string): ProductAut
     seenIds.add(event.audit_event_id);
   }
   return events;
+}
+
+function reviewAuditDigest(jobId: string, runId: string, docId: string): string {
+  const directory = auditDir(jobId, runId, docId);
+  const files = fs.readdirSync(directory).filter((name) => /^\d{12}\.json$|^\d{13}_[a-f0-9]{32}\.json$/.test(name)).sort();
+  return createHash("sha256").update(JSON.stringify(files.map((name) =>
+    [name, sha256File(path.join(directory, name))]))).digest("hex");
 }
 
 function publishAuditEvent(directory: string, event: ProductAutoAuditEvent): void {
@@ -1319,6 +1328,101 @@ export function getProductAutoReviewedExport(jobId: string, runId: string, docId
       reviewer_user_id: review.reviewer_user_id, updated_at: review.updated_at },
     result: detail.correctedResult,
   };
+}
+
+export function getProductAutoReviewedBatchExport(jobId: string, runId: string): Uint8Array[] {
+  const record = readRunRecord(jobId, runId);
+  if (record.status !== "success") throw new AccessError("Complete the run before exporting its reviewed batch.", 409);
+  const selected = record.selectedFiles;
+  if (!selected.length || selected.length > MAX_REVIEWED_BATCH_DOCUMENTS) {
+    throw new AccessError(`A reviewed batch must contain 1–${MAX_REVIEWED_BATCH_DOCUMENTS} documents.`, 413);
+  }
+  const runRecordPath = fs.existsSync(terminalFile(jobId, runId)) ? terminalFile(jobId, runId) : runFile(jobId, runId);
+  const markerPath = path.join(outputDir(runId), "run.json");
+  const manifestPath = path.join(outputDir(runId), "manifest.jsonl");
+  let documents: RunRecord["documents"];
+  let artifactHashes: string[];
+  try {
+    artifactHashes = [runRecordPath, markerPath, manifestPath].map(sha256File);
+    documents = validatedDocuments(record);
+  } catch {
+    throw new AccessError(`Reviewed batch blocked: ${selected.length} selected, ${selected.length} unverifiable run artifacts.`, 409);
+  }
+
+  const selectedIds = new Set(selected.map((file) => file.fileId));
+  const selectedStoredNames = new Set(selected.map((file) => file.storedName));
+  const byFileId = new Map(documents.map((document) => [document.fileId, document]));
+  const sealedByDocId = new Map(record.documents.map((document) => [document.docId, document]));
+  if (selectedIds.size !== selected.length || selectedStoredNames.size !== selected.length ||
+    byFileId.size !== documents.length || documents.length !== selected.length ||
+    sealedByDocId.size !== record.documents.length || record.documents.length !== selected.length ||
+    documents.some((document) => !selectedIds.has(document.fileId) ||
+      sealedByDocId.get(document.docId)?.fileId !== document.fileId ||
+      sealedByDocId.get(document.docId)?.machineResultSha256 !== document.machineResultSha256)) {
+    throw new AccessError(`Reviewed batch blocked: ${selected.length} selected, ${selected.length} missing or inconsistent run receipts.`, 409);
+  }
+
+  const encoder = new TextEncoder();
+  const lines: Uint8Array[] = [];
+  const reviewSnapshots: Array<{ docId: string; revision: number; auditEventId: string; auditDigest: string;
+    machineResultSha256: string }> = [];
+  const counts = { unreviewed: 0, failed: 0, missing: 0, stale: 0 };
+  let byteCount = 0;
+  for (const file of selected) {
+    const document = byFileId.get(file.fileId);
+    if (!document) { counts.missing += 1; continue; }
+    if (document.status === "failed" || document.status === "unsupported") { counts.failed += 1; continue; }
+    if (document.reviewStatus !== "completed") { counts.unreviewed += 1; continue; }
+    try {
+      const exported = getProductAutoReviewedExport(jobId, runId, document.docId);
+      if (exported.document.file_id !== file.fileId || exported.document.source_sha256 !== file.sha256 ||
+        exported.document.machine_result_sha256 !== document.machineResultSha256) {
+        counts.stale += 1;
+        continue;
+      }
+      const line = encoder.encode(`${JSON.stringify(exported)}\n`);
+      byteCount += line.byteLength;
+      if (byteCount > MAX_REVIEWED_BATCH_BYTES) {
+        throw new AccessError("Reviewed batch exceeds the 64 MiB download limit.", 413);
+      }
+      const latestReview = readReview(jobId, runId, document.docId);
+      if (latestReview?.revision !== exported.review.revision ||
+        latestReview.audit_event_id !== exported.review.audit_event_id) {
+        throw new AccessError("Review changed while the batch was being assembled.", 409);
+      }
+      const auditDigest = reviewAuditDigest(jobId, runId, document.docId);
+      lines.push(line);
+      reviewSnapshots.push({ docId: document.docId, revision: exported.review.revision,
+        auditEventId: exported.review.audit_event_id,
+        auditDigest,
+        machineResultSha256: exported.document.machine_result_sha256 });
+    } catch (error) {
+      if (error instanceof AccessError && error.statusCode === 413) throw error;
+      counts.stale += 1;
+    }
+  }
+  if (Object.values(counts).some((count) => count > 0) || lines.length !== selected.length) {
+    throw new AccessError(`Reviewed batch blocked: ${selected.length} selected, ${lines.length} reviewed, ` +
+      `${counts.unreviewed} unreviewed, ${counts.failed} failed or unsupported, ` +
+      `${counts.missing} missing, ${counts.stale} stale or unverifiable.`, 409);
+  }
+  try {
+    if ([runRecordPath, markerPath, manifestPath].some((filePath, index) =>
+      sha256File(filePath) !== artifactHashes[index]) ||
+      reviewSnapshots.some((snapshot) => {
+        const review = readReview(jobId, runId, snapshot.docId);
+        return !review || review.revision !== snapshot.revision ||
+          review.audit_event_id !== snapshot.auditEventId ||
+          reviewAuditDigest(jobId, runId, snapshot.docId) !== snapshot.auditDigest ||
+          sha256File(path.join(outputDir(runId), "docs", snapshot.docId, "result.json")) !==
+            snapshot.machineResultSha256;
+      }) || selected.some((file) => verifiedReviewSourceHash(jobId, runId, file.fileId) !== file.sha256)) {
+      throw new Error("Batch changed while being assembled.");
+    }
+  } catch {
+    throw new AccessError(`Reviewed batch blocked: ${selected.length} selected, ${selected.length} stale snapshots. Retry after reviewing the run.`, 409);
+  }
+  return lines;
 }
 
 export function deriveProductAutoCorrectedResult(
