@@ -1,6 +1,6 @@
 # Guarded first-PDF TATR runner and research trial
 
-**Status: synthetic integration passed; the first selected PDF was attempted once and failed.**
+**Status: synthetic integration passed; two separately gated first-PDF trials failed before table output.**
 This is a research-only runner for the first source in the frozen VRDU ad-buy
 selection. It is not wired into product extraction, human review, or the
 2,000-document quality gate. The owning surfaces are `product_eval/`
@@ -175,3 +175,18 @@ permits exactly one selected PDF without gold access. The first source must
 produce a nonempty source-pixel overlay and pass independent visual review
 before any of the other eleven may run. This gate does not authorize product
 adoption or establish quality.
+
+The clean `cafbe92b184c2683ca811823ef2e878f2234a020` v2 trial was run
+once into that new directory. It reached the pinned RapidOCR page subprocess,
+which stopped with `orientation_not_confidently_upright` before emitting word
+boxes. The parent worker recorded `RuntimeError`; its wall time was 56.874 s,
+and the supervisor recorded `status: failed`, `reason: worker_failed`. No
+parsed table, cell, or overlay exists. Gold remained unopened and the other
+eleven PDFs remained unattempted. The immutable v2 `first_pdf_receipt.json`
+SHA-256 is
+`e1736bd40e4aabfa81250c1a2f1e08fc3d7543251f2893f1d3d5b75e10c43136`;
+the OCR failure receipt SHA-256 is
+`6e9031d3133cdee7656f4581ef3d1666a45aebc0860e3e9d86223535f2eeaaa1`.
+This is an OCR route safety failure, not a measured TATR table-quality result.
+The v2 output must remain untouched. Any further trial requires a separately
+declared profile and new directory.
