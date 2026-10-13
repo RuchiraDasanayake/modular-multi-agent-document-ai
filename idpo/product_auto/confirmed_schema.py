@@ -106,7 +106,7 @@ def load_confirmed_schema(path: Path, expected_sha256: str) -> ConfirmedSchema:
         if (not isinstance(field_id, str) or not _FIELD_ID.fullmatch(field_id) or not field_id[0].isalpha()
                 or field_id.endswith("_") or unicodedata.normalize("NFKC", field_id).lower() != field_id
                 or field_id in seen or not isinstance(field_type, str) or field_type not in _FIELD_TYPES
-                or not _bounded_text(field["description"], 1000)):
+                or not _bounded_text(field["description"], 1000) or not field["description"]):
             raise ValueError("Invalid confirmed schema field")
         seen.add(field_id)
         group = field.get("group")

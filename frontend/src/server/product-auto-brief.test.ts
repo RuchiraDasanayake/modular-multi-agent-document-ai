@@ -175,7 +175,12 @@ test("brief input is bounded and samples must be current job files", async () =>
   const typedOnly = await url({ expectedRevision: 0, fields: [{ field_id: "total", type: "decimal" }],
     sampleFileIds: [fileId] });
   assert.equal(typedOnly.status, 201);
-  assert.equal((await typedOnly.json()).brief.intent, "");
+  const incomplete = (await typedOnly.json()).brief;
+  assert.equal(incomplete.intent, "");
+  const refusedConfirmation = await confirmBriefRoute(confirmRequest(alice.jobId, "alice", {
+    expectedRevision: incomplete.revision, expectedPayloadSha256: incomplete.payload_sha256,
+  }), { params: Promise.resolve({ jobId: alice.jobId }) });
+  assert.equal(refusedConfirmation.status, 409);
 
   const legacy = createWorkspaceJob();
   const ownerless = await readBriefRoute(request(legacy.jobId, "admin"),

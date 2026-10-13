@@ -262,8 +262,9 @@ export function confirmProductAutoBrief(jobId: string, actorUserId: string, inpu
     throw new AccessError("Confirm the current extraction brief revision and digest.", 400);
   }
   const current = requireCurrentProductAutoBrief(jobId, request.expectedRevision, request.expectedPayloadSha256);
-  if (current.state !== "draft" || current.fields.length === 0) {
-    throw new AccessError("Add typed fields to a draft before confirming its schema.", 409);
+  if (current.state !== "draft" || current.fields.length === 0 ||
+    current.fields.some((field) => !field.description)) {
+    throw new AccessError("Describe every typed field in the draft before confirming its schema.", 409);
   }
   const event: ProductAutoBriefRevision = {
     ...current, revision: current.revision + 1, audit_event_id: randomUUID().replaceAll("-", ""),

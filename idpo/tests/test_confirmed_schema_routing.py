@@ -110,6 +110,10 @@ def test_snapshot_tamper_and_invalid_fields_fail_before_model(tmp_path: Path) ->
                                                  "description": "x", "example_values": []}])
     with pytest.raises(ValueError, match="field"):
         load_confirmed_schema(bad, bad_digest)
+    bad, bad_digest = snapshot(tmp_path, fields=[{"field_id": "amount", "type": "decimal",
+                                                 "description": "", "example_values": []}])
+    with pytest.raises(ValueError, match="field"):
+        load_confirmed_schema(bad, bad_digest)
     path, digest = snapshot(tmp_path)
     schema = load_confirmed_schema(path, digest)
     source = tmp_path / "invoice.txt"

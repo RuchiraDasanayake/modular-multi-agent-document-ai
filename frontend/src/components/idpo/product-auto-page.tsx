@@ -272,7 +272,8 @@ export function ProductAutoPage() {
             {briefBusy ? "Saving…" : brief?.state === "confirmed" ? "Save as new draft" : "Save draft"}
           </button>
           <button type="button" onClick={() => void confirmSchema()} disabled={briefBusy || starting || running ||
-            !brief || brief.state !== "draft" || formDirty || brief.fields.length === 0 || staleSampleFileIds.length > 0}
+            !brief || brief.state !== "draft" || formDirty || brief.fields.length === 0 ||
+            brief.fields.some((field) => !field.description) || staleSampleFileIds.length > 0}
             className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50">
             Confirm field meanings
           </button>

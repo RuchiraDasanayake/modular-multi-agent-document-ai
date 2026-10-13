@@ -144,7 +144,7 @@ unless it has explicit evidence. This is a per-document export; bulk run export 
 The owner-scoped `/api/jobs/<job_id>/auto/brief` API stores a revisioned extraction brief with plain-language intent,
 typed field meanings and examples, and 1–5 sample file IDs bound to source SHA-256 hashes. `GET` reports stale sample
 IDs; `POST` requires the current revision and appends an immutable draft event. `PATCH` explicitly confirms the current
-revision and payload digest only when it has typed fields and all sample bytes still match. Any subsequent edit appends
+revision and payload digest only when it has typed fields with descriptions and all sample bytes still match. Any subsequent edit appends
 a new draft; it does not inherit confirmation. Intent-only drafts cannot start this schema-guided route.
 
 The owner-scoped `POST /api/jobs/<job_id>/auto` route accepts an explicit `confirmedBrief` selection. The `preview`
