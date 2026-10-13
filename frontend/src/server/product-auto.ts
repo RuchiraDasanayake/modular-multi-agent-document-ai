@@ -136,6 +136,7 @@ interface PreparedDispatch {
   jobId: string;
   runId: string;
   commandSha256: string;
+  inputManifestSha256: string;
   model?: string;
   baseUrl?: string;
 }
@@ -143,6 +144,11 @@ interface PreparedDispatch {
 function commandSha256(): string {
   // Environment values may contain credentials: persist only their digest.
   return createHash("sha256").update(JSON.stringify(getCommandConfig("idpo_process_auto"))).digest("hex");
+}
+
+function inputManifestSha256(record: Pick<RunRecord, "selectedFiles" | "approvedRecipe" | "confirmedBrief">): string {
+  return createHash("sha256").update(JSON.stringify({ selectedFiles: record.selectedFiles,
+    approvedRecipe: record.approvedRecipe ?? null, confirmedBrief: record.confirmedBrief ?? null })).digest("hex");
 }
 
 function recipeReceipt(record: RunRecord): Record<string, string | number> | null {
@@ -984,7 +990,9 @@ export async function startProductAutoRun(
     let dispatchHash: string | undefined;
     if (queued) {
       dispatch = { version: 1, ownerId: job.ownerUserId!, jobId, runId,
-        commandSha256: commandSha256(), ...(model && baseUrl ? { model, baseUrl } : {}) };
+        commandSha256: commandSha256(),
+        inputManifestSha256: inputManifestSha256({ selectedFiles, approvedRecipe: recipeMeta, confirmedBrief: schemaMeta }),
+        ...(model && baseUrl ? { model, baseUrl } : {}) };
       const bytes = JSON.stringify(dispatch);
       fs.mkdirSync(path.dirname(dispatchFile(jobId, runId)), { recursive: true });
       const handle = fs.openSync(dispatchFile(jobId, runId), "wx", 0o600);
@@ -1062,7 +1070,8 @@ function verifiedDispatch(request: ProductDispatch): { record: RunRecord; prepar
   }
   const prepared = parseJsonObject(file) as unknown as PreparedDispatch;
   if (prepared.version !== 1 || prepared.ownerId !== request.ownerId ||
-    prepared.jobId !== request.jobId || prepared.runId !== request.runId) {
+    prepared.jobId !== request.jobId || prepared.runId !== request.runId ||
+    prepared.inputManifestSha256 !== inputManifestSha256(record)) {
     throw new Error("Invalid queued extraction profile.");
   }
   return { record, prepared };
@@ -1078,6 +1087,11 @@ export async function executePreparedProductAutoRun(request: ProductDispatch, si
     throw new Error("The queued provider credential is unavailable.");
   }
   const inputDir = stagedInputDir(request.runId);
+  const expectedNames = new Set(record.selectedFiles.map((file) => file.storedName));
+  const actualNames = fs.readdirSync(inputDir);
+  if (actualNames.length !== expectedNames.size || actualNames.some((name) => !expectedNames.has(name))) {
+    throw new Error("Queued input contains files outside the selected manifest.");
+  }
   for (const file of record.selectedFiles) {
     const target = path.resolve(inputDir, file.storedName);
     if (path.dirname(target) !== inputDir || !fs.lstatSync(target).isFile() || sha256File(target) !== file.sha256) {
@@ -1155,14 +1169,20 @@ export async function recoverQueuedProductAutoAdmissions(): Promise<number> {
   let recovered = 0;
   for (const jobId of fs.readdirSync(root).filter((name) => /^[a-f0-9]{32}$/.test(name))) {
     for (const name of fs.readdirSync(path.join(root, jobId)).filter((item) => /^auto_[a-f0-9]{32}\.json$/.test(item))) {
-      const record = readRunRecord(jobId, name.slice(0, -5));
-      if (!["queued", "running"].includes(record.status) || !record.queueDispatch) continue;
-      const request = dispatchRequest(record);
+      let record: RunRecord;
+      let request: ProductDispatch;
       try {
-        const admitted = await productExecutionQueue().get(request.ownerId, request.runId);
-        if (admitted?.status === "failed") { failQueuedProductAutoRun(request); continue; }
-        if (record.status !== "queued" || admitted) continue;
-        verifiedDispatch(request);
+        record = readRunRecord(jobId, name.slice(0, -5));
+        if (!["queued", "running"].includes(record.status) || !record.queueDispatch) continue;
+        request = dispatchRequest(record);
+      }
+      catch { console.error("Skipped a malformed extraction record during admission recovery."); continue; }
+      const admitted = await productExecutionQueue().get(request.ownerId, request.runId);
+      if (admitted?.status === "failed") { failQueuedProductAutoRun(request); continue; }
+      if (record.status !== "queued" || admitted) continue;
+      try { verifiedDispatch(request); }
+      catch { failQueuedProductAutoRun(request); continue; }
+      try {
         await productExecutionQueue().enqueue(request);
         recovered += 1;
       } catch (error) {
