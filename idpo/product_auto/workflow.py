@@ -353,6 +353,9 @@ def _process_document(
                     "pdf_page_rotation_deg": page.metadata.get("pdf_page_rotation_deg"),
                     "pdf_rendered_dpi": page.metadata.get("pdf_rendered_dpi"),
                     "pdf_render_size_px": page.metadata.get("pdf_render_size_px"),
+                    "pdf_native_layer": page.metadata.get("pdf_native_layer"),
+                    "pdf_native_text_sha256": page.metadata.get("pdf_native_text_sha256"),
+                    "pdf_native_text_rejected": page.metadata.get("pdf_native_text_rejected", False),
                 }
                 for page in processed_doc.pages
             ]

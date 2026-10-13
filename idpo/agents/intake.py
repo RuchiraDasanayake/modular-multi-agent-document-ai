@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
 from idpo.agents.degarble import is_garbled
+from idpo.core.pdf_native import inspect_native_layer
 from idpo.core.types import Document, Page
+
 
 class IntakeAgent:
     name = "intake"
@@ -108,6 +111,13 @@ class IntakeAgent:
         garbled_detected = False
         for idx, page in enumerate(reader.pages, start=1):
             raw_text = page.extract_text() or ""
+            native_layer = inspect_native_layer(path, idx - 1) if raw_text.strip() else None
+            rejected_native = bool(native_layer and native_layer["requires_ocr"])
+            native_hash = hashlib.sha256(raw_text.encode("utf-8")).hexdigest()
+            # Preserve identity and rejection reason, never rejected text as a
+            # fallback or source quote when rasterization/OCR cannot recover it.
+            if rejected_native:
+                raw_text = ""
             try:
                 stored_rotation = int(page.rotation)
                 if stored_rotation not in {0, 90, 180, 270}:
@@ -133,6 +143,9 @@ class IntakeAgent:
                         "file_type": ".pdf",
                         "pdf_page_index": idx - 1,
                         "pdf_page_rotation_deg": stored_rotation,
+                        "pdf_native_layer": native_layer,
+                        "pdf_native_text_sha256": native_hash,
+                        "pdf_native_text_rejected": rejected_native,
                     },
                 )
             )
