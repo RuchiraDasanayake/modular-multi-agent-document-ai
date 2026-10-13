@@ -27,6 +27,11 @@ from product_eval.schema_only_scorer import (
 )
 
 HASH_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
+ASSET_ROLES = {
+    "nuextract3_q4": {"weight", "vision_projector", "llama_server"},
+    "qwen35_2b_bf16": {"weight", "config", "tokenizer", "processor", "runner"},
+}
+MAX_ASSET_FILES_PER_ARM = 64
 PARSER_FILES = frozenset({
     "idpo/agents/intake.py",
     "idpo/agents/preprocess.py",
@@ -223,41 +228,127 @@ def _validate_human(value: dict[str, Any], *, manifest_sha256: str, eligibility_
         raise PreflightError("human receipt omitted a source")
 
 
+def _validate_asset_manifest(value: dict[str, Any], *, profile: dict[str, Any],
+                             profile_sha256: str) -> None:
+    """Check a previously sealed file inventory against bytes on this host."""
+    if value.get("version") != 1 or value.get("protocol_profile_sha256") != profile_sha256:
+        raise PreflightError("asset manifest is not bound to this protocol profile")
+    arms = value.get("model_arms")
+    models = profile["model_profiles"]
+    if not isinstance(arms, dict) or set(arms) != set(models) or set(arms) != set(ASSET_ROLES):
+        raise PreflightError("asset manifest must cover exactly both pinned model arms")
+    known_hashes = {
+        "nuextract3_q4": {
+            "weight": models["nuextract3_q4"]["weight_sha256"],
+            "vision_projector": models["nuextract3_q4"]["vision_projector_sha256"],
+            "llama_server": models["nuextract3_q4"]["llama_server_sha256"],
+        },
+        "qwen35_2b_bf16": {"weight": models["qwen35_2b_bf16"]["weight_sha256"]},
+    }
+    for name, arm in arms.items():
+        model = models[name]
+        if (not isinstance(arm, dict) or arm.get("official_repository") != model["official_repository"]
+                or arm.get("revision") != model["revision"]):
+            raise PreflightError(f"asset manifest repository or revision differs: {name}")
+        files = arm.get("files")
+        if not isinstance(files, list) or not 1 <= len(files) <= MAX_ASSET_FILES_PER_ARM:
+            raise PreflightError(f"asset manifest file inventory is invalid: {name}")
+        seen_paths: set[Path] = set()
+        roles: Counter[str] = Counter()
+        for entry in files:
+            if not isinstance(entry, dict):
+                raise PreflightError(f"asset manifest file entry is invalid: {name}")
+            role, raw_path, digest, size = (entry.get("role"), entry.get("path"),
+                                            entry.get("sha256"), entry.get("size_bytes"))
+            if (not isinstance(role, str) or not re.fullmatch(r"[a-z][a-z0-9_]*", role)
+                    or not isinstance(raw_path, str) or not raw_path.strip()
+                    or not isinstance(digest, str) or not HASH_PATTERN.fullmatch(digest)
+                    or type(size) is not int or size < 1):
+                raise PreflightError(f"asset manifest file metadata is invalid: {name}")
+            path = Path(raw_path)
+            if not path.is_absolute():
+                raise PreflightError(f"asset manifest requires absolute local paths: {name}")
+            resolved = path.resolve(strict=True)
+            if resolved in seen_paths or not resolved.is_file():
+                raise PreflightError(f"asset manifest has duplicate or non-file path: {name}")
+            seen_paths.add(resolved)
+            if resolved.stat().st_size != size or sha256_file(resolved) != digest:
+                raise PreflightError(f"asset bytes differ from manifest: {name}/{role}")
+            if role in known_hashes[name] and digest != known_hashes[name][role]:
+                raise PreflightError(f"asset hash differs from profile: {name}/{role}")
+            if (role == "weight" and name == "qwen35_2b_bf16"
+                    and (size != model["weight_size_bytes"] or path.name != model["weight_filename"])):
+                raise PreflightError("Qwen weight size or filename differs from profile")
+            roles[role] += 1
+        if not ASSET_ROLES[name].issubset(roles):
+            raise PreflightError(f"asset manifest lacks required roles: {name}")
+        if any(roles[role] != 1 for role in known_hashes[name]):
+            raise PreflightError(f"asset manifest duplicates a pinned asset role: {name}")
+        if name == "nuextract3_q4" and set(roles) != ASSET_ROLES[name]:
+            raise PreflightError("NuExtract manifest has undeclared extra asset roles")
+        if name == "qwen35_2b_bf16" and roles["runner"] != 1:
+            raise PreflightError("Qwen manifest requires exactly one launch runner")
+
+
+def _validate_smoke_log(value: dict[str, Any], *, profile_sha256: str,
+                        asset_manifest_sha256: str, asset_manifest: dict[str, Any],
+                        model_profiles: dict[str, Any]) -> None:
+    if (value.get("version") != 1 or value.get("protocol_profile_sha256") != profile_sha256
+            or value.get("asset_manifest_sha256") != asset_manifest_sha256
+            or value.get("status") != "source_free_verified"):
+        raise PreflightError("source-free smoke log is not bound to profile and asset manifest")
+    arms = value.get("model_arms")
+    if not isinstance(arms, dict) or set(arms) != set(model_profiles):
+        raise PreflightError("source-free smoke log must cover both model arms")
+    for name, arm in arms.items():
+        if not isinstance(arm, dict):
+            raise PreflightError(f"source-free smoke entry is invalid: {name}")
+        argv = arm.get("launch_argv")
+        if (arm.get("input_kind") != "synthetic" or arm.get("loaded") is not True
+                or arm.get("source_free_smoke") is not True
+                or type(arm.get("exit_code")) is not int or arm["exit_code"] != 0
+                or not isinstance(argv, list) or not argv
+                or any(not isinstance(arg, str) or not arg.strip() for arg in argv)
+                or any(not isinstance(arm.get(key), str) or not HASH_PATTERN.fullmatch(arm[key])
+                       for key in ("runner_sha256", "input_sha256", "output_sha256"))):
+            raise PreflightError(f"source-free smoke evidence is incomplete: {name}")
+        paths: dict[str, Path] = {}
+        for label in ("runner", "input", "output"):
+            raw_path = arm.get(f"{label}_path")
+            if not isinstance(raw_path, str) or not raw_path.strip():
+                raise PreflightError(f"source-free smoke {label} path is missing: {name}")
+            path = Path(raw_path)
+            if not path.is_absolute():
+                raise PreflightError(f"source-free smoke {label} path must be absolute: {name}")
+            resolved = path.resolve(strict=True)
+            if not resolved.is_file() or sha256_file(resolved) != arm[f"{label}_sha256"]:
+                raise PreflightError(f"source-free smoke {label} bytes differ: {name}")
+            paths[label] = resolved
+        if Path(argv[0]).resolve(strict=True) != paths["runner"]:
+            raise PreflightError(f"source-free smoke launch runner differs: {name}")
+        runner_role = "llama_server" if name == "nuextract3_q4" else "runner"
+        manifest_runner = next(
+            (entry for entry in asset_manifest["model_arms"][name]["files"]
+             if entry["role"] == runner_role), None
+        )
+        if (manifest_runner is None
+                or Path(manifest_runner["path"]).resolve(strict=True) != paths["runner"]
+                or manifest_runner["sha256"] != arm["runner_sha256"]):
+            raise PreflightError(f"source-free smoke runner differs from asset manifest: {name}")
+
+
 def _validate_runtime(value: dict[str, Any], *, manifest_sha256: str, source_lock_sha256: str,
-                      profile_sha256: str, model_profiles: dict[str, Any]) -> None:
+                      profile_sha256: str, asset_manifest_sha256: str,
+                      smoke_log_sha256: str) -> None:
+    reviewer = value.get("reviewed_by")
     if (value.get("version") != 1 or value.get("source_manifest_sha256") != manifest_sha256
             or value.get("source_lock_sha256") != source_lock_sha256
             or value.get("protocol_profile_sha256") != profile_sha256
-            or value.get("status") != "source_free_verified"):
-        raise PreflightError("runtime receipt is not source-free verified for this cohort/profile")
-    arms = value.get("model_arms")
-    if not isinstance(arms, dict) or set(arms) != set(model_profiles):
-        raise PreflightError("runtime receipt lacks both model arms")
-    for name, profile in model_profiles.items():
-        arm = arms[name]
-        if (not isinstance(arm, dict) or arm.get("loaded") is not True
-                or arm.get("source_free_smoke") is not True
-                or arm.get("weight_sha256") != profile["weight_sha256"]):
-            raise PreflightError("runtime model load, smoke or weight differs")
-
-
-def _model_assets(args: argparse.Namespace, profile: dict[str, Any]) -> tuple[bool, list[str]]:
-    if not args.hash_model_assets:
-        return False, ["model byte verification was not requested"]
-    models = profile["model_profiles"]
-    expected = [
-        (args.nuextract_weight, models["nuextract3_q4"]["weight_sha256"], "NuExtract Q4 weight"),
-        (args.nuextract_mmproj, models["nuextract3_q4"]["vision_projector_sha256"], "NuExtract vision projector"),
-        (args.nuextract_server, models["nuextract3_q4"]["llama_server_sha256"], "llama.cpp server"),
-        (args.qwen_weight, models["qwen35_2b_bf16"]["weight_sha256"], "Qwen BF16 weight"),
-    ]
-    issues: list[str] = []
-    for path, digest, label in expected:
-        if path is None or not path.is_file():
-            issues.append(f"{label} is absent")
-        elif sha256_file(path) != digest:
-            issues.append(f"{label} hash differs")
-    return not issues, issues
+            or value.get("asset_manifest_sha256") != asset_manifest_sha256
+            or value.get("smoke_log_sha256") != smoke_log_sha256
+            or value.get("status") != "source_free_verified"
+            or not isinstance(reviewer, str) or not reviewer.strip()):
+        raise PreflightError("runtime receipt is not bound to the verified smoke log and assets")
 
 
 def _host_model_resources() -> tuple[int | None, int | None]:
@@ -373,25 +464,53 @@ def inspect(args: argparse.Namespace) -> dict[str, Any]:
     if issue:
         blockers.append(issue)
 
+    assets, issue = _try_lock(args.asset_manifest, args.asset_manifest_sha256, "asset manifest")
+    assets_ok = False
+    if assets is not None:
+        try:
+            _validate_asset_manifest(assets, profile=profile, profile_sha256=args.profile_sha256)
+            assets_ok = True
+        except (OSError, PreflightError) as exc:
+            issue = f"asset manifest failed: {exc}"
+    gates["asset_manifest"] = assets_ok
+    if issue:
+        blockers.append(issue)
+
+    smoke, issue = _try_lock(args.smoke_log, args.smoke_sha256, "source-free smoke log")
+    smoke_ok = False
+    if smoke is not None and assets_ok:
+        try:
+            _validate_smoke_log(smoke, profile_sha256=args.profile_sha256,
+                                asset_manifest_sha256=args.asset_manifest_sha256,
+                                asset_manifest=assets,
+                                model_profiles=profile["model_profiles"])
+            smoke_ok = True
+        except (OSError, PreflightError) as exc:
+            issue = str(exc)
+    elif smoke is not None:
+        issue = "source-free smoke log cannot be admitted before the asset manifest"
+    gates["smoke_log"] = smoke_ok
+    if issue:
+        blockers.append(issue)
+
     runtime, issue = _try_lock(args.runtime_receipt, args.runtime_sha256, "runtime receipt")
     runtime_ok = False
-    if runtime is not None and planned is not None:
+    if runtime is not None and planned is not None and assets_ok and smoke_ok:
         try:
             _validate_runtime(runtime, manifest_sha256=args.manifest_sha256,
                               source_lock_sha256=args.source_lock_sha256,
                               profile_sha256=args.profile_sha256,
-                              model_profiles=profile["model_profiles"])
+                              asset_manifest_sha256=args.asset_manifest_sha256,
+                              smoke_log_sha256=args.smoke_sha256)
             runtime_ok = True
         except PreflightError as exc:
             issue = str(exc)
     elif runtime is not None:
-        issue = "runtime receipt cannot be admitted before its source lock"
+        issue = "runtime receipt cannot be admitted before source, asset and smoke locks"
     gates["runtime"] = runtime_ok
     if issue:
         blockers.append(issue)
 
-    gates["model_assets"], asset_issues = _model_assets(args, profile)
-    blockers.extend(asset_issues)
     gates["model_run_c_headroom"] = c_free >= limits["minimum_c_free_bytes_for_model_run"]
     if not gates["model_run_c_headroom"]:
         blockers.append("C: free space is below the 7 GiB model-run headroom gate")
@@ -433,11 +552,10 @@ def main(argv: list[str] | None = None) -> int:
     for kind in ("rights", "human", "runtime"):
         parser.add_argument(f"--{kind}-receipt", type=Path)
         parser.add_argument(f"--{kind}-sha256")
-    parser.add_argument("--hash-model-assets", action="store_true")
-    parser.add_argument("--nuextract-weight", type=Path)
-    parser.add_argument("--nuextract-mmproj", type=Path)
-    parser.add_argument("--nuextract-server", type=Path)
-    parser.add_argument("--qwen-weight", type=Path)
+    parser.add_argument("--asset-manifest", type=Path)
+    parser.add_argument("--asset-manifest-sha256")
+    parser.add_argument("--smoke-log", type=Path)
+    parser.add_argument("--smoke-sha256")
     parser.add_argument("--require-ready", action="store_true",
                         help="Return exit 2 when any pre-inference gate is not met")
     args = parser.parse_args(argv)
