@@ -30,3 +30,18 @@ was changed during testing.
 Running deployments must restart the gateway with the updated code. Native HTTP
 verification is recorded separately after that restart; unit tests alone do not
 prove that a previously running process has acquired the fix.
+
+## Native deployment verification
+
+The owned native stack was stopped while its PostgreSQL queue had five completed
+jobs and no active or pending work. The frontend production build was regenerated,
+the updated OCR preflight passed, and the stack reported ready on loopback.
+Live HTTP requests to both recovery endpoints returned the same 503 response
+with no token. Normal administrator login still returned 200. No real account
+password was changed. Receipt `password-recovery-shutdown-http.json` has SHA-256
+`f30046ca5baf6190cb7733d250c1ab74c98d192de7ad9fee25bb774747b7873d`.
+
+Browser inspection of the rebuilt public pages verified named Username/Password
+controls and the recovery-unavailable screen. Authenticated browser review is
+still pending; these public-page checks do not establish that the document viewer
+works after sign-in.
