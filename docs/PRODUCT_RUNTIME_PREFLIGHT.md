@@ -16,6 +16,14 @@ local setup. Exit code **1** means a required path or declared configuration is
 unavailable. Run before starting services or accepting files; the script itself
 does not change the upload API or extension list.
 
+The native launcher enforces this check before starting services and before
+declaring an existing stack ready. It uses a 60-second deadline and saves a
+sanitized summary at `runtimeRoot/state/product-capabilities.json`. Failed,
+incomplete, inconsistent or timed-out reports block startup. Raw child output is
+discarded; the saved report contains only known capability flags, error codes,
+timestamp and provider setup state. This receipt records the last startup check;
+the launcher's `-Status` option only queries running processes.
+
 The optional `--native-config` reads only the product Python, provider and OCR
 settings. It refuses to certify a different interpreter from `pythonPath`.
 Without it, the current interpreter and environment are checked. Existing

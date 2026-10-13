@@ -20,6 +20,10 @@ if ($Status) {
   exit 0
 }
 
+# Certify the configured extraction interpreter before starting services or
+# reporting an existing stack ready. This makes no provider requests.
+[void](Invoke-NativeProductPreflight -Config $config)
+
 if ($state) {
   $summary = Get-NativeSummary -Config $config -State $state
   if ($summary.postgres.portOwned -and $summary.gateway.portOwned -and $summary.frontend.portOwned -and
@@ -109,7 +113,8 @@ try {
     IDPO_PRODUCT_PYTHON = [string]$config.pythonPath
   }
   foreach ($mapping in @(@('autoModel', 'IDPO_AUTO_MODEL'), @('autoApiBaseUrl', 'IDPO_AUTO_API_BASE_URL'),
-    @('icoreApiKey', 'ICORE_API_KEY'), @('tesseractPath', 'TESSERACT_CMD'), @('tessdataDir', 'TESSDATA_PREFIX'))) {
+    @('icoreApiKey', 'ICORE_API_KEY'), @('tesseractPath', 'TESSERACT_CMD'), @('tessdataDir', 'TESSDATA_PREFIX'),
+    @('autoMaxOutputTokens', 'IDPO_AUTO_MAX_OUTPUT_TOKENS'), @('autoTimeoutSeconds', 'IDPO_AUTO_TIMEOUT_S'))) {
     if ($config.ContainsKey($mapping[0]) -and $config[$mapping[0]]) {
       $frontendEnvironment[$mapping[1]] = [string]$config[$mapping[0]]
     }

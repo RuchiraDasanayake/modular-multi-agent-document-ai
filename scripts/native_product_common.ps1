@@ -53,6 +53,16 @@ function Get-NativeConfig {
   if ([string]$config.adminPassword -match '[\r\n]' -or ([string]$config.adminPassword).Length -lt 12) {
     throw 'Native product config requires an explicit admin password of at least 12 characters.'
   }
+  foreach ($limit in @(@('autoMaxOutputTokens', 16384), @('autoTimeoutSeconds', 600))) {
+    $key = [string]$limit[0]
+    if ($config.ContainsKey($key) -and $null -ne $config[$key]) {
+      $value = 0
+      if (-not [int]::TryParse([string]$config[$key], [ref]$value) -or $value -lt 1 -or $value -gt [int]$limit[1]) {
+        throw "Native product config $key must be an integer from 1 to $($limit[1])."
+      }
+      $config[$key] = $value
+    }
+  }
   $uri = $null
   if (-not [uri]::TryCreate([string]$config.databaseUrl, [UriKind]::Absolute, [ref]$uri) -or
     $uri.Scheme -notin @('postgres', 'postgresql') -or $uri.Host -ne '127.0.0.1' -or
@@ -83,6 +93,7 @@ function Get-NativeConfig {
       @($config.pythonPath, 'product Python'),
       @($config.gatewayPythonPath, 'gateway Python'),
       @($config.nodePath, 'Node.js'),
+      @((Join-Path $config.repoRoot 'scripts\check_product_runtime.py'), 'product runtime preflight'),
       @((Join-Path $config.repoRoot 'scripts\run_uvicorn_win.py'), 'gateway launcher'),
       @((Join-Path $config.repoRoot 'frontend\node_modules\next\dist\bin\next'), 'Next.js CLI'),
       @((Join-Path $config.pgData 'PG_VERSION'), 'PostgreSQL data cluster')
@@ -268,6 +279,118 @@ function Quote-NativeArgument {
   param([string]$Value)
   if ($Value -match '["\r\n]') { throw 'An executable argument contains unsupported characters.' }
   return '"' + $Value + '"'
+}
+
+function ConvertTo-NativeCapabilityReport {
+  param($Payload, [int]$ExitCode)
+  # Retain only known fields and enum values. Raw child output may contain
+  # third-party diagnostics and must never be saved as the capability receipt.
+  $safe = [ordered]@{ contract_version = 1; checkedAt = (Get-Date).ToUniversalTime().ToString('o')
+    status = 'unavailable'; code = 'invalid_report'; failed_checks = @(); failed_capabilities = @() }
+  if ($Payload -isnot [System.Collections.IDictionary] -or $Payload.contract_version -ne 1) { return $safe }
+  if ($Payload.status -eq 'unavailable' -and $Payload.code -in @('invalid_native_config',
+      'wrong_python_runtime', 'runtime_preflight_failed')) {
+    $safe.code = $Payload.code
+    return $safe
+  }
+  if ($Payload.status -notin @('ready', 'unavailable') -or $Payload.network_calls_made -isnot [bool] -or
+    $Payload.network_calls_made -or $Payload.checks -isnot [array] -or
+    $Payload.capabilities -isnot [System.Collections.IDictionary] -or
+    $Payload.provider -isnot [System.Collections.IDictionary]) { return $safe }
+  $checkNames = @('core', 'text_json', 'pdf_native', 'image_codecs', 'pdfium', 'pdf_rasterizer',
+    'tesseract_ocr', 'scan_sample', 'docx', 'xlsx', 'pptx', 'html', 'eml', 'model_client')
+  $checked = @{}
+  foreach ($check in $Payload.checks) {
+    if ($check -isnot [System.Collections.IDictionary] -or $check.id -notin $checkNames -or
+      $check.ready -isnot [bool] -or $checked.ContainsKey([string]$check.id)) { return $safe }
+    $checked[[string]$check.id] = [bool]$check.ready
+  }
+  if ($checked.Count -ne $checkNames.Count) { return $safe }
+  $capabilityNames = @('text_json', 'pdf_native_text', 'image_ocr', 'pdf_scan_extraction',
+    'pdf_scan_schema_sampling', 'docx', 'xlsx', 'pptx', 'html', 'eml')
+  $capabilities = [ordered]@{}
+  foreach ($name in $capabilityNames) {
+    $item = $Payload.capabilities[$name]
+    if ($item -isnot [System.Collections.IDictionary] -or $item.ready -isnot [bool]) { return $safe }
+    $capabilities[$name] = [bool]$item.ready
+  }
+  $provider = $Payload.provider
+  if ($provider.mode -notin @('disabled', 'invalid', 'local', 'cloud') -or
+    $provider.state -notin @('not_configured', 'configured_unverified', 'unavailable') -or
+    $provider.configuration_valid -isnot [bool] -or $provider.client_ready -isnot [bool] -or
+    $provider.network_checked -isnot [bool] -or $provider.network_checked) { return $safe }
+  $providerReady = $provider.configuration_valid -and (
+    ($provider.mode -eq 'disabled' -and $provider.state -eq 'not_configured') -or
+    ($provider.mode -in @('local', 'cloud') -and $provider.state -eq 'configured_unverified' -and
+      $provider.client_ready -and $checked.model_client))
+  $safe.failed_checks = @($checkNames | Where-Object { -not $checked[$_] })
+  $safe.failed_capabilities = @($capabilityNames | Where-Object { -not $capabilities[$_] })
+  $safe.capabilities = $capabilities
+  $safe.provider = [ordered]@{ mode = [string]$provider.mode; state = [string]$provider.state
+    client_ready = [bool]$provider.client_ready; network_checked = $false }
+  $requiredFailed = @($safe.failed_checks | Where-Object { $_ -ne 'model_client' })
+  $safe.code = 'capability_unavailable'
+  if ($ExitCode -ne 0) { $safe.code = 'probe_process_failed' }
+  elseif ($Payload.status -eq 'ready' -and $safe.failed_capabilities.Count -eq 0 -and
+    $requiredFailed.Count -eq 0 -and $providerReady) {
+    $safe.status = 'ready'
+    $safe.code = 'synthetic_capabilities_verified'
+  }
+  return $safe
+}
+
+function Invoke-NativeProductPreflight {
+  param($Config, [ValidateRange(1, 120)][int]$TimeoutSeconds = 60)
+  $ErrorActionPreference = 'Stop'
+  $directory = Split-Path -Parent $Config.statePath
+  New-Item -ItemType Directory -Path $directory -Force | Out-Null
+  $reportPath = Join-Path $directory 'product-capabilities.json'
+  $stem = Join-Path $directory ('.product-preflight-' + [guid]::NewGuid().ToString('N'))
+  $stdoutPath = "$stem.out.tmp"
+  $stderrPath = "$stem.err.tmp"
+  $reportTemporary = "$stem.report.tmp"
+  $process = $null
+  $identity = $null
+  $report = [ordered]@{ contract_version = 1; checkedAt = (Get-Date).ToUniversalTime().ToString('o')
+    status = 'unavailable'; code = 'probe_start_failed'; failed_checks = @(); failed_capabilities = @() }
+  try {
+    try {
+      $arguments = @((Join-Path $Config.repoRoot 'scripts\check_product_runtime.py'),
+        '--native-config', [string]$Config.configPath, '--json')
+      $quoted = ($arguments | ForEach-Object { Quote-NativeArgument $_ }) -join ' '
+      $process = Start-Process -FilePath $Config.pythonPath -ArgumentList $quoted `
+        -WorkingDirectory $Config.repoRoot -RedirectStandardOutput $stdoutPath `
+        -RedirectStandardError $stderrPath -WindowStyle Hidden -PassThru
+      $identity = Get-NativeProcessIdentity -Id $process.Id
+      if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+        $report.code = 'probe_timeout'
+        if ($identity) { [void](Stop-NativeOwnedTree -Identity $identity) }
+        if (-not $process.WaitForExit(5000)) { $report.code = 'probe_timeout_cleanup_failed' }
+      } else {
+        # WaitForExit flushes redirected streams before their files are inspected.
+        $process.WaitForExit()
+        $report.code = 'invalid_report'
+        if ((Get-Item -LiteralPath $stdoutPath).Length -le 65536) {
+          $payload = Get-Content -LiteralPath $stdoutPath -Raw | ConvertFrom-Json -AsHashtable
+          $report = ConvertTo-NativeCapabilityReport -Payload $payload -ExitCode $process.ExitCode
+        }
+      }
+    } catch {
+      # Keep the bounded error code; never print process output or exception text.
+    }
+    $report | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $reportTemporary -Encoding utf8
+    Move-Item -LiteralPath $reportTemporary -Destination $reportPath -Force
+    if ($report.status -ne 'ready') {
+      $failed = if ($report.failed_capabilities.Count) { ' Unavailable: ' + ($report.failed_capabilities -join ', ') + '.' } else { '' }
+      throw "Product runtime preflight failed ($($report.code)).$failed Report: $reportPath"
+    }
+    return $report
+  } finally {
+    if ($process) { $process.Dispose() }
+    foreach ($temporary in @($stdoutPath, $stderrPath, $reportTemporary)) {
+      Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
+    }
+  }
 }
 
 function Start-NativeChild {

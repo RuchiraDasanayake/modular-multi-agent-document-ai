@@ -51,9 +51,23 @@ Use Python 3.13 and install `idpo/product_auto/requirements-worker.txt` in a ded
 The historical repository environment may lack PDF, image, OCR or Office dependencies even if text extraction works.
 Verify `python -m pip check` and run the mixed-format parser checks before advertising those formats.
 
+Startup now runs the offline [product capability preflight](../docs/PRODUCT_RUNTIME_PREFLIGHT.md)
+with the configured `pythonPath` before starting services or declaring an existing stack ready.
+It allows 60 seconds, stops only its identified probe process tree on timeout, and refuses startup on
+missing capabilities, invalid output, or a failed probe. The sanitized, timestamped receipt is saved at
+`runtimeRoot\state\product-capabilities.json`; raw stdout/stderr capture files are removed. The receipt
+contains capability flags and provider setup state, never keys, endpoint URLs, model names or raw errors.
+An existing service stack is not stopped by a failed check. `-Status` remains a process-status query and
+does not repeat the capability check. Provider state `configured_unverified` does not establish endpoint
+health, model availability or credential validity; the preflight makes no API calls.
+
 Optional private config fields `autoModel`, `autoApiBaseUrl`, and `icoreApiKey` configure the same provider for the
 web app and worker. Install the `openai` client in the extraction environment for an OpenAI-compatible endpoint.
 Use an explicit HTTPS endpoint, or loopback HTTP for a local server. No provider key belongs in tracked files.
+Optional `autoMaxOutputTokens` (integer 1–16,384) and `autoTimeoutSeconds` (integer 1–600) map to
+`IDPO_AUTO_MAX_OUTPUT_TOKENS` and `IDPO_AUTO_TIMEOUT_S` for both the web helper and worker. Product defaults are
+8,192 output tokens and 180 seconds when these server settings are absent. These are per-call bounds;
+they do not authorize automatic retries or guarantee provider output completeness.
 For portable OCR installations, optional `tesseractPath` and `tessdataDir` set `TESSERACT_CMD` and `TESSDATA_PREFIX`
 in both web helper and extraction worker. Verify the executable and language data before processing scans.
 
@@ -83,4 +97,12 @@ The frontend is at `http://127.0.0.1:3000` with the example config. The launcher
 
 Startup refuses any occupied, untracked port. A second start against a healthy tracked stack is safe. If startup stops partway through, inspect `-Status` and the logs, then run the stop script before retrying. Stop verifies the recorded process identity and only terminates tracked gateway/frontend/worker process trees; PostgreSQL uses `pg_ctl stop -m fast`. It preserves runtime data and logs. A missing or altered process receipt is never treated as authority to kill a port listener. Stopping a worker during active extraction produces an uncertain failed attempt; queued attempts persist for restart.
 
-Source-free checks: `pwsh -File scripts/tests/native_product.test.ps1`.
+Source-free checks:
+
+```powershell
+pwsh -File scripts/tests/native_product.test.ps1
+pwsh -File scripts/tests/native_product_preflight.test.ps1
+```
+
+The second suite substitutes a local Node stub for the capability probe; it makes no model calls and
+does not start PostgreSQL or application services.
