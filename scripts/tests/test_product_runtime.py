@@ -17,6 +17,24 @@ def ready_checks(**changes: bool) -> list[dict[str, object]]:
     return [{"id": name, "ready": changes.get(name, True)} for name in runtime.REMEDIES]
 
 
+def test_optional_rapidocr_is_only_probed_when_explicit_and_failure_blocks_readiness(monkeypatch):
+    probes = []
+    def check(check_id, _probe):
+        probes.append(check_id)
+        return {"id": check_id, "ready": check_id != "rapidocr_ocr", "code": "fixture"}
+    monkeypatch.setattr(runtime, "run_check", check)
+    monkeypatch.delenv("IDPO_AUTO_MODEL", raising=False)
+    monkeypatch.delenv("IDPO_AUTO_API_BASE_URL", raising=False)
+    default = runtime.check_runtime()
+    assert "rapidocr_ocr" not in probes and "optional_ocr" not in default
+    assert default["status"] == "ready"
+    selected = runtime.check_runtime("rapidocr")
+    assert probes.count("rapidocr_ocr") == 1
+    assert selected["optional_ocr"]["ready"] is False
+    assert selected["status"] == "unavailable"
+    assert "tesseract_ocr" in probes and "scan_sample" in probes
+
+
 def test_missing_pdf_reader_is_not_masked_by_a_working_rasterizer(tmp_path: Path, monkeypatch) -> None:
     pdf = tmp_path / "native.pdf"
     runtime._write_pdf(pdf)

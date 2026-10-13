@@ -21,7 +21,7 @@ def staged_run(tmp_path: Path) -> tuple[str, Path]:
 def test_worker_accepts_only_matching_staged_run(tmp_path: Path) -> None:
     run_id, staged = staged_run(tmp_path)
     assert validate_request({"run_id": run_id, "input_dir": str(staged)}, root=tmp_path) == (
-        staged, run_id, None, None, None,
+        staged, run_id, None, None, None, None, None,
     )
 
     with pytest.raises(ValueError, match="staging area"):
@@ -52,3 +52,16 @@ def test_worker_request_contract_is_json_safe(tmp_path: Path) -> None:
     run_id, staged = staged_run(tmp_path)
     payload = json.loads(json.dumps({"run_id": run_id, "input_dir": str(staged)}))
     assert validate_request(payload, root=tmp_path)[1] == run_id
+
+
+def test_worker_accepts_complete_bounded_model_budget_and_rejects_partial_or_invalid(tmp_path: Path) -> None:
+    run_id, staged = staged_run(tmp_path)
+    base = {"run_id": run_id, "input_dir": str(staged), "model": "local-model",
+            "api_base_url": "http://127.0.0.1:1/v1"}
+    assert validate_request({**base, "max_tokens": 8192, "timeout_s": 180}, root=tmp_path)[-2:] == (8192, 180)
+    assert validate_request(base, root=tmp_path)[-2:] == (None, None)
+    for extra in ({"max_tokens": 8192}, {"timeout_s": 180}, {"max_tokens": 0, "timeout_s": 180},
+                  {"max_tokens": 16385, "timeout_s": 180}, {"max_tokens": 8192, "timeout_s": 601},
+                  {"max_tokens": True, "timeout_s": 180}):
+        with pytest.raises(ValueError, match="budget|limits"):
+            validate_request({**base, **extra}, root=tmp_path)

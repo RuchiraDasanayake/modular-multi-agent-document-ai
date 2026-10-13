@@ -41,6 +41,7 @@ export function ProductAutoPage() {
   const [selectedRecipeId, setSelectedRecipeId] = useState("");
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
+  const [downloadingRunId, setDownloadingRunId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -93,6 +94,10 @@ export function ProductAutoPage() {
   }, [jobId, running]);
 
   const activeRun = useMemo(() => runs.find((run) => run.runId === activeRunId) ?? runs[0] ?? null, [runs, activeRunId]);
+  const reviewedCount = activeRun?.documents.filter((document) => document.reviewStatus === "completed" &&
+    document.status !== "failed" && document.status !== "unsupported").length ?? 0;
+  const batchReady = activeRun?.status === "success" && activeRun.selectedCount > 0 &&
+    activeRun.documents.length === activeRun.selectedCount && reviewedCount === activeRun.selectedCount;
   const formDirty = !brief || JSON.stringify({ intent: briefIntent, fields: briefFields, samples: sampleFileIds }) !==
     JSON.stringify({ intent: brief.intent, fields: brief.fields,
       samples: brief.sample_sources.map((source) => source.file_id) });
@@ -186,6 +191,27 @@ export function ProductAutoPage() {
     } finally {
       setStarting(false);
     }
+  }
+
+  async function downloadReviewedBatch() {
+    if (!activeRun || !batchReady) return;
+    const runId = activeRun.runId;
+    setDownloadingRunId(runId);
+    setError("");
+    try {
+      const blob = await idpoApi.downloadProductAutoReviewedBatch(jobId, runId);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `docai-${runId}-reviewed-v1.jsonl`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not download the reviewed batch.");
+      void idpoApi.listProductAutoRuns(jobId).then((data) => setRuns(data.runs)).catch(() => undefined);
+    } finally { setDownloadingRunId(null); }
   }
 
   if (loading || briefLoading) return <div className="p-6 text-sm text-slate-500" aria-busy="true">Loading automatic extraction…</div>;
@@ -436,8 +462,18 @@ export function ProductAutoPage() {
         {activeRun?.status === "failed" ? <p role="alert" className="mt-4 text-sm text-rose-700 dark:text-rose-300">{activeRun.error ?? "Extraction failed."}</p> : null}
         {activeRun?.status === "success" ? (
           <div className="mt-4 overflow-x-auto">
+            <div className="mb-3 flex flex-wrap items-center gap-3">
+              <button type="button" onClick={() => void downloadReviewedBatch()}
+                disabled={!batchReady || downloadingRunId !== null}
+                className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-800 disabled:cursor-not-allowed disabled:opacity-50">
+                {downloadingRunId === activeRun.runId ? "Preparing download…" : "Download reviewed batch"}
+              </button>
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                {reviewedCount} of {activeRun.selectedCount} reviewed. JSONL has one structured result per document.
+              </p>
+            </div>
             <table className="w-full min-w-[600px] text-sm">
-              <thead><tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-700"><th className="py-2 pr-3">Document</th><th className="py-2 pr-3">Status</th><th className="py-2 pr-3">Fields</th><th className="py-2 pr-3">Accepted</th><th className="py-2 pr-3">Human review</th></tr></thead>
+              <thead><tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-700"><th className="py-2 pr-3">Document</th><th className="py-2 pr-3">Status</th><th className="py-2 pr-3">Fields</th><th className="py-2 pr-3">Text matched</th><th className="py-2 pr-3">Human review</th></tr></thead>
               <tbody>{activeRun.documents.map((document) => (
                 <tr key={document.docId} className="border-b border-slate-100 dark:border-slate-800">
                   <td className="py-2 pr-3"><Link className="font-medium text-cyan-700 hover:underline dark:text-cyan-300" href={`/dashboard/idpo/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(activeRun.runId)}/docs/${encodeURIComponent(document.docId)}`}>{document.fileName}</Link></td>

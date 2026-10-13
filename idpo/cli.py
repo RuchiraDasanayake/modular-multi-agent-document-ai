@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 from idpo.agents.intake import IntakeAgent
@@ -18,6 +19,23 @@ from idpo.pipeline.serialization import document_to_dict, result_to_dict
 from idpo.retrieval.index_bundle import IndexBundle
 
 SUPPORTED_INPUT_EXTS = {".json", ".txt", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
+
+
+def _bounded_model_integer(raw: str, maximum: int) -> int:
+    if not re.fullmatch(r"[1-9][0-9]*", raw):
+        raise argparse.ArgumentTypeError(f"Expected an integer from 1 to {maximum}")
+    value = int(raw)
+    if value > maximum:
+        raise argparse.ArgumentTypeError(f"Expected an integer from 1 to {maximum}")
+    return value
+
+
+def _model_timeout_s(raw: str) -> int:
+    return _bounded_model_integer(raw, 600)
+
+
+def _model_max_tokens(raw: str) -> int:
+    return _bounded_model_integer(raw, 16384)
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="idpo")
@@ -48,15 +66,16 @@ def main() -> None:
     auto_parser = subparsers.add_parser("process-auto", help="Discover fields and extract source-grounded values")
     auto_parser.add_argument("--input", required=True, help="One document or a directory of documents")
     auto_parser.add_argument("--run-id", default=None)
-    auto_parser.add_argument("--ocr-engine", default="tesseract")
+    auto_parser.add_argument("--ocr-engine", default="tesseract",
+                             choices=("tesseract", "paddle", "paddleocr", "rapidocr"))
     auto_parser.add_argument("--ocr-lang", default="eng")
     auto_parser.add_argument("--ocr-call-timeout-s", type=float, default=30.0)
     auto_parser.add_argument("--ocr-page-budget-s", type=float, default=120.0)
     auto_parser.add_argument("--model", default=None, help="Optional OpenAI-compatible model ID")
     auto_parser.add_argument("--api-base-url", default=None, help="HTTPS model endpoint or local HTTP endpoint")
     auto_parser.add_argument("--api-key-env", default="ICORE_API_KEY", help="Environment variable containing the API key")
-    auto_parser.add_argument("--timeout-s", type=int, default=60)
-    auto_parser.add_argument("--max-tokens", type=int, default=1200)
+    auto_parser.add_argument("--timeout-s", type=_model_timeout_s, default=60)
+    auto_parser.add_argument("--max-tokens", type=_model_max_tokens, default=1200)
     auto_parser.add_argument("--approved-recipe-file", default=None, help="Explicit approved recipe snapshot file")
     auto_parser.add_argument("--approved-recipe-sha256", default=None, help="Expected SHA-256 of recipe snapshot bytes")
     auto_parser.add_argument("--confirmed-schema-file", default=None, help="Explicit user-confirmed schema snapshot file")

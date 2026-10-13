@@ -328,6 +328,8 @@ services:
       - PRODUCT_WORKER_SOCKET=/idpo-data/product-worker.sock
       - IDPO_AUTO_MODEL=${IDPO_AUTO_MODEL:-}
       - IDPO_AUTO_API_BASE_URL=${IDPO_AUTO_API_BASE_URL:-}
+      - IDPO_AUTO_MAX_OUTPUT_TOKENS=${IDPO_AUTO_MAX_OUTPUT_TOKENS:-}
+      - IDPO_AUTO_TIMEOUT_S=${IDPO_AUTO_TIMEOUT_S:-}
       - ICORE_API_KEY=${ICORE_API_KEY:-}
     volumes:
       - idpo_data:/idpo-data

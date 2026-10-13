@@ -34,7 +34,7 @@ export function Footer() {
                             </span>
                         </div>
                         <p className="text-sm text-slate-600 dark:text-gray-400 leading-relaxed max-w-sm">
-                            Adaptive document extraction built on AHMN policy learning and IDPO runtime orchestration.
+                            Extract requested information, inspect its source, and review structured results.
                         </p>
                     </div>
 

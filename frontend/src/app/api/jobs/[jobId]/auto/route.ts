@@ -34,6 +34,10 @@ export async function POST(request: Request, { params }: Params) {
     const { jobId } = await params;
     requireJob(jobId, user);
     const body: unknown = await request.json();
+    if (body && typeof body === "object" && !Array.isArray(body) &&
+      Object.keys(body).some((key) => !["selectedFileIds", "approvedRecipe", "confirmedBrief"].includes(key))) {
+      throw new AccessError("Extraction options must be configured on the server.", 400);
+    }
     const selectedFileIds = body && typeof body === "object" && !Array.isArray(body) &&
       Array.isArray((body as Record<string, unknown>).selectedFileIds)
       ? (body as { selectedFileIds: unknown[] }).selectedFileIds

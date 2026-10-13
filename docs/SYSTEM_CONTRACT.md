@@ -14,8 +14,8 @@ The native Windows product launcher runs local PostgreSQL, the authentication ga
 and the frontend. The worker runs the existing local Python extractor. Docker and Redis are optional for this product mode. Set
 `TOKEN_REVOCATION_BACKEND=postgresql` and explicitly apply `gateway/native_auth.sql` to the configured database.
 Refresh rotation uses a durable atomic claim before issuing replacement tokens; storage failures deny refresh.
-The launcher requires persistent explicit secrets and binds only loopback. This is a development runtime with
-process-local rate limits. Native product extraction uses pg-boss with atomic PostgreSQL admission, per-owner pending
+The launcher requires persistent explicit secrets and binds only loopback. It supports a verified production frontend
+build or a development server; rate limits remain process-local. Native product extraction uses pg-boss with atomic PostgreSQL admission, per-owner pending
 limits and a single active attempt per job. Sources and schema snapshots are verified before execution; interrupted
 attempts are terminal and never automatically replay paid calls. Queue state survives web restarts. Artifact storage
 is still a configured filesystem shared by web and worker; this does not establish multi-host storage, per-document
@@ -111,8 +111,16 @@ zero exact CORD fields or linked rows from either engine. The product default re
 Local loopback HTTP servers may run without an API key; remote providers require an HTTPS URL and server-side key. The model can replace the
 heuristic schema. Proposed values require exact text-span evidence and a matching, JSON-round-trippable typed value
 for machine acceptance. Ambiguous boolean quotes and partial identifier matches stay pending review. A newly
-discovered schema is unapproved, so every document remains `needs_review` until an operator reviews it. A separate
-owner-scoped registry can save a completed review as a draft schema and explicitly approve it as `approved_shadow`.
+discovered schema is unapproved, so every document remains `needs_review` until an operator reviews it.
+
+New model-backed product runs use a server-only output budget of 8,192 tokens and a 180-second per-call timeout by
+default. `IDPO_AUTO_MAX_OUTPUT_TOKENS` (1–16,384) and `IDPO_AUTO_TIMEOUT_S` (1–600) can lower or raise those limits;
+invalid settings reject admission. PostgreSQL queue dispatch version 2 seals the selected limits with its profile digest,
+so later environment changes do not alter a prepared run. Previously prepared version 1 dispatches retain their earlier
+CLI defaults of 1,200 tokens and 60 seconds. Direct CLI calls also retain those defaults unless flags are supplied.
+The separate draft-suggestion action keeps its own 1,800-token limit; the 24,000-character source cap is unchanged.
+
+A separate owner-scoped registry can save a completed review as a draft schema and explicitly approve it as `approved_shadow`.
 The operator may select a current approved revision for one run. The frontend rechecks its source
 review and owner, freezes a SHA-256-bound schema snapshot, and the worker skips schema induction
 and calls the model only for values. A stale or disabled selection fails closed; an invalid response
@@ -143,7 +151,11 @@ The owner-scoped `GET /api/jobs/<job_id>/auto/<run_id>/docs/<doc_id>/export` rou
 after that document's review is complete. It rechecks the original source, OCR-page, machine-result, and review hashes
 at download time. The export carries typed fields, per-field status and provenance, source and machine hashes, and the
 review revision; it omits the raw source and server file paths. A human-corrected value is still a reviewer assertion
-unless it has explicit evidence. This is a per-document export; bulk run export is not implemented.
+unless it has explicit evidence. The owner-scoped `GET /api/jobs/<job_id>/auto/<run_id>/export` route downloads
+reviewed JSONL in selected-file order. Every selected document must have complete, current, source-linked review;
+partial, failed, missing or stale results return a conflict instead of an incomplete download. The current batch
+export is bounded to 5,000 documents and 64 MiB. Shared sealed-run and source verification avoids rereading the
+entire run for every exported document.
 
 The owner-scoped `/api/jobs/<job_id>/auto/brief` API stores a revisioned extraction brief with plain-language intent,
 typed field meanings and examples, and 1–5 sample file IDs bound to source SHA-256 hashes. `GET` reports stale sample
@@ -179,19 +191,21 @@ The job-scoped recipe API separately records owner-scoped draft, approval, and d
 requires explicit linked-row group confirmation and can configure one explicitly selected run.
 This is not geometric table annotation.
 
-The single-host path runs as a child process of the frontend server; Docker sends it to one private worker that admits
-one active run and returns a busy error for another. It has no durable queue, cancellation, runtime recipe matcher,
-reusable row extraction policy, per-user cloud quota, or verified live Docker execution. Model-backed
-UI runs are admin-only until cloud data and spend controls exist. It does not use the AHMN policy router, Guardrails
+The native launcher uses the durable PostgreSQL queue described above. The historical direct mode runs a child
+process of the frontend; Docker uses a private worker that admits one run and returns busy for another. The Docker
+bridge does not support confirmed-schema preview and batch arguments. Automatic recipe matching, per-document
+resume, reusable visual row extraction policies, per-user cloud credit quotas and verified live Docker execution
+remain absent. Model-backed UI runs are admin-only until cloud data and spend controls exist. It does not use the AHMN policy router, Guardrails
 service, or the separate XAI-HITL service. Its benchmarks and outputs must never be represented as the submitted paper's
 results or as the canonical research runtime's outputs.
 
-The user's target intent-first batch flow is not implemented by this path. The current product screen requires a job
-upload and run selection; it has no natural-language intent-to-schema onboarding, field-meaning confirmation, pinned
-sample preview before the rest of a batch, or durable backpressure for arbitrarily large batches. The current
-candidate can be downloaded as reviewed JSON per document, but bulk export is still absent.
-The [productization plan](PRODUCTIZATION_PLAN.md) defines these as staged target capabilities. This paragraph
-describes the current gap, not a promise that every format or field can be extracted accurately.
+The native product screen implements intent entry, bounded AI schema suggestions, field-meaning confirmation,
+source-pinned sample preview and a reviewed-preview gate before the remaining batch. The queue enforces finite
+per-owner admission limits. The authenticated synthetic smoke verifies this flow on two text invoices; it does not
+establish real-document quality or arbitrary scale. Reviewed JSON is downloadable per document and JSONL per
+completed run under the limits above. UI labels call machine-accepted values **Text matched** because exact OCR quotes do not establish
+correct field meaning or correspondence to the original image. Human review remains a separate decision.
+The [productization plan](PRODUCTIZATION_PLAN.md) records the remaining quality, cost and deployment gates.
 
 ## Canonical Research Policy Routing
 

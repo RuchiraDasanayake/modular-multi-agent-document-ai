@@ -6,34 +6,31 @@
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-000000.svg?logo=next.js&logoColor=white)](frontend/package.json)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.114+-009485.svg?logo=fastapi&logoColor=white)](gateway/requirements.txt)
 
-A microservices-based research system for adaptive document extraction. A document goes in; structured key-value fields come out. The IDPO pipeline (OCR, preprocessing, local-LLM extraction, validation, recovery) is governed by a policy that the AHMN layer selects per document with Thompson Sampling. Guardrails and XAI-HITL are separate services with their own dashboard pages.
+A document extraction workspace: describe the information you need, confirm a schema from sample files, preview
+the results, process the remaining files, and review source evidence before exporting structured JSON.
+It includes a separate research pipeline for studying adaptive document policies.
 
 > **Research results and how to reproduce them:** see [`docs/REPRODUCING_RESULTS.md`](docs/REPRODUCING_RESULTS.md).
 
-> **Project status:** This is a research prototype under product stabilization. An opt-in
-> automatic extraction path now proposes scalar and bounded repeated-column schemas with source-anchored values,
-> with owner-scoped human review. It is a pilot, not a validated
-> general-purpose extractor. The first 2,000-document no-model development run
-> scored 4.33% strict schema F1 and 0.95% strict value F1, with unsafe automatic acceptance;
-> the second kept every discovered schema in review and scored 0% pre-review accepted-value F1.
-> The [v4 run](docs/evaluations/VRDU_2000_NO_MODEL_V4.md) verified 2,000 distinct sources but lacked its OCR
-> executable, so it is not a valid OCR comparison; it also proposed zero linked cells against 30,133 gold cells.
-> The [v5 pinned-OCR run](docs/evaluations/VRDU_2000_NO_MODEL_V5.md) recovered text on all 35 previously unsupported
-> scans across 2,000 distinct PDFs, but strict schema F1 was only 4.245%, every result required review, and no linked
-> cells were proposed. It did not configure a model or measure cost per correct document.
-> The [v6 bounded-OCR run](docs/evaluations/VRDU_2000_NO_MODEL_V6.md) again completed 2,000 distinct PDFs with
-> zero failures or unsupported results. No page hit its timeout; schema F1 and linked-row quality were unchanged.
-> See [v1](docs/evaluations/VRDU_2000_NO_MODEL_V1.md) and [v2](docs/evaluations/VRDU_2000_NO_MODEL_V2.md).
-> The later October paired evaluation in [`paper/FINAL_EVIDENCE.md`](paper/FINAL_EVIDENCE.md)
-> did not show an accuracy gain from adaptive routing, and the canonical research
-> document job path is unavailable in Docker. See the [productization plan](docs/PRODUCTIZATION_PLAN.md)
-> for the proposed quality, cost, review, and deployment gates.
+> **Release status — 13 October 2026:** The native workflow now has a persistent PostgreSQL queue,
+> confirmed schemas, sample preview, batch extraction, owner-scoped review and reviewed JSON export.
+> The [authenticated two-file synthetic workflow](docs/evaluations/PRODUCT_STAGED_SYNTHETIC_SMOKE_20261013.md)
+> passed using Luna 6. Real-document quality remains below the release target: the
+> [latest six-source development comparison](docs/evaluations/ICORE_PDF_PAINT_GUARD_DEV6_RESULTS_20261013.md)
+> matched 12/32 exact scalar strings, with weak repeated rows and every document requiring review.
+> General-purpose accuracy, cost per correct document and production readiness are **not yet validated**.
+> A fresh model-assisted 2,000-document run is still required after the extraction changes.
+> The [productization plan](docs/PRODUCTIZATION_PLAN.md) retains the earlier failed baselines and release gates;
+> [`paper/FINAL_EVIDENCE.md`](paper/FINAL_EVIDENCE.md) preserves the separate historical research results.
 
-## Opt-in Product Pilot
+## Product Workflow
 
-On a configured single-host installation, upload a document to a job and open its **Automatic extraction** page.
-The job owner can inspect proposed fields, linked cells, source quotes and the original file, then record field and
-row corrections. Model-backed runs currently require an admin. The command-line equivalent is:
+For Windows without Docker, use the [native setup and launcher](scripts/native_product.md).
+On a configured installation, create a job, upload supported files and open **Automatic extraction**.
+Describe the required information, choose samples, enter or request field suggestions, and confirm field meanings.
+Review the preview before processing the remaining files with that pinned schema. The owner can correct fields and
+rows while inspecting source quotes and the original, then download reviewed JSON. Model-backed runs currently
+require an admin. The lower-level command-line extraction entry point is:
 
 ```powershell
 python -m idpo.cli process-auto --input path/to/document.pdf

@@ -39,6 +39,12 @@ const MAX_ADDED_QUOTE = 500;
 const SCHEMA_FIELD_ID = /^[\p{L}][\p{L}\p{N}_]{0,63}$/u;
 const SCHEMA_TYPES = new Set(["string", "integer", "decimal", "boolean", "date", "array[object]"]);
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const DEFAULT_MODEL_MAX_OUTPUT_TOKENS = 8192;
+const MAX_MODEL_MAX_OUTPUT_TOKENS = 16384;
+const DEFAULT_MODEL_TIMEOUT_S = 180;
+const MAX_MODEL_TIMEOUT_S = 600;
+const MAX_REVIEWED_BATCH_DOCUMENTS = 5000;
+const MAX_REVIEWED_BATCH_BYTES = 64 * 1024 * 1024;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const LEASE_TIMEOUT_MS = 5 * 60_000;
 const RECOVERY_INTERVAL_MS = 30_000;
@@ -130,8 +136,13 @@ function dispatchFile(jobId: string, runId: string): string {
   return runFile(jobId, runId).replace(/\.json$/, ".dispatch.json");
 }
 
+interface ModelBudget {
+  maxOutputTokens: number;
+  timeoutSeconds: number;
+}
+
 interface PreparedDispatch {
-  version: 1;
+  version: 1 | 2;
   ownerId: string;
   jobId: string;
   runId: string;
@@ -139,6 +150,42 @@ interface PreparedDispatch {
   inputManifestSha256: string;
   model?: string;
   baseUrl?: string;
+  modelBudget?: ModelBudget;
+}
+
+function validModelBudget(value: unknown): value is ModelBudget {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const budget = value as Record<string, unknown>;
+  return Object.keys(budget).sort().join() === "maxOutputTokens,timeoutSeconds" &&
+    Number.isSafeInteger(budget.maxOutputTokens) && (budget.maxOutputTokens as number) >= 1 &&
+    (budget.maxOutputTokens as number) <= MAX_MODEL_MAX_OUTPUT_TOKENS &&
+    Number.isSafeInteger(budget.timeoutSeconds) && (budget.timeoutSeconds as number) >= 1 &&
+    (budget.timeoutSeconds as number) <= MAX_MODEL_TIMEOUT_S;
+}
+
+function configuredModelBudget(): ModelBudget {
+  const bounded = (name: string, fallback: number, maximum: number): number => {
+    const raw = process.env[name];
+    if (raw === undefined || raw === "") return fallback;
+    if (!/^[1-9][0-9]*$/.test(raw)) throw new AccessError(`Invalid server model budget: ${name}.`, 503);
+    const number = Number(raw);
+    if (!Number.isSafeInteger(number) || number > maximum) {
+      throw new AccessError(`Invalid server model budget: ${name}.`, 503);
+    }
+    return number;
+  };
+  return {
+    maxOutputTokens: bounded("IDPO_AUTO_MAX_OUTPUT_TOKENS", DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
+      MAX_MODEL_MAX_OUTPUT_TOKENS),
+    timeoutSeconds: bounded("IDPO_AUTO_TIMEOUT_S", DEFAULT_MODEL_TIMEOUT_S, MAX_MODEL_TIMEOUT_S),
+  };
+}
+
+function appendModelArguments(args: string[], model?: string, baseUrl?: string, budget?: ModelBudget): void {
+  if (!model || !baseUrl) return;
+  args.push("--model", model, "--api-base-url", baseUrl);
+  if (budget) args.push("--max-tokens", String(budget.maxOutputTokens),
+    "--timeout-s", String(budget.timeoutSeconds));
 }
 
 function commandSha256(): string {
@@ -594,6 +641,13 @@ function readAuditTrail(jobId: string, runId: string, docId: string): ProductAut
   return events;
 }
 
+function reviewAuditDigest(jobId: string, runId: string, docId: string): string {
+  const directory = auditDir(jobId, runId, docId);
+  const files = fs.readdirSync(directory).filter((name) => /^\d{12}\.json$|^\d{13}_[a-f0-9]{32}\.json$/.test(name)).sort();
+  return createHash("sha256").update(JSON.stringify(files.map((name) =>
+    [name, sha256File(path.join(directory, name))]))).digest("hex");
+}
+
 function publishAuditEvent(directory: string, event: ProductAutoAuditEvent): void {
   fs.mkdirSync(directory, { recursive: true });
   const target = path.join(directory, `${String(event.revision).padStart(12, "0")}.json`);
@@ -794,6 +848,7 @@ export function productAutoAvailability(): { available: boolean; modelConfigured
   let modelConfigured = false;
   if (model && baseUrl) {
     try {
+      configuredModelBudget();
       modelConfigured = !modelEndpointRequiresKey(baseUrl) || Boolean(process.env.ICORE_API_KEY?.trim());
     } catch {
       modelConfigured = false;
@@ -876,6 +931,7 @@ export async function startProductAutoRun(
     throw new AccessError("The server model key is missing.", 503);
   }
   if (model && !admin) throw new AccessError("Admin access is required to start model-backed extraction.", 403);
+  const modelBudget = model ? configuredModelBudget() : undefined;
   if (approvedRecipeSelection && !model) {
     throw new AccessError("An approved recipe requires a configured value extraction model.", 503);
   }
@@ -989,10 +1045,10 @@ export async function startProductAutoRun(
     let dispatch: PreparedDispatch | undefined;
     let dispatchHash: string | undefined;
     if (queued) {
-      dispatch = { version: 1, ownerId: job.ownerUserId!, jobId, runId,
+      dispatch = { version: modelBudget ? 2 : 1, ownerId: job.ownerUserId!, jobId, runId,
         commandSha256: commandSha256(),
         inputManifestSha256: inputManifestSha256({ selectedFiles, approvedRecipe: recipeMeta, confirmedBrief: schemaMeta }),
-        ...(model && baseUrl ? { model, baseUrl } : {}) };
+        ...(model && baseUrl ? { model, baseUrl, modelBudget } : {}) };
       const bytes = JSON.stringify(dispatch);
       fs.mkdirSync(path.dirname(dispatchFile(jobId, runId)), { recursive: true });
       const handle = fs.openSync(dispatchFile(jobId, runId), "wx", 0o600);
@@ -1024,7 +1080,7 @@ export async function startProductAutoRun(
     writeLease(jobId, runId);
     const command = getCommandConfig("idpo_process_auto");
     const args = command.args.map((arg) => arg.replaceAll("{input_dir}", inputDir).replaceAll("{run_id}", runId));
-    if (model && baseUrl) args.push("--model", model, "--api-base-url", baseUrl);
+    appendModelArguments(args, model, baseUrl, modelBudget);
     if (recipeMeta) args.push("--approved-recipe-file", stagedRecipeFile(runId),
       "--approved-recipe-sha256", recipeMeta.snapshotSha256);
     if (schemaMeta) args.push("--confirmed-schema-file", stagedSchemaFile(runId),
@@ -1069,10 +1125,14 @@ function verifiedDispatch(request: ProductDispatch): { record: RunRecord; prepar
     throw new Error("Queued extraction profile changed.");
   }
   const prepared = parseJsonObject(file) as unknown as PreparedDispatch;
-  if (prepared.version !== 1 || prepared.ownerId !== request.ownerId ||
+  if ((prepared.version !== 1 && prepared.version !== 2) || prepared.ownerId !== request.ownerId ||
     prepared.jobId !== request.jobId || prepared.runId !== request.runId ||
     prepared.inputManifestSha256 !== inputManifestSha256(record)) {
     throw new Error("Invalid queued extraction profile.");
+  }
+  if (prepared.version === 1 ? prepared.modelBudget !== undefined :
+    (!prepared.model || !prepared.baseUrl || !validModelBudget(prepared.modelBudget))) {
+    throw new Error("Invalid queued model budget.");
   }
   return { record, prepared };
 }
@@ -1106,7 +1166,7 @@ export async function executePreparedProductAutoRun(request: ProductDispatch, si
   }
   const command = getCommandConfig("idpo_process_auto");
   const args = command.args.map((arg) => arg.replaceAll("{input_dir}", inputDir).replaceAll("{run_id}", request.runId));
-  if (prepared.model && prepared.baseUrl) args.push("--model", prepared.model, "--api-base-url", prepared.baseUrl);
+  appendModelArguments(args, prepared.model, prepared.baseUrl, prepared.modelBudget);
   if (record.approvedRecipe) args.push("--approved-recipe-file", stagedRecipeFile(request.runId),
     "--approved-recipe-sha256", record.approvedRecipe.snapshotSha256);
   if (record.confirmedBrief) args.push("--confirmed-schema-file", stagedSchemaFile(request.runId),
@@ -1194,10 +1254,10 @@ export async function recoverQueuedProductAutoAdmissions(): Promise<number> {
   return recovered;
 }
 
-function loadProductAutoDocument(jobId: string, runId: string, docId: string): {
-  detail: ProductAutoDocumentDetail; machineResultHash: string;
+function loadProductAutoDocument(jobId: string, runId: string, docId: string, sealedRecord?: RunRecord): {
+  detail: ProductAutoDocumentDetail; machineResultHash: string; sourceHash?: string;
 } {
-  const record = readRunRecord(jobId, runId);
+  const record = sealedRecord ?? readRunRecord(jobId, runId);
   const runningWithOutput = record.status === "running" && fs.existsSync(path.join(outputDir(runId), "run.json"));
   const documents = runningWithOutput ? validatedDocuments(record, docId) : record.documents;
   const document = documents.find((item) => item.docId === docId);
@@ -1223,8 +1283,9 @@ function loadProductAutoDocument(jobId: string, runId: string, docId: string): {
     receipt.machine_result_sha256 !== machineResultHash)) {
     throw new AccessError("The machine result no longer matches its audit receipt.", 409);
   }
+  let sourceHash: string | undefined;
   if (receipts.some((receipt) => receipt.source_container_sha256 || receipt.source_pages_sha256)) {
-    const sourceHash = verifiedReviewSourceHash(jobId, runId, document.fileId);
+    sourceHash = verifiedReviewSourceHash(jobId, runId, document.fileId, record.selectedFiles);
     if (receipts.some((receipt) => receipt.source_container_sha256 && receipt.source_container_sha256 !== sourceHash)) {
       throw new AccessError("The reviewed source no longer matches its audit receipt.", 409);
     }
@@ -1235,6 +1296,7 @@ function loadProductAutoDocument(jobId: string, runId: string, docId: string): {
   }
   return {
     machineResultHash,
+    sourceHash,
     detail: {
       runId, fileId: document.fileId, fileName: document.fileName,
       candidate, sourcePages, ...(parsedDocument ? { parsedDocument } : {}), review, auditTrail,
@@ -1248,13 +1310,18 @@ export function getProductAutoDocument(jobId: string, runId: string, docId: stri
 }
 
 export function getProductAutoReviewedExport(jobId: string, runId: string, docId: string): ProductAutoReviewedExport {
-  const { detail, machineResultHash } = loadProductAutoDocument(jobId, runId, docId);
+  return reviewedExportFromRecord(readRunRecord(jobId, runId), docId);
+}
+
+function reviewedExportFromRecord(record: RunRecord, docId: string): ProductAutoReviewedExport {
+  const { jobId, runId } = record;
+  const { detail, machineResultHash, sourceHash: verifiedSourceHash } = loadProductAutoDocument(jobId, runId, docId, record);
   const review = detail.review;
   if (!review || detail.correctedResult.review_status !== "completed" ||
     detail.correctedResult.fields.some((field) => field.status === "needs_review")) {
     throw new AccessError("Complete the document review before exporting its result.", 409);
   }
-  const sourceHash = verifiedReviewSourceHash(jobId, runId, detail.fileId);
+  const sourceHash = verifiedSourceHash ?? verifiedReviewSourceHash(jobId, runId, detail.fileId, record.selectedFiles);
   const sourcePagesHash = createHash("sha256").update(JSON.stringify(detail.sourcePages)).digest("hex");
   if (review.source_container_sha256 !== sourceHash || review.source_pages_sha256 !== sourcePagesHash ||
     review.machine_result_sha256 !== machineResultHash) {
@@ -1268,6 +1335,101 @@ export function getProductAutoReviewedExport(jobId: string, runId: string, docId
       reviewer_user_id: review.reviewer_user_id, updated_at: review.updated_at },
     result: detail.correctedResult,
   };
+}
+
+export function getProductAutoReviewedBatchExport(jobId: string, runId: string): Uint8Array[] {
+  const record = readRunRecord(jobId, runId);
+  if (record.status !== "success") throw new AccessError("Complete the run before exporting its reviewed batch.", 409);
+  const selected = record.selectedFiles;
+  if (!selected.length || selected.length > MAX_REVIEWED_BATCH_DOCUMENTS) {
+    throw new AccessError(`A reviewed batch must contain 1–${MAX_REVIEWED_BATCH_DOCUMENTS} documents.`, 413);
+  }
+  const runRecordPath = fs.existsSync(terminalFile(jobId, runId)) ? terminalFile(jobId, runId) : runFile(jobId, runId);
+  const markerPath = path.join(outputDir(runId), "run.json");
+  const manifestPath = path.join(outputDir(runId), "manifest.jsonl");
+  let documents: RunRecord["documents"];
+  let artifactHashes: string[];
+  try {
+    artifactHashes = [runRecordPath, markerPath, manifestPath].map(sha256File);
+    documents = validatedDocuments(record);
+  } catch {
+    throw new AccessError(`Reviewed batch blocked: ${selected.length} selected, ${selected.length} unverifiable run artifacts.`, 409);
+  }
+
+  const selectedIds = new Set(selected.map((file) => file.fileId));
+  const selectedStoredNames = new Set(selected.map((file) => file.storedName));
+  const byFileId = new Map(documents.map((document) => [document.fileId, document]));
+  const sealedByDocId = new Map(record.documents.map((document) => [document.docId, document]));
+  if (selectedIds.size !== selected.length || selectedStoredNames.size !== selected.length ||
+    byFileId.size !== documents.length || documents.length !== selected.length ||
+    sealedByDocId.size !== record.documents.length || record.documents.length !== selected.length ||
+    documents.some((document) => !selectedIds.has(document.fileId) ||
+      sealedByDocId.get(document.docId)?.fileId !== document.fileId ||
+      sealedByDocId.get(document.docId)?.machineResultSha256 !== document.machineResultSha256)) {
+    throw new AccessError(`Reviewed batch blocked: ${selected.length} selected, ${selected.length} missing or inconsistent run receipts.`, 409);
+  }
+
+  const encoder = new TextEncoder();
+  const lines: Uint8Array[] = [];
+  const reviewSnapshots: Array<{ docId: string; revision: number; auditEventId: string; auditDigest: string;
+    machineResultSha256: string }> = [];
+  const counts = { unreviewed: 0, failed: 0, missing: 0, stale: 0 };
+  let byteCount = 0;
+  for (const file of selected) {
+    const document = byFileId.get(file.fileId);
+    if (!document) { counts.missing += 1; continue; }
+    if (document.status === "failed" || document.status === "unsupported") { counts.failed += 1; continue; }
+    if (document.reviewStatus !== "completed") { counts.unreviewed += 1; continue; }
+    try {
+      const exported = reviewedExportFromRecord(record, document.docId);
+      if (exported.document.file_id !== file.fileId || exported.document.source_sha256 !== file.sha256 ||
+        exported.document.machine_result_sha256 !== document.machineResultSha256) {
+        counts.stale += 1;
+        continue;
+      }
+      const line = encoder.encode(`${JSON.stringify(exported)}\n`);
+      byteCount += line.byteLength;
+      if (byteCount > MAX_REVIEWED_BATCH_BYTES) {
+        throw new AccessError("Reviewed batch exceeds the 64 MiB download limit.", 413);
+      }
+      const latestReview = readReview(jobId, runId, document.docId);
+      if (latestReview?.revision !== exported.review.revision ||
+        latestReview.audit_event_id !== exported.review.audit_event_id) {
+        throw new AccessError("Review changed while the batch was being assembled.", 409);
+      }
+      const auditDigest = reviewAuditDigest(jobId, runId, document.docId);
+      lines.push(line);
+      reviewSnapshots.push({ docId: document.docId, revision: exported.review.revision,
+        auditEventId: exported.review.audit_event_id,
+        auditDigest,
+        machineResultSha256: exported.document.machine_result_sha256 });
+    } catch (error) {
+      if (error instanceof AccessError && error.statusCode === 413) throw error;
+      counts.stale += 1;
+    }
+  }
+  if (Object.values(counts).some((count) => count > 0) || lines.length !== selected.length) {
+    throw new AccessError(`Reviewed batch blocked: ${selected.length} selected, ${lines.length} reviewed, ` +
+      `${counts.unreviewed} unreviewed, ${counts.failed} failed or unsupported, ` +
+      `${counts.missing} missing, ${counts.stale} stale or unverifiable.`, 409);
+  }
+  try {
+    if ([runRecordPath, markerPath, manifestPath].some((filePath, index) =>
+      sha256File(filePath) !== artifactHashes[index]) ||
+      reviewSnapshots.some((snapshot) => {
+        const review = readReview(jobId, runId, snapshot.docId);
+        return !review || review.revision !== snapshot.revision ||
+          review.audit_event_id !== snapshot.auditEventId ||
+          reviewAuditDigest(jobId, runId, snapshot.docId) !== snapshot.auditDigest ||
+          sha256File(path.join(outputDir(runId), "docs", snapshot.docId, "result.json")) !==
+            snapshot.machineResultSha256;
+      }) || selected.some((file) => verifiedReviewSourceHash(jobId, runId, file.fileId, selected) !== file.sha256)) {
+      throw new Error("Batch changed while being assembled.");
+    }
+  } catch {
+    throw new AccessError(`Reviewed batch blocked: ${selected.length} selected, ${selected.length} stale snapshots. Retry after reviewing the run.`, 409);
+  }
+  return lines;
 }
 
 export function deriveProductAutoCorrectedResult(
@@ -1487,8 +1649,8 @@ function parseAddedFields(
   });
 }
 
-function verifiedReviewSourceHash(jobId: string, runId: string, fileId: string): string {
-  const selected = readRunRecord(jobId, runId).selectedFiles.find((file) => file.fileId === fileId);
+function verifiedReviewSourceHash(jobId: string, runId: string, fileId: string, selectedFiles?: SelectedFile[]): string {
+  const selected = (selectedFiles ?? readRunRecord(jobId, runId).selectedFiles).find((file) => file.fileId === fileId);
   if (!selected || !/^[a-f0-9]{64}$/.test(selected.sha256)) {
     throw new AccessError("The original source receipt is unavailable.", 409);
   }

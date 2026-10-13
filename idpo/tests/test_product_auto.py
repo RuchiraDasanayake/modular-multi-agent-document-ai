@@ -113,14 +113,16 @@ def test_product_sidecar_whitelists_pdf_renderer_provenance(tmp_path: Path, monk
         "pdf_renderer", "pdf_renderer_fallback_reason", "pdf_page_index",
         "pdf_page_rotation_deg", "pdf_rendered_dpi", "pdf_render_size_px",
         "pdf_native_layer", "pdf_native_text_sha256", "pdf_native_text_rejected",
+        "pdf_render_plan",
     }
     assert page["pdf_renderer"] == "pdfium"
     assert page["pdf_renderer_fallback_reason"] is None
     assert page["pdf_page_index"] == 0
     assert page["pdf_page_rotation_deg"] == 0
-    assert page["pdf_rendered_dpi"] == 300
-    assert 239 <= page["pdf_render_size_px"][0] <= 241
-    assert 179 <= page["pdf_render_size_px"][1] <= 181
+    assert page["pdf_rendered_dpi"] == pytest.approx(100)
+    assert 79 <= page["pdf_render_size_px"][0] <= 81
+    assert 59 <= page["pdf_render_size_px"][1] <= 61
+    assert page["pdf_render_plan"]["requested_dpi"] == 300
     assert "source_sha256" in sidecar
     assert not any(str(source) in str(value) for value in renderer_fields.values())
 
@@ -502,6 +504,21 @@ def test_cli_process_auto_without_model_uses_runtime_data_root(tmp_path: Path, m
     assert values["invoice_id"]["evidence"]["start"] > 0
     assert values["total"]["value"] == 0.0
     _assert_exact_evidence(candidate, sidecar)
+
+
+@pytest.mark.parametrize("flag,value", [
+    ("--max-tokens", "0"), ("--max-tokens", "16385"), ("--max-tokens", "1.5"),
+    ("--timeout-s", "0"), ("--timeout-s", "601"), ("--timeout-s", "1e2"),
+])
+def test_cli_process_auto_rejects_out_of_bounds_model_budget(tmp_path: Path, monkeypatch, flag: str, value: str) -> None:
+    from idpo.cli import main
+
+    source = tmp_path / "invoice.txt"
+    source.write_text("Total: 100", encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["idpo", "process-auto", "--input", str(source), flag, value])
+    with pytest.raises(SystemExit) as error:
+        main()
+    assert error.value.code == 2
 
 
 def test_openai_compatible_adapter_uses_env_key_and_sanitizes_errors(monkeypatch) -> None:

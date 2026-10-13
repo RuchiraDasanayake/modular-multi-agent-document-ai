@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "standalone",
+  // The native launcher runs next start from the checkout; Docker keeps its
+  // existing standalone bundle. Separate caches avoid clobbering a dev server.
+  output: process.env.IDPO_NATIVE_FRONTEND === "1" ? undefined : "standalone",
+  distDir: process.env.IDPO_NATIVE_FRONTEND === "1" ? ".next-product" : ".next",
   // The default bottom-left badge covers the sidebar's sign-out control in development.
   devIndicators: { position: "bottom-right" },
   experimental: {

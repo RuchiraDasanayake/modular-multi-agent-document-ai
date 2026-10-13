@@ -27,7 +27,7 @@ MAX_REQUEST_BYTES = 4096
 _run_slot = threading.BoundedSemaphore(value=1)
 
 
-def validate_request(payload: object, *, root: Path | None = None) -> tuple[Path, str, str | None, str | None, ApprovedRecipe | None]:
+def validate_request(payload: object, *, root: Path | None = None) -> tuple[Path, str, str | None, str | None, ApprovedRecipe | None, int | None, int | None]:
     """Allow only a staged frontend run, never an arbitrary host path."""
     if not isinstance(payload, dict):
         raise TypeError("Invalid worker request")
@@ -35,6 +35,8 @@ def validate_request(payload: object, *, root: Path | None = None) -> tuple[Path
     input_dir = payload.get("input_dir")
     model = payload.get("model")
     base_url = payload.get("api_base_url")
+    max_tokens = payload.get("max_tokens")
+    timeout_s = payload.get("timeout_s")
     recipe_file = payload.get("approved_recipe_file")
     recipe_digest = payload.get("approved_recipe_sha256")
     if not isinstance(run_id, str) or not RUN_ID.fullmatch(run_id):
@@ -47,6 +49,11 @@ def validate_request(payload: object, *, root: Path | None = None) -> tuple[Path
         raise ValueError("Invalid model")
     if base_url is not None and (not isinstance(base_url, str) or len(base_url) > 2048):
         raise ValueError("Invalid model endpoint")
+    if (max_tokens is None) != (timeout_s is None) or (max_tokens is not None and not model):
+        raise ValueError("Model token and timeout limits must be supplied together with a model")
+    if max_tokens is not None and (type(max_tokens) is not int or not 1 <= max_tokens <= 16384 or
+                                   type(timeout_s) is not int or not 1 <= timeout_s <= 600):
+        raise ValueError("Invalid model budget")
     if bool(recipe_file) != bool(recipe_digest) or (recipe_file and not model):
         raise ValueError("Approved recipe requires a snapshot, digest, and value model")
 
@@ -68,7 +75,7 @@ def validate_request(payload: object, *, root: Path | None = None) -> tuple[Path
         if Path(recipe_file) != expected_path or expected_path.is_symlink():
             raise ValueError("Approved recipe is outside this run's staging area")
         recipe = load_approved_recipe(expected_path, recipe_digest)
-    return staged, run_id, model, base_url, recipe
+    return staged, run_id, model, base_url, recipe, max_tokens, timeout_s
 
 
 class WorkerHandler(BaseHTTPRequestHandler):
@@ -105,7 +112,7 @@ class WorkerHandler(BaseHTTPRequestHandler):
             if length <= 0 or length > MAX_REQUEST_BYTES:
                 raise ValueError("Invalid request size")
             payload = json.loads(self.rfile.read(length))
-            staged, run_id, model_name, base_url, recipe = validate_request(payload)
+            staged, run_id, model_name, base_url, recipe, max_tokens, timeout_s = validate_request(payload)
         except (ValueError, TypeError, OSError, json.JSONDecodeError):
             self._respond(400, {"error": "Invalid worker request"})
             return
@@ -116,7 +123,8 @@ class WorkerHandler(BaseHTTPRequestHandler):
             return
         try:
             model = (
-                OpenAICompatibleChat(base_url=base_url, model=model_name, api_key_env="ICORE_API_KEY")
+                OpenAICompatibleChat(base_url=base_url, model=model_name, api_key_env="ICORE_API_KEY",
+                                     max_tokens=max_tokens or 1200, timeout_s=timeout_s or 60)
                 if model_name and base_url else None
             )
             process_auto(staged, run_id=run_id, model=model, approved_recipe=recipe)

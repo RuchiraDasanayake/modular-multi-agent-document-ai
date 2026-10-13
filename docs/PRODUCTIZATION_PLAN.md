@@ -32,6 +32,15 @@ every possible router or the reported accepted submission.
 
 ### October 13 decision update
 
+The native intent-first workflow now has confirmed field meanings, bounded AI suggestions, pinned preview and
+reviewed-preview batch admission, plus a PostgreSQL queue. The
+[authenticated synthetic flow](evaluations/PRODUCT_STAGED_SYNTHETIC_SMOKE_20261013.md) passed on two text invoices.
+The [paired PDF text guard](evaluations/ICORE_PDF_PAINT_GUARD_DEV6_RESULTS_20261013.md) improved exact scalar proposals
+from 8/32 to 12/32 on six development originals, while ad table rows worsened. The
+[cached receipt OCR replay](evaluations/CORD_LUNA_OCR_REPLAY_RESULT_20261013.md) improved scalar strings from 2/7 to
+4/7 but recovered zero complete annotated rows. These results prioritize visible-source OCR, layout and partial-row
+recovery. They do not fulfil the fresh 2,000-source final gate or establish general-purpose quality.
+
 The [mixed-family 2,000-document
 gate](evaluations/MIXED_VRDU_CORD_TRAIN_2000_NO_MODEL_RESULT_20261013.md)
 completed on distinct original sources with zero releases, but exact schema F1
@@ -114,8 +123,8 @@ memory layer requires a measured quality, cost or reliability gain.
   owner-scoped registry now stores review-derived schema drafts, explicit `approved_shadow` revisions, and disable
   events; an operator can explicitly select one current approved revision for a model-backed run,
   skipping schema induction while keeping every value in review. Automatic recipe matching and
-  release remain unimplemented. They have no durable queue, visual table
-  structure, priced cost meter, or demonstrated arbitrary-family accuracy. The first
+  release remain unimplemented. The native product now has a durable PostgreSQL queue; visual table
+  structure, a priced cost meter, and demonstrated arbitrary-family accuracy remain missing. The first
   2,000-document no-model development baseline failed the quality gate; see
   [the measured v1 report](evaluations/VRDU_2000_NO_MODEL_V1.md). The [v2 safety run](evaluations/VRDU_2000_NO_MODEL_V2.md)
   verified 2,000 distinct sources and eliminated automatic release of unapproved schemas, while strict schema F1
@@ -197,7 +206,7 @@ service boundary needs a concrete availability, scaling or ownership reason; it 
 | Boundary | Target contract | First implementation decision |
 | --- | --- | --- |
 | Intake and identity | Authenticated owner, content hash, verified file type, limits, immutable input, job and schema versions; auto mode accepts a document without selecting a template | Preserve the job UI; make all reads and writes owner-scoped and test indirect artifact routes. Unsupported or illegible files get an explicit outcome, never a fabricated schema. |
-| Job execution | Durable status, idempotency key, bounded retries, cancellation, stage timings, replayable artifacts | The current private Docker worker admits one active product run and rejects another; add durable queued state before multi-host scale. |
+| Job execution | Durable status, idempotency key, bounded attempts, cancellation, stage timings, replayable artifacts | Native pg-boss admission and worker claim are implemented. Interrupted paid calls are not retried automatically. Shared filesystem artifacts, per-document resume, multi-host deployment and restore drills still need work. The older private Docker worker admits one active run. |
 | Parsing | Native PDF text when reliable; OCR/layout for scans; page, box, reading order and table-cell evidence | Keep PDFium-first rendering plus bounded Tesseract as the measured product baseline. The frozen [Docling/pdfplumber comparison](evaluations/VRDU_ADBUY12_TABLE_PARSER_COMPARISON_20261012.md) recovered at most 4/219 permissive parser rows. [MinerU 4.0.9 Basic](evaluations/MINERU_4_BASIC_ADBUY12_RESULT_20261012.md) reached 6/219. The [PaddleOCR-VL 1.6 full pipeline](evaluations/PADDLEOCR_VL16_ADBUY12_RESULT_20261012.md) reached 14/219 but zero strict exact rows and no cell-level boxes, so do not promote it. The prepared full PP-StructureV3 CPU profile fails the current free-RAM guard. |
 | Schema discovery | Infer document family, candidate fields, types, groups and table relationships, each with source evidence; propose a versioned reusable recipe | Run on first or unfamiliar documents with no manual template setup. Mark ambiguous candidates and let an authorized reviewer approve or amend a recipe. Never silently rewrite an approved schema. |
 | Extraction | Provider-neutral extraction against a versioned proposed or approved schema; bounded prompt/context; typed output; recorded provider/model/version | Compare a simple extractor on local CPU, local GPU and approved cloud APIs against the same holdout. Cloud use is opt-in per data policy, with redaction where required and hard spend caps. |

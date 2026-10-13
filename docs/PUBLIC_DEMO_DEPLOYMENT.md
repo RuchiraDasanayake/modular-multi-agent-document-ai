@@ -67,6 +67,9 @@ formats to attachment disposition. The research `process-inbox` runner has not g
 
 To opt into a hosted OpenAI-compatible model, set `IDPO_AUTO_MODEL`, `IDPO_AUTO_API_BASE_URL` (HTTPS), and
 `ICORE_API_KEY` in a local `.env` file before starting Compose.
+New model-backed product runs default to 8,192 output tokens and 180 seconds per call. Optional server-only
+`IDPO_AUTO_MAX_OUTPUT_TOKENS` (1–16,384) and `IDPO_AUTO_TIMEOUT_S` (1–600) override those values. Invalid settings
+reject run admission; queued runs keep the limits sealed at admission. They do not change draft-suggestion limits.
 Model runs remain admin-only. The key is passed to the frontend server and worker containers as an environment
 variable; it is never stored in the runner config or browser bundle. Do not send private documents to a provider
 until its data handling terms are confirmed. A loopback model endpoint in the host is not reachable as worker

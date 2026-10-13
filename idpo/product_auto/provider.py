@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
@@ -62,14 +63,29 @@ class OpenAICompatibleChat:
             max_retries=0,
         )
 
-    def complete_json(self, *, system: str, prompt: str) -> ModelReply:
+    def complete_json(
+        self, *, system: str, prompt: str, response_format: dict[str, object] | None = None,
+    ) -> ModelReply:
+        request: dict[str, object] = {
+            "model": self.model,
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+            "max_tokens": self.max_tokens,
+        }
+        if response_format is not None:
+            if not isinstance(response_format, dict) or response_format.get("type") != "json_schema":
+                raise ValueError("response_format must be an explicit strict JSON Schema")
+            named_schema = response_format.get("json_schema")
+            if not isinstance(named_schema, dict) or named_schema.get("strict") is not True or \
+                    not isinstance(named_schema.get("name"), str) or not isinstance(named_schema.get("schema"), dict):
+                raise ValueError("response_format must be an explicit strict JSON Schema")
+            # Copy and bound the server-selected schema before sending it to an external model.
+            encoded = json.dumps(response_format, ensure_ascii=False, allow_nan=False)
+            if len(encoded.encode("utf-8")) > 32_768:
+                raise ValueError("response_format exceeds the 32 KiB limit")
+            request["response_format"] = json.loads(encoded)
         started = time.perf_counter()
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
-                max_tokens=self.max_tokens,
-            )
+            response = self.client.chat.completions.create(**request)
             content = response.choices[0].message.content if response.choices else ""
             usage = getattr(response, "usage", None)
             return ModelReply(

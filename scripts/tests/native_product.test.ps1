@@ -51,6 +51,18 @@ try {
   $bad | ConvertTo-Json | Set-Content -LiteralPath $configPath
   Assert-Throws { Get-NativeConfig -ConfigPath $configPath } 'Non-loopback-address database URL rejected.'
 
+  foreach ($limits in @(@{ autoMaxOutputTokens = 0 }, @{ autoMaxOutputTokens = 16385 },
+      @{ autoTimeoutSeconds = 601 }, @{ autoTimeoutSeconds = '1.5' })) {
+    $bad = $base.Clone()
+    foreach ($key in $limits.Keys) { $bad[$key] = $limits[$key] }
+    $bad | ConvertTo-Json | Set-Content -LiteralPath $configPath
+    Assert-Throws { Get-NativeConfig -ConfigPath $configPath } 'Out-of-range or noninteger product model budget rejected.'
+  }
+  $bounded = $base.Clone(); $bounded.autoMaxOutputTokens = '8192'; $bounded.autoTimeoutSeconds = 180
+  $bounded | ConvertTo-Json | Set-Content -LiteralPath $configPath
+  $withBudget = Get-NativeConfig -ConfigPath $configPath
+  Assert-Test ($withBudget.autoMaxOutputTokens -eq 8192 -and $withBudget.autoTimeoutSeconds -eq 180) 'Product model budget validated and normalized.'
+
   $base | ConvertTo-Json | Set-Content -LiteralPath $configPath
   $config = Get-NativeConfig -ConfigPath $configPath
   $startScript = Join-Path (Split-Path -Parent $PSScriptRoot) 'start_native_product.ps1'

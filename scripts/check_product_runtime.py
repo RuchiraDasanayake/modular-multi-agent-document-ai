@@ -47,6 +47,7 @@ REMEDIES = {
     "html": "Install lxml; keep the checked-in synthetic HTML fixture.",
     "eml": "Install lxml for HTML email bodies; keep the checked-in synthetic email fixture.",
     "model_client": "Install a working openai client for the OpenAI-compatible local/cloud provider adapter.",
+    "rapidocr_ocr": "Provision the separate pinned RapidOCR interpreter and local models, then set IDPO_RAPIDOCR_PYTHON; see docs/PRODUCT_RAPIDOCR.md.",
 }
 
 
@@ -196,6 +197,17 @@ def _scan_sample_probe(root: Path) -> None:
     _require(parser == "pdfium-tesseract-first-two-pages" and "12345" in text)
 
 
+def _rapidocr_probe() -> None:
+    from idpo.product_auto.rapid_ocr import recognize_image
+
+    with _image_fixture() as image:
+        result = recognize_image(image)
+        _require("12345" in result.text)
+        _require(result.metadata["ocr_provenance"]["image_size_px"] == list(image.size))
+        _require(all(result.text[line["start"]:line["end"]] == line["text"]
+                     for line in result.metadata["ocr_lines"]))
+
+
 def _native_probe(extension: str) -> None:
     from idpo.product_auto.native_formats import parse_native_document
     from product_eval.mixed_format_docling_diagnostic import HEADERS, ROWS, verify_fixtures
@@ -268,7 +280,9 @@ def build_report(checks: list[dict[str, object]], environment: dict[str, str]) -
                        "Parser size, page, nested-content and language limits still apply; OCR smoke uses English."]}
 
 
-def check_runtime() -> dict[str, object]:
+def check_runtime(ocr_engine: str = "tesseract") -> dict[str, object]:
+    if ocr_engine not in {"tesseract", "rapidocr"}:
+        raise ConfigurationError("unsupported_ocr_engine", "Choose tesseract or explicitly configured rapidocr.")
     with tempfile.TemporaryDirectory(prefix="docai-runtime-check-") as temporary:
         root = Path(temporary)
         pdf = root / "native.pdf"
@@ -283,7 +297,14 @@ def check_runtime() -> dict[str, object]:
         checks.extend(run_check(extension, lambda suffix=extension: _native_probe(suffix))
                       for extension in ("docx", "xlsx", "pptx", "html", "eml"))
         checks.append(run_check("model_client", _model_client_probe))
-    return build_report(checks, dict(os.environ))
+    report = build_report(checks, dict(os.environ))
+    if ocr_engine == "rapidocr":
+        # Schema sampling still needs Tesseract. Preserve those base checks and
+        # add a required check only when this optional extraction engine is selected.
+        report["optional_ocr"] = {"engine": "rapidocr", **run_check("rapidocr_ocr", _rapidocr_probe)}
+        if not report["optional_ocr"]["ready"]:
+            report["status"] = "unavailable"
+    return report
 
 
 @contextlib.contextmanager
@@ -325,10 +346,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="Emit one machine-readable JSON report.")
     parser.add_argument("--native-config", type=Path, help="Read private native settings; run with its pythonPath interpreter.")
+    parser.add_argument("--ocr-engine", choices=("tesseract", "rapidocr"), default="tesseract",
+                        help="Additionally verify RapidOCR only when explicitly selected; default checks remain required.")
     args = parser.parse_args(argv)
     try:
         with native_environment(args.native_config):
-            report = check_runtime()
+            report = check_runtime() if args.ocr_engine == "tesseract" else check_runtime(args.ocr_engine)
     except ConfigurationError as exc:
         report = {"contract_version": 1, "status": "unavailable", "code": exc.code,
                   "remedy": exc.remedy, "network_calls_made": False}
@@ -345,6 +368,11 @@ def main(argv: list[str] | None = None) -> int:
         for check in report.get("checks", []):
             if not check["ready"]:
                 print(f"  {check['id']}: {check['remedy']}")
+        optional = report.get("optional_ocr")
+        if optional:
+            print(f"  {'PASS' if optional['ready'] else 'FAIL'} {optional['engine']}")
+            if not optional["ready"]:
+                print(f"  {optional['remedy']}")
         if "provider" in report:
             provider = report["provider"]
             print(f"  Provider: {provider['mode']} / {provider['state']} (no API calls)")
