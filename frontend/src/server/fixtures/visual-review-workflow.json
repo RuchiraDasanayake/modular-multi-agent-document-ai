@@ -1,0 +1,144 @@
+{
+  "generator": "idpo.tests.test_product_visual_workflow.run_product",
+  "source_base64": "iVBORw0KGgoAAAANSUhEUgAAAMgAAABkCAIAAABM5OhcAAAEBklEQVR4nO3aP0hyaxzA8ePNqIYwqAhaoi1QcmhTj1ARhCY2l6Dk1JYNtURUELU3vEtL0FAUSFPZ1CCkRkNES/+gP6JTKBGF5HkuvAeia77wcm+/C/J+P9M5P55zTsMXfdQsSikN+G5/ffsdAcKCFF6xIIKwIIKwIIKw8L+EFYlEdnZ2zGOn0xmLxczjqamp3d3di4uLHz9+VFzS0tLy+89bXV39fFooFCKRiM1mM0+LxeLo6KjH4xkdHS0Wi1UnqMmwXC7XycmJpmnPz89WqzWdTpvzdDqt67rdbp+cnPwvz6sIKxAI9PX1WSwW83R5ednr9SaTSV3XV1ZWqk5QG9Q/nZ+f9/f3K6UODw/n5uacTufb21upVOrt7TUX2Gw2pVQ+nw8EAh6PJxwOV0xCoVBra6tS6unpaXx8fHBwUNf1dDqtlJqfn6+rqxsaGvp4XC6X+7inUsput2ezWaXU4+Ojw+GoOkFNqAzLMIyuri7DMBYWFhKJxMTExPHxcSaTiUaj5gIzglAotLm5qZSKx+MNDQ1VJ9FoNJVKKaXu7u6cTufnyyt8DNva2srlslKqXC63t7dXnaAmWCtewCwWS09Pz+XlZSaTmZ6efnh4SKVSVqvV6/V+XnZ0dLS+vq5p2sjISF1dXdVJIpG4vr4217+8vJTLZXOOP0FlWOY2K5PJvL6+Njc3u1yuxcXF+vr6paWlz2tKpZJ5YBiG+Wvj18n7+/vBwUFjY6NhGMlk8neq6ujoyOfznZ2duVyuo6Oj6gS1+nWDy+Xa2NhwOByapvX09FxdXWWz2e7u7oo1e3t7mqbF43Ezo68Tt9sdj8c1Tdvf3//Ydxs//eqv8fl8W1tbmqZtbW35fL6qE9SGr++O5ufB7e1t89Tv94+NjVXsh25vb/WfZmdnKyYzMzPm5v3+/n54eNjr9Q4MDNzc3JiX+3w+v9//qz1WoVAIBoNutzsYDBYKhaoT1IQqYf074XD47OxMKZXJZHRd/67bokZZvuv/sU5PT2OxWFNTU6lUWltbM99J8cf6trCAz/itECIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIICyIIC5qEvwEo/oRQp3q6fgAAAABJRU5ErkJggg==",
+  "source_name": "source.png",
+  "source_sha256": "4434a1c5345411664c5d821cd8ea6faebe6f174d163ae495f0a5f825a2d86d0e",
+  "variants": {
+    "image_only": {
+      "candidate": {
+        "contract_version": 1,
+        "doc_id": "9a42aa3146c9ebfe3b68d8783736f128",
+        "document_status": "needs_review",
+        "extracted_values": [
+          {
+            "field_id": "item",
+            "review_state": "pending",
+            "status": "needs_review",
+            "value": [
+              {
+                "review_state": "pending",
+                "row": 0,
+                "status": "needs_review",
+                "value": "Widget",
+                "visual_grounding_verified": false,
+                "visual_page": 1
+              }
+            ],
+            "visual_grounding_verified": false
+          },
+          {
+            "field_id": "total",
+            "review_state": "pending",
+            "status": "needs_review",
+            "value": 100,
+            "visual_grounding_verified": false,
+            "visual_pages": [
+              1
+            ]
+          }
+        ],
+        "measurements": {
+          "latency_ms": 18.72
+        },
+        "proposed_schema": [
+          {
+            "field_id": "item",
+            "group": "items",
+            "type": "array[object]"
+          },
+          {
+            "field_id": "total",
+            "type": "integer"
+          }
+        ]
+      },
+      "pages": [
+        {
+          "page": 1,
+          "text": ""
+        }
+      ],
+      "visual_receipt": {
+        "full_source_covered": true,
+        "profile": "bounded_visual_v1",
+        "route": "visual",
+        "source_sha256": "4434a1c5345411664c5d821cd8ea6faebe6f174d163ae495f0a5f825a2d86d0e"
+      }
+    },
+    "ocr_text_match": {
+      "candidate": {
+        "contract_version": 1,
+        "doc_id": "9a42aa3146c9ebfe3b68d8783736f128",
+        "document_status": "needs_review",
+        "extracted_values": [
+          {
+            "field_id": "item",
+            "review_state": "pending",
+            "status": "needs_review",
+            "value": [
+              {
+                "evidence": {
+                  "end": 6,
+                  "kind": "text_match",
+                  "page": 1,
+                  "quote": "Widget",
+                  "start": 0
+                },
+                "review_state": "pending",
+                "row": 0,
+                "status": "needs_review",
+                "value": "Widget",
+                "visual_grounding_verified": false,
+                "visual_page": 1
+              }
+            ],
+            "visual_grounding_verified": false
+          },
+          {
+            "evidence": {
+              "end": 10,
+              "kind": "text_match",
+              "page": 1,
+              "quote": "100",
+              "start": 7
+            },
+            "field_id": "total",
+            "review_state": "pending",
+            "status": "needs_review",
+            "value": 100,
+            "visual_grounding_verified": false,
+            "visual_pages": [
+              1
+            ]
+          }
+        ],
+        "measurements": {
+          "latency_ms": 19.115
+        },
+        "proposed_schema": [
+          {
+            "field_id": "item",
+            "group": "items",
+            "type": "array[object]"
+          },
+          {
+            "field_id": "total",
+            "type": "integer"
+          }
+        ]
+      },
+      "pages": [
+        {
+          "page": 1,
+          "text": "Widget 100"
+        }
+      ],
+      "visual_receipt": {
+        "full_source_covered": true,
+        "profile": "bounded_visual_v1",
+        "route": "visual",
+        "source_sha256": "4434a1c5345411664c5d821cd8ea6faebe6f174d163ae495f0a5f825a2d86d0e"
+      }
+    }
+  }
+}

@@ -1,0 +1,29 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import test from "node:test";
+import type { ProductAutoCandidate, ProductAutoLinkedCell } from "@/types/product-auto";
+import { machineProposalLabel, visualLinkedCellsReviewable } from "./product-auto-visual-review";
+
+const fixture = JSON.parse(fs.readFileSync(path.join(process.cwd(), "src", "server", "fixtures",
+  "visual-review-workflow.json"), "utf8")) as { variants: Record<string, {
+    candidate: ProductAutoCandidate; pages: Array<{ page: number; text: string }> }> };
+
+test("actual Python image candidate displays a review warning and keeps page-referenced cells confirmable", () => {
+  for (const variant of Object.values(fixture.variants)) {
+    const linked = variant.candidate.extracted_values[0]!;
+    const scalar = variant.candidate.extracted_values[1]!;
+    assert.equal(machineProposalLabel(linked), "Image-derived — review required");
+    assert.equal(machineProposalLabel(scalar), "Image-derived — review required");
+    assert.equal(visualLinkedCellsReviewable(linked.value as ProductAutoLinkedCell[], variant.pages), true);
+  }
+});
+
+test("review control disables visual confirmation without complete source page references", () => {
+  const variant = fixture.variants.image_only!;
+  const cells = (variant.candidate.extracted_values[0]!.value as ProductAutoLinkedCell[]);
+  assert.equal(visualLinkedCellsReviewable([], variant.pages), false);
+  assert.equal(visualLinkedCellsReviewable([{ ...cells[0]!, visual_page: 99 }], variant.pages), false);
+  assert.equal(visualLinkedCellsReviewable([{ ...cells[0]!, status: "accepted" }], variant.pages), false);
+  assert.equal(machineProposalLabel({ field_id: "text", value: "x", status: "accepted", review_state: "none" }), "Text matched");
+});

@@ -111,6 +111,12 @@ function reviewedSchema(detail: ProductAutoDocumentDetail): {
   if (detail.candidate.document_status === "failed" || detail.candidate.document_status === "unsupported") {
     throw new AccessError("Failed or unsupported documents cannot seed a recipe.", 409);
   }
+  if (detail.visualRoute === "visual" || detail.candidate.extracted_values.some((value) =>
+    value.visual_grounding_verified === false ||
+    Array.isArray(value.value) && value.value.some((cell) => cell && typeof cell === "object" &&
+      "visual_page" in cell))) {
+    throw new AccessError("Image-derived proposals cannot seed a reusable recipe without verified source grounding.", 409);
+  }
   const review = detail.review;
   if (!review || review.status !== "completed" || detail.correctedResult.review_status !== "completed") {
     throw new AccessError("Complete the document review before drafting a recipe.", 409);

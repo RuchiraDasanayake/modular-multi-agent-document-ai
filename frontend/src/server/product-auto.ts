@@ -365,7 +365,9 @@ function sha256File(filePath: string): string {
 function hasEvidenceShape(value: unknown): value is ProductAutoEvidence {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const evidence = value as Record<string, unknown>;
-  return Number.isInteger(evidence.page) && typeof evidence.page === "number" && evidence.page > 0 &&
+  return Object.keys(evidence).every((key) => ["page", "start", "end", "quote", "kind"].includes(key)) &&
+    (evidence.kind === undefined || evidence.kind === "text_match") &&
+    Number.isInteger(evidence.page) && typeof evidence.page === "number" && evidence.page > 0 &&
     Number.isInteger(evidence.start) && typeof evidence.start === "number" && evidence.start >= 0 &&
     Number.isInteger(evidence.end) && typeof evidence.end === "number" && evidence.end > evidence.start &&
     typeof evidence.quote === "string" && evidence.quote.length > 0;
@@ -462,12 +464,18 @@ function machineLinkedRows(value: unknown): ProductAutoLinkedCell[] | null {
   for (const item of value) {
     if (!item || typeof item !== "object" || Array.isArray(item)) return null;
     const cell = item as Record<string, unknown>;
-    if (Object.keys(cell).some((key) => !["row", "value", "status", "evidence"].includes(key)) ||
+    const visualCell = ["visual_page", "visual_grounding_verified", "review_state"].some((key) => key in cell);
+    if (Object.keys(cell).some((key) => !["row", "value", "status", "evidence", "visual_page",
+      "visual_grounding_verified", "review_state"].includes(key)) ||
       !Number.isInteger(cell.row) || typeof cell.row !== "number" || cell.row < 0 || cell.row >= MAX_LINKED_ROWS ||
       seen.has(cell.row) || typeof cell.value !== "string" || !cell.value.trim() || [...cell.value].length > 500 ||
       !["accepted", "needs_review"].includes(String(cell.status)) ||
+      visualCell && (!Number.isSafeInteger(cell.visual_page) || typeof cell.visual_page !== "number" ||
+        cell.visual_page < 1 || cell.visual_grounding_verified !== false || cell.review_state !== "pending" ||
+        cell.status !== "needs_review") ||
       cell.status === "accepted" && !hasEvidenceShape(cell.evidence) ||
-      cell.status === "accepted" && hasEvidenceShape(cell.evidence) && !linkedValueMatchesQuote(cell.value, cell.evidence.quote) ||
+      cell.status === "accepted" && hasEvidenceShape(cell.evidence) &&
+        (cell.evidence.kind !== undefined || !linkedValueMatchesQuote(cell.value, cell.evidence.quote)) ||
       cell.evidence != null && !hasEvidenceShape(cell.evidence)) return null;
     seen.add(cell.row);
   }
@@ -476,7 +484,35 @@ function machineLinkedRows(value: unknown): ProductAutoLinkedCell[] | null {
 
 function linkedRowsAreVerified(value: unknown): boolean {
   const rows = machineLinkedRows(value);
-  return Boolean(rows?.length && rows.every((cell) => cell.status === "accepted" && cell.evidence));
+  return Boolean(rows?.length && rows.every((cell) => cell.status === "accepted" && cell.evidence &&
+    cell.evidence.kind === undefined && cell.visual_page === undefined));
+}
+
+function linkedRowsCanBeHumanVerified(value: unknown, visual: boolean): boolean {
+  if (linkedRowsAreVerified(value)) return true;
+  if (!visual) return false;
+  const rows = machineLinkedRows(value);
+  return Boolean(rows?.length && rows.every((cell) => cell.status === "needs_review" &&
+    cell.review_state === "pending" && cell.visual_grounding_verified === false &&
+    Number.isSafeInteger(cell.visual_page)));
+}
+
+function sealedVisualReview(review: ProductAutoReview | null): boolean {
+  return Boolean(review?.reviewer_user_id && /^[a-f0-9]{64}$/.test(review.source_container_sha256 ?? "") &&
+    /^[a-f0-9]{64}$/.test(review.source_pages_sha256 ?? "") &&
+    /^[a-f0-9]{64}$/.test(review.machine_result_sha256 ?? ""));
+}
+
+function validVisualScalar(value: unknown, type: string): boolean {
+  if (type === "string") return typeof value === "string" && Boolean(value.trim());
+  if (type === "boolean") return typeof value === "boolean";
+  if (type === "integer") return typeof value === "number" && Number.isSafeInteger(value);
+  if (type === "decimal") return typeof value === "number" && Number.isFinite(value) &&
+    Math.abs(value) <= Number.MAX_SAFE_INTEGER;
+  if (type === "date") return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) &&
+    new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+  return false;
 }
 
 function candidateFromArtifact(value: unknown, docId: string, pages: unknown): ProductAutoCandidate {
@@ -489,6 +525,14 @@ function candidateFromArtifact(value: unknown, docId: string, pages: unknown): P
   }
   if (!["processed", "needs_review", "unsupported", "failed"].includes(String(candidate.document_status))) {
     throw new Error("Invalid candidate status.");
+  }
+  const sourcePageIds = new Set<number>();
+  if (Array.isArray(pages)) {
+    for (const page of pages) {
+      if (page && typeof page === "object" && Number.isSafeInteger(page.page) && page.page > 0) {
+        sourcePageIds.add(page.page);
+      }
+    }
   }
   const schemaIds = new Set<string>();
   const schemaTypes = new Map<string, string>();
@@ -509,22 +553,55 @@ function candidateFromArtifact(value: unknown, docId: string, pages: unknown): P
       !schemaIds.has(field.field_id) || !["accepted", "needs_review", "missing", "rejected"].includes(String(field.status))) {
       throw new Error("Invalid extracted value.");
     }
+    if (Object.keys(field).some((key) => !["field_id", "value", "status", "review_state", "evidence",
+      "visual_pages", "visual_grounding_verified"].includes(key))) {
+      throw new Error("Unknown extracted value metadata.");
+    }
+    const visual = "visual_grounding_verified" in field || "visual_pages" in field;
+    if (visual && (field.visual_grounding_verified !== false || field.status !== "needs_review" ||
+      field.review_state !== "pending" || candidate.document_status !== "needs_review")) {
+      throw new Error("Invalid visual review state.");
+    }
     if (field.status === "accepted" && !field.evidence) throw new Error("Accepted value has no evidence.");
     if (field.evidence) assertSourceEvidence(field.evidence, pages);
+    if (field.evidence && (visual && field.evidence.kind !== "text_match" ||
+      !visual && field.evidence.kind !== undefined)) {
+      throw new Error("Invalid visual evidence kind.");
+    }
     const fieldType = schemaTypes.get(field.field_id)!;
     if (field.status === "accepted" && fieldType !== "array[object]" &&
       !acceptedScalarMatchesQuote(field.value, fieldType, field.evidence.quote, field.field_id)) {
       throw new Error("Accepted value does not match its type and source quote.");
     }
     if (fieldType === "array[object]") {
+      if ("visual_pages" in field) throw new Error("Linked fields use per-cell visual pages.");
       if (field.value === null) {
-        if (field.status === "accepted") throw new Error("A missing linked field cannot be accepted.");
+        if (field.status === "accepted" || visual) throw new Error("A missing linked field cannot be accepted.");
         continue;
       }
       const rows = machineLinkedRows(field.value);
-      if (!rows || field.status === "accepted") throw new Error("Invalid linked row candidate.");
+      if (!rows || field.status === "accepted" || visual && rows.length === 0) {
+        throw new Error("Invalid linked row candidate.");
+      }
       for (const cell of rows) {
         if (cell.evidence) assertSourceEvidence(cell.evidence, pages);
+        if (visual ? cell.visual_grounding_verified !== false || cell.review_state !== "pending" ||
+          cell.status !== "needs_review" || !sourcePageIds.has(cell.visual_page ?? -1) ||
+          cell.evidence && (cell.evidence.kind !== "text_match" || cell.evidence.page !== cell.visual_page)
+          : cell.visual_page !== undefined || cell.visual_grounding_verified !== undefined ||
+            cell.review_state !== undefined || cell.evidence?.kind !== undefined) {
+          throw new Error("Invalid linked visual page or review state.");
+        }
+      }
+    } else if (visual) {
+      if (field.value === null || !validVisualScalar(field.value, fieldType) ||
+        !Array.isArray(field.visual_pages) || field.visual_pages.length < 1 ||
+        field.visual_pages.length > sourcePageIds.size ||
+        field.visual_pages.some((page: unknown, index: number) => typeof page !== "number" ||
+          !Number.isSafeInteger(page) || !sourcePageIds.has(page) ||
+          index > 0 && page <= field.visual_pages[index - 1]) ||
+        field.evidence && !field.visual_pages.includes(field.evidence.page)) {
+        throw new Error("Invalid scalar visual pages or value.");
       }
     }
   }
@@ -1285,6 +1362,15 @@ function loadProductAutoDocument(jobId: string, runId: string, docId: string, se
   const result = parseResultBytes(bytes);
   const candidate = candidateFromArtifact(result.candidate, docId, result.pages);
   const sourcePages = readSourcePages(result);
+  let visualRoute: ProductAutoDocumentDetail["visualRoute"];
+  if (result.visual_document !== undefined) {
+    if (!result.visual_document || typeof result.visual_document !== "object" ||
+      Array.isArray(result.visual_document) ||
+      !["visual", "text", "not_executed"].includes(String((result.visual_document as Record<string, unknown>).route))) {
+      throw new Error("Invalid visual route receipt.");
+    }
+    visualRoute = (result.visual_document as { route: ProductAutoDocumentDetail["visualRoute"] }).route;
+  }
   const parsedDocument = readParsedDocument(result);
   const auditTrail = readAuditTrail(jobId, runId, docId);
   const review = auditTrail.at(-1)?.review_snapshot ?? null;
@@ -1313,7 +1399,8 @@ function loadProductAutoDocument(jobId: string, runId: string, docId: string, se
     sourceHash,
     detail: {
       runId, fileId: document.fileId, fileName: document.fileName,
-      candidate, sourcePages, ...(parsedDocument ? { parsedDocument } : {}), review, auditTrail,
+      candidate, sourcePages, ...(visualRoute ? { visualRoute } : {}),
+      ...(parsedDocument ? { parsedDocument } : {}), review, auditTrail,
       correctedResult: deriveProductAutoCorrectedResult(candidate, review),
     },
   };
@@ -1476,13 +1563,17 @@ export function deriveProductAutoCorrectedResult(
     } else if (decision?.decision === "incorrect") {
       fields.push({ ...identity, value: null, status: "needs_review", provenance: "machine" });
     } else {
-      const verified = decision?.decision === "correct";
-      const linkedVerified = schema.type !== "array[object]" || linkedRowsAreVerified(machine?.value);
+      const visual = machine?.visual_grounding_verified === false;
+      const verified = decision?.decision === "correct" && (!visual || sealedVisualReview(review));
+      const linkedVerified = schema.type !== "array[object]" ||
+        linkedRowsCanBeHumanVerified(machine?.value, visual && sealedVisualReview(review));
       if (verified && !linkedVerified) unsafeLinkedReview = true;
       const status = verified && linkedVerified ? machine?.value == null ? "missing" : "accepted" : "needs_review";
       fields.push({ ...identity, value: machine?.value ?? null, status,
         provenance: verified && linkedVerified ? "human_verified" : "machine",
-        ...(machine?.evidence ? { evidence: machine.evidence } : {}) });
+        ...(machine?.evidence ? { evidence: machine.evidence } : {}),
+        ...(machine?.visual_pages ? { visual_pages: machine.visual_pages } : {}),
+        ...(visual ? { visual_grounding_verified: false as const } : {}) });
     }
   }
   let unsafeAddedReview = false;
@@ -1710,7 +1801,7 @@ function saveProductAutoReviewWithRevision(
   if (!Array.isArray(fields)) throw new AccessError("Review fields must be a list.", 400);
   const allowed = new Set(detail.candidate.proposed_schema.map((field) => field.field_id));
   const fieldTypes = new Map(detail.candidate.proposed_schema.map((field) => [field.field_id, field.type]));
-  const machineValueByField = new Map(detail.candidate.extracted_values.map((field) => [field.field_id, field.value]));
+  const machineValueByField = new Map(detail.candidate.extracted_values.map((field) => [field.field_id, field]));
   const seen = new Set<string>();
   const parsed: ProductAutoReviewField[] = [];
   for (const value of fields) {
@@ -1732,8 +1823,11 @@ function saveProductAutoReviewWithRevision(
       decision === "corrected" && !correctedValue || decision !== "corrected" && correctedValue) {
       throw new AccessError("Invalid review correction or note.", 400);
     }
-    if (fieldType === "array[object]" && decision === "correct" && !linkedRowsAreVerified(machineValueByField.get(fieldId))) {
-      throw new AccessError("Linked rows need verified evidence for every cell or a structured correction.", 400);
+    if (fieldType === "array[object]" && decision === "correct") {
+      const machine = machineValueByField.get(fieldId);
+      if (!linkedRowsCanBeHumanVerified(machine?.value, machine?.visual_grounding_verified === false)) {
+        throw new AccessError("Linked rows need text evidence, reviewed visual pages, or a structured correction.", 400);
+      }
     }
     let storedCorrection = correctedValue;
     if (decision === "corrected" && correctedValue) {
