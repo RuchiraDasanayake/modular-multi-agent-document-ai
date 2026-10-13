@@ -1,0 +1,42 @@
+{
+  "protocol": "cord_s1_ocr_line_graph_v1",
+  "scope": "CORD development PNGs only",
+  "cohort_sha256": "48f9af8c04a5ee874c68ccb4c70a5fb81bcfddc508064747779678949103414a",
+  "raw_sidecar_sha256": "3c1322181b893cc948b0dbde6414dcf7ed9669a1609ec007b09a12e52e40a92f",
+  "producer_code_lf_sha256": "8097af878f63c834757b65edbc8172473284c46da6f2a8a86597f00b2f2d5cf9",
+  "graph_rules_lf_sha256": "21b30b1b0b70918fc7d87bdf3a672d3796d3a2835e97ae62e4b5f283bd901d90",
+  "original_sources_verified": 60,
+  "distinct_source_hashes": 60,
+  "graph_records": 120,
+  "engines": {
+    "rapidocr": {
+      "parser_config_sha256": "4095d047339523203f72cc6eee2c2424340504680d79b875cf30ed04159f02d0",
+      "raw_sidecar_lines": 974,
+      "candidate_pages": 60,
+      "abstained_pages": 0,
+      "ocr_line_nodes": 974,
+      "abstention_reasons": {}
+    },
+    "tesseract": {
+      "parser_config_sha256": "5f62a91b7c500aaadd86b4c5a20b37079bb58b97372d8ea759c26a910f2f2172",
+      "raw_sidecar_lines": 620,
+      "candidate_pages": 56,
+      "abstained_pages": 4,
+      "ocr_line_nodes": 600,
+      "abstention_reasons": {
+        "empty_ocr_page": 1,
+        "line_length_limit": 3
+      }
+    }
+  },
+  "line_graphs_sha256": "4eb59422fddeb51778150f3cb79ed8f4ff9a34572e4f74b5974d680aaecd4b0d",
+  "model_calls": 0,
+  "gold_access": false,
+  "reserved_source_access": false,
+  "product_extraction_calls": 0,
+  "limitations": [
+    "OCR quadrilaterals are line regions, not word boxes or table cells.",
+    "Pixel bounds and text offsets do not verify transcription or field meaning.",
+    "No schema, row links, accepted values, model calls, or cost improvement were tested."
+  ]
+}
