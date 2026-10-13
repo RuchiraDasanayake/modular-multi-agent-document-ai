@@ -112,6 +112,7 @@ def test_product_sidecar_whitelists_pdf_renderer_provenance(tmp_path: Path, monk
     assert set(renderer_fields) == {
         "pdf_renderer", "pdf_renderer_fallback_reason", "pdf_page_index",
         "pdf_page_rotation_deg", "pdf_rendered_dpi", "pdf_render_size_px",
+        "pdf_native_layer", "pdf_native_text_sha256", "pdf_native_text_rejected",
     }
     assert page["pdf_renderer"] == "pdfium"
     assert page["pdf_renderer_fallback_reason"] is None

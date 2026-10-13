@@ -16,6 +16,7 @@ from typing import Any
 from idpo.agents.base import Agent, AgentContext
 from idpo.agents.degarble import degarble, is_garbled
 from idpo.core.contracts import AgentMessage
+from idpo.core.pdf_native import PDFIUM_LOCK
 from idpo.core.preflight import find_poppler_path, find_tesseract_cmd
 from idpo.core.types import AgentResult, Document, Page, StageSignal
 
@@ -25,7 +26,7 @@ from idpo.core.types import AgentResult, Document, Page, StageSignal
 _PADDLE_ENGINES: dict[str, Any] = {}
 _PADDLE_LOCK = threading.Lock()
 # PDFium is not thread-safe, including calls made on different documents.
-_PDFIUM_RENDER_LOCK = threading.Lock()
+_PDFIUM_RENDER_LOCK = PDFIUM_LOCK
 _PADDLE_REC_WIDTH_STEP_PX = 320
 _DENOISE_MIN_SHORT_SIDE_PX = 1600
 # Boxes whose vertical centres differ by less than this fraction of the shorter box height share a row.
@@ -302,7 +303,8 @@ class OcrAgent(Agent):
         rerun_used_pages = 0
         rerun_min_gain = max(0.0, float(getattr(ctx.config.preprocessing, "ocr_rerun_min_score_gain", 0.03)))
         for page in doc.pages:
-            raw = page.raw_text or page.text
+            native_rejected = page.metadata.get("pdf_native_text_rejected", False)
+            raw = "" if native_rejected else page.raw_text or page.text
             page_failure = None
             is_garbled_page = page.metadata.get("garbled_pdf", False) or is_garbled(raw)
             if page.image_path:
