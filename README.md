@@ -24,7 +24,10 @@ It includes a separate research pipeline for studying adaptive document policies
 > now reserves image input for repeated fields, long text and missing OCR text on eligible sources.
 > Its held-out quality and cost comparison remains pending.
 > General-purpose accuracy, cost per correct document and production readiness are **not yet validated**.
-> A fresh model-assisted 2,000-document run is still required after the extraction changes.
+> A fresh [model-assisted 2,000-document run](docs/evaluations/MODEL2000_SELECTIVE_V2_EXECUTION_20261013.md)
+> is running with the extraction candidate frozen. The separate
+> [240-source paired quality comparison](docs/evaluations/QUALITY240_PREREGISTRATION_20261013.md)
+> is preregistered; neither campaign has a final result yet.
 > The [productization plan](docs/PRODUCTIZATION_PLAN.md) retains the earlier failed baselines and release gates;
 > [`paper/FINAL_EVIDENCE.md`](paper/FINAL_EVIDENCE.md) preserves the separate historical research results.
 

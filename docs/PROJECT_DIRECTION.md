@@ -12,8 +12,11 @@ The author reports that a paper was accepted for an oral presentation at ICTAR 2
 appears to be that submission, but the exact manuscript uploaded to CMT still needs verification. The later October
 `paper/ieee/main.tex` and `paper/FINAL_EVIDENCE.md` describe a different paired `static` vs `adaptive_safe` study on
 CORD-dev, CORD-holdout, FUNSD-20 and HARD-13. Its results, run folders and regeneration commands are frozen as
-**October internal evidence**; they are not verified as the accepted submission. In that study adaptive routing did
-not improve accuracy and added latency on receipts. Camera-ready work must reconcile the submitted manuscript,
+**October internal evidence**; they are not verified as the accepted submission. Its summary reports no accuracy
+gain and higher receipt latency, but the [provenance audit](OCTOBER_EVIDENCE_PROVENANCE_AUDIT_20261013.md)
+could not recover the referenced raw bundles. Preserve those summaries as historical, unverified records; omit
+their numerical empirical claims from the final paper unless the raw evidence is recovered and verified.
+Camera-ready work must reconcile the submitted manuscript,
 reviewer comments, venue requirements and later evidence accurately, without overwriting or backdating either study.
 Product development is a third track with new evaluations and claims.
 
@@ -88,9 +91,10 @@ This phase is successful when:
 
 - the camera-ready paper is traceable to the verified CMT submission and honestly reconciles later findings; the
   October study and its run folders are separately archived
-- a teammate can reproduce the October results from a clean checkout and separately reproduce the product benchmark;
-  reproducibility claims for the accepted submission are checked against its actual artifacts
-- both unauthorized cross-user access and the Docker runner blocker have passing end-to-end regression checks
+- a teammate can reproduce every empirical claim retained in the final paper from preserved inputs, code and outputs;
+  missing historical bundles are disclosed and their unsupported numerical claims are omitted
+- unauthorized cross-user access has passing end-to-end regression checks, and each advertised deployment works;
+  native Windows is the current supported product deployment and does not require Docker
 - a user can upload an unfamiliar supported document without choosing a template and receive a proposed typed schema,
   grounded values and explicit review or abstention states; schema discovery and value accuracy are scored separately
 - a user can describe a desired output or provide a schema/context, confirm ambiguous fields on a small preview, then
@@ -217,14 +221,15 @@ Which code areas are most affected: frontend job API/runner, gateway access chec
 
 ## Current Next Step
 
-1. use the completed [v13 2,000-source VRDU gate](evaluations/VRDU_2000_NO_MODEL_V13_NATIVE_MODEL_TABLES_RESULT.md)
-   and the [mixed VRDU/CORD 2,000-source gate](evaluations/MIXED_VRDU_CORD_TRAIN_2000_NO_MODEL_RESULT_20261013.md)
-   as reproducible no-model operational comparators: every source remained reviewable, but neither gate proposed a
-   linked row; the mixed receipt positive-only scorer found zero exact scalars, cells, or complete rows
-2. isolate schema discovery from value extraction with the bounded local oracle-schema diagnostic, then improve field
-   semantics and linked rows on small authorized, adjudicated development slices before any model-backed full gate;
-   the initial local Qwen and bounded ICORE pilots did not pass real-document quality/reliability
-3. complete a live Docker worker smoke on a host with a daemon, then add durable bounded jobs and price plus review-time
-   accounting before claiming a scalable lower-cost deployment
-4. verify and archive the CMT-submitted manuscript and reconcile camera-ready changes with the reviewers and venue,
-   keeping new product results and the frozen October study separately attributed
+1. complete the already frozen [model-assisted 2,000-source execution](evaluations/MODEL2000_SELECTIVE_V2_EXECUTION_20261013.md),
+   retaining every failure, uncertain paid attempt and source that exceeds the declared limits; do not replace failed
+   sources or change the executing candidate mid-run
+2. execute the [preregistered 240-source paired comparison](evaluations/QUALITY240_PREREGISTRATION_20261013.md),
+   seal both arms before opening references, and report exact scalar and whole-row recall with paired uncertainty;
+   these experiments use confirmed schemas and do not validate automatic schema discovery
+3. finish the native intent-to-export workflow verification across advertised formats, then verify recovery and
+   supported operating limits; PostgreSQL queueing and native startup are implemented, while multiple frontend
+   writers, priced total cost and measured human review time remain open
+4. use the separately preserved [corrected simulation](AHMN_CORRECTED_SIMULATION_RESULT_20261013.md) and new measured
+   product evidence to prepare the conference revision, keeping synthetic bandit behavior, actual document
+   extraction and the unverified historical summaries clearly attributed
