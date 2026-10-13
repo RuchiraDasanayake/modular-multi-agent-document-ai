@@ -34,11 +34,35 @@ copy. No live recovery result is implied by the unit tests.
 
 ## Stages (operator-controlled; no automatic shutdown)
 
-Use absolute paths. In the examples, `$python` is the configured interpreter,
-`$originalConfig` the private native JSON, `$backup` a new bundle directory,
+Use absolute paths. In the examples, `$productPython` is the configured product
+interpreter, `$python` is its base CPython interpreter, `$originalConfig` the
+private native JSON, `$backup` a new bundle directory,
 `$clone` a new recovery runtime directory, and `$cloneRepo` a separate checkout at
 the source revision recorded by the backup. Parent directories must already
 exist. Choose three unused clone ports different from all three original ports.
+
+Resolve the base interpreter **before** the cold-backup window, then let the
+configured interpreter exit. The recovery helpers use only Python's standard
+library. On Windows, a virtual-environment `python.exe` can remain as a parent
+launcher while its base interpreter runs the script. The stopped-state guard
+correctly sees that configured launcher as another runtime user and refuses the
+backup. Do not weaken the guard or bypass this check:
+
+```powershell
+$resolvedBase = & $productPython -c 'import sys; print(sys._base_executable)'
+if ($LASTEXITCODE -ne 0 -or $resolvedBase -isnot [string]) {
+  throw 'The base Python interpreter could not be resolved.'
+}
+$python = $resolvedBase.Trim()
+if (-not [IO.Path]::IsPathFullyQualified($python) -or
+    -not (Test-Path -LiteralPath $python -PathType Leaf)) {
+  throw 'The base Python interpreter could not be resolved.'
+}
+```
+
+Use `$python` for the capture, backup, verification and restore commands below.
+Wait for unrelated users of the configured product and gateway interpreters to
+finish before the cold backup; an unrelated process must still block it.
 
 ### 1. Record a private authenticated baseline while the original is available
 
@@ -92,7 +116,16 @@ $cloneConfig = Join-Path $clone 'passive-config.json'
 pwsh -NoProfile -File scripts/build_native_recovery.ps1 -ConfigPath $cloneConfig
 ```
 
-Provision the clone checkout's existing locked dependencies before the build.
+Provision the clone checkout's own lockfile-matched `frontend/node_modules`
+before the build, including development dependencies needed for type checking.
+Do not link that directory to another checkout on a different drive: the native
+Next/Webpack build can turn the cross-drive package path into an invalid relative
+request. A separate locked install is preferred; a local copy must come from the
+matching installed dependency set. Keep preserved dependency directories or links
+outside the clone frontend, where TypeScript will not treat them as application
+source. The build script's checked sibling dependency junction is still required;
+it must target the clone's own `frontend/node_modules`.
+
 Do not copy `.env` files. The clone gets a fresh JWT secret, relocated database
 URL/ports and no provider configuration. The original private configuration stays
 inside the immutable backup. The only allowed product-data rewrite is each

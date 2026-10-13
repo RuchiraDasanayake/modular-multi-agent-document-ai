@@ -132,10 +132,13 @@ review, and never silently merges a row across segment boundaries. Requests that
 cannot be completely covered within those bounds fail explicitly. Extraction
 profile version 2 pins this policy; version 1 retains the historical text limit.
 
-Optional `autoVisualDocument` selects `disabled` (default) or `bounded_visual_v1`.
-Version 3 extraction profiles seal this choice. With a confirmed schema, images
-and PDFs requiring OCR use complete original page images plus OCR aids; all-native
-PDFs and other native/text formats use strict text responses. The visual path
+Optional `autoVisualDocument` selects `disabled` (default), `bounded_visual_v1`,
+or `bounded_visual_selective_v2`. Version 3 extraction profiles seal this choice.
+With a confirmed schema, v1 sends eligible images and PDFs requiring OCR through
+the visual path. Selective v2 uses the pre-call selection rule above: short scalar
+sources with usable OCR text use strict text extraction, while repeated columns,
+long text and missing usable OCR text use the visual path on eligible sources.
+All-native PDFs and other native/text formats keep their text path. The visual path
 prepares every page before any model call, with at most four requests, 12 images
 and 4 MiB per request, and a 2,048-pixel image edge. A source that cannot fit fails
 explicitly. Every visual proposal requires review. This option sends source

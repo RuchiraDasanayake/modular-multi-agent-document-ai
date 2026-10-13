@@ -12,7 +12,7 @@ It includes a separate research pipeline for studying adaptive document policies
 
 > **Research results and how to reproduce them:** see [`docs/REPRODUCING_RESULTS.md`](docs/REPRODUCING_RESULTS.md).
 
-> **Release status — 13 October 2026:** The native workflow now has a persistent PostgreSQL queue,
+> **Release status — 14 October 2026:** The native workflow now has a persistent PostgreSQL queue,
 > confirmed schemas, sample preview, batch extraction, owner-scoped review and reviewed JSON export.
 > The [authenticated nine-format synthetic workflow](docs/evaluations/NATIVE_NINE_FORMAT_SCHEMA_FLOW_20261013.md)
 > completed AI schema suggestion, preview, batch extraction and reviewed export using Luna 6.
@@ -26,17 +26,21 @@ It includes a separate research pipeline for studying adaptive document policies
 > now reserves image input for repeated fields, long text and missing OCR text on eligible sources.
 > Its held-out quality and cost comparison remains pending.
 > General-purpose accuracy, cost per correct document and production readiness are **not yet validated**.
-> A fresh [model-assisted 2,000-document run](docs/evaluations/MODEL2000_SELECTIVE_V2_EXECUTION_20261013.md)
-> is running with the extraction candidate frozen. The separate
+> The [verified 2,000-original operational study](docs/evaluations/MODEL2000_VERIFIED_OPERATIONAL_20261013.md)
+> recorded model attempts for 1,987 originals and strict/full-coverage outputs for 1,930; 1,929 were non-null.
+> All valid outputs require review. The all-source gate did not pass; coverage is not accuracy.
+> Its separate image-header check passed all 798 cohort images under the later release guard.
+> The product remains a research prototype. The separate
 > [240-source paired quality comparison](docs/evaluations/QUALITY240_PREREGISTRATION_20261013.md)
-> is preregistered; neither campaign has a final result yet.
+> is preregistered and its final result remains pending.
 > The [productization plan](docs/PRODUCTIZATION_PLAN.md) retains the earlier failed baselines and release gates;
 > [`paper/FINAL_EVIDENCE.md`](paper/FINAL_EVIDENCE.md) preserves the separate historical research results.
 
 ## Product Workflow
 
 For Windows without Docker, use the [native setup and launcher](scripts/native_product.md).
-On a configured installation, create a job, upload supported files and open **Automatic extraction**.
+The [product quickstart](docs/PRODUCT_QUICKSTART.md) covers the signed-in workflow and operator handover.
+On a configured installation, create a job, upload supported files and open **Automatic schema extraction**.
 Describe the required information, choose samples, enter or request field suggestions, and confirm field meanings.
 Review the preview before processing the remaining files with that pinned schema. The owner can correct fields and
 rows while inspecting source quotes and the original, then download reviewed JSON. Model-backed runs currently
