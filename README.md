@@ -14,8 +14,10 @@ It includes a separate research pipeline for studying adaptive document policies
 
 > **Release status — 13 October 2026:** The native workflow now has a persistent PostgreSQL queue,
 > confirmed schemas, sample preview, batch extraction, owner-scoped review and reviewed JSON export.
-> The [authenticated two-file synthetic workflow](docs/evaluations/PRODUCT_STAGED_SYNTHETIC_SMOKE_20261013.md)
-> passed using Luna 6. The [running production app](docs/evaluations/NATIVE_STREAM_UPLOAD_VERIFICATION_20261013.md)
+> The [authenticated nine-format synthetic workflow](docs/evaluations/NATIVE_NINE_FORMAT_SCHEMA_FLOW_20261013.md)
+> completed AI schema suggestion, preview, batch extraction and reviewed export using Luna 6.
+> These were nine representations of two simple order rows, with simulated human review.
+> The [running production app](docs/evaluations/NATIVE_STREAM_UPLOAD_VERIFICATION_20261013.md)
 > preserved large and concurrent uploads and reproduced reviewed exports.
 > In the [six-source paired development comparison](docs/evaluations/PAIRED_PRODUCT_DEV6_RESULTS_20261013.md),
 > bounded image extraction matched 20/34 scalar targets and 29/43 whole rows, versus 14/34 and 0/43
