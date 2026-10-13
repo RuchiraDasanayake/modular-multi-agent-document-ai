@@ -210,8 +210,11 @@ page separately at 300 DPI with the visible omitted glyph footprint marked;
 the supervisor validates that PNG, dimensions, hashes and legend against the
 source-bound ledger. Synthetic tests cover whole-word omission, malformed
 geometry, overflow bounds, table overlap and artifact tampering. The v3
-parser version is `research-word-route-first-pdf-v4`. A new committed gate
-must bind the code, prior failure receipts, unchanged source selection and
-runtime locks, and fresh `I:\DocAI-Benchmarks\tatr-adbuy12-v3` output before
-one further selected-PDF attempt. Its source-pixel overlays need independent
-visual review before other documents or any quality claim.
+parser version is `research-word-route-first-pdf-v4`. The committed
+[v3 one-document gate](../../product_eval/fixtures/tatr_first_pdf_research_gate_v3.json),
+SHA-256 `b797e3fba63bf31233bab2db2fc24d9b8826bd86e601533f832a0f3575f74731`,
+binds **132 local Python files**, both immutable failure receipts, the
+unchanged source selection and CPU/OCR locks, and fresh
+`I:\DocAI-Benchmarks\tatr-adbuy12-v3` output. It permits one further
+selected-PDF attempt without gold access. Its source-pixel overlays need
+independent visual review before other documents or any quality claim.
