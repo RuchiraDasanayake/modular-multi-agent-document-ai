@@ -190,3 +190,28 @@ the OCR failure receipt SHA-256 is
 This is an OCR route safety failure, not a measured TATR table-quality result.
 The v2 output must remain untouched. Any further trial requires a separately
 declared profile and new directory.
+
+## Prepared v3 native-word salvage profile
+
+Source-only inspection identified exactly one affected eight-character word
+on page one. A typed out-of-viewport glyph error now rejects its **whole**
+word, retaining 515 other native words on that page; pages two and three
+retain 658 and 206 native words with no omissions. The omitted eight
+characters are 0.3101% of page-one nonspace characters. The v3 worker fails
+if a page would omit more than one whole word, over 0.5% of nonspace
+characters, or every native word. Malformed Unicode and other source geometry
+still fail. A detected table intersecting the omitted glyph footprint fails
+before cell inference. Image-only pages continue through the unchanged
+pinned OCR route; the failed v2 orientation guard remains in force.
+
+The omission ledger stores text, PDFium character span, raw and projected
+glyph boxes, and page-level degradation. The worker renders each affected
+page separately at 300 DPI with the visible omitted glyph footprint marked;
+the supervisor validates that PNG, dimensions, hashes and legend against the
+source-bound ledger. Synthetic tests cover whole-word omission, malformed
+geometry, overflow bounds, table overlap and artifact tampering. The v3
+parser version is `research-word-route-first-pdf-v4`. A new committed gate
+must bind the code, prior failure receipts, unchanged source selection and
+runtime locks, and fresh `I:\DocAI-Benchmarks\tatr-adbuy12-v3` output before
+one further selected-PDF attempt. Its source-pixel overlays need independent
+visual review before other documents or any quality claim.

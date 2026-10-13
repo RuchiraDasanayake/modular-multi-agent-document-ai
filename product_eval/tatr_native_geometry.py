@@ -16,6 +16,10 @@ class GeometryError(ValueError):
     """A source box cannot be represented on the rendered PDF page."""
 
 
+class OutsideRenderedPageError(GeometryError):
+    """A valid PDF glyph box lies outside the rendered page viewport."""
+
+
 @dataclass(frozen=True)
 class WordToken:
     text: str
@@ -59,9 +63,12 @@ def page_box_to_pixels(
     _rect(pixel_box)
     left, top, right, bottom = pixel_box
     if left < -1 or top < -1 or right > image_width + 1 or bottom > image_height + 1:
-        raise GeometryError("PDF box lies outside the rendered image")
+        raise OutsideRenderedPageError("PDF box lies outside the rendered image")
     clipped = (max(left, 0), max(top, 0), min(right, image_width), min(bottom, image_height))
-    _rect(clipped)
+    try:
+        _rect(clipped)
+    except GeometryError as exc:
+        raise OutsideRenderedPageError("PDF box lies outside the rendered image") from exc
     return clipped
 
 
@@ -89,12 +96,19 @@ def pixel_box_to_page(
     return page_box
 
 
-def native_word_tokens(page: Any, bitmap: Any) -> list[WordToken]:
+def native_word_tokens(
+    page: Any,
+    bitmap: Any,
+    *,
+    rejected_words: list[dict[str, Any]] | None = None,
+) -> list[WordToken]:
     """Split PDFium character order on whitespace or a large spatial break.
 
     PDFium's internal character array is the only ordering used. A missing
     Unicode map or invalid source geometry fails the page, rather than silently
-    moving text between cells.
+    moving text between cells. Supplying ``rejected_words`` permits whole-word
+    omission only for valid glyphs outside the rendered viewport. Every omitted
+    word is recorded with its complete source geometry for caller review.
     """
     import pypdfium2.raw as pdfium
 
@@ -105,19 +119,35 @@ def native_word_tokens(page: Any, bitmap: Any) -> list[WordToken]:
     boxes: list[tuple[float, float, float, float]] = []
     page_boxes: list[tuple[float, float, float, float]] = []
     first = 0
+    outside_viewport = False
 
     def flush(last: int) -> None:
-        nonlocal chars, boxes, page_boxes
+        nonlocal chars, boxes, page_boxes, outside_viewport
         if not chars:
             return
-        result.append(WordToken(
-            text="".join(chars),
-            bbox=_bounds(tuple((x, y) for box in boxes for x, y in _corners(box))),
-            pdf_bbox=_bounds(tuple((x, y) for box in page_boxes for x, y in _corners(box))),
-            char_start=first,
-            char_end=last,
-        ))
+        if outside_viewport:
+            assert rejected_words is not None
+            rejected_words.append({
+                "text": "".join(chars),
+                "char_start": first,
+                "char_end": last,
+                "pdf_glyph_boxes": list(page_boxes),
+                "pixel_glyph_boxes": [
+                    _bounds(tuple(converter.to_bitmap(x, y) for x, y in _corners(box)))
+                    for box in page_boxes
+                ],
+                "reason": "outside_rendered_viewport",
+            })
+        else:
+            result.append(WordToken(
+                text="".join(chars),
+                bbox=_bounds(tuple((x, y) for box in boxes for x, y in _corners(box))),
+                pdf_bbox=_bounds(tuple((x, y) for box in page_boxes for x, y in _corners(box))),
+                char_start=first,
+                char_end=last,
+            ))
         chars, boxes, page_boxes = [], [], []
+        outside_viewport = False
 
     try:
         for index in range(text_page.count_chars()):
@@ -129,7 +159,7 @@ def native_word_tokens(page: Any, bitmap: Any) -> list[WordToken]:
                 flush(index)
                 continue
             page_box = tuple(float(value) for value in text_page.get_charbox(index))
-            pixel_box = page_box_to_pixels(page_box, converter, bitmap.width, bitmap.height)
+            _rect(page_box)
             if page_boxes:
                 prev = page_boxes[-1]
                 height = max(prev[3] - prev[1], page_box[3] - page_box[1])
@@ -138,10 +168,18 @@ def native_word_tokens(page: Any, bitmap: Any) -> list[WordToken]:
                 backwards = page_box[0] < prev[0] - 0.4 * height
                 if line_break or gap or backwards:
                     flush(index)
+            try:
+                pixel_box = page_box_to_pixels(page_box, converter, bitmap.width, bitmap.height)
+            except OutsideRenderedPageError:
+                if rejected_words is None:
+                    raise
+                outside_viewport = True
+                pixel_box = None
             if not chars:
                 first = index
             chars.append(char)
-            boxes.append(pixel_box)
+            if pixel_box is not None:
+                boxes.append(pixel_box)
             page_boxes.append(page_box)
         flush(text_page.count_chars())
         return result

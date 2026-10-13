@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import subprocess
 import time
@@ -40,9 +41,11 @@ FULL_RUN_SECONDS = 3600
 POLL_SECONDS = 0.5
 HOST_VOLUME = "C:"
 DATA_VOLUME = "I:"
-V2_OUTPUT_DIR = Path(r"I:\DocAI-Benchmarks\tatr-adbuy12-v2")
+V3_OUTPUT_DIR = Path(r"I:\DocAI-Benchmarks\tatr-adbuy12-v3")
 V1_FAILURE_RECEIPT = Path(r"I:\DocAI-Benchmarks\tatr-adbuy12-v1\first_pdf_receipt.json")
 V1_FAILURE_RECEIPT_SHA256 = "3e068faa08cd52208674d1772db1075285653e7dd01f896129ca1b952a78bdc5"
+V2_FAILURE_RECEIPT = Path(r"I:\DocAI-Benchmarks\tatr-adbuy12-v2\first_pdf_receipt.json")
+V2_FAILURE_RECEIPT_SHA256 = "e1736bd40e4aabfa81250c1a2f1e08fc3d7543251f2893f1d3d5b75e10c43136"
 
 
 def _write_new_json(path: Path, value: dict[str, Any]) -> None:
@@ -187,13 +190,16 @@ def _verify_trial_gate(
 ) -> dict[str, Any]:
     gate = json.loads(gate_path.read_text(encoding="utf-8"))
     required = {
-        "version": 2,
-        "scope": "one_first_pdf_research_geometry_fallback_v2",
+        "version": 3,
+        "scope": "one_first_pdf_research_bounded_native_omission_v3",
         "document_inference_permitted": True,
         "max_documents": 1,
         "gold_access_permitted": False,
-        "output_directory": V2_OUTPUT_DIR.as_posix(),
-        "prior_failure_receipt_sha256": V1_FAILURE_RECEIPT_SHA256,
+        "output_directory": V3_OUTPUT_DIR.as_posix(),
+        "prior_failure_receipts_sha256": {
+            "v1": V1_FAILURE_RECEIPT_SHA256,
+            "v2": V2_FAILURE_RECEIPT_SHA256,
+        },
         "selection_sha256": sha256_file(selection),
         "cohort_sha256": sha256_file(cohort),
         "cpu_runtime_lock_sha256": sha256_file(cpu_lock),
@@ -221,6 +227,59 @@ def _verified_anchor(value: Any, unit_id: str) -> SourceAnchor:
     return SourceAnchor(unit_id=unit_id, raw_box=raw_box, display_box=display_box)
 
 
+def _verify_native_word_ledger(detail: dict[str, Any], unit: SourceUnit,
+                               size: tuple[int, int]) -> None:
+    words = detail.get("page_words")
+    route = detail.get("word_route")
+    rejected = detail.get("native_words_rejected")
+    if (not isinstance(words, list) or not words
+            or any(not isinstance(word, dict) or word.get("source") != route
+                   or not isinstance(word.get("text"), str) or not word["text"]
+                   for word in words)
+            or unit.text != " ".join(word["text"] for word in words)
+            or not isinstance(rejected, list) or len(rejected) > 1
+            or detail.get("native_text_degraded") is not bool(rejected)
+            or detail.get("native_rejected_word_count") != len(rejected)
+            or (route == "ocr_word" and rejected)):
+        raise ValueError("page words or native omission ledger are inconsistent")
+    missing_chars = 0
+    for item in rejected:
+        if (not isinstance(item, dict) or set(item) != {
+                "text", "char_start", "char_end", "pdf_glyph_boxes",
+                "pixel_glyph_boxes", "reason"}
+                or item.get("reason") != "outside_rendered_viewport"
+                or not isinstance(item.get("text"), str)
+                or not item["text"] or any(char.isspace() for char in item["text"])
+                or type(item.get("char_start")) is not int
+                or type(item.get("char_end")) is not int
+                or item["char_start"] < 0
+                or item["char_end"] - item["char_start"] != len(item["text"])):
+            raise ValueError("native omission entry has invalid identity")
+        missing_chars += len(item["text"])
+        glyphs = item["pixel_glyph_boxes"]
+        raw_glyphs = item["pdf_glyph_boxes"]
+        if (not isinstance(glyphs, list) or not isinstance(raw_glyphs, list)
+                or len(glyphs) != len(item["text"])
+                or len(raw_glyphs) != len(glyphs)):
+            raise ValueError("native omission glyph inventory is incomplete")
+        for box in [*glyphs, *raw_glyphs]:
+            if (not isinstance(box, list) or len(box) != 4
+                    or any(not isinstance(value, (int, float))
+                           or isinstance(value, bool) or not math.isfinite(value)
+                           for value in box)
+                    or box[0] >= box[2] or box[1] >= box[3]):
+                raise ValueError("native omission glyph box is invalid")
+        if not any(box[0] < -1 or box[1] < -1
+                   or box[2] > size[0] + 1 or box[3] > size[1] + 1
+                   for box in glyphs):
+            raise ValueError("native omission lacks an out-of-viewport glyph")
+    retained_chars = sum(len(word["text"]) for word in words)
+    if (detail.get("native_rejected_char_count") != missing_chars
+            or (missing_chars and
+                missing_chars > 0.005 * (missing_chars + retained_chars))):
+        raise ValueError("native omission exceeds frozen character bound")
+
+
 def _verify_content_artifacts(output_dir: Path, receipt: dict[str, Any],
                               source_sha256: str) -> None:
     from PIL import Image
@@ -233,7 +292,7 @@ def _verify_content_artifacts(output_dir: Path, receipt: dict[str, Any],
         if (parsed.get("contract_version") != 2
                 or parsed.get("source_sha256") != source_sha256
                 or parsed.get("source_format") != "pdf"
-                or parsed.get("parser_version") != "research-word-route-first-pdf-v3"
+                or parsed.get("parser_version") != "research-word-route-first-pdf-v4"
                 or not isinstance(raw_pages, list)):
             raise ValueError("worker did not emit source-bound PDF parser artifacts")
         unit_data = parsed["units"]
@@ -254,10 +313,9 @@ def _verify_content_artifacts(output_dir: Path, receipt: dict[str, Any],
                     or detail.get("pdf_page_size_frame") != "cropbox_after_rotation"
                     or detail.get("pdf_rotation_degrees") not in (0, 90, 180, 270)
                     or detail.get("word_route") not in ("pdfium_native", "ocr_word")
-                    or detail.get("native_route_rejected") not in
-                    (None, "unprojectable_native_character")
-                    or (detail.get("native_route_rejected") is not None
-                        and detail.get("word_route") != "ocr_word")
+                    or not isinstance(detail.get("native_words_rejected"), list)
+                    or detail.get("native_text_degraded") is not
+                    bool(detail.get("native_words_rejected"))
                     or not isinstance(detail.get("tables"), list)):
                 raise ValueError("parser page metadata has an inconsistent coordinate frame")
             size = detail.get("rendered_size_pixels")
@@ -265,6 +323,7 @@ def _verify_content_artifacts(output_dir: Path, receipt: dict[str, Any],
                     or any(type(value) is not int or value <= 0 for value in size)
                     or size[0] * size[1] > 35_000_000):
                 raise ValueError("parser page has invalid rendered dimensions")
+            _verify_native_word_ledger(detail, unit, (size[0], size[1]))
             units.append(unit)
 
         tables: list[Table] = []
@@ -339,6 +398,46 @@ def _verify_content_artifacts(output_dir: Path, receipt: dict[str, Any],
         raise ValueError("worker parser artifact is malformed") from exc
 
 
+def _verify_omission_overlays(
+    output_dir: Path, receipt: dict[str, Any], source_sha256: str,
+) -> None:
+    from PIL import Image
+
+    pages = json.loads((output_dir / "raw_pages.json").read_text(encoding="utf-8"))
+    expected = [page for page in pages if page["native_words_rejected"]]
+    overlays = receipt.get("native_omission_overlays")
+    if not isinstance(overlays, list) or len(overlays) != len(expected):
+        raise ValueError("native omission overlays differ from the page ledger")
+    for entry, page in zip(overlays, expected, strict=True):
+        number = page["page_number"]
+        image_name = f"native_omission_page_{number:03d}.png"
+        legend_name = f"native_omission_page_{number:03d}.json"
+        image_path = output_dir / image_name
+        legend_path = output_dir / legend_name
+        if (not isinstance(entry, dict) or set(entry) != {
+                "page_number", "overlay_file", "overlay_sha256",
+                "legend_file", "legend_sha256"}
+                or entry["page_number"] != number
+                or entry["overlay_file"] != image_name
+                or entry["legend_file"] != legend_name
+                or sha256_file(image_path) != entry["overlay_sha256"]
+                or sha256_file(legend_path) != entry["legend_sha256"]):
+            raise ValueError("native omission overlay hashes or paths differ")
+        with Image.open(image_path) as image:
+            if (image.format != "PNG"
+                    or list(image.size) != page["rendered_size_pixels"]):
+                raise ValueError("native omission overlay dimensions differ")
+            image.verify()
+        legend = json.loads(legend_path.read_text(encoding="utf-8"))
+        if legend != {
+            "source_sha256": source_sha256,
+            "page_number": number,
+            "rendered_size_pixels": page["rendered_size_pixels"],
+            "native_words_rejected": page["native_words_rejected"],
+        }:
+            raise ValueError("native omission overlay legend differs from page ledger")
+
+
 def _verify_worker_result(
     output_dir: Path, source_sha256: str, expected_runtime_lock: Path,
 ) -> dict[str, Any]:
@@ -375,6 +474,7 @@ def _verify_worker_result(
         if sha256_file(output_dir / name) != receipt.get(key):
             raise ValueError(f"worker artifact changed: {name}")
     _verify_content_artifacts(output_dir, receipt, source_sha256)
+    _verify_omission_overlays(output_dir, receipt, source_sha256)
     return receipt
 
 
@@ -388,8 +488,8 @@ def run_first_pdf(
     output_dir: Path, host_disk_root: Path, data_disk_root: Path,
 ) -> dict[str, Any]:
     repo_root = Path(__file__).resolve().parents[1]
-    if output_dir.absolute() != V2_OUTPUT_DIR:
-        raise ValueError("second first-PDF output must use the frozen v2 directory")
+    if output_dir.absolute() != V3_OUTPUT_DIR:
+        raise ValueError("third first-PDF output must use the frozen v3 directory")
     volumes = _frozen_volumes(repo_root, cpu_python, ocr_python, output_dir,
                               host_disk_root, data_disk_root)
     _validate_output_path(output_dir, repo_root, corpus_root, asset_root,
@@ -408,13 +508,15 @@ def run_first_pdf(
     try:
         code_provenance = _code_provenance(repo_root)
         committed_lock = repo_root / "product_eval" / "fixtures" / "tatr_cpu_runtime_lock_v1.json"
-        committed_gate = repo_root / "product_eval" / "fixtures" / "tatr_first_pdf_research_gate_v2.json"
+        committed_gate = repo_root / "product_eval" / "fixtures" / "tatr_first_pdf_research_gate_v3.json"
         if expected_runtime_lock.resolve(strict=True) != committed_lock.resolve(strict=True):
             raise ValueError("TATR CPU runtime lock must be the committed fixture")
         if trial_gate.resolve(strict=True) != committed_gate.resolve(strict=True):
             raise ValueError("first-PDF trial gate must be the committed fixture")
         if sha256_file(V1_FAILURE_RECEIPT) != V1_FAILURE_RECEIPT_SHA256:
             raise ValueError("immutable first-PDF v1 failure receipt changed")
+        if sha256_file(V2_FAILURE_RECEIPT) != V2_FAILURE_RECEIPT_SHA256:
+            raise ValueError("immutable first-PDF v2 failure receipt changed")
         from product_eval.tatr_ocr_word_source_free import LOCK_PATH as OCR_LOCK_PATH
 
         gate_provenance = _verify_trial_gate(

@@ -1,9 +1,9 @@
 """One-document Table Transformer worker with a separate OCR page process.
 
 The supervisor starts this module in the pinned CPU environment. It contains no
-gold reader. Each page uses projectable PDFium native words when present;
-an image-only page or a page with unprojectable native text invokes the
-independently pinned OCR runtime once on its full raster.
+gold reader. Each page uses PDFium native words, with whole-word omissions
+recorded for a bounded out-of-viewport text-layer defect. Image-only pages
+invoke the independently pinned OCR runtime once on their full raster.
 """
 
 from __future__ import annotations
@@ -58,7 +58,9 @@ MAX_FILE_BYTES = 2_000_000
 MAX_RENDER_PIXELS = 35_000_000
 MAX_DETECTED_TABLES_PER_PAGE = 20
 PARSER_ID = "table-transformer-detection+v1.1-all-pinned-cell-functions"
-PARSER_VERSION = "research-word-route-first-pdf-v3"
+PARSER_VERSION = "research-word-route-first-pdf-v4"
+MAX_REJECTED_NATIVE_WORDS_PER_PAGE = 1
+MAX_REJECTED_NATIVE_CHAR_FRACTION = 0.005
 
 
 class MissingOcrRoute(RuntimeError):
@@ -140,6 +142,29 @@ def _active_tables(objects: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(active, key=lambda item: int(item["query_index"]))
 
 
+def _reject_omission_table_overlap(
+    rejected_words: list[dict[str, Any]], active_tables: list[dict[str, Any]],
+    image_size: tuple[int, int],
+) -> None:
+    """Never accept a table containing a partially visible omitted word."""
+    width, height = image_size
+    for word in rejected_words:
+        glyphs = word["pixel_glyph_boxes"]
+        word_box = (
+            max(0.0, min(box[0] for box in glyphs)),
+            max(0.0, min(box[1] for box in glyphs)),
+            min(float(width), max(box[2] for box in glyphs)),
+            min(float(height), max(box[3] for box in glyphs)),
+        )
+        if word_box[0] >= word_box[2] or word_box[1] >= word_box[3]:
+            continue
+        for detected in active_tables:
+            table_box = _as_box(detected["bbox"])
+            if (word_box[0] < table_box[2] and word_box[2] > table_box[0]
+                    and word_box[1] < table_box[3] and word_box[3] > table_box[1]):
+                raise GeometryError("omitted native word overlaps a detected table")
+
+
 def parse_native_page(
     page: Any,
     bitmap: Any,
@@ -155,15 +180,17 @@ def parse_native_page(
     if bitmap.width * bitmap.height > MAX_RENDER_PIXELS:
         raise ValueError("rendered page exceeds the frozen pixel limit")
     page_image = bitmap.to_pil().convert("RGB")
-    native_route_rejected: str | None = None
-    try:
-        native_words = native_word_tokens(page, bitmap)
-    except GeometryError:
-        # A text layer can contain glyphs outside the visible page. Dropping
-        # only those glyphs can leave an invisible or truncated native word;
-        # use one complete raster OCR route for this page instead.
-        native_words = []
-        native_route_rejected = "unprojectable_native_character"
+    rejected_native_words: list[dict[str, Any]] = []
+    native_words = native_word_tokens(page, bitmap, rejected_words=rejected_native_words)
+    rejected_chars = sum(len(item["text"]) for item in rejected_native_words)
+    retained_chars = sum(len(word.text) for word in native_words)
+    if rejected_native_words and (
+        not native_words
+        or len(rejected_native_words) > MAX_REJECTED_NATIVE_WORDS_PER_PAGE
+        or rejected_chars > MAX_REJECTED_NATIVE_CHAR_FRACTION
+        * (rejected_chars + retained_chars)
+    ):
+        raise GeometryError("native out-of-viewport word omission exceeds frozen bound")
     ocr_provenance: dict[str, Any] | None = None
     if native_words:
         words: list[WordToken | dict[str, Any]] = native_words
@@ -190,6 +217,7 @@ def parse_native_page(
     unit = SourceUnit(unit_id, "pdf_page", page_number - 1, source_text)
     raw_detection = infer(page_image, "detection")
     active = _active_tables(raw_detection)
+    _reject_omission_table_overlap(rejected_native_words, active, image_size)
     converter = bitmap.get_posconv(page)
     tables: list[Table] = []
     detail: dict[str, Any] = {
@@ -201,7 +229,10 @@ def parse_native_page(
         "pdf_mediabox_points": list(page.get_mediabox()),
         "pdf_rotation_degrees": page.get_rotation(),
         "word_route": word_route,
-        "native_route_rejected": native_route_rejected,
+        "native_words_rejected": rejected_native_words,
+        "native_text_degraded": bool(rejected_native_words),
+        "native_rejected_char_count": rejected_chars,
+        "native_rejected_word_count": len(rejected_native_words),
         "page_words": [asdict(word) if isinstance(word, WordToken) else word
                        for word in words],
         "ocr_provenance": ocr_provenance,
@@ -416,6 +447,64 @@ def _overlay_first_nonempty(
     raise ValueError("first PDF produced no nonempty table cell for source overlay")
 
 
+def _overlay_native_omissions(
+    source_bytes: bytes, source_sha256: str,
+    pages: list[dict[str, Any]], output_dir: Path,
+) -> list[dict[str, Any]]:
+    """Render omitted native glyph footprints for a separate visual verdict."""
+    import pypdfium2 as pdfium
+    from PIL import ImageDraw
+
+    overlays: list[dict[str, Any]] = []
+    pdf = pdfium.PdfDocument(source_bytes)
+    try:
+        for detail in pages:
+            rejected = detail["native_words_rejected"]
+            if not rejected:
+                continue
+            page_number = detail["page_number"]
+            page = pdf[page_number - 1]
+            try:
+                bitmap = page.render(scale=DPI / 72, rotation=0)
+                try:
+                    image = bitmap.to_pil().convert("RGB")
+                    draw = ImageDraw.Draw(image)
+                    for word in rejected:
+                        for box in word["pixel_glyph_boxes"]:
+                            clipped = (
+                                max(0.0, box[0]), max(0.0, box[1]),
+                                min(float(image.width), box[2]),
+                                min(float(image.height), box[3]),
+                            )
+                            if clipped[0] < clipped[2] and clipped[1] < clipped[3]:
+                                draw.rectangle(clipped, outline="blue", width=4)
+                    image_name = f"native_omission_page_{page_number:03d}.png"
+                    legend_name = f"native_omission_page_{page_number:03d}.json"
+                    image_path = output_dir / image_name
+                    legend_path = output_dir / legend_name
+                    image.save(image_path)
+                    _write_new_json(legend_path, {
+                        "source_sha256": source_sha256,
+                        "page_number": page_number,
+                        "rendered_size_pixels": list(image.size),
+                        "native_words_rejected": rejected,
+                    })
+                    overlays.append({
+                        "page_number": page_number,
+                        "overlay_file": image_name,
+                        "overlay_sha256": sha256_file(image_path),
+                        "legend_file": legend_name,
+                        "legend_sha256": sha256_file(legend_path),
+                    })
+                finally:
+                    bitmap.close()
+            finally:
+                page.close()
+    finally:
+        pdf.close()
+    return overlays
+
+
 def run_document(
     source: Path, expected_sha256: str, output_dir: Path,
     infer: Callable[[Any, str], list[dict[str, Any]]], official: Any,
@@ -460,6 +549,9 @@ def run_document(
     )
     _write_new_json(output_dir / "parsed_document.json", document.to_dict())
     _write_new_json(output_dir / "raw_pages.json", pages)
+    native_omission_overlays = _overlay_native_omissions(
+        source_bytes, expected_sha256, pages, output_dir,
+    )
     overlay, legend = _overlay_first_nonempty(source_bytes, document, output_dir)
     return {
         "status": "first_pdf_needs_visual_review",
@@ -473,6 +565,7 @@ def run_document(
         "overlay_file": overlay.name,
         "overlay_legend_sha256": sha256_file(legend),
         "overlay_legend_file": legend.name,
+        "native_omission_overlays": native_omission_overlays,
         "manual_source_pixel_verdict": "pending",
         "can_continue_other_11": False,
         "gold_opened": False,

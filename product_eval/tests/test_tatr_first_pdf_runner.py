@@ -8,28 +8,39 @@ from pathlib import Path
 
 import pytest
 
+from idpo.product_auto.parsed_document import SourceUnit
 from product_eval.table_crop_geometry import table_crop_from_proposal
 from product_eval.tatr_cell_compat import load_official_cell_functions
 from product_eval.tatr_first_pdf_runner import (
     V1_FAILURE_RECEIPT_SHA256,
-    V2_OUTPUT_DIR,
+    V2_FAILURE_RECEIPT_SHA256,
+    V3_OUTPUT_DIR,
     _frozen_volumes,
     _validate_output_path,
+    _verify_native_word_ledger,
+    _verify_omission_overlays,
     _verify_trial_gate,
     _verify_worker_result,
     resource_violation,
 )
 from product_eval.tatr_first_pdf_worker import (
     MissingOcrRoute,
+    _overlay_native_omissions,
+    _reject_omission_table_overlap,
     parse_native_page,
     run_document,
 )
-from product_eval.tatr_native_geometry import native_word_tokens
+from product_eval.tatr_native_geometry import (
+    GeometryError,
+    WordToken,
+    native_word_tokens,
+)
 
 
 def _synthetic_pdf(path: Path, *, with_words: bool,
                    rotation: int = 0, crop: bool = False,
-                   off_page_word: bool = False) -> None:
+                   off_page_word: bool = False,
+                   repeat_valid_words: int = 1) -> None:
     pypdf = pytest.importorskip("pypdf")
     from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
@@ -45,7 +56,7 @@ def _synthetic_pdf(path: Path, *, with_words: bool,
     })
     stream = DecodedStreamObject()
     if with_words:
-        data = (
+        data = repeat_valid_words * (
             b"BT /F1 14 Tf 40 120 Td (Left) Tj ET "
             b"BT /F1 14 Tf 160 120 Td (Right) Tj ET"
         )
@@ -117,11 +128,14 @@ def test_document_inference_requires_separate_source_and_code_bound_gate(
             path.write_text(name, encoding="utf-8")
     code = {"source_sha256": {"runner.py": "a" * 64}}
     gate = {
-        "version": 2, "scope": "one_first_pdf_research_geometry_fallback_v2",
+        "version": 3, "scope": "one_first_pdf_research_bounded_native_omission_v3",
         "document_inference_permitted": True,
         "max_documents": 1, "gold_access_permitted": False,
-        "output_directory": V2_OUTPUT_DIR.as_posix(),
-        "prior_failure_receipt_sha256": V1_FAILURE_RECEIPT_SHA256,
+        "output_directory": V3_OUTPUT_DIR.as_posix(),
+        "prior_failure_receipts_sha256": {
+            "v1": V1_FAILURE_RECEIPT_SHA256,
+            "v2": V2_FAILURE_RECEIPT_SHA256,
+        },
         "selection_sha256": sha256_file(files["selection"]),
         "cohort_sha256": sha256_file(files["cohort"]),
         "cpu_runtime_lock_sha256": sha256_file(files["cpu_lock"]),
@@ -141,6 +155,77 @@ def test_document_inference_requires_separate_source_and_code_bound_gate(
     gate_path.write_text(json.dumps(gate), encoding="utf-8")
     with pytest.raises(ValueError, match="research inference gate"):
         _verify_trial_gate(gate_path, **args)
+
+
+def test_native_omission_ledger_rejects_tampered_geometry_and_source_text() -> None:
+    unit = SourceUnit("page-1", "pdf_page", 0, "A" * 2000)
+    omitted = {
+        "text": "Overflow", "char_start": 2000, "char_end": 2008,
+        "pdf_glyph_boxes": [[296.0, 120.0, 302.0, 130.0]] * 8,
+        "pixel_glyph_boxes": [[1233.0, 290.0, 1258.0, 333.0]] * 8,
+        "reason": "outside_rendered_viewport",
+    }
+    detail = {
+        "word_route": "pdfium_native",
+        "page_words": [{"text": "A" * 2000, "source": "pdfium_native"}],
+        "native_words_rejected": [omitted], "native_text_degraded": True,
+        "native_rejected_word_count": 1, "native_rejected_char_count": 8,
+    }
+    _verify_native_word_ledger(detail, unit, (1250, 834))
+    with pytest.raises(ValueError, match="inconsistent"):
+        _verify_native_word_ledger(detail, SourceUnit("page-1", "pdf_page", 0, "Wrong"),
+                                   (1250, 834))
+    bad = {**detail, "native_words_rejected": [{**omitted,
+           "pixel_glyph_boxes": [[1200.0, 290.0, 1240.0, 333.0]] * 8}]}
+    with pytest.raises(ValueError, match="out-of-viewport"):
+        _verify_native_word_ledger(bad, unit, (1250, 834))
+
+
+def test_native_omission_intersecting_table_fails_before_cell_inference() -> None:
+    rejected = [{"pixel_glyph_boxes": [(1233.0, 290.0, 1258.0, 333.0)]}]
+    near = [{"bbox": (1230.0, 280.0, 1250.0, 340.0)}]
+    far = [{"bbox": (10.0, 10.0, 20.0, 20.0)}]
+    with pytest.raises(GeometryError, match="overlaps a detected table"):
+        _reject_omission_table_overlap(rejected, near, (1250, 834))
+    _reject_omission_table_overlap(rejected, far, (1250, 834))
+
+
+def test_native_omission_overlay_is_source_bound_and_tamper_checked(tmp_path: Path) -> None:
+    from product_eval.tatr_asset_preflight import sha256_file
+
+    pdfium = pytest.importorskip("pypdfium2")
+    source = tmp_path / "source.pdf"
+    output = tmp_path / "output"
+    output.mkdir()
+    _synthetic_pdf(source, with_words=True, off_page_word=True)
+    pdf = pdfium.PdfDocument(source)
+    try:
+        page = pdf[0]
+        bitmap = page.render(scale=300 / 72)
+        try:
+            rejected: list[dict] = []
+            native_word_tokens(page, bitmap, rejected_words=rejected)
+            size = [bitmap.width, bitmap.height]
+        finally:
+            bitmap.close()
+            page.close()
+    finally:
+        pdf.close()
+    pages = [{"page_number": 1, "rendered_size_pixels": size,
+              "native_words_rejected": rejected}]
+    (output / "raw_pages.json").write_text(json.dumps(pages), encoding="utf-8")
+    source_hash = sha256_file(source)
+    overlays = _overlay_native_omissions(source.read_bytes(), source_hash, pages, output)
+    assert len(overlays) == 1
+    receipt = {"native_omission_overlays": overlays}
+    _verify_omission_overlays(output, receipt, source_hash)
+    legend_path = output / overlays[0]["legend_file"]
+    legend = json.loads(legend_path.read_text(encoding="utf-8"))
+    legend["native_words_rejected"] = []
+    legend_path.write_text(json.dumps(legend), encoding="utf-8")
+    overlays[0]["legend_sha256"] = sha256_file(legend_path)
+    with pytest.raises(ValueError, match="legend differs"):
+        _verify_omission_overlays(output, receipt, source_hash)
 
 
 def test_output_must_be_new_and_outside_inputs(tmp_path: Path) -> None:
@@ -177,8 +262,8 @@ def test_empty_native_page_stops_before_detector(tmp_path: Path, official) -> No
         pdf.close()
 
 
-def test_unprojectable_native_word_uses_one_whole_page_ocr_route(
-    tmp_path: Path, official,
+def test_bounded_native_word_omission_keeps_one_route_and_audits_loss(
+    tmp_path: Path, official, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pdfium = pytest.importorskip("pypdfium2")
     source = tmp_path / "off-page-native.pdf"
@@ -190,39 +275,45 @@ def test_unprojectable_native_word_uses_one_whole_page_ocr_route(
         try:
             with pytest.raises(ValueError, match="outside the rendered image"):
                 native_word_tokens(page, bitmap)
-            calls: list[int] = []
-
-            def ocr_handoff(_image, page_number):
-                calls.append(page_number)
-                return ([{"text": "Raster", "bbox": [50.0, 50.0, 200.0, 100.0],
-                          "source": "ocr_word"}], {"source": "synthetic_ocr"})
+            def unexpected_ocr(_image, _page_number):
+                raise AssertionError("bounded native omission must not invoke OCR")
 
             def infer(_image, kind):
                 assert kind == "detection"
                 return []
 
-            unit, tables, detail = parse_native_page(
-                page, bitmap, 1, infer, official, ocr_handoff,
+            with pytest.raises(GeometryError, match="exceeds frozen bound"):
+                parse_native_page(page, bitmap, 1, infer, official, unexpected_ocr)
+
+            def bounded_source(_page, _bitmap, *, rejected_words):
+                rejected_words.append({
+                    "text": "Overflow", "char_start": 2000, "char_end": 2008,
+                    "pdf_glyph_boxes": [(296.0, 120.0, 302.0, 130.0)] * 8,
+                    "pixel_glyph_boxes": [(1233.0, 290.0, 1258.0, 333.0)] * 8,
+                    "reason": "outside_rendered_viewport",
+                })
+                return [WordToken("A" * 2000, (10.0, 10.0, 20.0, 20.0),
+                                  (10.0, 10.0, 20.0, 20.0), 0, 2000)]
+
+            monkeypatch.setattr(
+                "product_eval.tatr_first_pdf_worker.native_word_tokens", bounded_source,
             )
-            assert calls == [1]
-            assert unit.text == "Raster"
+            unit, tables, detail = parse_native_page(
+                page, bitmap, 1, infer, official, unexpected_ocr,
+            )
             assert tables == []
-            assert detail["word_route"] == "ocr_word"
-            assert detail["native_route_rejected"] == "unprojectable_native_character"
-            assert detail["page_words"][0]["source"] == "ocr_word"
-            with pytest.raises(MissingOcrRoute, match="no valid PDFium words"):
-                parse_native_page(page, bitmap, 1, infer, official)
-
-            def empty_ocr(_image, _page_number):
-                return [], {}
-
-            with pytest.raises(ValueError, match="empty or mixes"):
-                parse_native_page(page, bitmap, 1, infer, official, empty_ocr)
+            assert detail["word_route"] == "pdfium_native"
+            assert detail["native_text_degraded"] is True
+            assert detail["native_rejected_word_count"] == 1
+            assert detail["native_words_rejected"][0]["text"] == "Overflow"
+            assert unit.text == "A" * 2000
+            assert all(word["source"] == "pdfium_native" for word in detail["page_words"])
         finally:
             bitmap.close()
             page.close()
     finally:
         pdf.close()
+
 
 
 def test_synthetic_pdf_cells_keep_source_pixels_and_require_review(tmp_path: Path, official) -> None:
