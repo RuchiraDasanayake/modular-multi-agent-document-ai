@@ -1,5 +1,7 @@
 export async function register(): Promise<void> {
-  if (process.env.NEXT_RUNTIME !== "nodejs") return;
-  const { startProductAutoRecoveryLoop } = await import("@/server/product-auto");
-  startProductAutoRecoveryLoop();
+  // Keep the import inside the Node branch so the Edge compiler excludes it.
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { startProductAutoRecoveryLoop } = await import("@/server/product-auto");
+    startProductAutoRecoveryLoop();
+  }
 }

@@ -37,8 +37,10 @@ That means:
   versioned recipes; ambiguous or unsupported content must abstain for review
 - accept large batches through bounded admission and backpressure rather than a fixed UI file count; record a terminal
   result or explicit failure for each original file, and never claim universal accuracy or support for untested formats
-- fix release blockers before calling the product deployable: access to another user's jobs/runs/artifacts, live Docker
-  worker verification, and durable bounded job execution
+- fix release blockers before calling the product deployable: access to another user's jobs/runs/artifacts,
+  verification of each advertised runtime, and durable bounded job execution
+- support native Windows deployment without Docker: local PostgreSQL, gateway, Node frontend, and Python extraction;
+  use configured storage roots on a large local drive and keep container deployment optional
 - require measured quality or cost gains before keeping AHMN routing, agent loops or separate services in the
   operational hot path; the existing service layout is not a product requirement
 - use `docs/PRODUCTIZATION_PLAN.md` for target architecture and acceptance gates; `docs/SYSTEM_CONTRACT.md` continues

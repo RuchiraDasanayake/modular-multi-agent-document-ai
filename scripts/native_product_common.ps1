@@ -1,4 +1,4 @@
-#requires -Version 7.0
+#requires -Version 7.2
 # Shared, sourceable helpers for the native Windows product launcher.
 Set-StrictMode -Version Latest
 
@@ -127,6 +127,13 @@ function Get-NativeState {
   if (-not (Test-Path -LiteralPath $Config.statePath -PathType Leaf)) { return $null }
   try { $state = Get-Content -LiteralPath $Config.statePath -Raw | ConvertFrom-Json -AsHashtable }
   catch { throw "Native process state is unreadable: $($Config.statePath)" }
+  # PowerShell converts ISO JSON strings to DateTime in some versions. Restore
+  # the canonical representation used by the receipt and CIM identity checks.
+  foreach ($name in @('postgres', 'gateway', 'frontend')) {
+    if ($state.services[$name] -and $state.services[$name].startedUtc -is [datetime]) {
+      $state.services[$name].startedUtc = $state.services[$name].startedUtc.ToUniversalTime().ToString('o')
+    }
+  }
   if (-not (Test-NativeStateSignature -Config $Config -State $state)) {
     throw 'Native process state has changed or belongs to a different config. No process will be controlled.'
   }
@@ -187,7 +194,7 @@ function Get-NativeDescendants {
   param($Root)
   if (-not (Test-NativeProcessIdentity $Root)) { return @() }
   $all = @(Get-CimInstance Win32_Process -ErrorAction Stop)
-  $seen = @{}; $seen[[int]$Root.pid] = [datetime]::Parse([string]$Root.startedUtc)
+  $seen = @{}; $seen[[int]$Root.pid] = [datetime]::Parse([string]$Root.startedUtc).ToUniversalTime()
   $result = [System.Collections.Generic.List[object]]::new()
   $queue = [System.Collections.Generic.Queue[int]]::new()
   $queue.Enqueue([int]$Root.pid)

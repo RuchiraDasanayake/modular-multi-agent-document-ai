@@ -82,6 +82,61 @@ def test_api_health(client):
     assert resp.status_code == 200
     assert resp.json()["status"] == "healthy"
 
+
+def test_postgres_revocation_health_does_not_use_redis(client, monkeypatch):
+    from gateway.config import settings
+    redis = AsyncMock(side_effect=AssertionError("Redis must not be used"))
+    monkeypatch.setattr(settings, "TOKEN_REVOCATION_BACKEND", "postgresql")
+    monkeypatch.setattr("gateway.main._get_redis", redis)
+    body = client.get("/health").json()
+    assert body["status"] == "healthy"
+    assert body["token_revocation_backend"] == "postgresql"
+    assert "redis" not in body
+    redis.assert_not_called()
+
+
+def test_refresh_consumption_is_atomic_for_each_backend(monkeypatch):
+    from gateway.config import settings
+    from gateway.main import _consume_refresh_token
+    monkeypatch.setattr(settings, "TOKEN_REVOCATION_BACKEND", "postgresql")
+    db, cursor = _admin_check_connection(("token",), None)
+    assert asyncio.run(_consume_refresh_token("token", db)) is True
+    assert asyncio.run(_consume_refresh_token("token", db)) is False
+    assert "ON CONFLICT (jti) DO NOTHING RETURNING jti" in cursor.execute.call_args.args[0]
+    assert db.commit.await_count == 2
+    monkeypatch.setattr(settings, "TOKEN_REVOCATION_BACKEND", "redis")
+    redis = AsyncMock()
+    redis.set = AsyncMock(side_effect=[True, None])
+    monkeypatch.setattr("gateway.main._get_redis", AsyncMock(return_value=redis))
+    assert asyncio.run(_consume_refresh_token("token", db)) is True
+    assert asyncio.run(_consume_refresh_token("token", db)) is False
+    redis.set.assert_awaited_with("revoked:token", "1", ex=604800, nx=True)
+
+
+def test_refresh_replay_and_store_failure_never_issue_tokens(monkeypatch):
+    from fastapi import HTTPException
+    from gateway.main import refresh_token
+    from gateway.schemas import RefreshRequest
+    monkeypatch.setattr("gateway.main.verify_token", lambda *a, **k: {"sub": "user", "jti": "token"})
+    issue = MagicMock(side_effect=AssertionError("Must not issue tokens"))
+    monkeypatch.setattr("gateway.main.create_access_token", issue)
+    db, _ = _admin_check_connection(("user", True), ("user", True), ("user", True))
+    request = RefreshRequest(refresh_token="signed-input")
+    monkeypatch.setattr("gateway.main._consume_refresh_token", AsyncMock(return_value=False))
+    with pytest.raises(HTTPException) as replay:
+        asyncio.run(refresh_token(request, db))
+    assert replay.value.status_code == 401
+    monkeypatch.setattr("gateway.main._consume_refresh_token", AsyncMock(side_effect=ConnectionError("private details")))
+    with pytest.raises(HTTPException) as unavailable:
+        asyncio.run(refresh_token(request, db))
+    assert unavailable.value.status_code == 503
+    assert "private" not in unavailable.value.detail
+    monkeypatch.setattr("gateway.main.verify_token", lambda *a, **k: {"sub": "user"})
+    with pytest.raises(HTTPException) as missing_jti:
+        asyncio.run(refresh_token(request, db))
+    assert missing_jti.value.status_code == 401
+    issue.assert_not_called()
+
 # ═══════════════════════════════════════════════════════════════
 # Auth Service Unit Tests
 # ═══════════════════════════════════════════════════════════════

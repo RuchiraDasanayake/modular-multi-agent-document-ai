@@ -1,4 +1,4 @@
-#requires -Version 7.0
+#requires -Version 7.2
 $ErrorActionPreference = 'Stop'
 . (Join-Path (Split-Path -Parent $PSScriptRoot) 'native_product_common.ps1')
 
@@ -19,6 +19,8 @@ $testDir = Join-Path $env:TEMP ('docai-native-test-' + [guid]::NewGuid().ToStrin
 New-Item -ItemType Directory -Path $testDir | Out-Null
 $configPath = Join-Path $testDir 'config.json'
 $listener = $null
+$sleepChild = $null
+$sleepIdentity = $null
 try {
   $base = @{
     repoRoot = 'C:\repo'
@@ -56,18 +58,29 @@ try {
   Assert-Test (-not $status.services.postgres.tracked) 'Status does not adopt an untracked PostgreSQL process.'
   Assert-Test (-not $status.services.gateway.tracked) 'Status does not adopt an untracked gateway process.'
   Assert-Test (-not $status.services.frontend.tracked) 'Status does not adopt an untracked frontend process.'
-  $state = @{ version = 1; services = @{}; signature = '' }
+  $identity = Get-NativeProcessIdentity -Id $PID
+  Assert-Test (Test-NativeProcessIdentity $identity) 'Current process identity verified.'
+  $state = @{ version = 1; services = @{ gateway = $identity }; signature = '' }
   Save-NativeState -Config $config -State $state
   $loaded = Get-NativeState -Config $config
   Assert-Test ($null -ne $loaded) 'Signed state can be reloaded.'
+  Assert-Test ($loaded.services.gateway.startedUtc -is [string]) 'Reloaded start time stays canonical UTC text.'
+  Assert-Test ($loaded.services.gateway.startedUtc -eq $identity.startedUtc) 'Reloaded start time preserves HMAC input.'
   $loaded.services.gateway = @{pid = $PID; executable = 'C:\fake.exe'; startedUtc = 'now'}
   $loaded | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $config.statePath
   Assert-Throws { Get-NativeState -Config $config } 'Tampered process state rejected.'
 
-  $identity = Get-NativeProcessIdentity -Id $PID
-  Assert-Test (Test-NativeProcessIdentity $identity) 'Current process identity verified.'
   $wrong = @{ pid = $identity.pid; executable = $identity.executable; startedUtc = '2000-01-01T00:00:00Z' }
   Assert-Test (-not (Test-NativeProcessIdentity $wrong)) 'PID reuse or altered start time rejected.'
+
+  $sleepScript = Join-Path $testDir 'sleep.ps1'
+  'Start-Sleep -Seconds 15' | Set-Content -LiteralPath $sleepScript
+  $sleepChild = Start-Process -FilePath (Join-Path $PSHOME 'pwsh.exe') `
+    -ArgumentList ('-NoProfile -File "' + $sleepScript + '"') -WindowStyle Hidden -PassThru
+  $sleepIdentity = Get-NativeProcessIdentity -Id $sleepChild.Id
+  Assert-Test ($null -ne $sleepIdentity) 'Harmless child process identity captured.'
+  $descendants = @(Get-NativeDescendants -Root $identity)
+  Assert-Test ($sleepChild.Id -in $descendants) 'UTC child is found beneath signed UTC parent.'
 
   $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
   $listener.Start()
@@ -78,6 +91,10 @@ try {
   Write-Output 'native_product.test.ps1: PASS'
 } finally {
   if ($listener) { $listener.Stop() }
+  if ($sleepIdentity -and (Test-NativeProcessIdentity $sleepIdentity)) {
+    Stop-Process -Id $sleepIdentity.pid -Force -ErrorAction SilentlyContinue
+  }
+  Remove-Item -LiteralPath (Join-Path $testDir 'sleep.ps1') -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $configPath -Force -ErrorAction SilentlyContinue
   $statePath = Join-Path $testDir 'state\native-product.json'
   Remove-Item -LiteralPath $statePath -Force -ErrorAction SilentlyContinue

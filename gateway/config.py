@@ -5,6 +5,7 @@ Gateway configuration — server, database, JWT, microservice URLs.
 import logging
 import secrets
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -22,6 +23,7 @@ class Settings(BaseSettings):
 
     # ── Redis (token blacklist) ──
     REDIS_URL: str = "redis://:docai_redis_secret@localhost:6379/1"
+    TOKEN_REVOCATION_BACKEND: Literal["redis", "postgresql"] = "redis"
 
     # ── JWT ──
     JWT_SECRET_KEY: str = "change-me-in-production"

@@ -1,8 +1,31 @@
 # Native Windows product launcher
 
-Requires PowerShell 7 (`pwsh`), Node.js, an initialized PostgreSQL 16 data cluster, the repo extraction Python environment, and a gateway Python environment with gateway dependencies. This starts PostgreSQL, the gateway, and the Next.js frontend on `127.0.0.1`. Extraction remains the existing on-demand local Python subprocess. It does not use Docker or start a queue.
+Requires PowerShell 7.2+ (`pwsh`), Node.js 22+, an initialized PostgreSQL 16 data cluster, the repo extraction Python environment, and a gateway Python environment with gateway dependencies. This starts PostgreSQL, the gateway, and the Next.js frontend on `127.0.0.1`. Extraction remains the existing on-demand local Python subprocess. It does not use Docker or start a queue.
 
 Store a private JSON config outside the repo, for example `I:\DocAI-Runtime\native-product.json`:
+
+For a **fresh installation**, obtain PostgreSQL 16 Windows binaries through the
+[official PostgreSQL Windows page](https://www.postgresql.org/download/windows/) and
+[EDB binary archive page](https://www.enterprisedb.com/download-postgresql-binaries?lang=en).
+Extract them beneath your runtime directory. Restrict that directory's Windows ACL to the operator, SYSTEM and
+Administrators before creating credentials. Install `gateway/requirements.txt` in a separate Python environment.
+Then initialize once (adjust the example paths to your installation):
+
+```powershell
+& I:\DocAI-Runtime\gateway-venv\Scripts\python.exe scripts/init_native_product.py `
+  --runtime-root I:\DocAI-Runtime --pg-bin I:\DocAI-Runtime\postgresql-16.15-5\pgsql\bin
+```
+
+This creates random credentials, a SCRAM-authenticated loopback cluster, a non-superuser application role, and the
+minimal auth schema; it stops PostgreSQL after initialization. The private config also includes a separate database
+maintenance credential. It refuses to overwrite an existing config or data cluster. If initialization is interrupted,
+keep those files and inspect the bootstrap log; do not initialize over existing data. To adapt an existing database,
+apply `gateway/native_auth.sql` explicitly to the same database named by `databaseUrl`.
+
+Changing an existing deployment from Redis to PostgreSQL token revocation requires migrating unexpired revocation
+receipts or rotating the JWT secret to expire existing sessions. A fresh initialization generates a new JWT secret.
+
+The generated config has this shape (the sample below is documentation only):
 
 ```json
 {

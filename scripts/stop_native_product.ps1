@@ -1,4 +1,4 @@
-#requires -Version 7.0
+#requires -Version 7.2
 param([Parameter(Mandatory)][string]$ConfigPath)
 
 $ErrorActionPreference = 'Stop'

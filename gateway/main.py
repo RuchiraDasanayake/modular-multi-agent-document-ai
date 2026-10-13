@@ -131,14 +131,26 @@ async def _get_redis() -> aioredis.Redis:
         )
     return _redis
 
-async def _blacklist_token(jti: str) -> None:
-    """Add a refresh token JTI to the revocation set with auto-expiry."""
-    r = await _get_redis()
-    await r.setex(f"{_REVOKED_PREFIX}{jti}", _REFRESH_TOKEN_TTL, "1")
+async def _consume_refresh_token(jti: str, db: AsyncConnection) -> bool:
+    """Persist a single winner before issuing replacement tokens.
 
-async def _is_token_revoked(jti: str) -> bool:
+    Retain receipts for the maximum refresh lifetime. Database failures propagate;
+    a token must never be accepted when its revocation store is unavailable.
+    """
+    if settings.TOKEN_REVOCATION_BACKEND == "postgresql":
+        async with db.cursor() as cur:
+            await cur.execute("DELETE FROM refresh_token_revocations WHERE expires_at < NOW()")
+            await cur.execute(
+                """INSERT INTO refresh_token_revocations (jti, expires_at)
+                   VALUES (%s, NOW() + make_interval(secs => %s))
+                   ON CONFLICT (jti) DO NOTHING RETURNING jti""",
+                (jti, _REFRESH_TOKEN_TTL),
+            )
+            claimed = await cur.fetchone() is not None
+        await db.commit()
+        return claimed
     r = await _get_redis()
-    return await r.exists(f"{_REVOKED_PREFIX}{jti}") > 0
+    return bool(await r.set(f"{_REVOKED_PREFIX}{jti}", "1", ex=_REFRESH_TOKEN_TTL, nx=True))
 
 # ---------------------------------------------------------------------------
 # First admin account
@@ -243,22 +255,30 @@ else:
 
 @app.get("/health")
 async def health():
-    """Deep health check — verifies DB and Redis connectivity."""
+    """Check the database and the configured durable revocation store."""
     checks: dict[str, str] = {"service": "gateway"}
     try:
         pool = await DatabasePool.get_pool()
         async with pool.connection() as conn:
             await conn.execute("SELECT 1")
         checks["db"] = "ok"
-    except Exception as exc:
-        checks["db"] = f"error: {exc}"
+    except Exception:
+        checks["db"] = "error"
     try:
-        r = await _get_redis()
-        await r.ping()
-        checks["redis"] = "ok"
-    except Exception as exc:
-        checks["redis"] = f"error: {exc}"
-    all_ok = checks.get("db") == "ok" and checks.get("redis") == "ok"
+        if settings.TOKEN_REVOCATION_BACKEND == "postgresql":
+            pool = await DatabasePool.get_pool()
+            async with pool.connection() as conn:
+                await conn.execute("SELECT jti, expires_at FROM refresh_token_revocations LIMIT 0")
+        else:
+            r = await _get_redis()
+            await r.ping()
+        checks["token_revocation"] = "ok"
+    except Exception:
+        checks["token_revocation"] = "error"
+    checks["token_revocation_backend"] = settings.TOKEN_REVOCATION_BACKEND
+    if settings.TOKEN_REVOCATION_BACKEND == "redis":
+        checks["redis"] = checks["token_revocation"]
+    all_ok = checks.get("db") == "ok" and checks.get("token_revocation") == "ok"
     checks["status"] = "healthy" if all_ok else "degraded"
     return checks
 
@@ -346,17 +366,10 @@ async def refresh_token(body: RefreshRequest, db: AsyncConnection = Depends(get_
 
     user_id = payload.get("sub")
     jti = payload.get("jti")
-    if user_id is None:
+    if user_id is None or not isinstance(jti, str) or not jti or len(jti) > 128:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token payload",
-        )
-
-    # Check if this refresh token has been revoked
-    if jti and await _is_token_revoked(jti):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token has been revoked",
         )
 
     # Verify user still exists and is active
@@ -372,9 +385,13 @@ async def refresh_token(body: RefreshRequest, db: AsyncConnection = Depends(get_
             detail="User not found or inactive",
         )
 
-    # Blacklist the old refresh token (token rotation)
-    if jti:
-        await _blacklist_token(jti)
+    try:
+        claimed = await _consume_refresh_token(jti, db)
+    except Exception:
+        logger.error("Refresh token revocation store unavailable")
+        raise HTTPException(status_code=503, detail="Authentication temporarily unavailable") from None
+    if not claimed:
+        raise HTTPException(status_code=401, detail="Refresh token has been revoked")
 
     new_access = create_access_token({"sub": user_id})
     new_refresh = create_refresh_token({"sub": user_id})

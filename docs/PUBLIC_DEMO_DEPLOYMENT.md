@@ -2,6 +2,14 @@
 
 This document defines the fastest supported path for making the current system publicly accessible without a major architecture rewrite.
 
+## Native Windows product development (no Docker)
+
+Use the [native product setup](../scripts/native_product.md) for a loopback-only Windows development installation.
+It runs PostgreSQL, the gateway, Node and on-demand Python extraction, with PostgreSQL token revocation and no Redis
+service. It uses a fresh configurable data directory. The broader research/public demo prerequisites below do not
+apply to this minimal product runtime. Public hosting still needs a separate deployment review; do not expose the
+Next development server or assume the legacy research services are running.
+
 ## Supported Deployment Model
 
 Use a `single-host public demo` setup:
