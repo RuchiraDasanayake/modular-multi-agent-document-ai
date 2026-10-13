@@ -28,7 +28,7 @@ FORMAT_REQUIREMENTS = {
     "pdf_native_text": ("core", "pdf_native"),
     "image_ocr": ("core", "image_codecs", "tesseract_ocr"),
     "pdf_scan_extraction": ("core", "pdf_native", "pdf_rasterizer", "tesseract_ocr"),
-    # The schema-sampling helper currently requires PDFium; extraction also has Poppler.
+    # Keep the native launcher's baseline PDFium check as well as the actual sample probe.
     "pdf_scan_schema_sampling": ("core", "pdf_native", "pdfium", "scan_sample"),
     **{extension: ("core", extension) for extension in ("docx", "xlsx", "pptx", "html", "eml")},
 }
@@ -37,10 +37,10 @@ REMEDIES = {
     "text_json": "Check the product intake module and UTF-8 text/JSON support.",
     "pdf_native": "Install a working pypdf package; product PDF intake requires it even when OCR is available.",
     "image_codecs": "Install a working Pillow build with PNG, JPEG, TIFF and BMP codecs.",
-    "pdfium": "Install a working pypdfium2 package and Pillow; scanned-PDF schema sampling requires PDFium.",
+    "pdfium": "Install a working pypdfium2 package and Pillow for native-layer inspection and PDF rendering.",
     "pdf_rasterizer": "Install pypdfium2, or pdf2image plus Poppler (pdftoppm and pdfinfo).",
     "tesseract_ocr": "Install pytesseract and Tesseract with eng language data; check TESSERACT_CMD and TESSDATA_PREFIX.",
-    "scan_sample": "Check pypdf, PDFium, Pillow and Tesseract with eng data for scanned-PDF schema samples.",
+    "scan_sample": "Check shared PDF intake/rasterization and the selected OCR engine for scanned-PDF schema samples.",
     "docx": "Install python-docx and lxml; keep the checked-in synthetic Office fixtures.",
     "xlsx": "Install openpyxl; keep the checked-in synthetic Office fixtures.",
     "pptx": "Install python-pptx and lxml; keep the checked-in synthetic Office fixtures.",
@@ -187,14 +187,23 @@ def _ocr_probe() -> None:
     _require("12345" in text)
 
 
-def _scan_sample_probe(root: Path) -> None:
+def _scan_sample_probe(root: Path, ocr_engine: str = "tesseract") -> None:
     from idpo.product_auto.brief_draft import _sample_text
 
     source = root / "scan.pdf"
     with _image_fixture() as image:
         image.save(source, format="PDF", resolution=150)
-    text, parser = _sample_text(source, hashlib.sha256(source.read_bytes()).hexdigest())
-    _require(parser == "pdfium-tesseract-first-two-pages" and "12345" in text)
+    # Certify the requested engine even if the calling shell has a different default.
+    previous = os.environ.get("IDPO_AUTO_OCR_ENGINE")
+    try:
+        os.environ["IDPO_AUTO_OCR_ENGINE"] = ocr_engine
+        text, parser = _sample_text(source, hashlib.sha256(source.read_bytes()).hexdigest())
+    finally:
+        if previous is None:
+            os.environ.pop("IDPO_AUTO_OCR_ENGINE", None)
+        else:
+            os.environ["IDPO_AUTO_OCR_ENGINE"] = previous
+    _require(parser == f"intake-pdf-preview-{ocr_engine}-v1" and "12345" in text)
 
 
 def _rapidocr_probe() -> None:
@@ -293,14 +302,14 @@ def check_runtime(ocr_engine: str = "tesseract") -> dict[str, object]:
         pdfium_ready = checks[-1]["ready"] is True
         checks.append(run_check("pdf_rasterizer", lambda: _rasterizer_probe(pdf, pdfium_ready)))
         checks.append(run_check("tesseract_ocr", _ocr_probe))
-        checks.append(run_check("scan_sample", lambda: _scan_sample_probe(root)))
+        checks.append(run_check("scan_sample", lambda: _scan_sample_probe(root, ocr_engine)))
         checks.extend(run_check(extension, lambda suffix=extension: _native_probe(suffix))
                       for extension in ("docx", "xlsx", "pptx", "html", "eml"))
         checks.append(run_check("model_client", _model_client_probe))
     report = build_report(checks, dict(os.environ))
     if ocr_engine == "rapidocr":
-        # Schema sampling still needs Tesseract. Preserve those base checks and
-        # add a required check only when this optional extraction engine is selected.
+        # Preserve the existing baseline checks; certify the isolated worker as
+        # well as its selected schema-sampling path when RapidOCR is requested.
         report["optional_ocr"] = {"engine": "rapidocr", **run_check("rapidocr_ocr", _rapidocr_probe)}
         if not report["optional_ocr"]["ready"]:
             report["status"] = "unavailable"
@@ -326,7 +335,8 @@ def native_environment(config_path: Path | None):
                 raise ConfigurationError("wrong_python_runtime", "Run this check with the interpreter named by pythonPath in the native config.")
             for source, target in {"autoModel": "IDPO_AUTO_MODEL", "autoApiBaseUrl": "IDPO_AUTO_API_BASE_URL",
                                    "icoreApiKey": "ICORE_API_KEY", "tesseractPath": "TESSERACT_CMD",
-                                   "tessdataDir": "TESSDATA_PREFIX",
+                                   "tessdataDir": "TESSDATA_PREFIX", "dataDir": "IDPO_DATA_DIR",
+                                   "autoOcrEngine": "IDPO_AUTO_OCR_ENGINE",
                                    "rapidOcrPythonPath": "IDPO_RAPIDOCR_PYTHON",
                                    "rapidOcrWorkDir": "IDPO_RAPIDOCR_WORK_DIR"}.items():
                 value = config.get(source)

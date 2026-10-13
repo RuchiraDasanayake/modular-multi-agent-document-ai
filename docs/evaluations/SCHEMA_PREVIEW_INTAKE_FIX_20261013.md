@@ -73,3 +73,23 @@ still omit later content, so suggested fields require review and may need additi
 images follow the configured shared engine's support limits. Abrupt process termination can leave
 preview scratch files for operator cleanup. These limitations are not resolved by
 the frozen extraction benchmark and are not presented as a measured schema-quality improvement.
+
+## Native startup compatibility follow-up
+
+The first integration exposed two missed launcher-contract checks. The offline runtime probe still
+required the deleted `pdfium-tesseract-first-two-pages` parser ID. It emitted valid JSON with
+`scan_sample` failed, but the PowerShell converter accessed a missing optional top-level `code`
+property under strict mode and misreported that valid failure as `invalid_report`.
+
+The probe now requires the selected engine's actual `intake-pdf-preview-<engine>-v1` ID **and**
+successful recognition of the synthetic marker. It explicitly sets and restores that engine for
+sampling; native configuration also carries the engine and data directory into the probe environment.
+The converter reads the optional code safely and preserves actual capability failures. Existing
+required preflight checks remain enabled. Scripts and regression tests are supporting surfaces,
+action **keep**; this report remains research evidence, action **keep**.
+
+Validation: **27 runtime-probe unit tests passed** and the PowerShell preflight regression script
+passed. Replaying the captured failed report through the corrected converter retained
+`scan_sample` / `pdf_scan_schema_sampling` as the cause. The parent captured the actual local OCR
+diagnostic; this follow-up used it without duplicating OCR or contacting a model. Full native startup
+must be rerun after integration; unit tests alone do not establish that the running stack is ready.

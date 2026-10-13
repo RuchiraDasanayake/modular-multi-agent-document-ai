@@ -48,7 +48,7 @@ def test_missing_pdf_reader_is_not_masked_by_a_working_rasterizer(tmp_path: Path
     assert report["capabilities"]["text_json"]["ready"] is True
 
 
-def test_poppler_extraction_fallback_does_not_advertise_pdfium_schema_sampling() -> None:
+def test_missing_pdfium_and_failed_sample_prevent_schema_sampling_readiness() -> None:
     report = runtime.build_report(ready_checks(pdfium=False, scan_sample=False), {})
     assert report["capabilities"]["pdf_scan_extraction"]["ready"] is True
     assert report["capabilities"]["pdf_scan_schema_sampling"]["ready"] is False
@@ -128,16 +128,58 @@ def test_model_disabled_needs_no_client_but_configured_model_requires_one() -> N
 def test_private_config_uses_selected_runtime_and_restores_environment(tmp_path: Path, monkeypatch) -> None:
     source = tmp_path / "native.json"
     source.write_text(json.dumps({"pythonPath": sys.executable, "icoreApiKey": "new-private-key",
-                                  "autoModel": "fixture", "tesseractPath": "test-tesseract"}))
+                                  "autoModel": "fixture", "tesseractPath": "test-tesseract",
+                                  "autoOcrEngine": "rapidocr", "dataDir": str(tmp_path / "private-data")}))
     monkeypatch.setenv("ICORE_API_KEY", "old-private-key")
     monkeypatch.delenv("TESSERACT_CMD", raising=False)
+    monkeypatch.setenv("IDPO_AUTO_OCR_ENGINE", "tesseract")
+    monkeypatch.delenv("IDPO_DATA_DIR", raising=False)
     with pytest.raises(RuntimeError):
         with runtime.native_environment(source):
             assert os.environ["ICORE_API_KEY"] == "new-private-key"
             assert os.environ["TESSERACT_CMD"] == "test-tesseract"
+            assert os.environ["IDPO_AUTO_OCR_ENGINE"] == "rapidocr"
+            assert os.environ["IDPO_DATA_DIR"] == str(tmp_path / "private-data")
             raise RuntimeError("probe failed")
     assert os.environ["ICORE_API_KEY"] == "old-private-key"
     assert "TESSERACT_CMD" not in os.environ
+    assert os.environ["IDPO_AUTO_OCR_ENGINE"] == "tesseract"
+    assert "IDPO_DATA_DIR" not in os.environ
+
+
+@pytest.mark.parametrize("engine", ["tesseract", "rapidocr"])
+@pytest.mark.parametrize("existing", [None, "other-engine"])
+def test_scan_probe_checks_selected_preview_and_restores_environment(tmp_path, monkeypatch, engine, existing):
+    from idpo.product_auto import brief_draft
+
+    if existing is None:
+        monkeypatch.delenv("IDPO_AUTO_OCR_ENGINE", raising=False)
+    else:
+        monkeypatch.setenv("IDPO_AUTO_OCR_ENGINE", existing)
+    calls = []
+
+    def sample(path, source_hash):
+        calls.append(os.environ["IDPO_AUTO_OCR_ENGINE"])
+        assert path.is_file() and len(source_hash) == 64
+        return runtime.MARKER, f"intake-pdf-preview-{engine}-v1"
+
+    monkeypatch.setattr(brief_draft, "_sample_text", sample)
+    runtime._scan_sample_probe(tmp_path, engine)
+    assert calls == [engine]
+    assert os.environ.get("IDPO_AUTO_OCR_ENGINE") == existing
+
+
+@pytest.mark.parametrize("parser,text", [
+    ("pdfium-tesseract-first-two-pages", runtime.MARKER),
+    ("intake-pdf-preview-tesseract-v1", runtime.MARKER),
+    ("intake-pdf-preview-rapidocr-v1", "unreadable"),
+])
+def test_scan_probe_rejects_wrong_engine_legacy_parser_or_failed_recognition(tmp_path, monkeypatch, parser, text):
+    from idpo.product_auto import brief_draft
+
+    monkeypatch.setattr(brief_draft, "_sample_text", lambda *_: (text, parser))
+    result = runtime.run_check("scan_sample", lambda: runtime._scan_sample_probe(tmp_path, "rapidocr"))
+    assert result["ready"] is False
 
 
 def test_wrong_interpreter_cannot_certify_the_configured_runtime(tmp_path: Path, capsys) -> None:
