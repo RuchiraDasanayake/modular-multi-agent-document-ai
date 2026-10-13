@@ -105,7 +105,8 @@ export function loadRunnerConfig(): RunnerConfig {
     canonicalRunnerAvailable: raw.canonicalRunnerAvailable ?? true,
     commands: raw.commands.map((cmd) => ({
       ...cmd,
-      program: resolveExecutable(appRoot, cmd.program),
+      program: resolveExecutable(appRoot, cmd.id === "idpo_process_auto"
+        ? process.env.IDPO_PRODUCT_PYTHON?.trim() || cmd.program : cmd.program),
       cwd: resolvePath(appRoot, cmd.cwd),
       env: cmd.env ?? {},
     })),

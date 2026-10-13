@@ -45,11 +45,17 @@ The generated config has this shape (the sample below is documentation only):
 }
 ```
 
-`gatewayPythonPath` defaults to `pythonPath`; `nodePath` defaults to `node.exe` on PATH; `adminUsername` defaults to `admin`. The `pythonPath` must match the `idpo_process_auto` command in `frontend/runner.config.json`. Give the JSON file a private ACL because it contains credentials. The launcher never writes those secrets to its process receipt or console output.
+`gatewayPythonPath` defaults to `pythonPath`; `nodePath` defaults to `node.exe` on PATH; `adminUsername` defaults to `admin`. The launcher sets `IDPO_PRODUCT_PYTHON` from `pythonPath`, overriding only the product extractor executable so its environment can live on a separate drive. Give the JSON file a private ACL because it contains credentials. The launcher never writes those secrets to its process receipt or console output.
+
+Use Python 3.13 and install `idpo/product_auto/requirements-worker.txt` in a dedicated product environment.
+The historical repository environment may lack PDF, image, OCR or Office dependencies even if text extraction works.
+Verify `python -m pip check` and run the mixed-format parser checks before advertising those formats.
 
 Optional private config fields `autoModel`, `autoApiBaseUrl`, and `icoreApiKey` configure the same provider for the
 web app and worker. Install the `openai` client in the extraction environment for an OpenAI-compatible endpoint.
 Use an explicit HTTPS endpoint, or loopback HTTP for a local server. No provider key belongs in tracked files.
+For portable OCR installations, optional `tesseractPath` and `tessdataDir` set `TESSERACT_CMD` and `TESSDATA_PREFIX`
+in both web helper and extraction worker. Verify the executable and language data before processing scans.
 
 The launcher sets `PRODUCT_EXECUTION_MODE=postgres` and `PRODUCT_QUEUE_DATABASE_URL` from `databaseUrl`.
 The app role needs schema creation privileges in its own database: pg-boss manages `docai_queue`, and the queue

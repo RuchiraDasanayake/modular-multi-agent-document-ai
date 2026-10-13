@@ -95,10 +95,8 @@ function Get-NativeConfig {
     catch { throw 'Frontend runner config is not valid JSON.' }
     $auto = @($runner.commands | Where-Object id -eq 'idpo_process_auto')
     if ($auto.Count -ne 1) { throw 'Frontend runner needs exactly one idpo_process_auto command.' }
-    $resolvedRunnerPython = [IO.Path]::GetFullPath((Join-Path (Join-Path $config.repoRoot 'frontend') $auto[0].program))
-    if ($resolvedRunnerPython -ine $config.pythonPath) {
-      throw 'pythonPath must match the existing frontend idpo_process_auto runner program.'
-    }
+    # Native mode sets IDPO_PRODUCT_PYTHON explicitly, allowing the parser runtime
+    # to live on the configured data drive without changing tracked runner paths.
   }
   return $config
 }

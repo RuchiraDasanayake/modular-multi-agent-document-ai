@@ -31,3 +31,16 @@ multi-host deployment and production capacity were not tested. Native web startu
 
 Local verification receipts and logs are stored privately beneath the configured runtime root. Credentials and
 authentication tokens are excluded from this repository.
+
+## Follow-up integrity and parser checks
+
+A separate worker audit reproduced source/schema metadata tampering and extra staged-file execution before output
+validation. The dispatch now seals the complete input-manifest digest (including schema/recipe metadata), and execution
+requires exact staging-directory membership. Malformed unrelated run files no longer stop admission recovery.
+The expanded frontend suite passed **104 tests**, including 18 isolated queue dispatch/cancellation cases.
+
+A dedicated Python 3.13 product environment passed `pip check` and **90 product, confirmed-schema, draft and native
+format tests**. It uses the tracked worker requirements with NumPy 2.4.6; 2.4.0 was withdrawn for a compatibility bug
+([maintainer notice](https://pypi.org/project/numpy/2.4.0/)). A real local Tesseract 5.5.3 smoke on a generated PNG invoice
+recovered all three predeclared facts with exact source quotes: invoice number, supplier and total. No model call.
+This is a parser installation check; it is not a representative OCR accuracy benchmark or evidence of superiority.

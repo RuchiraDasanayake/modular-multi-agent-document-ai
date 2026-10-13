@@ -106,9 +106,10 @@ try {
     NEXT_TELEMETRY_DISABLED = '1'
     PRODUCT_EXECUTION_MODE = 'postgres'
     PRODUCT_QUEUE_DATABASE_URL = [string]$config.databaseUrl
+    IDPO_PRODUCT_PYTHON = [string]$config.pythonPath
   }
   foreach ($mapping in @(@('autoModel', 'IDPO_AUTO_MODEL'), @('autoApiBaseUrl', 'IDPO_AUTO_API_BASE_URL'),
-    @('icoreApiKey', 'ICORE_API_KEY'))) {
+    @('icoreApiKey', 'ICORE_API_KEY'), @('tesseractPath', 'TESSERACT_CMD'), @('tessdataDir', 'TESSDATA_PREFIX'))) {
     if ($config.ContainsKey($mapping[0]) -and $config[$mapping[0]]) {
       $frontendEnvironment[$mapping[1]] = [string]$config[$mapping[0]]
     }
