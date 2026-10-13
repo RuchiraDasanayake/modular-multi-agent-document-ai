@@ -101,3 +101,14 @@ test("sealed extraction arguments and environment override later process configu
   assert.deepEqual(legacy, []);
   assert.equal(base.IDPO_RAPIDOCR_PYTHON, "changed", "does not mutate inherited environment");
 });
+
+test("selective visual routing is an explicit sealed profile without changing historical visual runs", () => {
+  const profile: ExtractionProfile = { version: 3, ocr: { engine: "tesseract" },
+    responseFormat: "strict_confirmed_values_v1", longDocument: "bounded_text_segments_v1",
+    visualDocument: "bounded_visual_selective_v2" };
+  assert.equal(validExtractionProfile(profile), true);
+  const args: string[] = [];
+  appendExtractionArguments(args, profile);
+  assert.deepEqual(args.slice(-2), ["--visual-document-profile", "bounded_visual_selective_v2"]);
+  assert.equal(validExtractionProfile({ ...profile, visualDocument: "bounded_visual_v1" }), true);
+});

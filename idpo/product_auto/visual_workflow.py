@@ -10,15 +10,18 @@ from typing import Callable
 
 from idpo.product_auto.long_document import SegmentMergeError, merge_segment_values
 from idpo.product_auto.provider import ModelReply
+from idpo.product_auto.segments import MAX_SEGMENT_CHARS
 from idpo.product_auto.visual_input import VisualInputError, prepare_visual_document, plan_visual_requests
 from idpo.product_auto.visual_output import parse_visual_values_reply
 
 PROFILE = "bounded_visual_v1"
+SELECTIVE_PROFILE = "bounded_visual_selective_v2"
+PROFILES = frozenset({PROFILE, SELECTIVE_PROFILE})
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
 
 
-def visual_receipt(source_sha256: str) -> dict[str, object]:
-    return {"profile": PROFILE, "source_sha256": source_sha256, "route": "not_executed",
+def visual_receipt(source_sha256: str, profile: str = PROFILE) -> dict[str, object]:
+    return {"profile": profile, "source_sha256": source_sha256, "route": "not_executed",
             "route_reason": "not_prepared", "plan_sha256": None, "requests": [],
             "source_pages": [], "observed_ocr_pages": [], "planned_pages": [], "attempted_pages": [], "valid_pages": [],
             "planned_requests": 0, "attempted_requests": 0, "valid_requests": 0,
@@ -26,6 +29,26 @@ def visual_receipt(source_sha256: str) -> dict[str, object]:
 
 
 def select_visual_route(
+    extension: str, pages: list[dict], ocr_pages: list[dict], original_page_numbers: list[int],
+    *, profile: str = PROFILE, fields: tuple[dict, ...] = (),
+) -> tuple[bool, str]:
+    if profile not in PROFILES:
+        raise ValueError("Unknown visual routing profile")
+    eligible, reason = _visual_source_route(extension, pages, ocr_pages, original_page_numbers)
+    if not eligible or profile == PROFILE or reason == "pdf_ocr_page_coverage_incomplete":
+        return eligible, reason
+    # Choose before inference. A failed or truncated text call never silently
+    # incurs another paid image call. Preserve v1 for the frozen comparison.
+    if any(field.get("type") == "array[object]" for field in fields):
+        return True, "selective_repeated_fields"
+    if not any(page["text"].strip() for page in pages):
+        return True, "selective_no_usable_text"
+    if sum(len(page["text"]) for page in pages) > MAX_SEGMENT_CHARS:
+        return True, "selective_long_text"
+    return False, "selective_scalar_text"
+
+
+def _visual_source_route(
     extension: str, pages: list[dict], ocr_pages: list[dict], original_page_numbers: list[int],
 ) -> tuple[bool, str]:
     if extension in IMAGE_EXTENSIONS:

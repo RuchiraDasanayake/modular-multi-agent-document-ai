@@ -1222,7 +1222,7 @@ function verifiedDispatch(request: ProductDispatch): { record: RunRecord; prepar
   }
   if ((prepared.extractionProfile?.responseFormat === "strict_confirmed_values_v1" ||
       prepared.extractionProfile?.longDocument === "bounded_text_segments_v1" ||
-      prepared.extractionProfile?.visualDocument === "bounded_visual_v1") &&
+      (prepared.extractionProfile?.visualDocument !== undefined && prepared.extractionProfile.visualDocument !== "disabled")) &&
       (!record.confirmedBrief || !prepared.model)) throw new Error("Selected extraction profile requires a confirmed schema and model.");
   return { record, prepared };
 }

@@ -10,7 +10,7 @@ export interface ExtractionProfile {
   ocr: OcrProfile;
   responseFormat: "plain_json" | "strict_confirmed_values_v1";
   longDocument?: "reject" | "bounded_text_segments_v1";
-  visualDocument?: "disabled" | "bounded_visual_v1";
+  visualDocument?: "disabled" | "bounded_visual_v1" | "bounded_visual_selective_v2";
 }
 
 const RAPID_ENV = ["IDPO_RAPIDOCR_PYTHON", "IDPO_RAPIDOCR_TIMEOUT_S",
@@ -32,7 +32,7 @@ export function validExtractionProfile(value: unknown): value is ExtractionProfi
     value.version === 3 ? "longDocument,ocr,responseFormat,version,visualDocument" : null;
   if (keys === null || Object.keys(value).sort().join() !== keys ||
     (value.version !== 1 && !["reject", "bounded_text_segments_v1"].includes(String(value.longDocument))) ||
-    (value.version === 3 && !["disabled", "bounded_visual_v1"].includes(String(value.visualDocument))) ||
+    (value.version === 3 && !["disabled", "bounded_visual_v1", "bounded_visual_selective_v2"].includes(String(value.visualDocument))) ||
     !["plain_json", "strict_confirmed_values_v1"].includes(String(value.responseFormat)) ||
     !object(value.ocr)) return false;
   const ocr = value.ocr;
@@ -56,7 +56,7 @@ export function configuredExtractionProfile(confirmedSchema: boolean): Extractio
   if (!["reject", "bounded_text_segments_v1"].includes(longDocument)) {
     throw new AccessError("Invalid server long-document profile.", 503);
   }
-  if (!["disabled", "bounded_visual_v1"].includes(visualDocument)) {
+  if (!["disabled", "bounded_visual_v1", "bounded_visual_selective_v2"].includes(visualDocument)) {
     throw new AccessError("Invalid server visual-document profile.", 503);
   }
   const number = (name: string, fallback: number): number => {
@@ -90,7 +90,7 @@ export function appendExtractionArguments(args: string[], profile?: ExtractionPr
   if (profile.ocr.engine === "rapidocr") args.push("--ocr-page-budget-s", String(profile.ocr.timeoutSeconds));
   if (profile.responseFormat !== "plain_json") args.push("--response-format-profile", profile.responseFormat);
   if (profile.longDocument === "bounded_text_segments_v1") args.push("--long-document-profile", profile.longDocument);
-  if (profile.visualDocument === "bounded_visual_v1") args.push("--visual-document-profile", profile.visualDocument);
+  if (profile.visualDocument && profile.visualDocument !== "disabled") args.push("--visual-document-profile", profile.visualDocument);
 }
 
 export function extractionEnvironment(base: NodeJS.ProcessEnv, profile?: ExtractionProfile): NodeJS.ProcessEnv {

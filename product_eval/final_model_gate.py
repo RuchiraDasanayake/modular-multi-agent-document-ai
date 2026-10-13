@@ -164,7 +164,7 @@ def _visual_coverage(sidecar: dict, replies: list[dict], schema, requests: list[
         sent = requests or []
         recorded = receipt["requests"]
         source_sha = sidecar["source_container_sha256"]
-        if (receipt["profile"] != "bounded_visual_v1" or receipt["route"] != "visual" or
+        if (receipt["profile"] not in {"bounded_visual_v1", "bounded_visual_selective_v2"} or receipt["route"] != "visual" or
                 sidecar["response_format_profile"] != "strict_visual_confirmed_values_v1" or
                 receipt["failure_reason"] is not None or receipt["source_sha256"] != source_sha or
                 not 1 <= len(ids) <= 48 or ids != list(range(1, len(ids) + 1)) or

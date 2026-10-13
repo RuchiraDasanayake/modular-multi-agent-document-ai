@@ -532,8 +532,8 @@ def test_visual_interface_is_required_only_when_enabled(monkeypatch):
         freezer.require_interfaces({**freezer.DEFAULT_PROFILE, "visual_document_profile": "bounded_visual_v1"})
 
 
-@pytest.fixture
-def visual_run(tmp_path, monkeypatch):
+@pytest.fixture(params=["bounded_visual_v1", "bounded_visual_selective_v2"])
+def visual_run(tmp_path, monkeypatch, request):
     from PIL import Image
     from idpo.agents.preprocess import OcrAgent
     from idpo.core.types import AgentResult
@@ -548,7 +548,7 @@ def visual_run(tmp_path, monkeypatch):
            "family": "receipt", "dataset_id": "synthetic", "gate_shard": "shard_00"}
     schema_path, schema_sha = schema_file(tmp_path)
     schema = load_confirmed_schema(schema_path, schema_sha)
-    protocol = {"profile": {**freezer.DEFAULT_PROFILE, "visual_document_profile": "bounded_visual_v1"},
+    protocol = {"profile": {**freezer.DEFAULT_PROFILE, "visual_document_profile": request.param},
                 "schemas": {"receipt": {"path": "schema.json", "sha256": schema_sha}},
                 "sources": [row], "target_distinct_originals": 1}
     ledger = Ledger(tmp_path / "ledger.sqlite3")
