@@ -52,7 +52,11 @@ def digest_json(value) -> str:
 
 def write_new(path: Path, value) -> str:
     """Exclusive creation plus fsync; no receipt can replace an earlier result."""
-    raw = encoded(value)
+    return write_new_bytes(path, encoded(value))
+
+
+def write_new_bytes(path: Path, raw: bytes) -> str:
+    """Persist exact preflighted wire bytes without changing JSON encoding."""
     with path.open("xb") as stream:
         stream.write(raw)
         stream.flush()
@@ -81,7 +85,7 @@ def code_receipt() -> dict:
     return {"commit": git("rev-parse", "HEAD"), "python_source_sha256": sources}
 
 
-def require_interfaces() -> None:
+def require_interfaces(profile: dict | None = None) -> None:
     from idpo.product_auto.provider import OpenAICompatibleChat
     from idpo.product_auto.strict_output import PROFILE
     from idpo.product_auto.workflow import process_auto
@@ -94,15 +98,26 @@ def require_interfaces() -> None:
         raise ValueError("Required bounded long-document profile is not implemented")
     if PROFILE != DEFAULT_PROFILE["response_format_profile"] or "response_format" not in inspect.signature(OpenAICompatibleChat.complete_json).parameters:
         raise ValueError("Required strict response interface is not implemented")
+    if profile and profile["visual_document_profile"] == "bounded_visual_v1":
+        from idpo.product_auto.visual_workflow import PROFILE as VISUAL_PROFILE
+        from idpo.product_auto.visual_input import MAX_IMAGES, MAX_REQUESTS, MAX_REQUEST_BYTES, MAX_EDGE
+        if (VISUAL_PROFILE != profile["visual_document_profile"] or
+                "visual_document_profile" not in inspect.signature(process_auto).parameters or
+                not callable(getattr(OpenAICompatibleChat, "complete_visual_json", None)) or
+                "request" not in inspect.signature(OpenAICompatibleChat.complete_visual_json).parameters or
+                (MAX_IMAGES, MAX_REQUESTS, MAX_REQUEST_BYTES, MAX_EDGE) != (12, 4, 4 * 1024 * 1024, 2048)):
+            raise ValueError("Required bounded visual interface is not implemented")
 
 
 def validate_profile(raw: dict) -> dict:
     if not isinstance(raw, dict) or set(raw) != set(DEFAULT_PROFILE):
         raise ValueError("Profile must contain exactly the documented keys")
-    for key in ("ocr_engine", "response_format_profile", "long_document_profile", "visual_document_profile",
+    for key in ("ocr_engine", "response_format_profile", "long_document_profile",
                 "base_url", "model", "max_calls_per_source", "batch_size"):
         if raw[key] != DEFAULT_PROFILE[key] or type(raw[key]) is not type(DEFAULT_PROFILE[key]):
             raise ValueError(f"Unsupported profile field: {key}")
+    if not isinstance(raw["visual_document_profile"], str) or raw["visual_document_profile"] not in {"disabled", "bounded_visual_v1"}:
+        raise ValueError("Unsupported profile field: visual_document_profile")
     for key, low, high in (("max_tokens", 256, 8192), ("timeout_s", 1, 180),
                            ("max_calls", TARGET_SOURCES, 2500), ("workers", 1, 4)):
         if type(raw[key]) is not int or not low <= raw[key] <= high:
@@ -216,8 +231,8 @@ def verify_parallel(profile: dict, code: dict, runtime: dict) -> None:
 
 
 def freeze(cohort: Path, schema_protocol: Path, profile_path: Path, output: Path) -> str:
-    require_interfaces()
     profile = validate_profile(read_json(profile_path))
+    require_interfaces(profile)
     code, runtime = code_receipt(), runtime_receipt()
     verify_parallel(profile, code, runtime)
     raw_rows = [json.loads(line) for line in cohort.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -266,8 +281,8 @@ def verify_freeze(output: Path, expected_sha256: str) -> dict:
     protocol = read_json(output / "protocol.json")
     if protocol.get("version") != 1 or protocol.get("mode") != "model2000_original_operational":
         raise ValueError("Unknown gate protocol")
-    require_interfaces()
     validate_profile(protocol["profile"])
+    require_interfaces(protocol["profile"])
     if code_receipt() != protocol["code"] or runtime_receipt() != protocol["runtime"]:
         raise ValueError("Code or runtime changed; create a new arm")
     verify_parallel(protocol["profile"], protocol["code"], protocol["runtime"])

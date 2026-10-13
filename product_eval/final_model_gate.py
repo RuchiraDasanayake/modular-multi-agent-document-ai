@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import hashlib
 import inspect
 import json
 import math
@@ -22,6 +23,7 @@ from pathlib import Path
 from idpo.product_auto.confirmed_schema import load_confirmed_schema
 from idpo.product_auto.provider import ModelReply, OpenAICompatibleChat
 from idpo.product_auto.strict_output import parse_confirmed_strict_values_reply
+from idpo.product_auto.visual_output import parse_visual_values_reply
 from product_eval.execution import verify_result_receipts, verify_run
 from product_eval.final_gate_freeze import (
     DEFAULT_PROFILE,
@@ -31,6 +33,7 @@ from product_eval.final_gate_freeze import (
     read_json,
     verify_freeze,
     write_new,
+    write_new_bytes,
 )
 from product_eval.final_gate_ledger import GateStopped, Ledger, exclusive_run_lock
 
@@ -41,6 +44,7 @@ _ERROR_CATEGORIES = {
 }
 _SUCCESS_REASONS = {"confirmed_schema_requires_review", "confirmed_schema_no_grounded_values",
                     "long_document_scalar_conflict"}
+_VISUAL_SUCCESS_REASONS = {"visual_values_require_review", "visual_scalar_conflict"}
 
 
 def sanitized_reply(reply: ModelReply, *, credential: str | None = None) -> dict:
@@ -75,12 +79,16 @@ def sanitized_reply(reply: ModelReply, *, credential: str | None = None) -> dict
 
 
 class RecordedModel:
-    def __init__(self, provider, output: Path, doc_id: str, *, credential: str | None = None):
+    def __init__(self, provider, output: Path, doc_id: str, *, credential: str | None = None,
+                 source_sha256: str | None = None):
         self.provider, self.output, self.doc_id = provider, output, doc_id
         self.model = provider.model
+        self.max_tokens = provider.max_tokens
         self._credential = credential
+        self.source_sha256 = source_sha256
         self.ledger = Ledger(output / "ledger.sqlite3")
         self.replies: list[dict] = []
+        self.requests: list[dict] = []
 
     def complete_json(self, *, system: str, prompt: str, response_format=None) -> ModelReply:
         if not isinstance(response_format, dict) or response_format.get("type") != "json_schema":
@@ -102,7 +110,32 @@ class RecordedModel:
         # No provider method can execute until the request_begun transaction
         # has committed to SQLite with synchronous=FULL.
         attempt_id, _ = self.ledger.begin_attempt(self.doc_id, request_sha)
+        self.requests.append({"kind": "text", "request_sha256": request_sha})
         reply = self.provider.complete_json(system=system, prompt=prompt, response_format=response_format)
+        return self._record_reply(attempt_id, reply)
+
+    def complete_visual_json(self, request) -> ModelReply:
+        from idpo.product_auto.visual_input import PreparedVisualRequest
+        if not isinstance(request, PreparedVisualRequest):
+            raise GateStopped("prepared_visual_request_required")
+        request.validated_body(model=self.model, max_tokens=self.max_tokens)
+        if self.source_sha256 is None or request.source_sha256 != self.source_sha256:
+            raise GateStopped("visual_request_source_mismatch")
+        request_sha = hashlib.sha256(request.body_json).hexdigest()
+        request_dir = self.output / "requests" / self.doc_id
+        request_dir.mkdir(parents=True, exist_ok=True)
+        path = request_dir / f"{request_sha}.json"
+        try:
+            write_new_bytes(path, request.body_json)
+        except FileExistsError:
+            if digest_file(path) != request_sha:
+                raise ValueError("Private visual request receipt changed") from None
+        attempt_id, _ = self.ledger.begin_attempt(self.doc_id, request_sha)
+        self.requests.append({"kind": "visual", "request_sha256": request_sha, "receipt": request.receipt()})
+        reply = self.provider.complete_visual_json(request)
+        return self._record_reply(attempt_id, reply)
+
+    def _record_reply(self, attempt_id: int, reply: ModelReply) -> ModelReply:
         payload = sanitized_reply(reply, credential=self._credential)
         reply_dir = self.output / "replies"
         reply_dir.mkdir(exist_ok=True)
@@ -122,17 +155,67 @@ def _nonempty(value) -> bool:
     return True
 
 
-def source_metrics(sidecar: dict, replies: list[dict], schema) -> dict:
+def _visual_coverage(sidecar: dict, replies: list[dict], schema, requests: list[dict] | None) -> tuple[bool, bool]:
+    """Bind successful page coverage to recorded requests and parse every reply."""
+    try:
+        receipt = sidecar["visual_document"]
+        pages = sidecar["pages"]
+        ids = [page["page"] for page in pages]
+        sent = requests or []
+        recorded = receipt["requests"]
+        source_sha = sidecar["source_container_sha256"]
+        if (receipt["profile"] != "bounded_visual_v1" or receipt["route"] != "visual" or
+                sidecar["response_format_profile"] != "strict_visual_confirmed_values_v1" or
+                receipt["failure_reason"] is not None or receipt["source_sha256"] != source_sha or
+                not 1 <= len(ids) <= 48 or ids != list(range(1, len(ids) + 1)) or
+                any(receipt[key] != ids for key in ("source_pages", "observed_ocr_pages", "planned_pages", "attempted_pages", "valid_pages")) or
+                receipt["full_source_covered"] is not True or not 1 <= len(replies) <= 4 or
+                not len(recorded) == len(sent) == len(replies) or
+                any(receipt[key] != len(replies) for key in ("planned_requests", "attempted_requests", "valid_requests"))):
+            return False, False
+        helpers = []
+        covered = []
+        parsed = True
+        for index, (item, request, reply) in enumerate(zip(recorded, sent, replies, strict=True)):
+            helper = {key: value for key, value in item.items() if key not in {"outcome", "model_call_index", "usage"}}
+            batch = item["covered_pages"]
+            if (item["outcome"] != "valid" or request["kind"] != "visual" or request["receipt"] != helper or
+                    item["request_sha256"] != request["request_sha256"] or
+                    not re.fullmatch(r"[a-f0-9]{64}", item["request_sha256"]) or
+                    type(item["request_bytes"]) is not int or not 0 < item["request_bytes"] <= 4 * 1024 * 1024 or
+                    item["request_index"] != index or item["request_count"] != len(replies) or
+                    item["total_pages"] != len(ids) or item["source_sha256"] != source_sha or
+                    item["planned_covered_pages"] != ids or item["uncovered_pages"] != [] or
+                    not 1 <= len(batch) <= 12 or [page["page"] for page in item["pages"]] != batch or
+                    any(page["source_sha256"] != source_sha for page in item["pages"])):
+                return False, False
+            covered.extend(batch)
+            helpers.append(helper)
+            batch_pages = [page for page in pages if page["page"] in batch]
+            parsed = parsed and parse_visual_values_reply(reply["text"], schema.candidate_fields, batch_pages) is not None
+        plan_sha = hashlib.sha256(json.dumps(helpers, sort_keys=True, separators=(",", ":"),
+                                           ensure_ascii=False).encode("utf-8")).hexdigest()
+        complete = covered == ids and receipt["plan_sha256"] == plan_sha
+        return complete, complete and parsed
+    except (KeyError, TypeError, ValueError, RecursionError, OverflowError):
+        return False, False
+
+
+def source_metrics(sidecar: dict, replies: list[dict], schema, *, requests: list[dict] | None = None) -> dict:
     """Operational validity is intentionally separate from source correctness."""
     pages = sidecar.get("pages", [])
     chars = sum(len(page["text"]) for page in pages)
     reason = sidecar.get("reason")
     provider_ok = bool(replies) and all(
-        not reply.get("error") and not reply.get("refusal") and reply.get("finish_reason") == "stop"
+        not reply.get("error") and reply.get("error_category") is None and not reply.get("refusal") and reply.get("finish_reason") == "stop"
         and reply.get("sdk_attempts") == 1 for reply in replies
     )
     long_plan = sidecar.get("long_document_plan")
-    if long_plan is not None:
+    visual = isinstance(sidecar.get("visual_document"), dict) and sidecar["visual_document"].get("route") == "visual"
+    if visual:
+        full_coverage, strict_parsed = _visual_coverage(sidecar, replies, schema, requests)
+        strict_parsed = provider_ok and strict_parsed
+    elif long_plan is not None:
         coverage = sidecar.get("long_document_coverage") or {}
         full_coverage = (
             coverage.get("full_source_covered") is True and chars > 0
@@ -142,27 +225,42 @@ def source_metrics(sidecar: dict, replies: list[dict], schema) -> dict:
             and coverage.get("attempted_segments") == len(replies)
             and 1 <= len(replies) <= 4
         )
-        # Segmented parsing uses each slice's original source offsets. Trust
-        # only the product's explicit successful coverage receipt here.
-        strict_parsed = provider_ok and full_coverage and reason in _SUCCESS_REASONS
+        # Rebuild the frozen deterministic plan and independently reparse every
+        # reply. Counters or a product success reason alone are insufficient.
+        from idpo.product_auto.long_document import plan_receipt, segment_pages
+        from idpo.product_auto.segments import plan_segments
+        rebuilt = plan_segments(pages, max_chars=24_000)
+        full_coverage = full_coverage and rebuilt.supported and len(rebuilt.segments) == len(replies) and plan_receipt(rebuilt) == long_plan
+        strict_parsed = bool(provider_ok and full_coverage and all(
+            parse_confirmed_strict_values_reply(reply["text"], schema.candidate_fields, segment_pages(segment)) is not None
+            for reply, segment in zip(replies, rebuilt.segments, strict=True)))
     else:
         full_coverage = bool(pages) and 0 < chars <= 24_000 and len(replies) == 1
         strict_parsed = bool(provider_ok and full_coverage and
                              parse_confirmed_strict_values_reply(replies[0]["text"], schema.candidate_fields, pages) is not None)
     values = sidecar.get("candidate", {}).get("extracted_values", [])
     non_null = sum(_nonempty(value.get("value")) for value in values)
+    fields_complete = (len(values) == len(schema.candidate_fields) and
+        {value.get("field_id") for value in values} == {field["field_id"] for field in schema.candidate_fields})
+    valid = bool(strict_parsed and full_coverage and fields_complete and sidecar.get("document_status") == "needs_review"
+                 and reason in (_VISUAL_SUCCESS_REASONS if visual else _SUCCESS_REASONS))
+    if visual and any(value.get("status") == "accepted" or isinstance(value.get("value"), list) and
+                      any(cell.get("status") == "accepted" for cell in value["value"]) for value in values):
+        valid = False
     return {
         "reason": reason, "document_status": sidecar.get("document_status"), "page_count": len(pages),
         "source_text_chars": chars, "provider_finished": provider_ok,
-        "strict_parsed": strict_parsed, "full_text_coverage": full_coverage,
-        "valid_full_coverage": bool(strict_parsed and full_coverage and reason in _SUCCESS_REASONS),
+        "strict_parsed": strict_parsed, "full_text_coverage": full_coverage if not visual else None,
+        "full_visual_coverage": full_coverage if visual else None,
+        "coverage_scope": "complete_source_page_images" if visual else "complete_extracted_source_text",
+        "valid_full_coverage": valid,
         "non_null_fields": non_null, "accepted_non_null_fields": sum(
             _nonempty(value.get("value")) and value.get("status") == "accepted" for value in values),
         "accepted_linked_cells": sum(
             _nonempty(cell.get("value")) and cell.get("status") == "accepted"
             for value in values if isinstance(value.get("value"), list) for cell in value["value"] if isinstance(cell, dict)),
         "all_null": non_null == 0, "long_document_coverage": sidecar.get("long_document_coverage"),
-        "scalar_conflict": reason == "long_document_scalar_conflict",
+        "scalar_conflict": reason in {"long_document_scalar_conflict", "visual_scalar_conflict"},
         "requires_human_review": sidecar.get("document_status") == "needs_review",
     }
 
@@ -206,7 +304,8 @@ def _run_source(output_s: str, row: dict, protocol: dict, api_key_env: str) -> s
                                         max_tokens=profile["max_tokens"])
         if provider.client.max_retries != 0:
             raise ValueError("SDK retries must be disabled")
-        model = RecordedModel(provider, output, row["doc_id"], credential=os.environ.get(api_key_env))
+        model = RecordedModel(provider, output, row["doc_id"], credential=os.environ.get(api_key_env),
+                              source_sha256=row["source_sha256"])
         stage = "product_execution"
         visual_kwargs = ({"visual_document_profile": profile["visual_document_profile"]}
                          if "visual_document_profile" in inspect.signature(process_auto).parameters else {})
@@ -224,7 +323,7 @@ def _run_source(output_s: str, row: dict, protocol: dict, api_key_env: str) -> s
                 or manifest[0]["model_call_count"] != len(model.replies)):
             raise ValueError("product_receipt_mismatch")
         sidecar = read_json(run_dir / "docs" / row["doc_id"] / "result.json")
-        metrics = source_metrics(sidecar, model.replies, schema)
+        metrics = source_metrics(sidecar, model.replies, schema, requests=model.requests)
         reason = metrics["reason"]
     except Exception as exc:  # noqa: BLE001 - isolate/redact unexpected worker failures
         # Any unexpected local failure stops dispatch. Raw exception text may
@@ -287,7 +386,10 @@ def summary(output: Path, protocol: dict) -> dict:
             receipt = read_json(output / "outcomes" / f"{item['doc_id']}.json")
             if receipt["metrics"] is not None:
                 metrics.append((item["state"], receipt["metrics"]))
-                family["valid_full_text_coverage_originals"] += item["state"] == "sealed" and receipt["metrics"]["valid_full_coverage"]
+                valid_source = item["state"] == "sealed" and receipt["metrics"]["valid_full_coverage"]
+                family["valid_full_coverage_originals"] += valid_source
+                family["valid_full_text_coverage_originals"] += valid_source and receipt["metrics"]["coverage_scope"] == "complete_extracted_source_text"
+                family["valid_full_visual_coverage_originals"] += valid_source and receipt["metrics"]["coverage_scope"] == "complete_source_page_images"
                 family["non_null_originals"] += receipt["metrics"]["non_null_fields"] > 0
     valid = sum(source_state == "sealed" and item["valid_full_coverage"] for source_state, item in metrics)
     states = Counter(item["state"] for item in sources)
@@ -303,7 +405,11 @@ def summary(output: Path, protocol: dict) -> dict:
         "refused_attempts": sum(item["refusal"] is not None and bool(item["refusal"]) for item in attempts),
         "finish_reason_counts": dict(Counter(item["finish_reason"] or "unknown" for item in attempts)),
         "provider_error_category_counts": dict(Counter(item["error_category"] for item in attempts if item["error_category"])),
-        "valid_full_text_coverage_originals": valid,
+        "valid_full_coverage_originals": valid,
+        "valid_full_text_coverage_originals": sum(source_state == "sealed" and item["valid_full_coverage"] and
+            item["coverage_scope"] == "complete_extracted_source_text" for source_state, item in metrics),
+        "valid_full_visual_coverage_originals": sum(source_state == "sealed" and item["valid_full_coverage"] and
+            item["coverage_scope"] == "complete_source_page_images" for source_state, item in metrics),
         "families": {name: dict(counts) for name, counts in families.items()},
         "prediction_receipt_originals": len(metrics),
         "all_prediction_receipts_sealed": len(metrics) == len(sources) and not states["unstarted"] and not states["started"],
@@ -317,9 +423,9 @@ def summary(output: Path, protocol: dict) -> dict:
         "stop_reason": state["settings"]["stop_reason"] or None,
         "operator_resume_events": state["controls"],
         "operational_gate_passed": valid == len(sources) == protocol["target_distinct_originals"]
-        and not states["uncertain"] and len(attempts_by_source) == len(sources),
+        and not states["uncertain"] and len(attempts_by_source) == len(sources) and not state["settings"]["stop_reason"],
         "labels_opened": False, "accuracy_measured": False, "usd_cost": None,
-        "coverage_scope": "full extracted source text; does not prove OCR/visual completeness or value correctness",
+        "coverage_scope": "text: complete extracted text; visual: complete bounded source-page images; neither proves value correctness",
     }
 
 

@@ -180,10 +180,11 @@ def test_exclusive_lock_releases_without_deleting_lock_file(tmp_path):
         pass
 
 
-def test_profile_rejects_unready_vision_and_unvalidated_parallelism():
+def test_profile_admits_only_explicit_supported_vision_and_validated_parallelism():
     assert freezer.validate_profile(freezer.DEFAULT_PROFILE)["workers"] == 1
+    assert freezer.validate_profile({**freezer.DEFAULT_PROFILE, "visual_document_profile": "bounded_visual_v1"})["visual_document_profile"] == "bounded_visual_v1"
     with pytest.raises(ValueError, match="visual_document_profile"):
-        freezer.validate_profile({**freezer.DEFAULT_PROFILE, "visual_document_profile": "bounded_visual_v1"})
+        freezer.validate_profile({**freezer.DEFAULT_PROFILE, "visual_document_profile": "unbounded_visual"})
     with pytest.raises(ValueError, match="Parallel OCR"):
         freezer.validate_profile({**freezer.DEFAULT_PROFILE, "workers": 4})
     with pytest.raises(ValueError, match="max_calls"):
@@ -301,18 +302,40 @@ def test_valid_all_null_is_separate_from_nonempty_extraction(tmp_path):
     assert metric["non_null_fields"] == 0
 
 
-@pytest.mark.parametrize("complete", [False, True])
-def test_segmented_coverage_counters_are_required_and_conflicts_separate(tmp_path, complete):
+@pytest.mark.parametrize("change", ["failed_status", "missing_candidate_fields"])
+def test_success_reason_and_reply_do_not_override_failed_or_missing_product_result(tmp_path, change):
     path, sha = schema_file(tmp_path)
     sidecar = sidecar_fixture()
-    sidecar.update(reason="long_document_scalar_conflict", long_document_plan={"plan_sha256": "a" * 64},
-                   long_document_coverage={"source_char_count": 9, "planned_char_count": 9,
-                       "completed_char_count": 9 if complete else 4, "planned_segments": 2,
-                       "attempted_segments": 2, "completed_segments": 2 if complete else 1,
+    if change == "failed_status":
+        sidecar["document_status"] = "failed"
+    else:
+        sidecar["candidate"]["extracted_values"] = []
+    metric = gate.source_metrics(sidecar, [dataclasses.asdict(reply())], load_confirmed_schema(path, sha))
+    assert not metric["valid_full_coverage"]
+
+
+@pytest.mark.parametrize("complete", [False, True])
+def test_segmented_coverage_counters_are_required_and_conflicts_separate(tmp_path, complete):
+    from idpo.product_auto.long_document import plan_receipt
+    from idpo.product_auto.segments import plan_segments
+    path, sha = schema_file(tmp_path)
+    sidecar = sidecar_fixture()
+    text = "Total: 42\n" + "padding words " * 2500
+    sidecar["pages"] = [{"page": 1, "text": text}]
+    plan = plan_segments(sidecar["pages"], max_chars=24_000)
+    count = len(plan.segments)
+    sidecar.update(reason="long_document_scalar_conflict", long_document_plan=plan_receipt(plan),
+                   long_document_coverage={"source_char_count": len(text), "planned_char_count": len(text),
+                       "completed_char_count": len(text) if complete else 4, "planned_segments": count,
+                       "attempted_segments": count, "completed_segments": count if complete else 1,
                        "full_source_covered": complete})
-    metrics = gate.source_metrics(sidecar, [dataclasses.asdict(reply())] * 2, load_confirmed_schema(path, sha))
+    metrics = gate.source_metrics(sidecar, [dataclasses.asdict(reply())] * count, load_confirmed_schema(path, sha))
     assert metrics["valid_full_coverage"] is complete
     assert metrics["scalar_conflict"]
+    if complete:
+        invalid = [dataclasses.asdict(reply()) for _ in range(count)]
+        invalid[-1]["text"] = "invalid JSON despite successful finish and counters"
+        assert not gate.source_metrics(sidecar, invalid, load_confirmed_schema(path, sha))["valid_full_coverage"]
 
 
 def test_raw_error_messages_are_redacted():
@@ -499,3 +522,168 @@ def test_modified_reply_receipt_blocks_resume(frozen):
     response_path.write_text("changed")
     with pytest.raises(ValueError, match="reply changed"):
         gate._verify_existing(output, ledger.snapshot(), protocol, sha)
+
+
+def test_visual_interface_is_required_only_when_enabled(monkeypatch):
+    from idpo.product_auto.provider import OpenAICompatibleChat
+    monkeypatch.setattr(OpenAICompatibleChat, "complete_visual_json", None)
+    freezer.require_interfaces(freezer.DEFAULT_PROFILE)
+    with pytest.raises(ValueError, match="bounded visual interface"):
+        freezer.require_interfaces({**freezer.DEFAULT_PROFILE, "visual_document_profile": "bounded_visual_v1"})
+
+
+@pytest.fixture
+def visual_run(tmp_path, monkeypatch):
+    from PIL import Image
+    from idpo.agents.preprocess import OcrAgent
+    from idpo.core.types import AgentResult
+    from idpo.product_auto import visual_workflow
+
+    source = tmp_path / "original.png"
+    with Image.new("RGB", (80, 60), "white") as image:
+        image.save(source)
+    source_sha = freezer.digest_file(source)
+    row = {"doc_id": _doc_id(source.name, source_sha, 0), "source_path": str(source),
+           "source_sha256": source_sha, "source_size_bytes": source.stat().st_size,
+           "family": "receipt", "dataset_id": "synthetic", "gate_shard": "shard_00"}
+    schema_path, schema_sha = schema_file(tmp_path)
+    schema = load_confirmed_schema(schema_path, schema_sha)
+    protocol = {"profile": {**freezer.DEFAULT_PROFILE, "visual_document_profile": "bounded_visual_v1"},
+                "schemas": {"receipt": {"path": "schema.json", "sha256": schema_sha}},
+                "sources": [row], "target_distinct_originals": 1}
+    ledger = Ledger(tmp_path / "ledger.sqlite3")
+    ledger.initialize([row], "a" * 64, 2500)
+    ledger.claim(row["doc_id"])
+
+    # No OCR engine runs. Real intake, source hashing, image preparation, strict
+    # parsing, merge and durable accounting still execute against the blank fixture.
+    def local_page(self, payload, ctx):
+        document = payload["document"]
+        document.pages = [dataclasses.replace(page, text="", metadata={"ocr_engine_used": "rapidocr"})
+                          for page in document.pages]
+        return AgentResult(artifacts={"document": document})
+    monkeypatch.setattr(OcrAgent, "run", local_page)
+    recorded_requests = []
+    captured = []
+
+    class MockProvider:
+        def __init__(self, **_):
+            self.model, self.max_tokens = freezer.MODEL, 8192
+            self.client = SimpleNamespace(max_retries=0, close=lambda: None)
+        def complete_json(self, **_):
+            pytest.fail("Visual extraction must not fall back to text")
+        def complete_visual_json(self, request):
+            state = ledger.snapshot()["attempts"]
+            assert len(state) == 1 and state[0]["state"] == "request_begun"
+            saved = tmp_path / "requests" / row["doc_id"] / f"{state[0]['request_sha256']}.json"
+            assert saved.read_bytes() == request.body_json
+            recorded_requests.append({"kind": "visual", "request_sha256": state[0]["request_sha256"],
+                                      "receipt": request.receipt()})
+            raw = dataclasses.replace(reply(), text='{"values":[{"field_id":"total","value":42,"page":1,"quote":null}]}')
+            captured.append(dataclasses.asdict(raw))
+            return raw
+    monkeypatch.setattr(gate, "OpenAICompatibleChat", MockProvider)
+    gate._run_source(str(tmp_path), row, protocol, "UNUSED_KEY")
+    sidecar = freezer.read_json(tmp_path / "product_runs" / f"model2000_{row['doc_id']}" / "docs" / row["doc_id"] / "result.json")
+    return tmp_path, row, protocol, schema, sidecar, captured, recorded_requests
+
+
+def test_actual_visual_product_path_accounts_exact_request_and_complete_images(visual_run):
+    output, row, protocol, schema, sidecar, replies, requests = visual_run
+    outcome = freezer.read_json(output / "outcomes" / f"{row['doc_id']}.json")
+    metric = outcome["metrics"]
+    assert metric["valid_full_coverage"] and metric["strict_parsed"] and metric["full_visual_coverage"]
+    assert metric["full_text_coverage"] is None and metric["source_text_chars"] == 0
+    assert metric["coverage_scope"] == "complete_source_page_images"
+    assert metric["accepted_non_null_fields"] == 0
+    report = gate.summary(output, protocol)
+    assert report["valid_full_coverage_originals"] == report["valid_full_visual_coverage_originals"] == 1
+    assert report["valid_full_text_coverage_originals"] == 0
+    assert report["operational_gate_passed"]
+    assert report["accuracy_measured"] is False
+    gate._verify_existing(output, Ledger(output / "ledger.sqlite3").snapshot(), protocol, "a" * 64)
+
+
+@pytest.mark.parametrize("mutation", [
+    lambda s, r, q: r.clear(),
+    lambda s, r, q: q.clear(),
+    lambda s, r, q: r[0].update(text="invalid JSON"),
+    lambda s, r, q: r[0].update(text='{"values":[{"field_id":"total","value":42,"page":2,"quote":null}]}'),
+    lambda s, r, q: r[0].update(finish_reason="length"),
+    lambda s, r, q: r[0].update(refusal=True),
+    lambda s, r, q: r[0].update(sdk_attempts=None),
+    lambda s, r, q: s.update(document_status="failed"),
+    lambda s, r, q: s["candidate"].update(extracted_values=[]),
+    lambda s, r, q: s["candidate"]["extracted_values"][0].update(status="accepted"),
+    lambda s, r, q: s["visual_document"].update(full_source_covered=False),
+    lambda s, r, q: s["visual_document"].update(valid_pages=[]),
+    lambda s, r, q: s["visual_document"].update(plan_sha256="b" * 64),
+    lambda s, r, q: s["visual_document"]["requests"][0].update(request_sha256="b" * 64),
+    lambda s, r, q: s["visual_document"]["requests"][0].update(covered_pages=[1, 1]),
+    lambda s, r, q: q[0].update(kind="text"),
+])
+def test_visual_gate_never_passes_partial_unparsed_or_unrecorded_work(visual_run, mutation):
+    _output, _row, _protocol, schema, sidecar, replies, requests = visual_run
+    mutation(sidecar, replies, requests)
+    metric = gate.source_metrics(sidecar, replies, schema, requests=requests)
+    assert not metric["valid_full_coverage"]
+
+
+def test_visual_all_null_remains_structural_success_without_quality_claim(visual_run):
+    _output, _row, _protocol, schema, sidecar, replies, requests = visual_run
+    replies[0]["text"] = '{"values":[{"field_id":"total","value":null,"page":null,"quote":null}]}'
+    sidecar["candidate"]["extracted_values"][0].update(value=None, status="missing")
+    metric = gate.source_metrics(sidecar, replies, schema, requests=requests)
+    assert metric["valid_full_coverage"] and metric["all_null"] and metric["non_null_fields"] == 0
+
+
+def test_visual_provider_exception_retains_uncertain_attempt_without_retry(visual_run):
+    output, row, _protocol, _schema, _sidecar, _replies, _requests = visual_run
+    # A second source gets its own ledger entry in a separate synthetic gate.
+    from idpo.product_auto.visual_input import prepare_visual_document, plan_visual_requests
+    other = output / "second-gate"
+    other.mkdir()
+    source = Path(row["source_path"])
+    ledger = Ledger(other / "ledger.sqlite3")
+    ledger.initialize([row], "c" * 64, 2500)
+    ledger.claim(row["doc_id"])
+    request = plan_visual_requests(prepare_visual_document(source, expected_source_sha256=row["source_sha256"],
+        pages=[{"page": 1, "text": ""}]), fields=[{"field_id": "total", "type": "integer"}],
+        intent="total", model=freezer.MODEL, max_tokens=8192)[0]
+    calls = []
+    def fail(request):
+        calls.append(request)
+        assert ledger.snapshot()["attempts"][-1]["state"] == "request_begun"
+        raise TimeoutError("private transport detail")
+    provider = SimpleNamespace(model=freezer.MODEL, max_tokens=8192, complete_visual_json=fail)
+    wrapper = gate.RecordedModel(provider, other, row["doc_id"], source_sha256=row["source_sha256"])
+    with pytest.raises(TimeoutError):
+        wrapper.complete_visual_json(request)
+    ledger.recover_interrupted()
+    assert len(calls) == 1 and ledger.snapshot()["attempts"][0]["state"] == "uncertain"
+    assert not ledger.claim(row["doc_id"])
+
+
+def test_visual_wrapper_enforces_four_call_cap_before_extra_provider_invocation(visual_run):
+    output, row, _protocol, _schema, _sidecar, _replies, _requests = visual_run
+    from idpo.product_auto.visual_input import prepare_visual_document, plan_visual_requests
+    source = Path(row["source_path"])
+    other = output / "bounded-gate"
+    other.mkdir()
+    ledger = Ledger(other / "ledger.sqlite3")
+    ledger.initialize([row], "c" * 64, 2500)
+    ledger.claim(row["doc_id"])
+    request = plan_visual_requests(prepare_visual_document(source, expected_source_sha256=row["source_sha256"],
+        pages=[{"page": 1, "text": ""}]), fields=[{"field_id": "total", "type": "integer"}],
+        intent="total", model=freezer.MODEL, max_tokens=8192)[0]
+    calls = []
+    def complete(request):
+        calls.append(request)
+        return reply()
+    wrapper = gate.RecordedModel(SimpleNamespace(model=freezer.MODEL, max_tokens=8192,
+        complete_visual_json=complete), other, row["doc_id"], source_sha256=row["source_sha256"])
+    for _ in range(4):
+        wrapper.complete_visual_json(request)
+    with pytest.raises(GateStopped, match="source_call_budget_exhausted"):
+        wrapper.complete_visual_json(request)
+    assert len(calls) == 4 and len(ledger.snapshot()["attempts"]) == 4
