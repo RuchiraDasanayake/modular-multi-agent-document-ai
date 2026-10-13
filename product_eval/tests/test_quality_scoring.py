@@ -90,6 +90,7 @@ def test_sealed_actual_workflow_candidates_verify_and_bootstrap(campaign, monkey
     assert result["paired_uncertainty"]["proposed_scalar_positive"]["replicates"] == 10000
     assert result["paired_uncertainty"]["proposed_annotated_rows"]["macro"]["families"] == ["ad-buy-form", "receipt"]
     assert result["paired_uncertainty"]["valid_full_coverage"]["discordance"] == {"both": 6}
+    assert result["human_release_measured"] is False
     json.dumps(result, allow_nan=False)
 
 
@@ -158,7 +159,8 @@ def test_lists_nulls_rows_and_partial_extra_cells_keep_separate_semantics(campai
         assert rows["precision"] is rows["f1"] is rows["false_positive"] is None
 
 
-def test_reference_assembly_uses_unchanged_creator_conversion_only_after_receipt(campaign, monkeypatch, tmp_path):
+@pytest.mark.parametrize("reference_change", ["superset", "missing_selected", "duplicate_selected"])
+def test_reference_assembly_uses_unchanged_creator_conversion_only_after_receipt(campaign, monkeypatch, tmp_path, reference_change):
     install_mocks(monkeypatch, campaign)
     execute(campaign)
     bundle = verify.verify_campaign(campaign.output, _seal(campaign))
@@ -174,11 +176,25 @@ def test_reference_assembly_uses_unchanged_creator_conversion_only_after_receipt
         _write_family(creator, family, rows, matchers, {"item"} if family == "ad-buy-form" else set())
     gold = _gold(bundle)
     cord = tmp_path / "gold_reserved.jsonl"
-    cord.write_text("\n".join(json.dumps(gold[key]) for key, row in bundle["sources"].items() if row["family"] == "receipt"))
+    selected = [gold[key] for key, row in bundle["sources"].items() if row["family"] == "receipt"]
+    unused = {**deepcopy(selected[0]), "doc_id": "unused-reference"}
+    references = selected + [unused]
+    if reference_change == "missing_selected":
+        references = references[1:]
+    elif reference_change == "duplicate_selected":
+        references.append(selected[0])
+    cord.write_text("\n".join(json.dumps(row) for row in references))
     output = tmp_path / "derived"
+    if reference_change != "superset":
+        with pytest.raises(ValueError):
+            scoring.run_analysis(campaign.output, _seal(campaign), output, vrdu_root=creator, cord_gold=cord)
+        assert not (output / "quality-results.json").exists()
+        return
     result = scoring.run_analysis(campaign.output, _seal(campaign), output, vrdu_root=creator, cord_gold=cord)
     assert len(result["scoring_receipt_sha256"]) == 64
     assert read_json(output / "reference-conversion.json")["documents"] == 6
+    assert read_json(output / "reference-conversion.json")["converter_stats"]["receipt"] == {
+        "reference_documents_total": 3, "reference_documents_selected": 2, "reference_documents_unused": 1}
     report = read_json(output / "quality-results.json")
     # VRDU values remain strings: importing them must not coerce to model integers.
     assert report["families"]["text"]["registration-form"]["proposed_scalar_positive"]["matched"] == 0

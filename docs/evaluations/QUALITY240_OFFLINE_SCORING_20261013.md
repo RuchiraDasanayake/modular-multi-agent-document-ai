@@ -48,7 +48,10 @@ bytes; they receive no newline normalization.
 ## Fixed analysis semantics
 
 - VRDU references use the unchanged `_load_meta` and `_gold_record` conversion.
-  CORD uses the existing reserved gold file. No reference repairs, exclusions,
+  CORD uses the existing reserved gold file, which may be a validated superset of
+  the 40 selected originals. Every selected ID must occur exactly once; only the
+  frozen selection enters scoring. Total, selected and unused reference counts
+  are recorded, and missing or duplicate IDs fail. No reference repairs, exclusions,
   prediction-driven schema changes or independent visual adjudication are added.
 - Every original remains in both arm denominators. Failed, uncertain, invalid or
   incomplete results receive zero value/row matches against their full references.
@@ -68,6 +71,9 @@ bytes; they receive no newline normalization.
 - Provider attempts, finish reasons, strict validity, complete source coverage,
   scalar conflicts, all-null results, review status, known/unknown tokens and
   latency are reported independently. Observed source routes remain visible.
+- Inherited `accepted_*` metric names refer to machine field status. They do not
+  mean human-reviewed or released data. The output explicitly records
+  `human_release_measured: false`; this comparison has no HITL intervention.
 - The optional all-assessed-positive-targets diagnostic is not whole-document
   truth. There is no oracle best-of-two score, USD price, cost per truly correct
   document or automatic release-pass claim.

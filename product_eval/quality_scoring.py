@@ -51,8 +51,10 @@ def load_references(sources: dict, vrdu_root: Path, cord_gold: Path, output: Pat
         stats[family] = dict(counts)
     cord = load_jsonl(cord_gold, kind="gold")
     receipt_ids = {key for key, row in sources.items() if row["family"] == "receipt"}
-    verification.require(set(cord) == receipt_ids, "CORD reserved references differ from frozen originals")
-    gold.update(cord)
+    verification.require(receipt_ids <= set(cord), "CORD references lack selected originals; no exclusions permitted")
+    gold.update({key: cord[key] for key in receipt_ids})
+    stats["receipt"] = {"reference_documents_total": len(cord), "reference_documents_selected": len(receipt_ids),
+                        "reference_documents_unused": len(cord) - len(receipt_ids)}
     verification.require(set(gold) == set(sources), "Every frozen source needs its full reference")
     verification.require(before == {str(path.resolve()): digest_file(path) for path in paths}, "Reference inputs changed")
     raw = b"".join((json.dumps(gold[key], ensure_ascii=False, allow_nan=False) + "\n").encode() for key in sorted(gold))
@@ -199,6 +201,8 @@ def assemble_scores(bundle: dict, gold: dict) -> dict:
         uncertainty[metric] = result
     return {"families": reports, "paired_sources": [per_source[key] for key in sorted(per_source)],
             "paired_uncertainty": uncertainty, "all_sources_retained": True, "usd_cost": None,
+            "human_release_measured": False,
+            "accepted_status_interpretation": "Inherited accepted_* metrics refer to machine field status; no human review or release was measured",
             "whole_document_visual_truth_established": False, "quality_threshold_release_pass": None,
             "interpretation": "Creator-derived agreement on a source-only split; comparative research validation, not release certification"}
 
