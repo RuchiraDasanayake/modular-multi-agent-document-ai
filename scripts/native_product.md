@@ -51,6 +51,34 @@ Use Python 3.13 and install `idpo/product_auto/requirements-worker.txt` in a ded
 The historical repository environment may lack PDF, image, OCR or Office dependencies even if text extraction works.
 Verify `python -m pip check` and run the mixed-format parser checks before advertising those formats.
 
+For an installation with the separately pinned RapidOCR runtime, the optional
+confirmed-schema candidate can be selected explicitly in the private configuration:
+
+```json
+{
+  "autoOcrEngine": "rapidocr",
+  "rapidOcrPythonPath": "I:\\path\\to\\rapidocr-runtime\\Scripts\\python.exe",
+  "rapidOcrWorkDir": "I:\\path\\to\\ocr-scratch",
+  "rapidOcrTimeoutSeconds": 120,
+  "rapidOcrMaxRssMiB": 1536,
+  "autoResponseFormat": "strict_confirmed_values_v1",
+  "autoLongDocument": "bounded_text_segments_v1",
+  "autoVisualDocument": "bounded_visual_selective_v2",
+  "autoMaxOutputTokens": 8192,
+  "autoTimeoutSeconds": 180
+}
+```
+
+These keys extend the existing configuration; they do not replace its required
+database, authentication and path settings. The selected model must support the
+configured strict text and image request contracts. This candidate uses image
+input on eligible sources for repeated columns, long text or no usable OCR text;
+short scalar tasks keep the text route. See the
+[versioned selection rule](../docs/evaluations/SELECTIVE_VISUAL_ROUTING_V2_20261013.md).
+The launcher checks the OCR runtime before declaring readiness. New jobs seal
+these settings at admission; already queued jobs retain their original settings.
+No default deployment is silently changed by installing the newer code.
+
 Startup now runs the offline [product capability preflight](../docs/PRODUCT_RUNTIME_PREFLIGHT.md)
 with the configured `pythonPath` before starting services or declaring an existing stack ready.
 It allows 60 seconds by default (or the selected optional OCR timeout plus 30 seconds), stops only its identified probe process tree on timeout, and refuses startup on
