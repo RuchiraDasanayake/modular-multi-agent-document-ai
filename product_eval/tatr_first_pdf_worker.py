@@ -1,8 +1,9 @@
 """One-document Table Transformer worker with a separate OCR page process.
 
 The supervisor starts this module in the pinned CPU environment. It contains no
-gold reader. Each page uses PDFium native words when present; an image-only
-page invokes the independently pinned OCR runtime once on its full raster.
+gold reader. Each page uses projectable PDFium native words when present;
+an image-only page or a page with unprojectable native text invokes the
+independently pinned OCR runtime once on its full raster.
 """
 
 from __future__ import annotations
@@ -57,7 +58,7 @@ MAX_FILE_BYTES = 2_000_000
 MAX_RENDER_PIXELS = 35_000_000
 MAX_DETECTED_TABLES_PER_PAGE = 20
 PARSER_ID = "table-transformer-detection+v1.1-all-pinned-cell-functions"
-PARSER_VERSION = "research-word-route-first-pdf-v2"
+PARSER_VERSION = "research-word-route-first-pdf-v3"
 
 
 class MissingOcrRoute(RuntimeError):
@@ -154,7 +155,15 @@ def parse_native_page(
     if bitmap.width * bitmap.height > MAX_RENDER_PIXELS:
         raise ValueError("rendered page exceeds the frozen pixel limit")
     page_image = bitmap.to_pil().convert("RGB")
-    native_words = native_word_tokens(page, bitmap)
+    native_route_rejected: str | None = None
+    try:
+        native_words = native_word_tokens(page, bitmap)
+    except GeometryError:
+        # A text layer can contain glyphs outside the visible page. Dropping
+        # only those glyphs can leave an invisible or truncated native word;
+        # use one complete raster OCR route for this page instead.
+        native_words = []
+        native_route_rejected = "unprojectable_native_character"
     ocr_provenance: dict[str, Any] | None = None
     if native_words:
         words: list[WordToken | dict[str, Any]] = native_words
@@ -192,6 +201,7 @@ def parse_native_page(
         "pdf_mediabox_points": list(page.get_mediabox()),
         "pdf_rotation_degrees": page.get_rotation(),
         "word_route": word_route,
+        "native_route_rejected": native_route_rejected,
         "page_words": [asdict(word) if isinstance(word, WordToken) else word
                        for word in words],
         "ocr_provenance": ocr_provenance,

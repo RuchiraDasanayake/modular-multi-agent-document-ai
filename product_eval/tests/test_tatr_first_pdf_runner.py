@@ -11,6 +11,8 @@ import pytest
 from product_eval.table_crop_geometry import table_crop_from_proposal
 from product_eval.tatr_cell_compat import load_official_cell_functions
 from product_eval.tatr_first_pdf_runner import (
+    V1_FAILURE_RECEIPT_SHA256,
+    V2_OUTPUT_DIR,
     _frozen_volumes,
     _validate_output_path,
     _verify_trial_gate,
@@ -26,7 +28,8 @@ from product_eval.tatr_native_geometry import native_word_tokens
 
 
 def _synthetic_pdf(path: Path, *, with_words: bool,
-                   rotation: int = 0, crop: bool = False) -> None:
+                   rotation: int = 0, crop: bool = False,
+                   off_page_word: bool = False) -> None:
     pypdf = pytest.importorskip("pypdf")
     from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
@@ -42,10 +45,13 @@ def _synthetic_pdf(path: Path, *, with_words: bool,
     })
     stream = DecodedStreamObject()
     if with_words:
-        stream.set_data(
+        data = (
             b"BT /F1 14 Tf 40 120 Td (Left) Tj ET "
             b"BT /F1 14 Tf 160 120 Td (Right) Tj ET"
         )
+        if off_page_word:
+            data += b" BT /F1 14 Tf 296 120 Td (Overflow) Tj ET"
+        stream.set_data(data)
     else:
         stream.set_data(b"")
     page[NameObject("/Contents")] = writer._add_object(stream)
@@ -111,9 +117,11 @@ def test_document_inference_requires_separate_source_and_code_bound_gate(
             path.write_text(name, encoding="utf-8")
     code = {"source_sha256": {"runner.py": "a" * 64}}
     gate = {
-        "version": 1, "scope": "one_first_pdf_research_trial",
+        "version": 2, "scope": "one_first_pdf_research_geometry_fallback_v2",
         "document_inference_permitted": True,
         "max_documents": 1, "gold_access_permitted": False,
+        "output_directory": V2_OUTPUT_DIR.as_posix(),
+        "prior_failure_receipt_sha256": V1_FAILURE_RECEIPT_SHA256,
         "selection_sha256": sha256_file(files["selection"]),
         "cohort_sha256": sha256_file(files["cohort"]),
         "cpu_runtime_lock_sha256": sha256_file(files["cpu_lock"]),
@@ -162,6 +170,54 @@ def test_empty_native_page_stops_before_detector(tmp_path: Path, official) -> No
 
             with pytest.raises(MissingOcrRoute, match="no valid PDFium words"):
                 parse_native_page(page, bitmap, 1, must_not_infer, official)
+        finally:
+            bitmap.close()
+            page.close()
+    finally:
+        pdf.close()
+
+
+def test_unprojectable_native_word_uses_one_whole_page_ocr_route(
+    tmp_path: Path, official,
+) -> None:
+    pdfium = pytest.importorskip("pypdfium2")
+    source = tmp_path / "off-page-native.pdf"
+    _synthetic_pdf(source, with_words=True, off_page_word=True)
+    pdf = pdfium.PdfDocument(source)
+    try:
+        page = pdf[0]
+        bitmap = page.render(scale=300 / 72)
+        try:
+            with pytest.raises(ValueError, match="outside the rendered image"):
+                native_word_tokens(page, bitmap)
+            calls: list[int] = []
+
+            def ocr_handoff(_image, page_number):
+                calls.append(page_number)
+                return ([{"text": "Raster", "bbox": [50.0, 50.0, 200.0, 100.0],
+                          "source": "ocr_word"}], {"source": "synthetic_ocr"})
+
+            def infer(_image, kind):
+                assert kind == "detection"
+                return []
+
+            unit, tables, detail = parse_native_page(
+                page, bitmap, 1, infer, official, ocr_handoff,
+            )
+            assert calls == [1]
+            assert unit.text == "Raster"
+            assert tables == []
+            assert detail["word_route"] == "ocr_word"
+            assert detail["native_route_rejected"] == "unprojectable_native_character"
+            assert detail["page_words"][0]["source"] == "ocr_word"
+            with pytest.raises(MissingOcrRoute, match="no valid PDFium words"):
+                parse_native_page(page, bitmap, 1, infer, official)
+
+            def empty_ocr(_image, _page_number):
+                return [], {}
+
+            with pytest.raises(ValueError, match="empty or mixes"):
+                parse_native_page(page, bitmap, 1, infer, official, empty_ocr)
         finally:
             bitmap.close()
             page.close()

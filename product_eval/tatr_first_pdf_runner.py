@@ -40,6 +40,9 @@ FULL_RUN_SECONDS = 3600
 POLL_SECONDS = 0.5
 HOST_VOLUME = "C:"
 DATA_VOLUME = "I:"
+V2_OUTPUT_DIR = Path(r"I:\DocAI-Benchmarks\tatr-adbuy12-v2")
+V1_FAILURE_RECEIPT = Path(r"I:\DocAI-Benchmarks\tatr-adbuy12-v1\first_pdf_receipt.json")
+V1_FAILURE_RECEIPT_SHA256 = "3e068faa08cd52208674d1772db1075285653e7dd01f896129ca1b952a78bdc5"
 
 
 def _write_new_json(path: Path, value: dict[str, Any]) -> None:
@@ -184,11 +187,13 @@ def _verify_trial_gate(
 ) -> dict[str, Any]:
     gate = json.loads(gate_path.read_text(encoding="utf-8"))
     required = {
-        "version": 1,
-        "scope": "one_first_pdf_research_trial",
+        "version": 2,
+        "scope": "one_first_pdf_research_geometry_fallback_v2",
         "document_inference_permitted": True,
         "max_documents": 1,
         "gold_access_permitted": False,
+        "output_directory": V2_OUTPUT_DIR.as_posix(),
+        "prior_failure_receipt_sha256": V1_FAILURE_RECEIPT_SHA256,
         "selection_sha256": sha256_file(selection),
         "cohort_sha256": sha256_file(cohort),
         "cpu_runtime_lock_sha256": sha256_file(cpu_lock),
@@ -228,6 +233,7 @@ def _verify_content_artifacts(output_dir: Path, receipt: dict[str, Any],
         if (parsed.get("contract_version") != 2
                 or parsed.get("source_sha256") != source_sha256
                 or parsed.get("source_format") != "pdf"
+                or parsed.get("parser_version") != "research-word-route-first-pdf-v3"
                 or not isinstance(raw_pages, list)):
             raise ValueError("worker did not emit source-bound PDF parser artifacts")
         unit_data = parsed["units"]
@@ -247,6 +253,11 @@ def _verify_content_artifacts(output_dir: Path, receipt: dict[str, Any],
                     or detail.get("page_number") != index + 1
                     or detail.get("pdf_page_size_frame") != "cropbox_after_rotation"
                     or detail.get("pdf_rotation_degrees") not in (0, 90, 180, 270)
+                    or detail.get("word_route") not in ("pdfium_native", "ocr_word")
+                    or detail.get("native_route_rejected") not in
+                    (None, "unprojectable_native_character")
+                    or (detail.get("native_route_rejected") is not None
+                        and detail.get("word_route") != "ocr_word")
                     or not isinstance(detail.get("tables"), list)):
                 raise ValueError("parser page metadata has an inconsistent coordinate frame")
             size = detail.get("rendered_size_pixels")
@@ -377,6 +388,8 @@ def run_first_pdf(
     output_dir: Path, host_disk_root: Path, data_disk_root: Path,
 ) -> dict[str, Any]:
     repo_root = Path(__file__).resolve().parents[1]
+    if output_dir.absolute() != V2_OUTPUT_DIR:
+        raise ValueError("second first-PDF output must use the frozen v2 directory")
     volumes = _frozen_volumes(repo_root, cpu_python, ocr_python, output_dir,
                               host_disk_root, data_disk_root)
     _validate_output_path(output_dir, repo_root, corpus_root, asset_root,
@@ -395,11 +408,13 @@ def run_first_pdf(
     try:
         code_provenance = _code_provenance(repo_root)
         committed_lock = repo_root / "product_eval" / "fixtures" / "tatr_cpu_runtime_lock_v1.json"
-        committed_gate = repo_root / "product_eval" / "fixtures" / "tatr_first_pdf_research_gate_v1.json"
+        committed_gate = repo_root / "product_eval" / "fixtures" / "tatr_first_pdf_research_gate_v2.json"
         if expected_runtime_lock.resolve(strict=True) != committed_lock.resolve(strict=True):
             raise ValueError("TATR CPU runtime lock must be the committed fixture")
         if trial_gate.resolve(strict=True) != committed_gate.resolve(strict=True):
             raise ValueError("first-PDF trial gate must be the committed fixture")
+        if sha256_file(V1_FAILURE_RECEIPT) != V1_FAILURE_RECEIPT_SHA256:
+            raise ValueError("immutable first-PDF v1 failure receipt changed")
         from product_eval.tatr_ocr_word_source_free import LOCK_PATH as OCR_LOCK_PATH
 
         gate_provenance = _verify_trial_gate(
