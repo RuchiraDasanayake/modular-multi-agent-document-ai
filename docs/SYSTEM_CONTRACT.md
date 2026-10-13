@@ -269,6 +269,12 @@ per-owner admission limits. The authenticated synthetic smoke verifies this flow
 establish real-document quality or arbitrary scale. Reviewed JSON is downloadable per document and JSONL per
 completed run under the limits above. UI labels call machine-accepted values **Text matched** because exact OCR quotes do not establish
 correct field meaning or correspondence to the original image. Human review remains a separate decision.
+Schema suggestions request a closed JSON Schema response from the configured provider and are validated again
+locally; provider support does not imply semantic correctness. A repeated row is drafted as one `array[object]`
+field per column, with a shared `group` string. Scalar suggestions use a null group on the provider wire, which
+the helper removes before returning the existing brief field shape. Missing groups and extra properties are
+rejected. A structurally valid proposal may still omit a requested column, so
+a user must inspect, edit and confirm field meanings before preview or batch extraction.
 The [productization plan](PRODUCTIZATION_PLAN.md) records the remaining quality, cost and deployment gates.
 
 ## Canonical Research Policy Routing

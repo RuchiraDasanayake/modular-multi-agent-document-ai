@@ -20,7 +20,8 @@ type HelperInput = {
   brief_revision: number;
   brief_payload_sha256: string;
   intent: string;
-  existing_fields: { field_id: string; type: string; description: string; example_values: string[] }[];
+  existing_fields: { field_id: string; type: string; group: string | null;
+    description: string; example_values: string[] }[];
   samples: { file_id: string; source_sha256: string; path: string }[];
   model: { id: string; base_url: string };
 };
@@ -258,7 +259,7 @@ export async function suggestProductAutoBrief(jobId: string, user: Authenticated
     contract_version: 1, brief_revision: brief.revision, brief_payload_sha256: brief.payload_sha256,
     intent: brief.intent, samples, model,
     existing_fields: brief.fields.slice(0, 12).map((field) => ({ field_id: field.field_id,
-      type: field.type, description: field.description.slice(0, 200),
+      type: field.type, group: field.group ?? null, description: field.description.slice(0, 200),
       example_values: field.example_values.map((value) => value.slice(0, 80)) })),
   };
   const directory = helperDirectory(jobId, job.ownerUserId);

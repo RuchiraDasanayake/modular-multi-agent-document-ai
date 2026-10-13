@@ -24,13 +24,21 @@ per-file receipts, not infinite simultaneous work. A new format or file feature 
 evidence and quality slice are validated. No system can guarantee correct semantics on every unstructured input;
 the enforceable guarantee is an explicit, reviewable result or failure for every admitted source.
 
-The later October internal comparison makes this discipline necessary: on CORD-100, static had mean document F1
-**0.886** and mean latency **9.0 s**, versus **0.875** and **12.9 s** for `adaptive_safe`; the paired accuracy difference
-was not significant. The adaptive receipt path was significantly slower. The runtime reward also weakly tracked exact
-receipt accuracy. These are facts about the [frozen October experiment](../paper/FINAL_EVIDENCE.md), not a verdict on
-every possible router or the reported accepted submission.
+The later October internal summary reports CORD-100 mean document F1 **0.886** and mean latency **9.0 s** for static,
+versus **0.875** and **12.9 s** for `adaptive_safe`. It reports no significant accuracy gain and higher receipt latency.
+The [provenance audit](OCTOBER_EVIDENCE_PROVENANCE_AUDIT_20261013.md) could not recover the referenced raw bundles,
+so these remain historical reported values, not independently reproduced findings. They must not be numerical
+evidence in the final paper unless their raw inputs and outputs are recovered and verified. The separate
+[corrected simulation](AHMN_CORRECTED_SIMULATION_RESULT_20261013.md) preserves a new, fully recorded synthetic
+experiment; it does not establish actual document-extraction benefit.
 
 ### October 13 decision update
+
+Current execution: the [frozen Luna 6 campaign](evaluations/MODEL2000_SELECTIVE_V2_EXECUTION_20261013.md)
+is processing 2,000 distinct originals. A [source-disjoint 240-original paired comparison](evaluations/QUALITY240_PREREGISTRATION_20261013.md)
+is preregistered and awaits execution. These use confirmed schemas. Native schema suggestion is being tested
+separately through the real intent-first API. Neither an unfinished run nor a synthetic workflow smoke establishes
+general-purpose accuracy. Later evidence below is retained in chronological context rather than overwritten.
 
 The native intent-first workflow now has confirmed field meanings, bounded AI suggestions, pinned preview and
 reviewed-preview batch admission, plus a PostgreSQL queue. The
@@ -275,9 +283,11 @@ missing OCR executable is strongly indicated for its one zero-text scan; that sc
 No private document was sent. A later [six-source public development trial](evaluations/ICORE_REAL_DEVELOPMENT_SIX_RESULT_20261012.md)
 verified its first PDF/OCR source, then stopped after the first Luna schema request failed with an ambiguous
 `APIConnectionError` and no usage receipt. Eight planned document-model cells were not attempted; the run gives
-no real-document model-quality comparison or known USD charge. Published prices, API data-use terms and a hard spend
-limit are still unverified; do not run a cloud corpus gate until the
-[spend and data conditions](evaluations/ICORE_SPEND_AND_DATA_GATES_20261012.md) are met. The
+no real-document model-quality comparison or known USD charge. Published prices and API data-use terms remain
+unverified. The user subsequently authorized Luna 6/5.6 evaluation and credit replenishment, excluding Sonnet 5.
+The new frozen campaigns use explicit source manifests, call caps, stop conditions and no automatic retries;
+their call budgets are not verified monetary price estimates. Keep the earlier
+[spend and data record](evaluations/ICORE_SPEND_AND_DATA_GATES_20261012.md) as the prior decision context. The
 [later two-public-PDF product diagnostic](evaluations/ICORE_TWO_PUBLIC_QUALITY_RESULT_20261013.md)
 made three authenticated Luna requests with 10,538 reported tokens but matched
 no exact reference schema ID across 20 gold fields and no gold linked row

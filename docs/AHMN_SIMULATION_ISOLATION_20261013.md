@@ -38,3 +38,17 @@ These synthetic comparisons can support an algorithm ablation under the
 declared reward/embedding assumptions. They cannot demonstrate real-document
 quality, repair missing October extraction outputs, or establish benefits
 from RABI/DAAF in the current product, which does not invoke them.
+
+## Completed-study reporting clarification
+
+The new experiment is complete; see
+[the corrected result and full artifact receipts](AHMN_CORRECTED_SIMULATION_RESULT_20261013.md).
+The concept-drift scenario changes discretely at rounds 500 and 1000;
+the combined scenario has a separate discrete change at round 600. No
+continuous gradual-drift process was executed.
+
+RABI's configured `k=5` is not enforced by `initialize_prior`: it weights
+all supplied neighbors meeting similarity and observation thresholds.
+Report the executed softmax transfer rather than an enforced nearest-five
+retrieval rule. Neither this wording correction nor the manuscript revision
+changes the frozen simulator or reruns the experiment.
