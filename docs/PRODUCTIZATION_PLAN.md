@@ -1,6 +1,6 @@
 # Productization Plan
 
-Status: target architecture and release gates, updated 2026-10-12. This is not, by itself, a description of implemented behavior.
+Status: target architecture and release gates, updated 2026-10-13. This is not, by itself, a description of implemented behavior.
 `docs/SYSTEM_CONTRACT.md` records the current runtime; `paper/FINAL_EVIDENCE.md` records the frozen October internal
 study. The author-provided May PDF appears to be the reported accepted paper, pending verification against the exact
 CMT-uploaded manuscript. Neither study is the future product benchmark.
@@ -19,6 +19,37 @@ The later October internal comparison makes this discipline necessary: on CORD-1
 was not significant. The adaptive receipt path was significantly slower. The runtime reward also weakly tracked exact
 receipt accuracy. These are facts about the [frozen October experiment](../paper/FINAL_EVIDENCE.md), not a verdict on
 every possible router or the reported accepted submission.
+
+### October 13 decision update
+
+The [mixed-family 2,000-document
+gate](evaluations/MIXED_VRDU_CORD_TRAIN_2000_NO_MODEL_RESULT_20261013.md)
+completed on distinct original sources with zero releases, but exact schema F1
+was 3.375% and it proposed no linked table rows. The independent
+[ExtractBench six-document diagnostic](evaluations/EXTRACTBENCH_TEST6_NO_MODEL_PRODUCT_RESULT_20261013.md)
+also proposed no linked cells or rows; one 66-page document exceeded the
+current 50-page limit. These are product-path failures on the tested slices.
+
+The [ICORE Luna two-public-PDF diagnostic](evaluations/ICORE_TWO_PUBLIC_QUALITY_RESULT_20261013.md)
+matched 0/20 exact gold schema IDs and 0/22 gold linked rows; provider price
+and data terms remain unknown. A corrected local Qwen3-VL-2B blind diagnostic
+in a separate evaluation worktree produced no valid schema or value calls on
+six selected documents. Its result is a small development diagnostic. A
+source-locked Granite-Docling trial is prepared for local PDF table parsing,
+but its first source run stopped at the host disk guard before parsing. None
+of these candidates has earned product integration. Preserve the existing
+native-format table path while comparing PDF parsers on exact linked rows and
+source geometry.
+
+The next product change should be one bounded, feature-flagged PDF/image
+table adapter **only if** a parser clears its frozen row and evidence gate.
+Keep its proposals in the existing HITL queue. Then run the required fresh
+2,000-distinct-original-source end-to-end gate through the actual candidate
+path, recording false proposals, reviewer time, latency and CPU/GPU cost.
+Evaluate automatic schema discovery separately from extraction against a
+supplied schema; those are distinct failure modes. The target shape below
+remains a modular application with bounded workers. A new service, agent or
+memory layer requires a measured quality, cost or reliability gain.
 
 ## Current Starting Point And Boundaries
 
@@ -170,6 +201,11 @@ verified its first PDF/OCR source, then stopped after the first Luna schema requ
 no real-document model-quality comparison or known USD charge. Published prices, API data-use terms and a hard spend
 limit are still unverified; do not run a cloud corpus gate until the
 [spend and data conditions](evaluations/ICORE_SPEND_AND_DATA_GATES_20261012.md) are met. The
+[later two-public-PDF product diagnostic](evaluations/ICORE_TWO_PUBLIC_QUALITY_RESULT_20261013.md)
+made three authenticated Luna requests with 10,538 reported tokens but matched
+no exact reference schema ID across 20 gold fields and no gold linked row
+across 22 rows. It therefore does not justify a default cloud route; cost in
+USD is still unknown. The
 [local Qwen 12-PDF diagnostic](evaluations/LOCAL_QWEN_VRDU_TWELVE_PILOT.json) used 18 model calls with no cloud fee,
 but proposed zero linked cells and matched only one canonical value on nine model-served PDFs. Two scan outcomes are
 also confounded by the earlier OCR environment. Local compute cost was not priced, and improved synthetic prompts
