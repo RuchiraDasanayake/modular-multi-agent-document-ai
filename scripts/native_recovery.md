@@ -45,7 +45,7 @@ exist. Choose three unused clone ports different from all three original ports.
 Create a private cases JSON containing 1–20 already reviewed cases:
 
 ```json
-{"cases":[{"job_id":"<32-hex-job-id>","document_id":"<document-id>",
+{"cases":[{"job_id":"<32-hex-job-id>","document_id":"<upload-file-id>",
 "run_id":"<run-id>","source_relative_path":"frontend/uploads/job_<32-hex-job-id>/<stored-name>"}]}
 ```
 
@@ -59,6 +59,9 @@ checks, login, original download and reviewed batch export only. Tokens/password
 remain in memory. The receipt stores identities, byte counts and SHA-256 hashes,
 not response contents. Original source bytes must match the configured upload
 path. Finish all reviews before capture and do not modify these cases afterward.
+Here `document_id` is the upload's `fileId` from the job/selected-file record:
+`/api/jobs/<job>/docs/<fileId>/content` does **not** accept the extraction result's
+`docId`. Verify that mapping against the run's selected files before capture.
 
 ### 2. Stop the owned stack, then create the cold bundle
 
