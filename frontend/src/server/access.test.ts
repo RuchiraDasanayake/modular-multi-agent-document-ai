@@ -108,6 +108,49 @@ test("original documents and run IDs are private to the job owner", async () => 
   assert.equal((await getRunSummaryRoute(request("/api/runs/alice-run/summary", "bob"), runParams)).status, 404);
 }));
 
+test("original document content stays inside the configured uploads root", async (t) => withStorage(async () => {
+  const job = createWorkspaceJob({ ownerUserId: "alice-id" });
+  const upload = await uploadDocumentsRoute(request(`/api/jobs/${job.jobId}/documents`, "alice", {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream", "X-File-Name": "invoice.txt" },
+    body: "ORIGINAL",
+  }), { params: Promise.resolve({ jobId: job.jobId }) });
+  assert.equal(upload.status, 201);
+  const uploadedJob = await upload.json();
+  const document = uploadedJob.documents[0] as { fileId: string; storedName: string };
+  const uploadsPath = uploadedJob.uploadsPath as string;
+  const url = `/api/jobs/${job.jobId}/docs/${document.fileId}/content`;
+  const params = { params: Promise.resolve({ jobId: job.jobId, docId: document.fileId }) };
+  const original = await getDocumentContentRoute(request(url, "alice"), params);
+  assert.equal(original.status, 200);
+  assert.equal(await original.text(), "ORIGINAL");
+
+  const outsideDir = path.join(process.env.IDPO_DATA_DIR!, "outside-uploads");
+  fs.mkdirSync(outsideDir);
+  fs.writeFileSync(path.join(outsideDir, document.storedName), "OUTSIDE_PRIVATE_BYTES");
+  const movedUploadsPath = `${uploadsPath}.audit-original`;
+  fs.renameSync(uploadsPath, movedUploadsPath);
+  try {
+    try {
+      fs.symlinkSync(outsideDir, uploadsPath, process.platform === "win32" ? "junction" : "dir");
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error &&
+        ["EPERM", "EACCES", "ENOTSUP"].includes(String(error.code))) {
+        t.skip(`Directory links unavailable: ${String(error.code)}`);
+        return;
+      }
+      throw error;
+    }
+    const denied = await getDocumentContentRoute(request(url, "alice"), params);
+    assert.equal(denied.status, 400);
+    assert.doesNotMatch(await denied.text(), /OUTSIDE_PRIVATE_BYTES/);
+    assert.equal((await getDocumentContentRoute(request(url, "bob"), params)).status, 404);
+  } finally {
+    if (fs.existsSync(uploadsPath)) fs.unlinkSync(uploadsPath);
+    fs.renameSync(movedUploadsPath, uploadsPath);
+  }
+}));
+
 test("run artifact paths cannot cross owners through a decoded document ID", async () => withStorage(async () => {
   const aliceJob = createWorkspaceJob({ ownerUserId: "alice-id" });
   const bobJob = createWorkspaceJob({ ownerUserId: "bob-id" });
