@@ -2,6 +2,8 @@
 
 **13 October 2026 — source-free runtime HOLD.** This receipt audits the frozen 23-wheel Windows CPython 3.11 RapidTable environment. It opened no selected VRDU PDF or gold annotation, ran no OCR or table model, and made no product extraction change. The existing v1 environment and all earlier receipts were left untouched.
 
+**Clean successor:** A separate [table-only runtime](RAPIDTABLE_TABLE_ONLY_RUNTIME_20261013.md) now passes installed-byte and six-cell synthetic checks with one OpenCV owner and supplied OCR tuples. This does not change the historical 23-wheel v1 HOLD or clear OCR, localization, source evidence, selected-PDF or product gates.
+
 ## Installed-byte decision
 
 The [runtime auditor](../../product_eval/rapidtable_runtime_provenance.py) verified the SHA-256 and size of every cached wheel in the [original lock](../../product_eval/fixtures/rapidtable_v3_runtime_lock.json), each wheel's internal `RECORD` hashes and sizes, the installed `RECORD` rows, and the installed bytes of **2,290 wheel payload files**. **22 of 23 distributions matched their pinned wheels.** The remaining distribution, `opencv-python-headless==5.0.0.93`, had three mismatches:
