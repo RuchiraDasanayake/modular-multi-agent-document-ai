@@ -55,6 +55,10 @@ Compose checks, a frontend build and focused tests but has **not** completed a l
 The default Compose profile starts PostgreSQL, Redis, gateway, product worker, and frontend. The four separate
 research services start only with `--profile research`; they are not used by this product path. The canonical
 research job runner is explicitly unavailable in Docker.
+An October two-user audit reproduced cross-owner reading of legacy run artifacts through a traversal document ID;
+the frontend now rejects unsafe document IDs and confines document and review artifact paths to the authorized run.
+Focused two-user, traversal and directory-link tests pass. This fixes that route, not every possible ownership path;
+a broader route audit remains an external-release gate.
 
 The CLI accepts one file or a directory. It supports PDF, common raster images, text, the existing JSON document
 format, and source-native DOCX, XLSX, PPTX, HTML, and EML. The five native adapters preserve parser-derived text

@@ -113,6 +113,9 @@ memory layer requires a measured quality, cost or reliability gain.
   reviewer-visible evidence need separate evaluation.
 - Owner-scoped access to jobs, runs, uploaded documents and artifacts must be verified across every frontend and gateway
   entrypoint before an external release. Existing or in-progress access code is not a substitute for two-user tests.
+  A two-user audit reproduced a cross-owner legacy run-artifact read via a traversal document ID; frontend commits
+  `3ded1f0` and `d78d21e` now reject unsafe IDs and confine document/review paths. The 76-test frontend server suite,
+  TypeScript and targeted lint passed for the scoped fix. This is not a completed audit of every entrypoint.
 - Preserve the submitted manuscript once verified and keep the October draft's configurations, scorer, run IDs,
   negative result and simulation-only claims intact as separate evidence. New product benchmarks get separate
   manifests, run IDs, data rights and reports.
@@ -173,7 +176,7 @@ schema discovery and agent routing remain experimental until the gates below are
 | Jobs | A queue with idempotent workers is sufficient for the first product slice; [Celery documents duplicate-delivery/idempotency tradeoffs](https://docs.celeryq.dev/en/stable/userguide/optimizing.html). [Docling Serve](https://github.com/docling-project/docling/blob/main/docs/usage/api_server/deployment.md) already offers Redis/RQ parsing workers. | Adopt [Temporal](https://docs.temporal.io/production-deployment) only if durable multi-step/human-wait orchestration outweighs another service to operate. |
 | Approved examples | Start with explicit, versioned templates and reviewed examples. [pgvector](https://github.com/pgvector/pgvector) permits tenant-filtered exact retrieval in PostgreSQL. | Add vector retrieval only after a no-memory ablation; approximate indexes trade recall for speed. No automatic promotion of unreviewed corrections. |
 
-The newer [Surya 2](https://github.com/datalab-to/surya) offers OCR, layout and table row/column recognition through one local VLM, but its [model license](https://github.com/datalab-to/surya/blob/master/MODEL_LICENSE) includes commercial revenue, funding and competing-service restrictions. It is a research comparison candidate, not a default production dependency without a deployment-rights review. Its published speed and accuracy are vendor measurements, not results on this corpus or host.
+The [PP-TableMagic v2 GPU protocol](evaluations/PP_TABLEMAGIC_V2_ADBUY12_GPU_PROTOCOL_20261013.md) is frozen for a conditional local challenge. The CPU arm timed out before producing a page, and the GPU wheel/runtime has not been installed or scored. Its proposed cell boxes still require independent pixel-to-cell review. The newer [Surya 2](https://github.com/datalab-to/surya) offers OCR, layout and table row/column recognition through one local VLM, but its [model license](https://github.com/datalab-to/surya/blob/master/MODEL_LICENSE) includes commercial revenue, funding and competing-service restrictions. It is a research comparison candidate, not a default production dependency without a deployment-rights review. Its published speed and accuracy are vendor measurements, not results on this corpus or host.
 
 Open-source code is not free operation: record CPU/GPU seconds, model memory, storage, network/API charges and human
 review minutes. Code licenses do not establish model or dataset rights. For example, [OmniDocBench's repository](https://github.com/opendatalab/OmniDocBench)
