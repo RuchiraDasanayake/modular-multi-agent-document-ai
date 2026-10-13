@@ -1,5 +1,18 @@
 # ICORE spend and data-control audit, 2026-10-12
 
+> **Status update — 13 October 2026:** The spend decision below is a preserved
+> historical decision, superseded for the explicitly authorized Luna evaluation.
+> The account owner authorized Luna 6 or Luna 5.6, offered to replenish credits,
+> and prohibited Sonnet 5. The [new 2,000-source protocol](MODEL2000_SELECTIVE_V2_EXECUTION_20261013.md)
+> therefore uses a fixed public-source cohort, a 2,500-attempt maximum, bounded
+> concurrency, explicit provider-failure stops and no automatic replay of
+> uncertain paid attempts. The [240-source paired protocol](QUALITY240_PREREGISTRATION_20261013.md)
+> has its own 1,920-attempt cap and first-provider-error stop. These are separate
+> authorized campaigns, not an accumulation of the old small pilots. Prices,
+> settled charges and API data terms are still unverified; cost in USD remains
+> unknown. This authorization does not establish data-use guarantees for future
+> customers' private documents.
+
 ## Decision
 
 **No ICORE-backed 2,000-document run yet.** I could not verify a current ICORE API rate card, settled charge ledger, account balance, usage/quota endpoint, or provider-enforced dollar ceiling. An application call/token limit can bound the experiment's requests, but it cannot guarantee a USD maximum when prices and the billing treatment of failed or timed-out calls are unknown. Run the required 2,000 distinct-document gate locally while these cloud conditions are unresolved. Keep ICORE limited to small, explicitly bounded synthetic or public-document diagnostics with `api_cost_usd: null`.
