@@ -272,8 +272,8 @@ correct field meaning or correspondence to the original image. Human review rema
 Schema suggestions request a closed JSON Schema response from the configured provider and are validated again
 locally; provider support does not imply semantic correctness. A repeated row is drafted as one `array[object]`
 field per column, with a shared `group` string. Scalar suggestions use a null group on the provider wire, which
-the helper removes before returning the existing brief field shape. Missing groups, extra properties and a
-group-named container field are rejected. A structurally valid proposal may still omit a requested column, so
+the helper removes before returning the existing brief field shape. Missing groups and extra properties are
+rejected. A structurally valid proposal may still omit a requested column, so
 a user must inspect, edit and confirm field meanings before preview or batch extraction.
 The [productization plan](PRODUCTIZATION_PLAN.md) records the remaining quality, cost and deployment gates.
 

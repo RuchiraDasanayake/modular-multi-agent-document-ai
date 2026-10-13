@@ -225,8 +225,6 @@ def _parse_suggestion(text: str) -> tuple[list[dict[str, object]], list[str]]:
             if any(ord(char) < 32 or ord(char) == 127 for char in group):
                 raise ValueError("Invalid suggested group")
             parsed["group"] = group
-        if field_type == "array[object]" and group == field_id:
-            raise SuggestionContractError("repeated_container_field")
         if field_type != "array[object]" and group is not None:
             raise ValueError("Only repeated fields may use a group")
         fields.append(parsed)
@@ -299,8 +297,8 @@ def suggest_fields(request: dict[str, object], model: ChatModel, *, raw_reply_pa
             "Propose 1 to 12 fields and at most 5 questions. Use only fields requested by the "
             "user or supported by the excerpts. Use null group for scalar fields. For a "
             "repeated table, propose one array[object] field per requested column with exactly "
-            "the same group, never one field for the whole row/object. Never use the group "
-            "name as a field ID. Each description defines just its own field. Examples must "
+            "the same group, never one field for the whole row/object. Each description "
+            "defines just its own field. Examples must "
             "be exact substrings of the excerpts or be omitted. If a field meaning is "
             "ambiguous, ask a clarification question."
         ),

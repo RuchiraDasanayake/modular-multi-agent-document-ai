@@ -99,12 +99,16 @@ def test_reproduced_container_reply_is_rejected_without_silent_column_loss(tmp_p
     with pytest.raises(SuggestionFailure) as raised:
         suggest_fields(_request(sample), FakeModel(response))
     assert raised.value.diagnostic()["code"] == "repeated_field_needs_group"
-    grouped_container = json.dumps({"fields": [{"field_id": "order_lines", "type": "array[object]",
-        "group": "order_lines", "description": "Each object contains item_name, quantity and amount",
-        "example_values": []}], "clarification_questions": []})
-    with pytest.raises(SuggestionFailure) as grouped:
-        suggest_fields(_request(sample), FakeModel(grouped_container))
-    assert grouped.value.diagnostic()["code"] == "repeated_container_field"
+
+
+def test_single_repeated_column_may_share_its_group_name(tmp_path: Path) -> None:
+    sample = tmp_path / "contacts.txt"
+    sample.write_text("Phone numbers: 555-0100, 555-0101", encoding="utf-8")
+    field = {"field_id": "phone_numbers", "type": "array[object]", "group": "phone_numbers",
+             "description": "One phone number for each listed contact", "example_values": ["555-0100"]}
+    response = json.dumps({"fields": [field], "clarification_questions": []})
+    result = suggest_fields(_request(sample), FakeModel(response))
+    assert result["fields"] == [field]
 
 
 def test_three_repeated_columns_share_one_group_and_keep_separate_meanings(tmp_path: Path) -> None:
