@@ -59,6 +59,11 @@ An October two-user audit reproduced cross-owner reading of legacy run artifacts
 the frontend now rejects unsafe document IDs and confines document and review artifact paths to the authorized run.
 Focused two-user, traversal and directory-link tests pass. This fixes that route, not every possible ownership path;
 a broader route audit remains an external-release gate.
+The same audit reproduced a separate local filesystem junction escape in the authenticated original-content route.
+That route now derives the expected job upload directory from configuration and confines resolved directory and file
+paths before reading. A Windows junction regression and the full 78-test frontend server suite pass. A process with
+permission to replace local paths can still race a path check against a read; this is not an HTTP-only exploit found
+in the bounded audit, and the broader release audit remains open.
 
 The CLI accepts one file or a directory. It supports PDF, common raster images, text, the existing JSON document
 format, and source-native DOCX, XLSX, PPTX, HTML, and EML. The five native adapters preserve parser-derived text
