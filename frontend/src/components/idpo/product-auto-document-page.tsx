@@ -216,6 +216,7 @@ export function ProductAutoDocumentPage() {
     draft[field.field_id]?.decision === "remove" || draft[field.field_id]?.decision === "not_present").length;
   const atFieldLimit = candidate.proposed_schema.length - removedProposals + addedDraft.length >= 24;
   const originalUrl = `/api/jobs/${encodeURIComponent(jobId)}/docs/${encodeURIComponent(detail.fileId)}/content`;
+  const exportUrl = `/api/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(runId)}/docs/${encodeURIComponent(docId)}/export`;
   const previewable = /\.(pdf|png|jpe?g|txt|json)$/i.test(detail.fileName);
   const nativeFormat = /\.(docx|xlsx|pptx|html|eml)$/i.test(detail.fileName);
 
@@ -517,6 +518,11 @@ export function ProductAutoDocumentPage() {
       <IdpoCard>
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Corrected structured result</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Derived from the preserved machine candidate and latest saved review. Revision {detail.correctedResult.review_revision}; {detail.correctedResult.review_status}.</p>
+        {detail.correctedResult.review_status === "completed" ? (
+          <a href={exportUrl} className="mt-3 inline-block rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700">
+            Download reviewed JSON
+          </a>
+        ) : <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">Complete the review to download a structured result.</p>}
         <pre className="mt-3 max-h-96 overflow-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-100">{JSON.stringify(detail.correctedResult, null, 2)}</pre>
       </IdpoCard>
 

@@ -19,6 +19,7 @@ import type {
   ProductAutoReview,
   ProductAutoReviewDecision,
   ProductAutoReviewField,
+  ProductAutoReviewedExport,
   ProductAutoRun,
   ProductAutoRunDocument,
   ProductAutoScalarType,
@@ -922,6 +923,29 @@ function loadProductAutoDocument(jobId: string, runId: string, docId: string): {
 
 export function getProductAutoDocument(jobId: string, runId: string, docId: string): ProductAutoDocumentDetail {
   return loadProductAutoDocument(jobId, runId, docId).detail;
+}
+
+export function getProductAutoReviewedExport(jobId: string, runId: string, docId: string): ProductAutoReviewedExport {
+  const { detail, machineResultHash } = loadProductAutoDocument(jobId, runId, docId);
+  const review = detail.review;
+  if (!review || detail.correctedResult.review_status !== "completed" ||
+    detail.correctedResult.fields.some((field) => field.status === "needs_review")) {
+    throw new AccessError("Complete the document review before exporting its result.", 409);
+  }
+  const sourceHash = verifiedReviewSourceHash(jobId, runId, detail.fileId);
+  const sourcePagesHash = createHash("sha256").update(JSON.stringify(detail.sourcePages)).digest("hex");
+  if (review.source_container_sha256 !== sourceHash || review.source_pages_sha256 !== sourcePagesHash ||
+    review.machine_result_sha256 !== machineResultHash) {
+    throw new AccessError("The review is not bound to the current source and extraction result.", 409);
+  }
+  return {
+    contract_version: 1, job_id: jobId, run_id: runId,
+    document: { doc_id: docId, file_id: detail.fileId, file_name: detail.fileName,
+      source_sha256: sourceHash, machine_result_sha256: machineResultHash },
+    review: { revision: review.revision, audit_event_id: review.audit_event_id,
+      reviewer_user_id: review.reviewer_user_id, updated_at: review.updated_at },
+    result: detail.correctedResult,
+  };
 }
 
 export function deriveProductAutoCorrectedResult(

@@ -125,8 +125,15 @@ immutable machine candidate and latest review snapshot. Undecided machine values
 are reviewer assertions; newly added scalar and linked-cell corrections carry checked OCR quotes, which prove source
 presence but not semantic correctness. Review changes append revisioned events and reject stale saves. A reviewer may
 record 1 to 14,400 seconds of self-reported active work for an individual save; the system does not infer this time
-and older events have no such field. The
-job-scoped recipe API separately records owner-scoped draft, approval, and disable events from completed reviews; it
+and older events have no such field.
+
+The owner-scoped `GET /api/jobs/<job_id>/auto/<run_id>/docs/<doc_id>/export` route downloads a versioned JSON result only
+after that document's review is complete. It rechecks the original source, OCR-page, machine-result, and review hashes
+at download time. The export carries typed fields, per-field status and provenance, source and machine hashes, and the
+review revision; it omits the raw source and server file paths. A human-corrected value is still a reviewer assertion
+unless it has explicit evidence. This is a per-document export; bulk run export is not implemented.
+
+The job-scoped recipe API separately records owner-scoped draft, approval, and disable events from completed reviews; it
 requires explicit linked-row group confirmation and can configure one explicitly selected run.
 This is not geometric table annotation.
 

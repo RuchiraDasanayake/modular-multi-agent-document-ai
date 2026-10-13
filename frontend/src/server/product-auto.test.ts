@@ -7,6 +7,7 @@ import { spawn } from "node:child_process";
 import test from "node:test";
 import { GET as listAutoRoute, POST as startAutoRoute } from "@/app/api/jobs/[jobId]/auto/route";
 import { GET as getAutoDocRoute, POST as reviewAutoDocRoute } from "@/app/api/jobs/[jobId]/auto/[runId]/docs/[docId]/route";
+import { GET as exportAutoDocRoute } from "@/app/api/jobs/[jobId]/auto/[runId]/docs/[docId]/export/route";
 import { GET as getOriginalContentRoute } from "@/app/api/jobs/[jobId]/docs/[docId]/content/route";
 import { idpoApi, parseReportedActiveMinutes } from "@/lib/idpo-api";
 import { resetConfigCacheForTests } from "./config";
@@ -114,12 +115,14 @@ test("automatic extraction keeps source access private and rejects conflicting r
 
   const collectionUrl = `/api/jobs/${job.jobId}/auto`;
   const docUrl = `${collectionUrl}/${runId}/docs/${docId}`;
+  const exportUrl = `${docUrl}/export`;
   const collectionParams = { params: Promise.resolve({ jobId: job.jobId }) };
   const detailParams = { params: Promise.resolve({ jobId: job.jobId, runId, docId }) };
   const sourceUrl = `/api/jobs/${job.jobId}/docs/${source.fileId}/content`;
   const sourceParams = { params: Promise.resolve({ jobId: job.jobId, docId: source.fileId }) };
   assert.equal((await listAutoRoute(request(collectionUrl, "bob"), collectionParams)).status, 404);
   assert.equal((await getAutoDocRoute(request(docUrl, "bob"), detailParams)).status, 404);
+  assert.equal((await exportAutoDocRoute(request(exportUrl, "bob"), detailParams)).status, 404);
   assert.equal((await getOriginalContentRoute(request(sourceUrl, "bob"), sourceParams)).status, 404);
   assert.equal(await (await getOriginalContentRoute(request(sourceUrl, "alice"), sourceParams)).text(), sourceText);
 
@@ -140,6 +143,9 @@ test("automatic extraction keeps source access private and rejects conflicting r
   assert.equal(JSON.parse(detailBody).sourcePages[0].text, sourceText);
   assert.equal(JSON.parse(detailBody).correctedResult.fields[0].status, "needs_review");
   assert.equal(JSON.parse(detailBody).correctedResult.fields[0].provenance, "machine");
+  const unfinishedExport = await exportAutoDocRoute(request(exportUrl, "alice"), detailParams);
+  assert.equal(unfinishedExport.status, 409);
+  assert.match((await unfinishedExport.json()).error, /Complete the document review/);
 
   const post = (token: string, expectedRevision: number, fields: unknown, addedFields?: unknown,
     reportedSeconds?: unknown) => reviewAutoDocRoute(request(docUrl, token, {
@@ -184,6 +190,13 @@ test("automatic extraction keeps source access private and rejects conflicting r
   assert.equal(reviewedBody.correctedResult.fields[0].value, "103");
   assert.equal(reviewedBody.correctedResult.fields[0].provenance, "human_correction");
   assert.equal(reviewedBody.correctedResult.fields[0].evidence, undefined);
+  const correctedExport = await exportAutoDocRoute(request(exportUrl, "alice"), detailParams);
+  assert.equal(correctedExport.status, 200);
+  const correctedExportBody = await correctedExport.json();
+  assert.equal(correctedExportBody.review.revision, 2);
+  assert.equal(correctedExportBody.result.fields[0].value, "103");
+  assert.equal(correctedExportBody.result.fields[0].provenance, "human_correction");
+  assert.equal(correctedExportBody.result.fields[0].evidence, undefined);
   const reviewedList = await listAutoRoute(request(collectionUrl, "alice"), collectionParams);
   assert.equal((await reviewedList.json()).runs[0].documents[0].reviewStatus, "completed");
   assert.equal(fs.existsSync(path.join(dataDir, "frontend", "auto_reviews", job.jobId, runId, `${docId}.json`)), false);
@@ -248,6 +261,25 @@ test("automatic extraction keeps source access private and rejects conflicting r
   assert.equal(finalBody.auditTrail[2].review_added_fields[0].value, "INV-7");
   assert.deepEqual(finalBody.correctedResult, adjudicatedBody.correctedResult);
   assert.equal((await getAutoDocRoute(request(docUrl, "bob"), detailParams)).status, 404);
+  const reviewedExport = await exportAutoDocRoute(request(exportUrl, "alice"), detailParams);
+  assert.equal(reviewedExport.status, 200);
+  assert.match(reviewedExport.headers.get("Content-Disposition") ?? "", /^attachment; filename="docai-doc1-reviewed-v1\.json"$/);
+  assert.equal(reviewedExport.headers.get("Cache-Control"), "no-store, max-age=0");
+  assert.equal(reviewedExport.headers.get("X-Content-Type-Options"), "nosniff");
+  const exportText = await reviewedExport.text();
+  assert.equal(exportText.includes(privatePath), false);
+  assert.equal(exportText.includes(sourceText), false);
+  const exportBody = JSON.parse(exportText);
+  assert.equal(exportBody.contract_version, 1);
+  assert.equal(exportBody.document.source_sha256, sha256);
+  assert.equal(exportBody.document.machine_result_sha256,
+    createHash("sha256").update(fs.readFileSync(path.join(sidecarDir, "result.json"))).digest("hex"));
+  assert.equal(exportBody.review.revision, 3);
+  assert.equal(exportBody.result.review_status, "completed");
+  assert.deepEqual(exportBody.result, finalBody.correctedResult);
+  fs.writeFileSync(path.join(updated.uploadsPath!, source.storedName), "changed source bytes");
+  assert.equal((await exportAutoDocRoute(request(exportUrl, "alice"), detailParams)).status, 409);
+  fs.writeFileSync(path.join(updated.uploadsPath!, source.storedName), sourceText);
 
   const afterDelete = await post("alice", 3, [{ field_id: "total", decision: "remove" }],
     [{ field_id: "paid", type: "boolean", value: "false", evidence: quoteSource("Paid: false") },
@@ -259,6 +291,7 @@ test("automatic extraction keeps source access private and rejects conflicting r
   const unresolved = await post("alice", 4, [{ field_id: "total", decision: "incorrect" }], []);
   assert.equal(unresolved.status, 200);
   assert.equal((await unresolved.json()).review.status, "pending");
+  assert.equal((await exportAutoDocRoute(request(exportUrl, "alice"), detailParams)).status, 409);
 
   const writeCandidate = () => fs.writeFileSync(path.join(sidecarDir, "result.json"), JSON.stringify({
     pages: [{ page: 1, text: sourceText }], candidate,
@@ -270,6 +303,7 @@ test("automatic extraction keeps source access private and rejects conflicting r
   candidate.extracted_values[0].value = "999";
   writeCandidate();
   assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 409);
+  assert.equal((await exportAutoDocRoute(request(exportUrl, "alice"), detailParams)).status, 409);
   candidate.proposed_schema[0].type = "integer";
   candidate.extracted_values[0].value = 100;
   writeCandidate();

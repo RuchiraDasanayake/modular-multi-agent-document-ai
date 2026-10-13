@@ -173,6 +173,26 @@ export interface ProductAutoCorrectedResult {
   removed_field_ids: string[];
 }
 
+export interface ProductAutoReviewedExport {
+  contract_version: 1;
+  job_id: string;
+  run_id: string;
+  document: {
+    doc_id: string;
+    file_id: string;
+    file_name: string;
+    source_sha256: string;
+    machine_result_sha256: string;
+  };
+  review: {
+    revision: number;
+    audit_event_id: string;
+    reviewer_user_id: string;
+    updated_at: string;
+  };
+  result: ProductAutoCorrectedResult;
+}
+
 export interface ProductAutoSourceDocument {
   fileId: string;
   fileName: string;
