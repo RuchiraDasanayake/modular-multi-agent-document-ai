@@ -270,7 +270,8 @@ def plan_visual_requests(
         instructions = INSTRUCTIONS
         if response_format_profile == VISUAL_VALUES_PROFILE_V2:
             instructions += (" Return values as an object keyed by every confirmed field_id. "
-                             "Every field key must contain value, page, and quote; use null for an absent value. ")
+                             "Every field key must contain value, page, and quote; use null for an absent value. "
+                             "For array[object] fields, the outer page and quote are null; cells carry their pages and quotes. ")
         prompt = instructions + _json_bytes({"fields": list(fields), "user_intent": intent,
                     "pages": [json.loads(p.ocr_json) for p in batch]}).decode("utf-8")
         content: list[dict[str, object]] = [{"type": "text", "text": prompt}]

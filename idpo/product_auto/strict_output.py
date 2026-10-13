@@ -75,6 +75,9 @@ def compile_confirmed_values_response_format_v2(
     field_types = _field_types(fields)
     for field_id, field_type in field_types.items():
         if field_type == "array[object]":
+            # The ICORE strict-schema subset has not been verified for
+            # minLength/maxItems. The local decoder enforces nonblank cells,
+            # <=500 characters, and MAX_LINKED_ROWS_PER_FIELD regardless.
             value_schema: dict[str, object] = {"type": ["array", "null"], "items": {
                 "type": "object", "properties": {
                     "row": {"type": "integer"}, "value": {"type": "string"},
@@ -86,8 +89,8 @@ def compile_confirmed_values_response_format_v2(
             value_schema = {"type": scalar_types[field_type]}
         properties[field_id] = {"type": "object", "properties": {
             "value": value_schema,
-            "page": {"type": ["integer", "null"]},
-            "quote": {"type": ["string", "null"]},
+            "page": {"type": "null" if field_type == "array[object]" else ["integer", "null"]},
+            "quote": {"type": "null" if field_type == "array[object]" else ["string", "null"]},
         }, "required": ["value", "page", "quote"], "additionalProperties": False}
     envelope = {"type": "object", "properties": {"values": {
         "type": "object", "properties": properties,

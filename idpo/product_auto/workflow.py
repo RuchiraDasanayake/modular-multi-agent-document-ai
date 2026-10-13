@@ -642,7 +642,8 @@ def _process_document(
                         sidecar["scalar_conflicts"] = conflicts
                         sidecar["reason"] = "long_document_scalar_conflict"
             else:
-                prompt = values_prompt(pages, prompt_fields, intent)
+                prompt = values_prompt(pages, prompt_fields, intent,
+                                       output_shape=_values_prompt_shape(response_format_profile))
                 if strict_response_format is not None:
                     prompt += _strict_values_prompt_suffix(response_format_profile)
                 values_reply = _complete_model(model, prompt, response_format=strict_response_format)
@@ -782,7 +783,8 @@ def _extract_long_document_values(
         except SegmentMergeError:
             sidecar["failed_segment_index"] = segment.index
             return None, {}, "long_document_segment_invalid"
-        prompt = values_prompt(local_pages, prompt_fields, intent)
+        prompt = values_prompt(local_pages, prompt_fields, intent,
+                               output_shape=_values_prompt_shape(response_format_profile))
         prompt += (" This is one bounded source segment. Return values found in this segment only; "
                    "use null for fields absent here. Row ordinals start at zero within this segment.")
         if strict_response_format is not None:
@@ -899,6 +901,10 @@ def _strict_values_prompt_suffix(profile: str) -> str:
                 "use null with page and quote both null; do not omit its field key.")
     return (" Include every listed field exactly once. For a missing value use null, "
             "with page and quote both null. Keep all four keys on every value item.")
+
+
+def _values_prompt_shape(profile: str) -> str:
+    return "keyed_v2" if profile == STRICT_CONFIRMED_VALUES_PROFILE_V2 else "array_v1"
 
 
 def _parse_strict_values(

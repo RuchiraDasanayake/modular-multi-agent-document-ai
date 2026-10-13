@@ -11,6 +11,7 @@ import pytest
 
 from idpo.product_auto.confirmed_schema import load_confirmed_schema
 from idpo.product_auto.provider import ModelReply
+from idpo.product_auto.logic import values_prompt
 from idpo.product_auto.strict_output import (
     PROFILE,
     PROFILE_V2,
@@ -62,10 +63,14 @@ def test_compiler_requires_exact_typed_field_keys_and_nullable_values() -> None:
         assert item["additionalProperties"] is False
     assert values["properties"]["total"]["properties"]["value"]["type"] == ["number", "string", "null"]
     assert values["properties"]["item_name"]["properties"]["value"]["type"] == ["array", "null"]
+    assert values["properties"]["item_name"]["properties"]["page"] == {"type": "null"}
+    assert values["properties"]["item_name"]["properties"]["quote"] == {"type": "null"}
     assert values["properties"]["item_name"]["properties"]["value"]["items"]["properties"]["quote"] == {"type": "string"}
     visual = compile_visual_response_format(SCHEMA, profile=VISUAL_PROFILE_V2)
     assert visual["json_schema"]["name"] == "docai_visual_confirmed_values_v2"
     assert visual["json_schema"]["schema"]["properties"]["values"]["required"] == values["required"]
+    assert visual["json_schema"]["schema"]["properties"]["values"]["properties"]["item_name"]["properties"]["page"] == {"type": "null"}
+    assert visual["json_schema"]["schema"]["properties"]["values"]["properties"]["item_name"]["properties"]["quote"] == {"type": "null"}
     assert visual["json_schema"]["schema"]["properties"]["values"]["properties"]["item_name"]["properties"]["value"]["items"]["properties"]["quote"] == {"type": ["string", "null"]}
 
 
@@ -87,6 +92,20 @@ def test_keyed_parser_distinguishes_required_null_from_missing_key_and_preserves
     assert parse_confirmed_strict_values_reply_v2(json.dumps(old), SCHEMA, PAGES) is None
 
 
+def test_v1_prompt_bytes_remain_frozen_and_v2_example_is_keyed_only() -> None:
+    fields = [{"field_id": "total", "type": "decimal"}]
+    pages = [{"page": 1, "text": "Total: 12.50"}]
+    old = values_prompt(pages, fields, "Extract total")
+    assert hashlib.sha256(old.encode()).hexdigest() == "dd5c2e7b97ef7040c3ce3e570260fb13b1d99942456e9eeb53b41eaad331c1f0"
+    keyed = values_prompt(pages, fields, "Extract total", output_shape="keyed_v2")
+    assert '{"values":{"total":{"value":null,"page":null,"quote":null}}}' in keyed
+    assert '{"values":[' not in keyed
+    assert '"field_id":"..."' not in keyed
+    assert "outer page and quote are null" in keyed
+    with pytest.raises(ValueError, match="Unknown values prompt shape"):
+        values_prompt(pages, fields, output_shape="not_versioned")
+
+
 @pytest.mark.parametrize("mutation", [
     lambda value: value["values"].update(extra={"value": None, "page": None, "quote": None}),
     lambda value: value.update(extra=True),
@@ -98,6 +117,7 @@ def test_keyed_parser_distinguishes_required_null_from_missing_key_and_preserves
     lambda value: value["values"]["total"].update(page=True),
     lambda value: value["values"]["item_name"]["value"][0].update(page=2),
     lambda value: value["values"]["item_name"]["value"][0].update(quote=None),
+    lambda value: value["values"]["item_name"].update(page=1, quote="Widget"),
     lambda value: value["values"]["quantity"].update(value=None, page=1),
     lambda value: value["values"]["item_name"]["value"].append(
         {"row": 0, "value": "Widget", "page": 1, "quote": "Widget"}),
@@ -163,6 +183,9 @@ def test_text_workflow_pins_v2_and_hashes_actual_raw_reply(tmp_path: Path) -> No
     candidate, sidecar, manifest, run = _run_text(tmp_path, PAGES[0]["text"], model)
     assert len(model.calls) == 1
     assert "object keyed by every confirmed field_id" in model.calls[0]["prompt"]
+    assert '{"values":{"item_name":{"value":null,"page":null,"quote":null}}}' in model.calls[0]["prompt"]
+    assert '{"values":[' not in model.calls[0]["prompt"]
+    assert "outer page and quote are null" in model.calls[0]["prompt"]
     assert model.calls[0]["response_format"] == compile_confirmed_values_response_format_v2(SCHEMA)
     assert [item["field_id"] for item in candidate["extracted_values"]] == list(VALUES["values"])
     assert candidate["document_status"] == "needs_review"
@@ -207,6 +230,9 @@ def test_segmented_v2_requires_every_key_in_every_segment_and_keeps_coverage(tmp
     model = SegmentModel([])
     candidate, sidecar, manifest, _ = _run_text(tmp_path, source, model, segmented=True)
     assert len(model.calls) == 2
+    assert all('{"values":[' not in call["prompt"] and
+               '{"values":{"item_name":{"value":null,"page":null,"quote":null}}}' in call["prompt"]
+               for call in model.calls)
     assert manifest["long_document"]["full_source_covered"] is True
     assert all(call["raw_reply_sha256"] for call in sidecar["model_calls"])
     assert candidate["extracted_values"][2]["value"] == 12.5
@@ -246,6 +272,10 @@ def test_visual_workflow_uses_v2_wire_and_retains_review_only(tmp_path: Path, mo
     manifest = json.loads((run_dir / "manifest.jsonl").read_text())
     assert len(model.requests) == 1
     assert model.requests[0]["response_format"] == compile_visual_response_format(SCHEMA, profile=VISUAL_PROFILE_V2)
+    visual_prompt = model.requests[0]["messages"][1]["content"][0]["text"]
+    assert "object keyed by every confirmed field_id" in visual_prompt
+    assert "outer page and quote are null" in visual_prompt
+    assert '{"values":[' not in visual_prompt
     assert candidate["document_status"] == "needs_review"
     assert all(item["status"] == "needs_review" for item in candidate["extracted_values"] if item["value"] is not None)
     assert sidecar["response_format_profile"] == manifest["response_format_profile"] == VISUAL_PROFILE_V2
@@ -275,6 +305,9 @@ def test_visual_v2_rejects_missing_key_and_out_of_source_page() -> None:
     assert parse_visual_values_reply(json.dumps(valid), SCHEMA, PAGES, profile=VISUAL_PROFILE_V2) is None
     valid = copy.deepcopy(VALUES)
     valid["values"]["item_name"]["value"][0]["page"] = 99
+    assert parse_visual_values_reply(json.dumps(valid), SCHEMA, PAGES, profile=VISUAL_PROFILE_V2) is None
+    valid = copy.deepcopy(VALUES)
+    valid["values"]["item_name"].update(page=1, quote="Widget")
     assert parse_visual_values_reply(json.dumps(valid), SCHEMA, PAGES, profile=VISUAL_PROFILE_V2) is None
 
 
