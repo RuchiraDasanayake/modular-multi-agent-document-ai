@@ -60,8 +60,11 @@ export default function LoginPage() {
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="glass-panel rounded-2xl p-8 space-y-6">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">Username</label>
+                        <label htmlFor="login-username" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">Username</label>
                         <input
+                            id="login-username"
+                            name="username"
+                            autoComplete="username"
                             type="text"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
@@ -72,8 +75,11 @@ export default function LoginPage() {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">Password</label>
+                        <label htmlFor="login-password" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">Password</label>
                         <input
+                            id="login-password"
+                            name="password"
+                            autoComplete="current-password"
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
@@ -84,7 +90,7 @@ export default function LoginPage() {
                     </div>
 
                     {error && (
-                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50 backdrop-blur-md rounded-xl px-4 py-3 text-red-600 dark:text-red-400 text-sm shadow-sm">
+                        <div role="alert" className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50 backdrop-blur-md rounded-xl px-4 py-3 text-red-600 dark:text-red-400 text-sm shadow-sm">
                             {error}
                         </div>
                     )}

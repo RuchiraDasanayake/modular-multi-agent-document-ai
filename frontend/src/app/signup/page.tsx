@@ -70,8 +70,11 @@ export default function SignupPage() {
                 {signupOpen ? (
                     <form onSubmit={handleSubmit} className="glass-panel rounded-2xl p-8 space-y-6">
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">Email</label>
+                            <label htmlFor="signup-email" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">Email</label>
                             <input
+                                id="signup-email"
+                                name="email"
+                                autoComplete="email"
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
@@ -82,8 +85,11 @@ export default function SignupPage() {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">Username</label>
+                            <label htmlFor="signup-username" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">Username</label>
                             <input
+                                id="signup-username"
+                                name="username"
+                                autoComplete="username"
                                 type="text"
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
@@ -96,8 +102,11 @@ export default function SignupPage() {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">Password</label>
+                            <label htmlFor="signup-password" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">Password</label>
                             <input
+                                id="signup-password"
+                                name="password"
+                                autoComplete="new-password"
                                 type="password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
@@ -109,8 +118,11 @@ export default function SignupPage() {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">Confirm Password</label>
+                            <label htmlFor="signup-confirm-password" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">Confirm Password</label>
                             <input
+                                id="signup-confirm-password"
+                                name="confirm_password"
+                                autoComplete="new-password"
                                 type="password"
                                 value={confirm}
                                 onChange={(e) => setConfirm(e.target.value)}
@@ -122,7 +134,7 @@ export default function SignupPage() {
                         </div>
 
                         {error && (
-                            <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50 backdrop-blur-md rounded-xl px-4 py-3 text-red-600 dark:text-red-400 text-sm shadow-sm">
+                            <div role="alert" className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50 backdrop-blur-md rounded-xl px-4 py-3 text-red-600 dark:text-red-400 text-sm shadow-sm">
                                 {error}
                             </div>
                         )}
