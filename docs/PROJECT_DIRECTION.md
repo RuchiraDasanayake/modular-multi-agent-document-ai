@@ -60,6 +60,8 @@ That means:
   proposed or approved schema and a reusable recipe
 - intent-first batch onboarding: optional user schema/context, representative sample, clarified field definitions,
   source-linked preview, explicit approval, then bounded batch execution and structured export
+- an explicit operator-defined schema path: field meanings and examples, a small source sample, human confirmation,
+  preview with source-linked review, then application of the pinned schema to the remaining job files
 - provider-neutral comparisons of local CPU, local GPU and opt-in cloud API extraction, with data controls and spend caps
 - field-level source evidence, side-by-side human review, adjudicated corrections and auditable outcomes
 - defect fixes and focused reduction of the canonical runtime, gateway and frontend job path, with tests

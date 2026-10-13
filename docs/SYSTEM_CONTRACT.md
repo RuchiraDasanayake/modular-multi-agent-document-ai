@@ -142,10 +142,20 @@ review revision; it omits the raw source and server file paths. A human-correcte
 unless it has explicit evidence. This is a per-document export; bulk run export is not implemented.
 
 The owner-scoped `/api/jobs/<job_id>/auto/brief` API stores a revisioned extraction brief with plain-language intent,
-optional typed fields and examples, and 1–5 sample file IDs bound to source SHA-256 hashes. `GET` reports stale sample
-IDs; `POST` requires the current revision and appends an immutable draft event. This is onboarding metadata only: the
-brief is not sent to a model or worker and has no effect on extraction runs. Future clarification and preview code must
-pin the exact brief revision and payload digest and recheck source hashes before use.
+typed field meanings and examples, and 1–5 sample file IDs bound to source SHA-256 hashes. `GET` reports stale sample
+IDs; `POST` requires the current revision and appends an immutable draft event. `PATCH` explicitly confirms the current
+revision and payload digest only when it has typed fields and all sample bytes still match. Any subsequent edit appends
+a new draft; it does not inherit confirmation. Intent-only drafts cannot start this schema-guided route.
+
+The owner-scoped `POST /api/jobs/<job_id>/auto` route accepts an explicit `confirmedBrief` selection. The `preview`
+phase must select exactly the confirmed sample files. The `batch` phase excludes those files and requires the exact
+confirmed preview run, complete source-linked human review of all its documents, unchanged sample sources, and valid
+run, document, and review receipts. The frontend freezes a SHA-256-bound schema snapshot; the native worker validates
+its bytes and fields before running. It skips schema discovery, sends field descriptions, examples, and intent with
+source text to the value model, and checks exact source evidence locally. Values remain pending review. The run,
+manifest, and document artifacts carry the same confirmed-schema receipt. This path requires a configured value model
+and currently inherits the admin-only model-call gate. The earlier dynamic discovery and approved-recipe v1 paths
+remain available. AI-generated draft fields and model clarification are not yet part of this confirmation path.
 
 The job-scoped recipe API separately records owner-scoped draft, approval, and disable events from completed reviews; it
 requires explicit linked-row group confirmation and can configure one explicitly selected run.
