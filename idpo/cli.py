@@ -59,6 +59,8 @@ def main() -> None:
     auto_parser.add_argument("--max-tokens", type=int, default=1200)
     auto_parser.add_argument("--approved-recipe-file", default=None, help="Explicit approved recipe snapshot file")
     auto_parser.add_argument("--approved-recipe-sha256", default=None, help="Expected SHA-256 of recipe snapshot bytes")
+    auto_parser.add_argument("--confirmed-schema-file", default=None, help="Explicit user-confirmed schema snapshot file")
+    auto_parser.add_argument("--confirmed-schema-sha256", default=None, help="Expected SHA-256 of confirmed schema bytes")
 
     migrate_parser = subparsers.add_parser("migrate-storage", help="Move legacy repo-root runtime data into IDPO_DATA_DIR")
     migrate_parser.add_argument("--root", default=".", help="Legacy repo root containing runs/ and inputs/")
@@ -146,17 +148,26 @@ def main() -> None:
     if args.command == "process-auto":
         from idpo.product_auto import process_auto
         from idpo.product_auto.approved_recipe import load_approved_recipe
+        from idpo.product_auto.confirmed_schema import load_confirmed_schema
         from idpo.product_auto.provider import OpenAICompatibleChat
 
         if bool(args.model) != bool(args.api_base_url):
             parser.error("--model and --api-base-url must be supplied together")
         if bool(args.approved_recipe_file) != bool(args.approved_recipe_sha256):
             parser.error("--approved-recipe-file and --approved-recipe-sha256 must be supplied together")
-        if args.approved_recipe_file and not args.model:
-            parser.error("An approved recipe requires a configured value extraction model")
+        if bool(args.confirmed_schema_file) != bool(args.confirmed_schema_sha256):
+            parser.error("--confirmed-schema-file and --confirmed-schema-sha256 must be supplied together")
+        if args.approved_recipe_file and args.confirmed_schema_file:
+            parser.error("Choose either an approved recipe or a confirmed schema")
+        if (args.approved_recipe_file or args.confirmed_schema_file) and not args.model:
+            parser.error("An approved recipe or confirmed schema requires a configured value extraction model")
         approved_recipe = (
             load_approved_recipe(Path(args.approved_recipe_file), args.approved_recipe_sha256)
             if args.approved_recipe_file else None
+        )
+        confirmed_schema = (
+            load_confirmed_schema(Path(args.confirmed_schema_file), args.confirmed_schema_sha256)
+            if args.confirmed_schema_file else None
         )
         model = (
             OpenAICompatibleChat(
@@ -178,6 +189,7 @@ def main() -> None:
             ocr_call_timeout_s=args.ocr_call_timeout_s,
             ocr_page_budget_s=args.ocr_page_budget_s,
             approved_recipe=approved_recipe,
+            confirmed_schema=confirmed_schema,
         )
         print(json.dumps(result, indent=2))
         return

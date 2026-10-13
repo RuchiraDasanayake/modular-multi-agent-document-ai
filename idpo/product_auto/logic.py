@@ -347,8 +347,10 @@ def schema_prompt(pages: list[dict[str, object]]) -> str:
     )
 
 
-def values_prompt(pages: list[dict[str, object]], fields: list[dict[str, object]]) -> str:
+def values_prompt(pages: list[dict[str, object]], fields: list[dict[str, object]], intent: str = "") -> str:
     data = {"pages": pages, "fields": fields}
+    if intent:
+        data["user_intent"] = intent
     return (
         "Extract values only for the listed fields. Return JSON only as "
         '{"values":[{"field_id":"...","value":null,"page":1,"quote":"exact source text"}]}. '

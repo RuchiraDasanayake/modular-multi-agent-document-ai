@@ -20,6 +20,7 @@ from idpo.core.config import PipelineConfig
 from idpo.core.provenance import ProvenanceRecorder
 from idpo.core.storage import data_root
 from idpo.product_auto.approved_recipe import ApprovedRecipe
+from idpo.product_auto.confirmed_schema import ConfirmedSchema
 from idpo.product_auto.logic import (
     MAX_FIELDS,
     baseline_proposals,
@@ -63,6 +64,7 @@ def process_auto(
     ocr_call_timeout_s: float = DEFAULT_OCR_CALL_TIMEOUT_S,
     ocr_page_budget_s: float = DEFAULT_OCR_PAGE_BUDGET_S,
     approved_recipe: ApprovedRecipe | None = None,
+    confirmed_schema: ConfirmedSchema | None = None,
     output_root: Path | None = None,
 ) -> dict[str, object]:
     """Write versioned product candidates under IDPO_DATA_DIR/product_runs.
@@ -87,8 +89,10 @@ def process_auto(
         raise ValueError("ocr_call_timeout_s must be a finite positive number")
     if not math.isfinite(ocr_page_budget_s) or ocr_page_budget_s <= 0:
         raise ValueError("ocr_page_budget_s must be a finite positive number")
-    if approved_recipe is not None and model is None:
-        raise ValueError("An approved recipe requires a configured value extraction model")
+    if approved_recipe is not None and confirmed_schema is not None:
+        raise ValueError("Choose either an approved recipe or a confirmed schema")
+    if (approved_recipe is not None or confirmed_schema is not None) and model is None:
+        raise ValueError("An approved recipe or confirmed schema requires a configured value extraction model")
 
     resolved_run_id = run_id or uuid.uuid4().hex
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", resolved_run_id):
@@ -176,6 +180,7 @@ def process_auto(
             doc_resources_started = resource_probe.snapshot()
             candidate, sidecar = _process_document(
                 doc_id, document, ctx, ocr, model, initial_reason, native_parsed, approved_recipe,
+                confirmed_schema,
             )
             doc_resources_ended = resource_probe.snapshot()
             duration_ms = round(shared_prepare_ms + (time.perf_counter() - started) * 1000, 3)
@@ -228,6 +233,7 @@ def process_auto(
                 "model_sdk_attempt_count": _known_sdk_attempts(sidecar["model_calls"]),
                 "resource_usage": resource_usage,
                 **({"approved_recipe": approved_recipe.receipt} if approved_recipe else {}),
+                **({"confirmed_schema": confirmed_schema.receipt} if confirmed_schema else {}),
             })
 
     _write_jsonl(run_dir / "candidates.jsonl", candidates)
@@ -249,6 +255,7 @@ def process_auto(
         "model_configured": model is not None,
         "model_id": getattr(model, "model", None) if model is not None else None,
         "approved_recipe": approved_recipe.receipt if approved_recipe else None,
+        "confirmed_schema": confirmed_schema.receipt if confirmed_schema else None,
         "model_call_count": sum(int(receipt["model_call_count"]) for receipt in receipts),
         "model_sdk_attempt_count": (
             sum(int(attempts) for attempts in known_attempts)
@@ -280,6 +287,7 @@ def _process_document(
     initial_reason: str | None,
     native_parsed: ParsedDocument | None = None,
     approved_recipe: ApprovedRecipe | None = None,
+    confirmed_schema: ConfirmedSchema | None = None,
 ) -> tuple[dict[str, object], dict[str, object]]:
     candidate: dict[str, object] = {
         "contract_version": CONTRACT_VERSION,
@@ -300,6 +308,8 @@ def _process_document(
     }
     if approved_recipe is not None:
         sidecar["approved_recipe"] = approved_recipe.receipt
+    if confirmed_schema is not None:
+        sidecar["confirmed_schema"] = confirmed_schema.receipt
     if document is None or initial_reason is not None:
         return candidate, sidecar
     sidecar["source_document_id"] = document.doc_id
@@ -373,10 +383,14 @@ def _process_document(
     if len(pages) > MAX_PAGES or sum(len(str(page["text"])) for page in pages) > MAX_MODEL_CHARS:
         force_review = True
         sidecar["reason"] = "document_exceeds_auto_limit"
-    if approved_recipe is not None:
-        schema = [dict(field) for field in approved_recipe.fields]
+    if approved_recipe is not None or confirmed_schema is not None:
+        schema = ([dict(field) for field in approved_recipe.fields] if approved_recipe is not None
+                  else confirmed_schema.candidate_fields)
         if not force_review:
-            values_reply = _complete_model(model, values_prompt(pages, schema))
+            prompt_fields = ([dict(field) for field in confirmed_schema.fields]
+                             if confirmed_schema is not None else schema)
+            intent = confirmed_schema.intent if confirmed_schema is not None else ""
+            values_reply = _complete_model(model, values_prompt(pages, prompt_fields, intent))
             _record_model_call(sidecar, "values", values_reply)
             proposed_values = (
                 parse_values_reply(values_reply.text, schema, pages)
@@ -467,6 +481,11 @@ def _process_document(
             sidecar["reason"] = (
                 "approved_recipe_requires_review" if any(value["status"] == "accepted" for value in values.values())
                 else "approved_recipe_no_grounded_values"
+            )
+        elif confirmed_schema is not None:
+            sidecar["reason"] = (
+                "confirmed_schema_requires_review" if any(value["status"] == "accepted" for value in values.values())
+                else "confirmed_schema_no_grounded_values"
             )
         else:
             sidecar["reason"] = "unapproved_dynamic_schema"
