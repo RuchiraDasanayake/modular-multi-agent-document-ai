@@ -48,6 +48,14 @@ approval for AI use. Source-only parsing found **11/12** version 3 files within
 the current 24,000-character model limit. The fraud assessment still exceeds
 it. Versions 1 and 2 remain audit receipts, not inference cohorts. Per-source
 local rights, cloud transfer, full template disjointness and gold remain open.
+The [schema-only scorer](evaluations/SCHEMA_ONLY_SCORER_V1_CONTRACT.md)
+and [blind-schema preflight](evaluations/SCHEMA12_BLIND_SCHEMA_AB_PROTOCOL_20261013.md)
+are now versioned against v3. The read-only preflight verified all 12 raw
+hashes, the scorer source lock and the pinned product parser files, but
+correctly stopped before model calls. Independent human gold and anchors,
+per-source AI-use rights, runtime assets and a source-free model fit test are
+still required. This 12-source diagnostic cannot establish product extraction
+quality or replace the 2,000-source end-to-end gate.
 
 The next product change should be one bounded, feature-flagged PDF/image
 table adapter **only if** a parser clears its frozen row and evidence gate.
