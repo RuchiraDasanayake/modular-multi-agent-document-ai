@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 from typing import Protocol
 
@@ -22,6 +23,8 @@ MAX_REQUEST_BYTES = 48 * 1024
 MAX_QUESTIONS = 5
 MAX_FIELDS = 12
 MODEL_MAX_TOKENS = 1800
+MAX_PDF_SAMPLE_PAGES = 2
+SAMPLE_OCR_TIMEOUT_S = 15.0
 _HEX32 = re.compile(r"[a-f0-9]{32}\Z")
 _SHA256 = re.compile(r"[a-f0-9]{64}\Z")
 _FIELD_ID = re.compile(r"[^\W\d][\w]{0,63}\Z", re.UNICODE)
@@ -70,17 +73,50 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _ocr_image(image: object) -> str:
-    import pytesseract
-    from PIL import Image, ImageOps
-
+def _ocr_sample(path: Path) -> tuple[str, str]:
+    from idpo.agents.base import AgentContext
+    from idpo.agents.intake import IntakeAgent
     from idpo.agents.preprocess import OcrAgent
+    from idpo.core.artifacts import ArtifactStore
+    from idpo.core.config import PipelineConfig
+    from idpo.core.provenance import ProvenanceRecorder
+    from idpo.core.storage import data_root
 
-    Image.MAX_IMAGE_PIXELS = 12_000_000
-    OcrAgent()._configure_tesseract(pytesseract)
-    with ImageOps.exif_transpose(image) as oriented:  # type: ignore[arg-type]
-        oriented.thumbnail((2000, 2000))
-        return pytesseract.image_to_string(oriented.convert("RGB"), lang="eng", config="--psm 6", timeout=15)
+    engine = os.environ.get("IDPO_AUTO_OCR_ENGINE", "").strip() or "tesseract"
+    if engine not in {"tesseract", "rapidocr"}:
+        raise ValueError("Unsupported sample OCR engine")
+    intake = IntakeAgent()
+    if path.suffix.lower() == ".pdf":
+        document = intake.preview_pdf(path, page_limit=MAX_PDF_SAMPLE_PAGES)
+        parser = f"intake-pdf-preview-{engine}-v1"
+    else:
+        from PIL import Image
+
+        # Check dimensions before the shared engine decodes the source image.
+        with Image.open(path) as image:
+            if image.width * image.height > 12_000_000:
+                raise ValueError("Sample image exceeds the pixel limit")
+        document = intake.ingest(str(path))[0]
+        parser = f"intake-image-preview-{engine}-v1"
+    config = PipelineConfig()
+    config.preprocessing.ocr_engine = engine
+    config.preprocessing.ocr_psm = 6
+    config.preprocessing.ocr_passes = 1
+    config.preprocessing.ocr_alt_psm = []
+    config.preprocessing.ocr_initial_single_pass = True
+    config.preprocessing.ocr_max_reruns_per_page = 0
+    config.preprocessing.ocr_tesseract_call_timeout_s = SAMPLE_OCR_TIMEOUT_S
+    config.preprocessing.ocr_tesseract_page_budget_s = SAMPLE_OCR_TIMEOUT_S
+    scratch_root = data_root() / "brief_previews"
+    scratch_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="sample-", dir=scratch_root) as scratch:
+        root = Path(scratch)
+        ctx = AgentContext(config=config, artifact_store=ArtifactStore(str(root / "artifacts")),
+                           provenance=ProvenanceRecorder(str(root / "events.jsonl")), run_id=root.name)
+        result = OcrAgent().run({"document": document}, ctx)
+        if result.artifacts["signal"].failure_reason:
+            raise ValueError("Sample OCR failed in the bounded preview")
+        return "\n".join(page.text for page in result.artifacts["document"].pages), parser
 
 
 def _sample_text(path: Path, source_hash: str) -> tuple[str, str]:
@@ -95,43 +131,8 @@ def _sample_text(path: Path, source_hash: str) -> tuple[str, str]:
 
         documents = IntakeAgent().ingest(str(path))[:2]
         return "\n".join(str(page.text) for document in documents for page in document.pages[:2]), "json-pages"
-    if suffix == ".pdf":
-        from pypdf import PdfReader
-
-        reader = PdfReader(str(path))
-        if len(reader.pages) > 50:
-            raise ValueError("Sample PDF exceeds the 50-page product limit")
-        pages = [page.extract_text() or "" for page in reader.pages[:2]]
-        from idpo.agents.degarble import is_garbled
-
-        if any(text.strip() and not is_garbled(text) for text in pages):
-            return "\n".join(pages), "pypdf-first-two-pages"
-        import pypdfium2 as pdfium
-
-        document = pdfium.PdfDocument(str(path))
-        texts: list[str] = []
-        try:
-            for index in range(min(2, len(document))):
-                page = document[index]
-                try:
-                    width, height = page.get_size()
-                    scale = min(2.0, 2000 / max(width, height, 1))
-                    image = page.render(scale=scale).to_pil()
-                    try:
-                        texts.append(_ocr_image(image))
-                    finally:
-                        image.close()
-                finally:
-                    page.close()
-        finally:
-            document.close()
-        return "\n".join(texts), "pdfium-tesseract-first-two-pages"
-    if suffix in {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}:
-        from PIL import Image
-
-        Image.MAX_IMAGE_PIXELS = 12_000_000
-        with Image.open(path) as image:
-            return _ocr_image(image), "pillow-tesseract-first-frame"
+    if suffix in {".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}:
+        return _ocr_sample(path)
     raise ValueError("Unsupported sample file type")
 
 
