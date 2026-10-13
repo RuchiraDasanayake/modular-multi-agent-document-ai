@@ -117,6 +117,17 @@ try {
     PRODUCT_EXECUTION_MODE = 'postgres'
     PRODUCT_QUEUE_DATABASE_URL = [string]$config.databaseUrl
     IDPO_PRODUCT_PYTHON = [string]$config.pythonPath
+    IDPO_AUTO_OCR_ENGINE = [string]$config.autoOcrEngine
+    IDPO_AUTO_RESPONSE_FORMAT = [string]$config.autoResponseFormat
+    IDPO_AUTO_LONG_DOCUMENT = [string]$config.autoLongDocument
+    IDPO_RAPIDOCR_PYTHON = ''; IDPO_RAPIDOCR_WORK_DIR = ''
+    IDPO_RAPIDOCR_TIMEOUT_S = ''; IDPO_RAPIDOCR_MAX_RSS_MIB = ''
+  }
+  if ($config.autoOcrEngine -eq 'rapidocr') {
+    $frontendEnvironment.IDPO_RAPIDOCR_PYTHON = [string]$config.rapidOcrPythonPath
+    $frontendEnvironment.IDPO_RAPIDOCR_WORK_DIR = [string]$config.rapidOcrWorkDir
+    $frontendEnvironment.IDPO_RAPIDOCR_TIMEOUT_S = [string]$config.rapidOcrTimeoutSeconds
+    $frontendEnvironment.IDPO_RAPIDOCR_MAX_RSS_MIB = [string]$config.rapidOcrMaxRssMiB
   }
   foreach ($mapping in @(@('autoModel', 'IDPO_AUTO_MODEL'), @('autoApiBaseUrl', 'IDPO_AUTO_API_BASE_URL'),
     @('icoreApiKey', 'ICORE_API_KEY'), @('tesseractPath', 'TESSERACT_CMD'), @('tessdataDir', 'TESSDATA_PREFIX'),

@@ -11,7 +11,7 @@ import math
 from pathlib import Path
 from typing import Any
 
-REVISION = "rapidocr==3.10.0;onnxruntime==1.31.0;PP-OCRv6-small;lines-v1"
+REVISION = "rapidocr==3.10.0;onnxruntime==1.31.0;PP-OCRv6-small;rgb-pil-lines-v2"
 MODEL_SHA256 = {
     "PP-OCRv6_det_small.onnx": "090f04abcd9d9a7498bc4ebf677e4cb9bdce1fe4197ddb7e529f1ef44e1ff94f",
     "PP-OCRv6_rec_small.onnx": "6f327246b50388f3c176ae304bd95767ea6dc0c9ae92153ef8cbe210b3c14884",

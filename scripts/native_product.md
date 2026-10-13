@@ -53,7 +53,7 @@ Verify `python -m pip check` and run the mixed-format parser checks before adver
 
 Startup now runs the offline [product capability preflight](../docs/PRODUCT_RUNTIME_PREFLIGHT.md)
 with the configured `pythonPath` before starting services or declaring an existing stack ready.
-It allows 60 seconds, stops only its identified probe process tree on timeout, and refuses startup on
+It allows 60 seconds by default (or the selected optional OCR timeout plus 30 seconds), stops only its identified probe process tree on timeout, and refuses startup on
 missing capabilities, invalid output, or a failed probe. The sanitized, timestamped receipt is saved at
 `runtimeRoot\state\product-capabilities.json`; raw stdout/stderr capture files are removed. The receipt
 contains capability flags and provider setup state, never keys, endpoint URLs, model names or raw errors.
@@ -70,6 +70,34 @@ Optional `autoMaxOutputTokens` (integer 1–16,384) and `autoTimeoutSeconds` (in
 they do not authorize automatic retries or guarantee provider output completeness.
 For portable OCR installations, optional `tesseractPath` and `tessdataDir` set `TESSERACT_CMD` and `TESSDATA_PREFIX`
 in both web helper and extraction worker. Verify the executable and language data before processing scans.
+
+Optional `autoOcrEngine` selects `tesseract` (default) or `rapidocr`. RapidOCR requires
+`rapidOcrPythonPath` and `rapidOcrWorkDir`, both absolute existing paths, plus optional integer
+`rapidOcrTimeoutSeconds` (1–180, default 120) and `rapidOcrMaxRssMiB` (128–2048, default 1536).
+Provision the separate CPU environment and model hashes documented in
+[the RapidOCR adapter contract](../docs/PRODUCT_RAPIDOCR.md). Startup then runs its additional
+synthetic local OCR check. Tesseract remains required for schema sampling.
+
+Optional `autoResponseFormat` selects `plain_json` (default) or
+`strict_confirmed_values_v1`. The strict profile applies only to user-confirmed schemas;
+discovery and approved recipes retain plain JSON. The provider receives a strict schema and
+the product independently validates the returned envelope and source evidence. This does not
+establish semantic accuracy or guarantee that every compatible provider enforces the schema.
+
+New queue dispatch version 3 seals the selected OCR environment, bounds and response format
+alongside the model budget. Later environment edits cannot change an admitted attempt. Versions
+1 and 2 keep their historical arguments. Change these settings only between attempts and restart
+the native stack so the web and worker use the same selection. These are experimental extraction
+options; the deployment default remains Tesseract with plain JSON until quality trials support
+a different choice.
+
+Optional `autoLongDocument` selects `reject` (historical default) or
+`bounded_text_segments_v1` for confirmed schemas. The latter plans at most four
+24,000-character text segments without overlap or discarded source text. It maps
+evidence back to original page offsets, exposes conflicting scalar values for
+review, and never silently merges a row across segment boundaries. Requests that
+cannot be completely covered within those bounds fail explicitly. Extraction
+profile version 2 pins this policy; version 1 retains the historical text limit.
 
 The launcher sets `PRODUCT_EXECUTION_MODE=postgres` and `PRODUCT_QUEUE_DATABASE_URL` from `databaseUrl`.
 The app role needs schema creation privileges in its own database: pg-boss manages `docai_queue`, and the queue

@@ -7,7 +7,11 @@ import os
 import re
 import time
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
+
+if TYPE_CHECKING:
+    from idpo.product_auto.visual_input import PreparedVisualRequest
 
 
 @dataclass(frozen=True)
@@ -20,6 +24,7 @@ class ModelReply:
     error: str | None = None
     error_category: str | None = None
     sdk_attempts: int | None = None
+    refusal: bool = False
 
 
 class OpenAICompatibleChat:
@@ -83,10 +88,35 @@ class OpenAICompatibleChat:
             if len(encoded.encode("utf-8")) > 32_768:
                 raise ValueError("response_format exceeds the 32 KiB limit")
             request["response_format"] = json.loads(encoded)
+        return self._complete_request(request)
+
+    def complete_visual_json(self, request: PreparedVisualRequest) -> ModelReply:
+        """Send an immutable, preplanned image request without fallback or retry."""
+        import hashlib
+        import httpx
+        from idpo.product_auto.visual_input import MAX_REQUEST_BYTES, PreparedVisualRequest, VisualInputError
+
+        if not isinstance(request, PreparedVisualRequest):
+            raise ValueError("visual request must be prepared with complete page coverage")
+        body = request.validated_body(model=self.model, max_tokens=self.max_tokens)
+        expected = hashlib.sha256(request.body_json).hexdigest()
+
+        def verify_wire(actual: httpx.Request) -> None:
+            # Inspect the SDK's actual serialization before any bytes reach the network.
+            if len(actual.content) > MAX_REQUEST_BYTES or hashlib.sha256(actual.content).hexdigest() != expected:
+                raise VisualInputError("visual_wire_body_mismatch")
+
+        with httpx.Client(timeout=self.client.timeout, follow_redirects=False,
+                          event_hooks={"request": [verify_wire]}) as guarded:
+            client = self.client.with_options(http_client=guarded, max_retries=0)
+            return self._complete_request(body, client=client)
+
+    def _complete_request(self, request: dict[str, object], *, client=None) -> ModelReply:
         started = time.perf_counter()
         try:
-            response = self.client.chat.completions.create(**request)
-            content = response.choices[0].message.content if response.choices else ""
+            response = (client or self.client).chat.completions.create(**request)
+            message = response.choices[0].message if response.choices else None
+            content = message.content if message is not None else ""
             usage = getattr(response, "usage", None)
             return ModelReply(
                 text=content or "",
@@ -95,6 +125,7 @@ class OpenAICompatibleChat:
                 completion_tokens=_usage_count(usage, "completion_tokens"),
                 finish_reason=getattr(response.choices[0], "finish_reason", None) if response.choices else None,
                 sdk_attempts=1,
+                refusal=bool(getattr(message, "refusal", None)),
             )
         except Exception as exc:  # noqa: BLE001 - redact provider failures before they reach artifacts
             # Provider exception strings can contain credentials or document text.

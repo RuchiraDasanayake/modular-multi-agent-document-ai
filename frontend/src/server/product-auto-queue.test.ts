@@ -29,7 +29,7 @@ async function withQueuedRun(
     admissions: ProductDispatch[];
   }) => Promise<void>,
   options: { schema?: boolean; admissionError?: boolean; holdChild?: boolean;
-    maxOutputTokens?: string; timeoutSeconds?: string } = {},
+    maxOutputTokens?: string; timeoutSeconds?: string; rapidOcr?: boolean; strictFormat?: boolean } = {},
 ): Promise<void> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "idpo-queue-dispatch-"));
   const dataDir = path.join(root, "data");
@@ -38,7 +38,13 @@ async function withQueuedRun(
     IDPO_AUTO_MODEL: options.schema ? "fixture-model" : "",
     IDPO_AUTO_API_BASE_URL: options.schema ? "http://127.0.0.1:1/v1" : "", ICORE_API_KEY: "",
     IDPO_AUTO_MAX_OUTPUT_TOKENS: options.maxOutputTokens ?? "",
-    IDPO_AUTO_TIMEOUT_S: options.timeoutSeconds ?? "" };
+    IDPO_AUTO_TIMEOUT_S: options.timeoutSeconds ?? "",
+    IDPO_AUTO_OCR_ENGINE: options.rapidOcr ? "rapidocr" : "tesseract",
+    IDPO_AUTO_RESPONSE_FORMAT: options.strictFormat ? "strict_confirmed_values_v1" : "plain_json",
+    IDPO_AUTO_LONG_DOCUMENT: "reject",
+    IDPO_RAPIDOCR_PYTHON: options.rapidOcr ? process.execPath : "",
+    IDPO_RAPIDOCR_WORK_DIR: options.rapidOcr ? root : "",
+    IDPO_RAPIDOCR_TIMEOUT_S: "90", IDPO_RAPIDOCR_MAX_RSS_MIB: "1024" };
   const previousEnv = Object.fromEntries(Object.keys(env).map((key) => [key, process.env[key]]));
   const previousQueue = holder.__productQueue;
   const previousFetch = globalThis.fetch;
@@ -66,7 +72,8 @@ async function withQueuedRun(
     fs.writeFileSync(workerPath, `const fs = require('node:fs');
 const args = process.argv.slice(2);
 const input = args[args.indexOf('--input') + 1];
-fs.writeFileSync(process.env.CAPTURE_PATH, JSON.stringify({ pid: process.pid, args, files: fs.readdirSync(input) }));
+fs.writeFileSync(process.env.CAPTURE_PATH, JSON.stringify({ pid: process.pid, args, files: fs.readdirSync(input),
+  ocrPython: process.env.IDPO_RAPIDOCR_PYTHON, ocrTimeout: process.env.IDPO_RAPIDOCR_TIMEOUT_S }));
 ${options.holdChild ? "setInterval(() => {}, 1000);" : "process.exit(1);"}`);
     command.program = process.execPath;
     command.args = [workerPath, "--input", "{input_dir}", "--run-id", "{run_id}"];
@@ -110,7 +117,7 @@ const readRecord = (file: string) => JSON.parse(fs.readFileSync(file, "utf8")) a
 test("queued execution validates admitted inputs before starting a subprocess", async (t) => {
   await t.test("pins a server model budget across an environment change", async () => withQueuedRun(async (f) => {
     const profile = JSON.parse(fs.readFileSync(f.recordPath.replace(/\.json$/, ".dispatch.json"), "utf8"));
-    assert.equal(profile.version, 2);
+    assert.equal(profile.version, 3);
     assert.deepEqual(profile.modelBudget, { maxOutputTokens: 4096, timeoutSeconds: 90 });
     process.env.IDPO_AUTO_MAX_OUTPUT_TOKENS = "128";
     process.env.IDPO_AUTO_TIMEOUT_S = "10";
@@ -122,7 +129,7 @@ test("queued execution validates admitted inputs before starting a subprocess", 
 
   await t.test("new model-backed runs get bounded defaults", async () => withQueuedRun(async (f) => {
     const profile = JSON.parse(fs.readFileSync(f.recordPath.replace(/\.json$/, ".dispatch.json"), "utf8"));
-    assert.equal(profile.version, 2);
+    assert.equal(profile.version, 3);
     assert.deepEqual(profile.modelBudget, { maxOutputTokens: 8192, timeoutSeconds: 180 });
   }, { schema: true }));
 
@@ -131,6 +138,7 @@ test("queued execution validates admitted inputs before starting a subprocess", 
     const profile = JSON.parse(fs.readFileSync(file, "utf8"));
     profile.version = 1;
     delete profile.modelBudget;
+    delete profile.extractionProfile;
     const bytes = JSON.stringify(profile);
     fs.writeFileSync(file, bytes);
     const oldDigest = digest(bytes);
@@ -142,6 +150,37 @@ test("queued execution validates admitted inputs before starting a subprocess", 
     const { args } = JSON.parse(fs.readFileSync(f.capturePath, "utf8")) as { args: string[] };
     assert.equal(args.includes("--max-tokens"), false);
     assert.equal(args.includes("--timeout-s"), false);
+  }, { schema: true }));
+
+  await t.test("pins OCR and strict output across later environment changes", async () => withQueuedRun(async (f) => {
+    process.env.IDPO_AUTO_OCR_ENGINE = "tesseract";
+    process.env.IDPO_AUTO_RESPONSE_FORMAT = "plain_json";
+    process.env.IDPO_RAPIDOCR_PYTHON = "changed-after-admission";
+    process.env.IDPO_RAPIDOCR_TIMEOUT_S = "1";
+    await assert.rejects(executePreparedProductAutoRun(f.request, new AbortController().signal), /output not verified/i);
+    const captured = JSON.parse(fs.readFileSync(f.capturePath, "utf8"));
+    assert.equal(captured.ocrPython, process.execPath);
+    assert.equal(captured.ocrTimeout, "90");
+    assert.equal(captured.args[captured.args.indexOf("--ocr-engine") + 1], "rapidocr");
+    assert.equal(captured.args[captured.args.indexOf("--response-format-profile") + 1], "strict_confirmed_values_v1");
+  }, { schema: true, rapidOcr: true, strictFormat: true }));
+
+  await t.test("version-two dispatch preserves budget and original extraction arguments", async () => withQueuedRun(async (f) => {
+    const file = f.recordPath.replace(/\.json$/, ".dispatch.json");
+    const profile = JSON.parse(fs.readFileSync(file, "utf8"));
+    profile.version = 2;
+    delete profile.extractionProfile;
+    const bytes = JSON.stringify(profile);
+    fs.writeFileSync(file, bytes);
+    const record = readRecord(f.recordPath);
+    record.queueDispatch!.sha256 = digest(bytes);
+    fs.writeFileSync(f.recordPath, JSON.stringify(record));
+    await assert.rejects(executePreparedProductAutoRun({ ...f.request, dispatchSha256: digest(bytes) },
+      new AbortController().signal), /output not verified/i);
+    const captured = JSON.parse(fs.readFileSync(f.capturePath, "utf8"));
+    assert.equal(captured.args.includes("--ocr-engine"), false);
+    assert.equal(captured.args.includes("--response-format-profile"), false);
+    assert.equal(captured.args[captured.args.indexOf("--max-tokens") + 1], "8192");
   }, { schema: true }));
 
   await t.test("rejects an invalid sealed model budget before worker execution", async () => withQueuedRun(async (f) => {

@@ -63,6 +63,36 @@ function Get-NativeConfig {
       $config[$key] = $value
     }
   }
+  if (-not $config.ContainsKey('autoOcrEngine')) { $config.autoOcrEngine = 'tesseract' }
+  if ($config.autoOcrEngine -notin @('tesseract', 'rapidocr')) { throw 'autoOcrEngine must be tesseract or rapidocr.' }
+  if (-not $config.ContainsKey('autoResponseFormat')) { $config.autoResponseFormat = 'plain_json' }
+  if ($config.autoResponseFormat -notin @('plain_json', 'strict_confirmed_values_v1')) {
+    throw 'autoResponseFormat must be plain_json or strict_confirmed_values_v1.'
+  }
+  if (-not $config.ContainsKey('autoLongDocument')) { $config.autoLongDocument = 'reject' }
+  if ($config.autoLongDocument -notin @('reject', 'bounded_text_segments_v1')) {
+    throw 'autoLongDocument must be reject or bounded_text_segments_v1.'
+  }
+  if ($config.autoOcrEngine -eq 'rapidocr') {
+    foreach ($key in @('rapidOcrPythonPath', 'rapidOcrWorkDir')) {
+      if (-not $config.ContainsKey($key) -or -not [IO.Path]::IsPathFullyQualified([string]$config[$key]) -or
+          [string]$config[$key] -match '["\r\n]') { throw "$key must be an absolute Windows path." }
+      $config[$key] = [IO.Path]::GetFullPath([string]$config[$key]).TrimEnd('\')
+    }
+    foreach ($limit in @(@('rapidOcrTimeoutSeconds', 120, 1, 180), @('rapidOcrMaxRssMiB', 1536, 128, 2048))) {
+      $key = [string]$limit[0]
+      if (-not $config.ContainsKey($key)) { $config[$key] = $limit[1] }
+      $number = 0
+      if (-not [int]::TryParse([string]$config[$key], [ref]$number) -or $number -lt $limit[2] -or $number -gt $limit[3]) {
+        throw "$key is outside its supported integer limits."
+      }
+      $config[$key] = $number
+    }
+    if ($CheckFiles -and (-not (Test-Path -LiteralPath $config.rapidOcrPythonPath -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $config.rapidOcrWorkDir -PathType Container))) {
+      throw 'The configured RapidOCR interpreter or scratch directory is unavailable.'
+    }
+  }
   $uri = $null
   if (-not [uri]::TryCreate([string]$config.databaseUrl, [UriKind]::Absolute, [ref]$uri) -or
     $uri.Scheme -notin @('postgres', 'postgresql') -or $uri.Host -ne '127.0.0.1' -or
@@ -347,7 +377,7 @@ function Quote-NativeArgument {
 }
 
 function ConvertTo-NativeCapabilityReport {
-  param($Payload, [int]$ExitCode)
+  param($Payload, [int]$ExitCode, [ValidateSet('tesseract', 'rapidocr')][string]$OcrEngine = 'tesseract')
   # Retain only known fields and enum values. Raw child output may contain
   # third-party diagnostics and must never be saved as the capability receipt.
   $safe = [ordered]@{ contract_version = 1; checkedAt = (Get-Date).ToUniversalTime().ToString('o')
@@ -371,6 +401,14 @@ function ConvertTo-NativeCapabilityReport {
     $checked[[string]$check.id] = [bool]$check.ready
   }
   if ($checked.Count -ne $checkNames.Count) { return $safe }
+  $optionalReady = $true
+  if ($OcrEngine -eq 'rapidocr') {
+    $optional = $Payload.optional_ocr
+    if ($optional -isnot [System.Collections.IDictionary] -or $optional.engine -ne 'rapidocr' -or
+        $optional.id -ne 'rapidocr_ocr' -or $optional.ready -isnot [bool]) { return $safe }
+    $optionalReady = $optional.ready
+    $safe.optional_ocr = [ordered]@{ engine = 'rapidocr'; ready = [bool]$optionalReady }
+  }
   $capabilityNames = @('text_json', 'pdf_native_text', 'image_ocr', 'pdf_scan_extraction',
     'pdf_scan_schema_sampling', 'docx', 'xlsx', 'pptx', 'html', 'eml')
   $capabilities = [ordered]@{}
@@ -389,6 +427,7 @@ function ConvertTo-NativeCapabilityReport {
     ($provider.mode -in @('local', 'cloud') -and $provider.state -eq 'configured_unverified' -and
       $provider.client_ready -and $checked.model_client))
   $safe.failed_checks = @($checkNames | Where-Object { -not $checked[$_] })
+  if (-not $optionalReady) { $safe.failed_checks += 'rapidocr_ocr' }
   $safe.failed_capabilities = @($capabilityNames | Where-Object { -not $capabilities[$_] })
   $safe.capabilities = $capabilities
   $safe.provider = [ordered]@{ mode = [string]$provider.mode; state = [string]$provider.state
@@ -405,7 +444,7 @@ function ConvertTo-NativeCapabilityReport {
 }
 
 function Invoke-NativeProductPreflight {
-  param($Config, [ValidateRange(1, 120)][int]$TimeoutSeconds = 60)
+  param($Config, [ValidateRange(1, 240)][int]$TimeoutSeconds = 60)
   $ErrorActionPreference = 'Stop'
   $directory = Split-Path -Parent $Config.statePath
   New-Item -ItemType Directory -Path $directory -Force | Out-Null
@@ -420,8 +459,13 @@ function Invoke-NativeProductPreflight {
     status = 'unavailable'; code = 'probe_start_failed'; failed_checks = @(); failed_capabilities = @() }
   try {
     try {
+      $engine = if ($Config.ContainsKey('autoOcrEngine')) { [string]$Config.autoOcrEngine } else { 'tesseract' }
+      if (-not $PSBoundParameters.ContainsKey('TimeoutSeconds') -and $engine -eq 'rapidocr') {
+        $TimeoutSeconds = [Math]::Max(60, [int]$Config.rapidOcrTimeoutSeconds + 30)
+      }
       $arguments = @((Join-Path $Config.repoRoot 'scripts\check_product_runtime.py'),
         '--native-config', [string]$Config.configPath, '--json')
+      if ($engine -eq 'rapidocr') { $arguments += @('--ocr-engine', 'rapidocr') }
       $quoted = ($arguments | ForEach-Object { Quote-NativeArgument $_ }) -join ' '
       $process = Start-Process -FilePath $Config.pythonPath -ArgumentList $quoted `
         -WorkingDirectory $Config.repoRoot -RedirectStandardOutput $stdoutPath `
@@ -437,7 +481,7 @@ function Invoke-NativeProductPreflight {
         $report.code = 'invalid_report'
         if ((Get-Item -LiteralPath $stdoutPath).Length -le 65536) {
           $payload = Get-Content -LiteralPath $stdoutPath -Raw | ConvertFrom-Json -AsHashtable
-          $report = ConvertTo-NativeCapabilityReport -Payload $payload -ExitCode $process.ExitCode
+          $report = ConvertTo-NativeCapabilityReport -Payload $payload -ExitCode $process.ExitCode -OcrEngine $engine
         }
       }
     } catch {
