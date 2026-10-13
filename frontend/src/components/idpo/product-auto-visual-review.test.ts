@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import type { ProductAutoCandidate, ProductAutoLinkedCell } from "@/types/product-auto";
-import { machineProposalLabel, pdfSourcePageUrl, visualLinkedCellsReviewable } from "./product-auto-visual-review";
+import { machineProposalLabel, pdfSourcePageUrl, sourceTextPanelCopy, visualLinkedCellsReviewable } from "./product-auto-visual-review";
 
 const fixture = JSON.parse(fs.readFileSync(path.join(process.cwd(), "src", "server", "fixtures",
   "visual-review-workflow.json"), "utf8")) as { variants: Record<string, {
@@ -35,4 +35,18 @@ test("PDF page navigation only uses validated source page numbers", () => {
   assert.equal(pdfSourcePageUrl(url, "scan.pdf", 2, pages), null);
   assert.equal(pdfSourcePageUrl(url, "scan.pdf", -1, pages), null);
   assert.equal(pdfSourcePageUrl(url, "scan.png", 1, pages), null);
+});
+
+test("source guidance distinguishes reviewer-observed image pages from exact text quotes", () => {
+  const visual = sourceTextPanelCopy("visual", false, [{ text: "" }]);
+  assert.match(visual.summary, /reviewer-observed page/);
+  assert.match(visual.introduction, /Record the page/);
+  assert.match(visual.emptyMessage!, /No OCR text was extracted/);
+  assert.doesNotMatch(visual.emptyMessage!, /exact quote/i);
+
+  const text = sourceTextPanelCopy("text", false, [{ text: "Invoice ABC" }]);
+  assert.match(text.summary, /copy exact quotes/);
+  assert.equal(text.emptyMessage, null);
+  assert.match(sourceTextPanelCopy("text", false, [{ text: "  " }]).emptyMessage!, /No source text was extracted/);
+  assert.match(sourceTextPanelCopy("visual", false, []).emptyMessage!, /No source pages were recorded/);
 });
