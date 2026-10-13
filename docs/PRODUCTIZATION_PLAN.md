@@ -41,8 +41,9 @@ of these candidates has earned product integration. Preserve the existing
 native-format table path while comparing PDF parsers on exact linked rows and
 source geometry.
 Separately, a [12-source public schema-diagnostic candidate](evaluations/SCHEMA12_PUBLIC_CANDIDATE_STAGING_20261013.md)
-has been staged without gold or model calls; rights, template disjointness and
-extracted-character eligibility remain open.
+has been staged without gold or model calls. Source-only parsing found 10/12
+within the current 24,000-character model limit; the fraud assessment and
+Ofwat workbook exceeded it. Rights, template disjointness and gold remain open.
 
 The next product change should be one bounded, feature-flagged PDF/image
 table adapter **only if** a parser clears its frozen row and evidence gate.
