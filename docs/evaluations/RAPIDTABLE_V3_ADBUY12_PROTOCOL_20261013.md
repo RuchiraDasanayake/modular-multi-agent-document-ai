@@ -8,6 +8,8 @@ The [shared source-free crop transform](TABLE_CROP_SOURCE_FREE_GEOMETRY_20261013
 
 The [installed-wheel audit](RAPIDTABLE_RUNTIME_PROVENANCE_20261013.md) verified 2,290 pinned wheel payload files and found three conflicting installed OpenCV paths because RapidTable and RapidOCR require different OpenCV distributions. The model notice inventory is now more precise, but the single-owner runtime gate remains **HOLD**. The original runtime-lock and smoke receipts below are preserved as historical source-free evidence.
 
+The [source-free OCR word receipt](TATR_OCR_WORD_SOURCE_FREE_20261013.md) establishes a separate headless-only RapidOCR CPU worker. Its raw line polygons/text/scores can be supplied to a table-only RapidTable worker through `ocr_results`; the two processes must retain distinct runtime receipts and source coordinates. No selected PDF has tested this handoff. RapidOCR's reported word scores are not calibrated acceptance signals.
+
 ## Decision and candidate
 
 [RapidTable v3.0.2](https://github.com/RapidAI/RapidTable/releases/tag/v3.0.2) is the next **conditional** low-cost table-structure trial because its [v3 batch output](https://github.com/RapidAI/RapidTable/releases/tag/v3.0.0) can expose HTML, physical cell boxes and logical row/column spans using a small ONNX checkpoint and CPU. It still needs separate table localization, text recognition, and source-coordinate mapping. The local smoke validates an input/output contract on one artificial table; it says nothing about ad-buy accuracy or full-document cost.

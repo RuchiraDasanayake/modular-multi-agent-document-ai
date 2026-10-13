@@ -69,6 +69,9 @@ model has a [publisher-provenance receipt](evaluations/RAPIDTABLE_PUBLISHER_ASSE
 for local research, while installed runtime closure, model packaging attribution
 and the PDF evidence path remain held. The [runtime audit](evaluations/RAPIDTABLE_RUNTIME_PROVENANCE_20261013.md)
 pinpoints three overlapping OpenCV files; a single-owner design is required.
+The [clean source-free OCR worker](evaluations/TATR_OCR_WORD_SOURCE_FREE_20261013.md)
+can provide word polygons for TATR and line tuples for RapidTable, but its
+reported word confidence is uncalibrated and no selected PDF has used it.
 Neither research arm changes the product extractor or satisfies the row gate.
 
 The next product change should be one bounded, feature-flagged PDF/image
