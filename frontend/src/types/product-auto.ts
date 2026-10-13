@@ -232,6 +232,8 @@ export interface ProductAutoRunDocument {
 
 export interface ProductAutoRun {
   runId: string;
+  // Owner-scoped key for reconciling an uncertain browser response; never the run identity.
+  idempotencyKey?: string;
   status: "queued" | "running" | "success" | "failed";
   createdAt: string;
   endedAt?: string;

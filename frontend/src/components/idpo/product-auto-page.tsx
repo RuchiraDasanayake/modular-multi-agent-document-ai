@@ -50,6 +50,7 @@ export function ProductAutoPage() {
   const [pendingRunChecked, setPendingRunChecked] = useState(false);
 
   useEffect(() => {
+    setPendingRunChecked(false);
     try { setPendingRunRequest(pendingProductAutoRunRequest(window.sessionStorage, jobId)); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not read the previous extraction request."); }
   }, [jobId]);
@@ -228,7 +229,7 @@ export function ProductAutoPage() {
     try {
       const data = await idpoApi.listProductAutoRuns(jobId);
       setRuns(data.runs);
-      const matched = data.runs.find((run) => run.runId === `auto_${pendingRunRequest.key}`);
+      const matched = data.runs.find((run) => run.idempotencyKey === pendingRunRequest.key);
       if (matched) {
         clearPendingProductAutoRunRequest(window.sessionStorage, jobId, pendingRunRequest.key);
         setPendingRunRequest(null);

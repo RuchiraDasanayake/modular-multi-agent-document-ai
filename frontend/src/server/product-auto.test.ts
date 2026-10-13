@@ -855,7 +855,7 @@ test("invalid server model budgets reject admission before any extraction run", 
       process.env.IDPO_AUTO_MAX_OUTPUT_TOKENS = tokens;
       process.env.IDPO_AUTO_TIMEOUT_S = timeout;
       const response = await startAutoRoute(request(url, "admin", { method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": "f".repeat(32) },
         body: JSON.stringify({ selectedFileIds: [uploaded.documents![0].fileId] }),
       }), { params: Promise.resolve({ jobId: job.jobId }) });
       assert.equal(response.status, 503, `${tokens}/${timeout}`);
@@ -920,7 +920,7 @@ test("direct product execution forwards the server model budget to its child", a
   }
 }));
 
-test("a paid run key returns its failed admission once and rejects changed payload, source, and owner", async () => withStorage(async () => {
+test("a paid run key returns its failed admission once and rejects changed payload, source, and owner", async () => withStorage(async (dataDir) => {
   const oldMode = process.env.PRODUCT_EXECUTION_MODE;
   const oldQueueUrl = process.env.PRODUCT_QUEUE_DATABASE_URL;
   const holder = globalThis as typeof globalThis & { __productQueue?: ProductExecutionQueue };
@@ -944,12 +944,22 @@ test("a paid run key returns its failed admission once and rejects changed paylo
     const key = "a".repeat(32);
     const pathName = `/api/jobs/${job.jobId}/auto`;
     const params = { params: Promise.resolve({ jobId: job.jobId }) };
+    const unkeyed = await startAutoRoute(request(pathName, "admin", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ selectedFileIds: [first.fileId] }),
+    }), params);
+    assert.equal(unkeyed.status, 400);
+    assert.equal(admissions, 0);
     const start = (token: string, fileIds: string[]) => startAutoRoute(request(pathName, token, {
       method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key },
       body: JSON.stringify({ selectedFileIds: fileIds }),
     }), params);
-    assert.equal((await start("admin", [first.fileId])).status, 409);
-    const runId = `auto_${key}`;
+    const failedAdmission = await start("admin", [first.fileId]);
+    assert.equal(failedAdmission.status, 409);
+    const runId = fs.readdirSync(path.join(dataDir, "frontend", "auto_runs", job.jobId))
+      .find((name) => /^auto_[a-f0-9]{32}\.json$/.test(name))?.replace(/\.json$/, "");
+    assert.ok(runId);
+    assert.match(runId, /^auto_[a-f0-9]{32}$/);
     assert.equal(getProductAutoRun(job.jobId, runId).status, "failed");
     const replay = await start("admin", [first.fileId]);
     assert.equal(replay.status, 202);
@@ -998,13 +1008,104 @@ test("concurrent exact paid run requests claim one attempt and preserve the key 
     assert.equal(admissions, 1);
     const second = await start();
     assert.equal(second.status, 202);
-    assert.equal((await second.json()).runId, `auto_${key}`);
+    const secondRun = await second.json();
+    assert.match(secondRun.runId, /^auto_[a-f0-9]{32}$/);
+    assert.equal(secondRun.idempotencyKey, key);
     release();
     const admitted = await first;
     assert.equal(admitted.status, 202);
-    assert.equal((await admitted.json()).runId, `auto_${key}`);
-    assert.equal((await start()).status, 202);
+    assert.equal((await admitted.json()).runId, secondRun.runId);
+    const recordPath = path.join(process.env.IDPO_DATA_DIR!, "frontend", "auto_runs", job.jobId, `${secondRun.runId}.json`);
+    const terminalPath = recordPath.replace(/\.json$/, ".terminal.json");
+    const record = JSON.parse(fs.readFileSync(recordPath, "utf8"));
+    fs.writeFileSync(terminalPath, JSON.stringify({ ...record, status: "success", documents: [],
+      endedAt: "2026-10-13T00:00:00Z" }));
+    const terminalReplay = await start();
+    assert.equal(terminalReplay.status, 202);
+    assert.equal((await terminalReplay.json()).status, "success");
     assert.equal(admissions, 1);
+  } finally {
+    if (oldMode === undefined) delete process.env.PRODUCT_EXECUTION_MODE;
+    else process.env.PRODUCT_EXECUTION_MODE = oldMode;
+    if (oldQueueUrl === undefined) delete process.env.PRODUCT_QUEUE_DATABASE_URL;
+    else process.env.PRODUCT_QUEUE_DATABASE_URL = oldQueueUrl;
+    holder.__productQueue = oldQueue;
+  }
+}));
+
+test("an interrupted paid admission keeps its claim and cannot enqueue on replay", async () => withStorage(async (dataDir) => {
+  const oldMode = process.env.PRODUCT_EXECUTION_MODE;
+  const oldQueueUrl = process.env.PRODUCT_QUEUE_DATABASE_URL;
+  const holder = globalThis as typeof globalThis & { __productQueue?: ProductExecutionQueue };
+  const oldQueue = holder.__productQueue;
+  try {
+    process.env.PRODUCT_EXECUTION_MODE = "postgres";
+    process.env.PRODUCT_QUEUE_DATABASE_URL = "postgresql://unused.example/unused";
+    process.env.IDPO_AUTO_MODEL = "local-test-model";
+    process.env.IDPO_AUTO_API_BASE_URL = "http://127.0.0.1:1/v1";
+    let admissions = 0;
+    holder.__productQueue = { enqueue: async () => { admissions += 1; return "broker"; } } as unknown as ProductExecutionQueue;
+    const job = createWorkspaceJob({ ownerUserId: "admin-id" });
+    const uploaded = await addDocumentsToJob(job.jobId, [new File(["Will disappear"], "source.txt")]);
+    fs.unlinkSync(path.join(uploaded.uploadsPath!, uploaded.documents![0].storedName));
+    const key = "e".repeat(32);
+    const start = () => startAutoRoute(request(`/api/jobs/${job.jobId}/auto`, "admin", {
+      method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+      body: JSON.stringify({ selectedFileIds: [uploaded.documents![0].fileId] }),
+    }), { params: Promise.resolve({ jobId: job.jobId }) });
+    assert.equal((await start()).status, 400);
+    assert.equal(fs.readdirSync(path.join(dataDir, "frontend", "auto_run_requests", job.jobId)).length, 1);
+    assert.equal((await start()).status, 409);
+    assert.equal(admissions, 0);
+  } finally {
+    if (oldMode === undefined) delete process.env.PRODUCT_EXECUTION_MODE;
+    else process.env.PRODUCT_EXECUTION_MODE = oldMode;
+    if (oldQueueUrl === undefined) delete process.env.PRODUCT_QUEUE_DATABASE_URL;
+    else process.env.PRODUCT_QUEUE_DATABASE_URL = oldQueueUrl;
+    holder.__productQueue = oldQueue;
+  }
+}));
+
+test("the same paid request key on different jobs has separate global staging and run identities", async () => withStorage(async (dataDir) => {
+  const oldMode = process.env.PRODUCT_EXECUTION_MODE;
+  const oldQueueUrl = process.env.PRODUCT_QUEUE_DATABASE_URL;
+  const holder = globalThis as typeof globalThis & { __productQueue?: ProductExecutionQueue };
+  const oldQueue = holder.__productQueue;
+  try {
+    process.env.PRODUCT_EXECUTION_MODE = "postgres";
+    process.env.PRODUCT_QUEUE_DATABASE_URL = "postgresql://unused.example/unused";
+    process.env.IDPO_AUTO_MODEL = "local-test-model";
+    process.env.IDPO_AUTO_API_BASE_URL = "http://127.0.0.1:1/v1";
+    let admissions = 0;
+    holder.__productQueue = { enqueue: async () => { admissions += 1; return `broker-${admissions}`; } } as unknown as ProductExecutionQueue;
+    const jobA = createWorkspaceJob({ ownerUserId: "admin-id" });
+    const jobB = createWorkspaceJob({ ownerUserId: "admin-id" });
+    const uploadedA = await addDocumentsToJob(jobA.jobId, [new File(["Job A distinct bytes"], "source.txt")]);
+    const uploadedB = await addDocumentsToJob(jobB.jobId, [new File(["Job B distinct bytes"], "source.txt")]);
+    const key = "d".repeat(32);
+    const start = (jobId: string, fileId: string) => startAutoRoute(request(`/api/jobs/${jobId}/auto`, "admin", {
+      method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+      body: JSON.stringify({ selectedFileIds: [fileId] }),
+    }), { params: Promise.resolve({ jobId }) });
+    const [responseA, responseB] = await Promise.all([
+      start(jobA.jobId, uploadedA.documents![0].fileId),
+      start(jobB.jobId, uploadedB.documents![0].fileId),
+    ]);
+    assert.equal(responseA.status, 202);
+    assert.equal(responseB.status, 202);
+    const runA = await responseA.json();
+    const runB = await responseB.json();
+    assert.notEqual(runA.runId, runB.runId);
+    assert.equal(runA.idempotencyKey, key);
+    assert.equal(runB.idempotencyKey, key);
+    assert.equal(admissions, 2);
+    assert.equal(fs.readFileSync(path.join(dataDir, "frontend", "auto_inputs", runA.runId,
+      uploadedA.documents![0].storedName), "utf8"), "Job A distinct bytes");
+    assert.equal(fs.readFileSync(path.join(dataDir, "frontend", "auto_inputs", runB.runId,
+      uploadedB.documents![0].storedName), "utf8"), "Job B distinct bytes");
+    assert.equal((await (await start(jobA.jobId, uploadedA.documents![0].fileId)).json()).runId, runA.runId);
+    assert.equal((await (await start(jobB.jobId, uploadedB.documents![0].fileId)).json()).runId, runB.runId);
+    assert.equal(admissions, 2);
   } finally {
     if (oldMode === undefined) delete process.env.PRODUCT_EXECUTION_MODE;
     else process.env.PRODUCT_EXECUTION_MODE = oldMode;

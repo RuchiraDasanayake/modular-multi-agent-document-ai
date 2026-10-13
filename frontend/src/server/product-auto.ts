@@ -940,6 +940,7 @@ export function startProductAutoRecoveryLoop(): void {
 function publicRun(record: RunRecord): ProductAutoRun {
   return {
     runId: record.runId,
+    ...(record.idempotencyKey ? { idempotencyKey: record.idempotencyKey } : {}),
     status: record.status,
     createdAt: record.createdAt,
     endedAt: record.endedAt,
@@ -1115,6 +1116,8 @@ export async function startProductAutoRun(
   if (!selectedFileIds.length || new Set(selectedFileIds).size !== selectedFileIds.length) {
     throw new AccessError("Select one or more distinct documents.", 400);
   }
+  const model = process.env.IDPO_AUTO_MODEL?.trim();
+  if (model && !admin) throw new AccessError("Admin access is required to start model-backed extraction.", 403);
   const requestKey = idempotency?.key;
   if (requestKey !== undefined && (!validProductAutoRunRequestKey(requestKey) ||
     !idempotency?.actorUserId)) {
@@ -1132,13 +1135,11 @@ export async function startProductAutoRun(
   if (listProductAutoRuns(jobId).some((run) => ["queued", "running"].includes(run.status))) {
     throw new AccessError("This job already has an automatic extraction run in progress.", 409);
   }
-  const model = process.env.IDPO_AUTO_MODEL?.trim();
   const baseUrl = process.env.IDPO_AUTO_API_BASE_URL?.trim();
   if (Boolean(model) !== Boolean(baseUrl)) throw new AccessError("The server model configuration is incomplete.", 503);
   if (baseUrl && modelEndpointRequiresKey(baseUrl) && !process.env.ICORE_API_KEY?.trim()) {
     throw new AccessError("The server model key is missing.", 503);
   }
-  if (model && !admin) throw new AccessError("Admin access is required to start model-backed extraction.", 403);
   const modelBudget = model ? configuredModelBudget() : undefined;
   const extractionProfile = configuredExtractionProfile(Boolean(confirmedBriefSelection));
   if (approvedRecipeSelection && !model) {
@@ -1212,7 +1213,7 @@ export async function startProductAutoRun(
   }
   const documents = selectedFileIds.map((fileId) => job.documents?.find((document) => document.fileId === fileId));
   if (documents.some((document) => !document)) throw new AccessError("A selected document was not found.", 400);
-  const runId = requestKey ? `auto_${requestKey}` : `auto_${randomUUID().replace(/-/g, "")}`;
+  const runId = `auto_${randomUUID().replace(/-/g, "")}`;
   const inputDir = stagedInputDir(runId);
   const sourceDir = path.resolve(config.uploadsDir, `job_${jobId}`);
   if (path.dirname(sourceDir) !== path.resolve(config.uploadsDir)) throw new AccessError("Invalid job upload location.", 400);
