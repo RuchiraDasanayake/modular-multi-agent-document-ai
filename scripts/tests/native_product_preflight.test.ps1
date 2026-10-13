@@ -101,6 +101,20 @@ try {
   $stored = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
   Assert-PreflightTest ($stored.status -eq 'unavailable' -and 'pdf_native_text' -in $stored.failed_capabilities) 'Failure replaces a previously ready receipt.'
 
+  # Normal Python capability failures omit the optional top-level code. Strict
+  # PowerShell mode must not turn this valid report into an invalid-report error.
+  $unavailable = New-ReadyPayload
+  $unavailable.status = 'unavailable'
+  ($unavailable.checks | Where-Object id -eq 'scan_sample').ready = $false
+  $unavailable.capabilities.pdf_scan_schema_sampling.ready = $false
+  Save-ProbeConfig -Payload $unavailable -ExitCode 1
+  Expect-PreflightFailure { Invoke-NativeProductPreflight -Config $config } 'probe_process_failed'
+  $stored = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
+  Assert-PreflightTest ('scan_sample' -in $stored.failed_checks -and
+    'pdf_scan_schema_sampling' -in $stored.failed_capabilities) 'Valid unavailable report retains the actual failed capability.'
+  Save-ProbeConfig -Payload $unavailable
+  Expect-PreflightFailure { Invoke-NativeProductPreflight -Config $config } 'capability_unavailable'
+
   $missingCheck = New-ReadyPayload
   $missingCheck.checks = @($missingCheck.checks | Where-Object id -ne 'core')
   Save-ProbeConfig -Payload $missingCheck

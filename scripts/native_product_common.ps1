@@ -387,7 +387,7 @@ function ConvertTo-NativeCapabilityReport {
   $safe = [ordered]@{ contract_version = 1; checkedAt = (Get-Date).ToUniversalTime().ToString('o')
     status = 'unavailable'; code = 'invalid_report'; failed_checks = @(); failed_capabilities = @() }
   if ($Payload -isnot [System.Collections.IDictionary] -or $Payload.contract_version -ne 1) { return $safe }
-  if ($Payload.status -eq 'unavailable' -and $Payload.code -in @('invalid_native_config',
+  if ($Payload.status -eq 'unavailable' -and $Payload['code'] -in @('invalid_native_config',
       'wrong_python_runtime', 'runtime_preflight_failed')) {
     $safe.code = $Payload.code
     return $safe

@@ -31,6 +31,7 @@ import time
 import numpy as np
 
 from dataclasses import dataclass, field, asdict
+from copy import deepcopy
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -429,6 +430,9 @@ def run_single(
     4. Method updates with observed reward
     5. Record regret = oracle_reward - actual_reward
     """
+    # Drift changes vendor policies in place. Each seed and method must start
+    # from the declared environment, even when the caller reuses a Scenario.
+    scenario = deepcopy(scenario)
     rng = np.random.RandomState(seed)
     # The methods draw from both global generators: Thompson sampling, RABI and DAAF use np.random.beta, and the random
     # and epsilon-greedy baselines use Python's random. Seed both so every run is reproducible.

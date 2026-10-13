@@ -236,6 +236,14 @@ confirm field meanings, then preview and review. This action currently requires 
 environment's optional `cloud` dependency for an OpenAI-compatible model. It can also use a loopback model endpoint
 without a cloud key. Sampling uses at most 1,800 characters per source (9,000 total), first two PDF pages, and bounded
 OCR for scans; fields outside those excerpts may need manual addition.
+PDF/image previews use shared intake, the PDF native-layer paint guard, and the server's
+`IDPO_AUTO_OCR_ENGINE` (`rapidocr` or default `tesseract`). PDF text/paint inspection and OCR are limited
+to the first two pages; PDFs over 50 pages reject before page extraction or rendering. Each preview OCR
+page has a 15-second budget and no quality reruns. Any reported OCR failure stops the suggestion before
+the model call. Temporary render/OCR artifacts under `IDPO_DATA_DIR/brief_previews` are removed after
+normal completion or handled failure. Parser IDs identify this preview path and configured engine; they do not claim that
+every page needed OCR or that the excerpts cover the whole source. Full extraction uses its separate
+configured page budgets and full-document coverage rules.
 Each request writes a private, content-free attempt receipt under the configured data directory's
 `frontend/auto_briefs/<owner-hash>/<job-id>/suggestions` folder. Failure receipts record stage, bounded code,
 provider finish reason, usage counts when available, and SHA-256 of the model reply, without the reply or source

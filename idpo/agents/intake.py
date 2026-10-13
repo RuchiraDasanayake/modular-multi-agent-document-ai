@@ -87,8 +87,17 @@ class IntakeAgent:
             metadata={},
         )
 
-    def _load_pdf(self, path: Path) -> list[Document]:
-        pages, has_text = self._extract_pdf_text(path)
+    def preview_pdf(self, path: Path, *, page_limit: int = 2, max_document_pages: int = 50) -> Document:
+        """Inspect only a bounded prefix with the same native-layer guard as intake."""
+        if (type(page_limit) is not int or type(max_document_pages) is not int
+                or not 1 <= page_limit <= max_document_pages):
+            raise ValueError("Invalid PDF preview page bounds")
+        return self._load_pdf(path, page_limit=page_limit, max_document_pages=max_document_pages)[0]
+
+    def _load_pdf(self, path: Path, *, page_limit: int | None = None,
+                  max_document_pages: int | None = None) -> list[Document]:
+        pages, has_text = self._extract_pdf_text(path, page_limit=page_limit,
+                                                max_document_pages=max_document_pages)
         source = "digital" if has_text else "scanned"
         doc = Document(
             doc_id=path.stem,
@@ -99,17 +108,23 @@ class IntakeAgent:
         )
         return [doc]
 
-    def _extract_pdf_text(self, path: Path) -> tuple[list[Page], bool]:
+    def _extract_pdf_text(self, path: Path, *, page_limit: int | None = None,
+                          max_document_pages: int | None = None) -> tuple[list[Page], bool]:
         try:
             from pypdf import PdfReader
         except Exception:
+            if max_document_pages is not None:
+                raise ValueError("PDF preview requires the page-count parser") from None
             pages = [Page(number=1, text="", raw_text="", image_path=str(path), metadata={"file_type": ".pdf", "pdf_page_index": 0})]
             return pages, False
         reader = PdfReader(str(path))
+        if max_document_pages is not None and len(reader.pages) > max_document_pages:
+            raise ValueError(f"Sample PDF exceeds the {max_document_pages}-page product limit")
         pages: list[Page] = []
         has_text = False
         garbled_detected = False
-        for idx, page in enumerate(reader.pages, start=1):
+        selected_pages = reader.pages if page_limit is None else reader.pages[:page_limit]
+        for idx, page in enumerate(selected_pages, start=1):
             raw_text = page.extract_text() or ""
             native_layer = inspect_native_layer(path, idx - 1) if raw_text.strip() else None
             rejected_native = bool(native_layer and native_layer["requires_ocr"])
