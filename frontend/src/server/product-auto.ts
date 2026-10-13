@@ -1254,10 +1254,10 @@ export async function recoverQueuedProductAutoAdmissions(): Promise<number> {
   return recovered;
 }
 
-function loadProductAutoDocument(jobId: string, runId: string, docId: string): {
-  detail: ProductAutoDocumentDetail; machineResultHash: string;
+function loadProductAutoDocument(jobId: string, runId: string, docId: string, sealedRecord?: RunRecord): {
+  detail: ProductAutoDocumentDetail; machineResultHash: string; sourceHash?: string;
 } {
-  const record = readRunRecord(jobId, runId);
+  const record = sealedRecord ?? readRunRecord(jobId, runId);
   const runningWithOutput = record.status === "running" && fs.existsSync(path.join(outputDir(runId), "run.json"));
   const documents = runningWithOutput ? validatedDocuments(record, docId) : record.documents;
   const document = documents.find((item) => item.docId === docId);
@@ -1283,8 +1283,9 @@ function loadProductAutoDocument(jobId: string, runId: string, docId: string): {
     receipt.machine_result_sha256 !== machineResultHash)) {
     throw new AccessError("The machine result no longer matches its audit receipt.", 409);
   }
+  let sourceHash: string | undefined;
   if (receipts.some((receipt) => receipt.source_container_sha256 || receipt.source_pages_sha256)) {
-    const sourceHash = verifiedReviewSourceHash(jobId, runId, document.fileId);
+    sourceHash = verifiedReviewSourceHash(jobId, runId, document.fileId, record.selectedFiles);
     if (receipts.some((receipt) => receipt.source_container_sha256 && receipt.source_container_sha256 !== sourceHash)) {
       throw new AccessError("The reviewed source no longer matches its audit receipt.", 409);
     }
@@ -1295,6 +1296,7 @@ function loadProductAutoDocument(jobId: string, runId: string, docId: string): {
   }
   return {
     machineResultHash,
+    sourceHash,
     detail: {
       runId, fileId: document.fileId, fileName: document.fileName,
       candidate, sourcePages, ...(parsedDocument ? { parsedDocument } : {}), review, auditTrail,
@@ -1308,13 +1310,18 @@ export function getProductAutoDocument(jobId: string, runId: string, docId: stri
 }
 
 export function getProductAutoReviewedExport(jobId: string, runId: string, docId: string): ProductAutoReviewedExport {
-  const { detail, machineResultHash } = loadProductAutoDocument(jobId, runId, docId);
+  return reviewedExportFromRecord(readRunRecord(jobId, runId), docId);
+}
+
+function reviewedExportFromRecord(record: RunRecord, docId: string): ProductAutoReviewedExport {
+  const { jobId, runId } = record;
+  const { detail, machineResultHash, sourceHash: verifiedSourceHash } = loadProductAutoDocument(jobId, runId, docId, record);
   const review = detail.review;
   if (!review || detail.correctedResult.review_status !== "completed" ||
     detail.correctedResult.fields.some((field) => field.status === "needs_review")) {
     throw new AccessError("Complete the document review before exporting its result.", 409);
   }
-  const sourceHash = verifiedReviewSourceHash(jobId, runId, detail.fileId);
+  const sourceHash = verifiedSourceHash ?? verifiedReviewSourceHash(jobId, runId, detail.fileId, record.selectedFiles);
   const sourcePagesHash = createHash("sha256").update(JSON.stringify(detail.sourcePages)).digest("hex");
   if (review.source_container_sha256 !== sourceHash || review.source_pages_sha256 !== sourcePagesHash ||
     review.machine_result_sha256 !== machineResultHash) {
@@ -1374,7 +1381,7 @@ export function getProductAutoReviewedBatchExport(jobId: string, runId: string):
     if (document.status === "failed" || document.status === "unsupported") { counts.failed += 1; continue; }
     if (document.reviewStatus !== "completed") { counts.unreviewed += 1; continue; }
     try {
-      const exported = getProductAutoReviewedExport(jobId, runId, document.docId);
+      const exported = reviewedExportFromRecord(record, document.docId);
       if (exported.document.file_id !== file.fileId || exported.document.source_sha256 !== file.sha256 ||
         exported.document.machine_result_sha256 !== document.machineResultSha256) {
         counts.stale += 1;
@@ -1416,7 +1423,7 @@ export function getProductAutoReviewedBatchExport(jobId: string, runId: string):
           reviewAuditDigest(jobId, runId, snapshot.docId) !== snapshot.auditDigest ||
           sha256File(path.join(outputDir(runId), "docs", snapshot.docId, "result.json")) !==
             snapshot.machineResultSha256;
-      }) || selected.some((file) => verifiedReviewSourceHash(jobId, runId, file.fileId) !== file.sha256)) {
+      }) || selected.some((file) => verifiedReviewSourceHash(jobId, runId, file.fileId, selected) !== file.sha256)) {
       throw new Error("Batch changed while being assembled.");
     }
   } catch {
@@ -1642,8 +1649,8 @@ function parseAddedFields(
   });
 }
 
-function verifiedReviewSourceHash(jobId: string, runId: string, fileId: string): string {
-  const selected = readRunRecord(jobId, runId).selectedFiles.find((file) => file.fileId === fileId);
+function verifiedReviewSourceHash(jobId: string, runId: string, fileId: string, selectedFiles?: SelectedFile[]): string {
+  const selected = (selectedFiles ?? readRunRecord(jobId, runId).selectedFiles).find((file) => file.fileId === fileId);
   if (!selected || !/^[a-f0-9]{64}$/.test(selected.sha256)) {
     throw new AccessError("The original source receipt is unavailable.", 409);
   }
