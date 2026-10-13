@@ -16,7 +16,9 @@ import type { ProductAutoCandidate } from "@/types/product-auto";
 function request(url: string, token: string, body?: unknown): Request {
   return new Request(`http://localhost${url}`, {
     method: body === undefined ? "GET" : "POST",
-    headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
+    headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      ...(url.endsWith("/auto") && body !== undefined
+        ? { "Idempotency-Key": randomUUID().replaceAll("-", "") } : {}) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 }
