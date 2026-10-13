@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import test from "node:test";
-import { GET as readBriefRoute, POST as saveBriefRoute } from "@/app/api/jobs/[jobId]/auto/brief/route";
+import { GET as readBriefRoute, POST as saveBriefRoute, PATCH as confirmBriefRoute } from "@/app/api/jobs/[jobId]/auto/brief/route";
 import { addDocumentsToJob, createWorkspaceJob } from "./jobs";
 import { requireCurrentProductAutoBrief } from "./product-auto-brief";
 import { resetConfigCacheForTests } from "./config";
@@ -14,6 +14,13 @@ function request(jobId: string, token: string, body?: unknown): Request {
     method: body === undefined ? "GET" : "POST",
     headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+}
+
+function confirmRequest(jobId: string, token: string, body: unknown): Request {
+  return new Request(`http://localhost/api/jobs/${jobId}/auto/brief`, {
+    method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
 }
 
@@ -213,4 +220,47 @@ test("brief source and audit tampering fail closed", async () => withStorage(asy
   }), params)).status, 500);
   fs.writeFileSync(event, original);
   assert.equal(requireCurrentProductAutoBrief(job.jobId, 1, brief.payload_sha256).revision, 1);
+}));
+
+test("typed schema confirmation is explicit, owner scoped, immutable, and source current", async () => withStorage(async (dataDir, calls) => {
+  const job = createWorkspaceJob({ ownerUserId: "alice-id" });
+  const uploaded = await addDocumentsToJob(job.jobId, [new File(["Invoice A1\nTotal 100"], "invoice.txt")]);
+  const source = uploaded.documents![0];
+  const params = { params: Promise.resolve({ jobId: job.jobId }) };
+  const save = (body: unknown) => saveBriefRoute(request(job.jobId, "alice", body), params);
+  const confirm = (token: string, body: unknown) => confirmBriefRoute(confirmRequest(job.jobId, token, body), params);
+  const intentOnly = await save({ expectedRevision: 0, intent: "Get totals", sampleFileIds: [source.fileId] });
+  assert.equal(intentOnly.status, 201);
+  const first = (await intentOnly.json()).brief;
+  assert.equal((await confirm("alice", { expectedRevision: 1, expectedPayloadSha256: first.payload_sha256 })).status, 409);
+  const typed = await save({ expectedRevision: 1, intent: "Get payable total", fields: [
+    { field_id: "invoice_total", type: "decimal", description: "Final amount due", example_values: ["100"] },
+  ], sampleFileIds: [source.fileId] });
+  assert.equal(typed.status, 201);
+  const draft = (await typed.json()).brief;
+  assert.equal((await confirm("bob", { expectedRevision: 2, expectedPayloadSha256: draft.payload_sha256 })).status, 404);
+  assert.equal((await confirm("alice", { expectedRevision: 1, expectedPayloadSha256: draft.payload_sha256 })).status, 409);
+  const approved = await confirm("alice", { expectedRevision: 2, expectedPayloadSha256: draft.payload_sha256 });
+  assert.equal(approved.status, 201);
+  const confirmed = (await approved.json()).brief;
+  assert.equal(confirmed.state, "confirmed");
+  assert.equal(confirmed.revision, 3);
+  assert.equal(confirmed.previous_event_id, draft.audit_event_id);
+  assert.equal(confirmed.payload_sha256, draft.payload_sha256);
+  assert.deepEqual(confirmed.fields, draft.fields);
+  assert.equal((await confirm("alice", { expectedRevision: 3, expectedPayloadSha256: confirmed.payload_sha256 })).status, 409);
+  assert.equal(requireCurrentProductAutoBrief(job.jobId, 3, confirmed.payload_sha256).state, "confirmed");
+  assert.equal(fs.existsSync(path.join(dataDir, "frontend", "auto_inputs")), false);
+  assert.ok(calls.every((url) => url === "http://test-gateway.local/api/auth/me"));
+
+  const sourcePath = path.join(uploaded.uploadsPath!, source.storedName);
+  fs.writeFileSync(sourcePath, "Invoice A1\nTotal 999");
+  assert.equal((await confirm("alice", { expectedRevision: 2, expectedPayloadSha256: draft.payload_sha256 })).status, 409);
+  assert.throws(() => requireCurrentProductAutoBrief(job.jobId, 3, confirmed.payload_sha256), /changed/);
+  fs.writeFileSync(sourcePath, "Invoice A1\nTotal 100");
+  const edited = await save({ expectedRevision: 3, intent: "New direction", fields: draft.fields,
+    sampleFileIds: [source.fileId] });
+  const editedBrief = (await edited.json()).brief;
+  assert.equal(editedBrief.state, "draft");
+  assert.equal(editedBrief.revision, 4);
 }));

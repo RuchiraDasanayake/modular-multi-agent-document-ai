@@ -23,7 +23,7 @@ export interface ProductAutoBriefRevision {
   previous_event_id: string | null;
   actor_user_id: string;
   created_at: string;
-  state: "draft";
+  state: "draft" | "confirmed";
   intent: string;
   fields: ProductAutoBriefField[];
   sample_sources: ProductAutoBriefSample[];

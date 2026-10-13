@@ -146,7 +146,7 @@ function readTrail(jobId: string, owner: string): ProductAutoBriefRevision[] {
   for (let index = 0; index < events.length; index += 1) {
     const event = events[index];
     const previous = events[index - 1];
-    if (!event || event.contract_version !== 1 || event.state !== "draft" ||
+    if (!event || event.contract_version !== 1 || !["draft", "confirmed"].includes(event.state) ||
       !BRIEF_ID.test(event.brief_id) || event.brief_id !== (previous?.brief_id ?? event.brief_id) ||
       event.owner_user_id !== owner || event.job_id !== jobId || event.revision !== index + 1 ||
       names[index] !== `${String(event.revision).padStart(12, "0")}.json` ||
@@ -160,7 +160,10 @@ function readTrail(jobId: string, owner: string): ProductAutoBriefRevision[] {
         !FILE_ID.test(sample.file_id) || !SHA256.test(sample.source_sha256)) ||
       new Set(event.sample_sources.map((sample) => sample.file_id)).size !== event.sample_sources.length ||
       event.fields.length > MAX_FIELDS || !storedFieldsValid(event.fields) || !storedIntentValid(event.intent) ||
-      (!event.intent && event.fields.length === 0) || event.payload_sha256 !== payloadDigest(event)) {
+      (!event.intent && event.fields.length === 0) || event.payload_sha256 !== payloadDigest(event) ||
+      event.state === "confirmed" && (!previous || previous.state !== "draft" ||
+        event.fields.length === 0 || event.payload_sha256 !== previous.payload_sha256 ||
+        JSON.stringify(event.sample_sources) !== JSON.stringify(previous.sample_sources))) {
       throw new Error("Extraction brief audit history is invalid.");
     }
   }
@@ -240,6 +243,32 @@ export function saveProductAutoBrief(jobId: string, actorUserId: string, input: 
     audit_event_id: randomUUID().replaceAll("-", ""), previous_event_id: current?.audit_event_id ?? null,
     actor_user_id: actorUserId, created_at: new Date().toISOString(), state: "draft", intent, fields,
     sample_sources: sampleSources, payload_sha256: payloadDigest({ intent, fields, sample_sources: sampleSources }),
+  };
+  publishEvent(jobId, owner, event);
+  return event;
+}
+
+export function confirmProductAutoBrief(jobId: string, actorUserId: string, input: unknown): ProductAutoBriefRevision {
+  const job = getJobOrThrow(jobId);
+  const owner = ownerForJob(job);
+  if (!input || typeof input !== "object" || Array.isArray(input) ||
+    Object.keys(input).some((key) => !["expectedRevision", "expectedPayloadSha256"].includes(key))) {
+    throw new AccessError("Invalid extraction brief confirmation.", 400);
+  }
+  const request = input as Record<string, unknown>;
+  if (!Number.isSafeInteger(request.expectedRevision) || typeof request.expectedRevision !== "number" ||
+    request.expectedRevision < 1 || typeof request.expectedPayloadSha256 !== "string" ||
+    !SHA256.test(request.expectedPayloadSha256)) {
+    throw new AccessError("Confirm the current extraction brief revision and digest.", 400);
+  }
+  const current = requireCurrentProductAutoBrief(jobId, request.expectedRevision, request.expectedPayloadSha256);
+  if (current.state !== "draft" || current.fields.length === 0) {
+    throw new AccessError("Add typed fields to a draft before confirming its schema.", 409);
+  }
+  const event: ProductAutoBriefRevision = {
+    ...current, revision: current.revision + 1, audit_event_id: randomUUID().replaceAll("-", ""),
+    previous_event_id: current.audit_event_id, actor_user_id: actorUserId,
+    created_at: new Date().toISOString(), state: "confirmed",
   };
   publishEvent(jobId, owner, event);
   return event;
