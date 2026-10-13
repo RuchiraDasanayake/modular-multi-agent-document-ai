@@ -141,6 +141,12 @@ at download time. The export carries typed fields, per-field status and provenan
 review revision; it omits the raw source and server file paths. A human-corrected value is still a reviewer assertion
 unless it has explicit evidence. This is a per-document export; bulk run export is not implemented.
 
+The owner-scoped `/api/jobs/<job_id>/auto/brief` API stores a revisioned extraction brief with plain-language intent,
+optional typed fields and examples, and 1–5 sample file IDs bound to source SHA-256 hashes. `GET` reports stale sample
+IDs; `POST` requires the current revision and appends an immutable draft event. This is onboarding metadata only: the
+brief is not sent to a model or worker and has no effect on extraction runs. Future clarification and preview code must
+pin the exact brief revision and payload digest and recheck source hashes before use.
+
 The job-scoped recipe API separately records owner-scoped draft, approval, and disable events from completed reviews; it
 requires explicit linked-row group confirmation and can configure one explicitly selected run.
 This is not geometric table annotation.
