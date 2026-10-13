@@ -60,7 +60,9 @@ def page_box_to_pixels(
     left, top, right, bottom = pixel_box
     if left < -1 or top < -1 or right > image_width + 1 or bottom > image_height + 1:
         raise GeometryError("PDF box lies outside the rendered image")
-    return (max(left, 0), max(top, 0), min(right, image_width), min(bottom, image_height))
+    clipped = (max(left, 0), max(top, 0), min(right, image_width), min(bottom, image_height))
+    _rect(clipped)
+    return clipped
 
 
 def pixel_box_to_page(

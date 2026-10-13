@@ -61,6 +61,6 @@ def adapt_detr_outputs(
             "normalized_cxcywh": tuple(box),
             "inside_image": 0 <= pixel_box[0] < pixel_box[2] <= width
             and 0 <= pixel_box[1] < pixel_box[3] <= height,
-            "above_frozen_threshold": probabilities[class_index] >= 0.5,
+            "above_frozen_threshold": class_index < len(labels) and probabilities[class_index] >= 0.5,
         })
     return adapted

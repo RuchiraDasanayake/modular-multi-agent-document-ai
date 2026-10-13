@@ -73,7 +73,13 @@ def test_pdfium_words_and_roundtrip_on_synthetic_page(tmp_path: Path, rotation: 
         document.close()
 
 
-@pytest.mark.parametrize("box", [(0, 0, 0, 2), (0, 0, float("nan"), 2), (-20, 0, -10, 2)])
+@pytest.mark.parametrize("box", [
+    (0, 0, 0, 2),
+    (0, 0, float("nan"), 2),
+    (-20, 0, -10, 2),
+    (-0.8, 10, -0.2, 20),
+    (10, -0.8, 20, -0.2),
+])
 def test_invalid_pdf_box_is_rejected(box: tuple[float, float, float, float]) -> None:
     class Identity:
         def to_bitmap(self, x: float, y: float) -> tuple[float, float]:

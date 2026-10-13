@@ -21,7 +21,7 @@ The Hugging Face structure processor config says 800 pixels on its longest edge;
 
 `product_eval/tatr_output_adapter.py` maps synthetic DETR logits and normalized boxes to the pinned class names and original image scale, retaining no-object and out-of-image queries with their scores. It is a shape/coordinate adapter, not the [official cell reconstruction](https://github.com/microsoft/table-transformer/blob/16d124f616109746b7785f03085100f1f6247575/src/inference.py). No actual model output has been passed through it.
 
-Validation: `python -m pytest -q product_eval/tests/test_tatr_native_geometry.py product_eval/tests/test_tatr_asset_preflight.py product_eval/tests/test_tatr_output_adapter.py` passed **16/16**. Ruff passed for the six new Python files. Source-only acquisition used no metered AI API; local disk contains 230,919,892 bytes across the 14 verified files. There is no measured inference time, RAM peak, parser score or cost per correct row.
+Validation: `python -m pytest -q product_eval/tests/test_tatr_native_geometry.py product_eval/tests/test_tatr_asset_preflight.py product_eval/tests/test_tatr_output_adapter.py` passed **18/18**. Ruff passed for the six new Python files. Source-only acquisition used no metered AI API; local disk contains 230,919,892 bytes across the 14 verified files. There is no measured inference time, RAM peak, parser score or cost per correct row. A review regression rejects raster clips with zero or inverted area and keeps high-scoring `no object` queries in raw output while marking them ineligible. Native word reading order remains unsealed until multi-column fixtures are checked.
 
 ## Remaining gates
 

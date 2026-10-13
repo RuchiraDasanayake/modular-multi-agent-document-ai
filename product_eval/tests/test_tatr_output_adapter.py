@@ -21,6 +21,8 @@ def test_detection_queries_preserve_no_object_and_source_image_scale() -> None:
     assert adapted[0]["above_frozen_threshold"] is True
     assert adapted[1]["label"] == "no object"
     assert adapted[1]["query_index"] == 1
+    assert adapted[1]["above_frozen_threshold"] is False
+    assert adapted[1]["score"] > 0.5
 
 
 def test_structure_map_and_outside_box_are_retained() -> None:
