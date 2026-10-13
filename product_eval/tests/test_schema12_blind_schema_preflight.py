@@ -25,7 +25,12 @@ class SourceLockTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         (self.root / "raw").mkdir()
         self.manifest = {"candidate_denominator": 12, "model_inference": False, "sources": []}
-        self.eligibility = {"source_manifest_sha256": "a" * 64, "sources": []}
+        repo_root = Path(__file__).resolve().parents[2]
+        self.eligibility = {"source_manifest_sha256": "a" * 64,
+                            "parser_code_sha256": {
+                                path: preflight.sha256_file(repo_root / path)
+                                for path in preflight.PARSER_FILES
+                            }, "sources": []}
         for number in range(12):
             source_id = f"doc_{number:02d}"
             relative = f"raw/{source_id}.html"
@@ -50,6 +55,11 @@ class SourceLockTests(unittest.TestCase):
     def test_detects_changed_source_bytes(self) -> None:
         (self.root / "raw" / "doc_00.html").write_bytes(b"changed")
         with self.assertRaisesRegex(preflight.PreflightError, "source bytes differ"):
+            self.verify()
+
+    def test_rejects_stale_parser_code_lock(self) -> None:
+        self.eligibility["parser_code_sha256"]["idpo/agents/intake.py"] = "0" * 64
+        with self.assertRaisesRegex(preflight.PreflightError, "parser code differs"):
             self.verify()
 
     def test_rejects_path_outside_raw_even_with_claimed_hash(self) -> None:
@@ -105,14 +115,29 @@ class SourceLockTests(unittest.TestCase):
 
     def test_accepts_exact_scorer_source_gold_alias_shapes_but_stays_blocked(self) -> None:
         args, _, _, _ = self._scorer_files()
-        report = self._inspect(args)
+        with patch.object(preflight, "_host_model_resources", return_value=(8 * 1024**3, 7000)):
+            report = self._inspect(args)
         self.assertTrue(report["gates"]["source_lock"])
         self.assertTrue(report["gates"]["gold"])
         self.assertTrue(report["gates"]["aliases"])
         self.assertFalse(report["gates"]["human_adjudication"])
         self.assertFalse(report["gates"]["rights"])
+        self.assertTrue(report["gates"]["model_run_host_ram"])
+        self.assertTrue(report["gates"]["model_run_gpu_memory"])
         self.assertFalse(report["ready_for_inference"])
         self.assertEqual(report["model_calls_made"], 0)
+
+    def test_low_or_unavailable_model_resources_fail_closed(self) -> None:
+        args, _, _, _ = self._scorer_files()
+        for resources in ((5 * 1024**3, 7000), (8 * 1024**3, 6000), (None, None)):
+            with self.subTest(resources=resources):
+                with patch.object(preflight, "_host_model_resources", return_value=resources):
+                    report = self._inspect(args)
+                self.assertEqual(report["gates"]["model_run_host_ram"],
+                                 resources[0] is not None and resources[0] >= 6 * 1024**3)
+                self.assertEqual(report["gates"]["model_run_gpu_memory"],
+                                 resources[1] is not None and resources[1] >= 6144)
+                self.assertFalse(report["ready_for_inference"])
 
     def test_scorer_source_lock_must_match_cohort_id_to_hash_map(self) -> None:
         args, source_lock, _, _ = self._scorer_files()
@@ -143,6 +168,14 @@ class SourceLockTests(unittest.TestCase):
                                   source_lock_sha256=args.source_lock_sha256,
                                   gold_sha256=args.gold_sha256, aliases_sha256=args.aliases_sha256,
                                   planned=planned, gold_docs=gold_docs)
+        human["adjudicator"] = " a "
+        with self.assertRaisesRegex(preflight.PreflightError, "independent annotation"):
+            preflight._validate_human(human, manifest_sha256=args.manifest_sha256,
+                                      eligibility_sha256=args.eligibility_sha256,
+                                      source_lock_sha256=args.source_lock_sha256,
+                                      gold_sha256=args.gold_sha256, aliases_sha256=args.aliases_sha256,
+                                      planned=planned, gold_docs=gold_docs)
+        human["adjudicator"] = "C"
         human["aliases_sha256"] = "0" * 64
         with self.assertRaisesRegex(preflight.PreflightError, "exact scorer inputs"):
             preflight._validate_human(human, manifest_sha256=args.manifest_sha256,

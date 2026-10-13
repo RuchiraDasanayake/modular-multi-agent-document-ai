@@ -12,6 +12,7 @@ import hashlib
 import json
 import re
 import shutil
+import subprocess
 import sys
 from collections import Counter
 from pathlib import Path, PurePosixPath
@@ -26,6 +27,12 @@ from product_eval.schema_only_scorer import (
 )
 
 HASH_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
+PARSER_FILES = frozenset({
+    "idpo/agents/intake.py",
+    "idpo/agents/preprocess.py",
+    "idpo/product_auto/native_formats.py",
+    "idpo/product_auto/workflow.py",
+})
 
 
 class PreflightError(ValueError):
@@ -62,6 +69,14 @@ def _cohort_sources(source_root: Path, manifest: dict[str, Any], eligibility: di
         raise PreflightError("cohort denominator or staged-only status differs")
     if eligibility.get("source_manifest_sha256") != manifest_sha256:
         raise PreflightError("eligibility belongs to a different source manifest")
+    parser_hashes = eligibility.get("parser_code_sha256")
+    if not isinstance(parser_hashes, dict) or set(parser_hashes) != PARSER_FILES:
+        raise PreflightError("eligibility has an incomplete parser code lock")
+    repo_root = Path(__file__).resolve().parents[1]
+    for relative, expected_hash in parser_hashes.items():
+        if (not isinstance(expected_hash, str) or not HASH_PATTERN.fullmatch(expected_hash)
+                or sha256_file(repo_root / relative) != expected_hash):
+            raise PreflightError(f"parser code differs from eligibility: {relative}")
     manifest_rows = manifest.get("sources")
     eligibility_rows = eligibility.get("sources")
     if not isinstance(manifest_rows, list) or len(manifest_rows) != expected_count:
@@ -169,7 +184,11 @@ def _validate_human(value: dict[str, Any], *, manifest_sha256: str, eligibility_
     annotators = value.get("annotators")
     if (not isinstance(annotators, list) or len(annotators) < 2
             or any(not isinstance(person, str) or not person.strip() for person in annotators)
-            or len(set(annotators)) < 2 or not value.get("adjudicator")):
+            or len({person.strip().casefold() for person in annotators}) < 2
+            or not isinstance(value.get("adjudicator"), str)
+            or not value["adjudicator"].strip()
+            or value["adjudicator"].strip().casefold() in
+            {person.strip().casefold() for person in annotators}):
         raise PreflightError("human receipt lacks independent annotation and adjudication")
     rows = value.get("sources")
     if not isinstance(rows, list) or len(rows) != len(planned):
@@ -239,6 +258,26 @@ def _model_assets(args: argparse.Namespace, profile: dict[str, Any]) -> tuple[bo
         elif sha256_file(path) != digest:
             issues.append(f"{label} hash differs")
     return not issues, issues
+
+
+def _host_model_resources() -> tuple[int | None, int | None]:
+    """Read current host RAM and GPU 0 free memory; unknown values fail closed."""
+    try:
+        import psutil
+
+        available_ram = psutil.virtual_memory().available
+    except (ImportError, OSError):
+        available_ram = None
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, check=True, timeout=5,
+        )
+        gpu_free_mib = int(result.stdout.splitlines()[0].strip())
+    except (OSError, ValueError, IndexError, subprocess.CalledProcessError,
+            subprocess.TimeoutExpired):
+        gpu_free_mib = None
+    return available_ram, gpu_free_mib
 
 
 def inspect(args: argparse.Namespace) -> dict[str, Any]:
@@ -356,12 +395,25 @@ def inspect(args: argparse.Namespace) -> dict[str, Any]:
     gates["model_run_c_headroom"] = c_free >= limits["minimum_c_free_bytes_for_model_run"]
     if not gates["model_run_c_headroom"]:
         blockers.append("C: free space is below the 7 GiB model-run headroom gate")
+    available_ram, gpu_free_mib = _host_model_resources()
+    gates["model_run_host_ram"] = (available_ram is not None and
+                                   available_ram >= limits["minimum_host_available_ram_bytes_for_model_run"])
+    gates["model_run_gpu_memory"] = (gpu_free_mib is not None and
+                                     gpu_free_mib >= limits["minimum_gpu_free_mib_for_model_run"])
+    if not gates["model_run_host_ram"]:
+        blockers.append("available host RAM is below the 6 GiB model-run gate or unavailable")
+    if not gates["model_run_gpu_memory"]:
+        blockers.append("GPU 0 free memory is below the 6,144 MiB model-run gate or unavailable")
+    coverage_note = None
     if cohort["eligible_under_character_cap"] < cohort["source_count"]:
-        blockers.append("over-limit sources remain in the 12-source denominator and receive no model call")
+        coverage_note = "over-limit sources remain in the 12-source denominator and receive no model call"
     return {"ready_for_inference": all(gates.values()), "gates": gates, "blockers": blockers,
-            "cohort": cohort, "manifest_sha256": args.manifest_sha256,
+            "cohort": cohort, "coverage_note": coverage_note,
+            "manifest_sha256": args.manifest_sha256,
             "eligibility_sha256": args.eligibility_sha256, "source_lock_sha256": args.source_lock_sha256,
             "profile_sha256": args.profile_sha256, "c_free_bytes_at_check": c_free,
+            "host_available_ram_bytes_at_check": available_ram,
+            "gpu_0_free_mib_at_check": gpu_free_mib,
             "model_calls_made": 0}
 
 
