@@ -17,13 +17,16 @@ test("extraction profile validates bounds and excludes unknown configuration", (
 });
 
 test("only explicit confirmed schemas use configured strict output", () => {
-  const keys = ["IDPO_AUTO_OCR_ENGINE", "IDPO_AUTO_RESPONSE_FORMAT"];
+  const keys = ["IDPO_AUTO_OCR_ENGINE", "IDPO_AUTO_RESPONSE_FORMAT", "IDPO_AUTO_LONG_DOCUMENT"];
   const previous = keys.map((key) => process.env[key]);
   try {
     process.env.IDPO_AUTO_OCR_ENGINE = "tesseract";
     process.env.IDPO_AUTO_RESPONSE_FORMAT = "strict_confirmed_values_v1";
+    process.env.IDPO_AUTO_LONG_DOCUMENT = "bounded_text_segments_v1";
     assert.equal(configuredExtractionProfile(true).responseFormat, "strict_confirmed_values_v1");
     assert.equal(configuredExtractionProfile(false).responseFormat, "plain_json");
+    assert.equal(configuredExtractionProfile(true).longDocument, "bounded_text_segments_v1");
+    assert.equal(configuredExtractionProfile(false).longDocument, "reject");
     process.env.IDPO_AUTO_RESPONSE_FORMAT = "bad";
     assert.throws(() => configuredExtractionProfile(false), /response format/);
     process.env.IDPO_AUTO_RESPONSE_FORMAT = "plain_json";
@@ -34,6 +37,19 @@ test("only explicit confirmed schemas use configured strict output", () => {
       if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index];
     });
   }
+});
+
+test("long-document policy is versioned and validated independently of output format", () => {
+  const base = { version: 2, responseFormat: "plain_json", ocr: { engine: "tesseract" } };
+  assert.equal(validExtractionProfile(base), false);
+  assert.equal(validExtractionProfile({ ...base, longDocument: "truncate" }), false);
+  const profile: ExtractionProfile = { version: 2, responseFormat: "plain_json",
+    ocr: { engine: "tesseract" }, longDocument: "bounded_text_segments_v1" };
+  assert.equal(validExtractionProfile(profile), true);
+  assert.equal(validExtractionProfile({ ...profile, version: 1 }), false);
+  const args: string[] = [];
+  appendExtractionArguments(args, profile);
+  assert.deepEqual(args, ["--ocr-engine", "tesseract", "--long-document-profile", "bounded_text_segments_v1"]);
 });
 
 test("sealed extraction arguments and environment override later process configuration", () => {

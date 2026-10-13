@@ -6,9 +6,10 @@ type OcrProfile = { engine: "tesseract" } | {
   engine: "rapidocr"; python: string; timeoutSeconds: number; maxRssMiB: number; workDir: string;
 };
 export interface ExtractionProfile {
-  version: 1;
+  version: 1 | 2;
   ocr: OcrProfile;
   responseFormat: "plain_json" | "strict_confirmed_values_v1";
+  longDocument?: "reject" | "bounded_text_segments_v1";
 }
 
 const RAPID_ENV = ["IDPO_RAPIDOCR_PYTHON", "IDPO_RAPIDOCR_TIMEOUT_S",
@@ -24,8 +25,10 @@ function absolute(value: unknown): value is string {
 }
 
 export function validExtractionProfile(value: unknown): value is ExtractionProfile {
-  if (!object(value) || Object.keys(value).sort().join() !== "ocr,responseFormat,version" ||
-    value.version !== 1 || !["plain_json", "strict_confirmed_values_v1"].includes(String(value.responseFormat)) ||
+  if (!object(value) || (value.version === 1 ? Object.keys(value).sort().join() !== "ocr,responseFormat,version" :
+    value.version !== 2 || Object.keys(value).sort().join() !== "longDocument,ocr,responseFormat,version" ||
+    !["reject", "bounded_text_segments_v1"].includes(String(value.longDocument))) ||
+    !["plain_json", "strict_confirmed_values_v1"].includes(String(value.responseFormat)) ||
     !object(value.ocr)) return false;
   const ocr = value.ocr;
   if (ocr.engine === "tesseract") return Object.keys(ocr).join() === "engine";
@@ -40,15 +43,19 @@ export function validExtractionProfile(value: unknown): value is ExtractionProfi
 export function configuredExtractionProfile(confirmedSchema: boolean): ExtractionProfile {
   const engine = process.env.IDPO_AUTO_OCR_ENGINE?.trim() || "tesseract";
   const responseFormat = process.env.IDPO_AUTO_RESPONSE_FORMAT?.trim() || "plain_json";
+  const longDocument = process.env.IDPO_AUTO_LONG_DOCUMENT?.trim() || "reject";
   if (!["plain_json", "strict_confirmed_values_v1"].includes(responseFormat)) {
     throw new AccessError("Invalid server response format profile.", 503);
+  }
+  if (!["reject", "bounded_text_segments_v1"].includes(longDocument)) {
+    throw new AccessError("Invalid server long-document profile.", 503);
   }
   const number = (name: string, fallback: number): number => {
     const value = process.env[name] || String(fallback);
     return /^[1-9][0-9]*$/.test(value) ? Number(value) : NaN;
   };
   const profile = {
-    version: 1,
+    version: 2,
     ocr: engine === "tesseract" ? { engine } : {
       engine, python: process.env.IDPO_RAPIDOCR_PYTHON || "",
       timeoutSeconds: number("IDPO_RAPIDOCR_TIMEOUT_S", 120),
@@ -56,6 +63,7 @@ export function configuredExtractionProfile(confirmedSchema: boolean): Extractio
       workDir: process.env.IDPO_RAPIDOCR_WORK_DIR || "",
     },
     responseFormat: confirmedSchema ? responseFormat : "plain_json",
+    longDocument: confirmedSchema ? longDocument : "reject",
   };
   if (!validExtractionProfile(profile)) throw new AccessError("Invalid server extraction profile.", 503);
   if (profile.ocr.engine === "rapidocr") {
@@ -71,6 +79,7 @@ export function appendExtractionArguments(args: string[], profile?: ExtractionPr
   args.push("--ocr-engine", profile.ocr.engine);
   if (profile.ocr.engine === "rapidocr") args.push("--ocr-page-budget-s", String(profile.ocr.timeoutSeconds));
   if (profile.responseFormat !== "plain_json") args.push("--response-format-profile", profile.responseFormat);
+  if (profile.longDocument === "bounded_text_segments_v1") args.push("--long-document-profile", profile.longDocument);
 }
 
 export function extractionEnvironment(base: NodeJS.ProcessEnv, profile?: ExtractionProfile): NodeJS.ProcessEnv {

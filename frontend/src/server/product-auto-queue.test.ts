@@ -41,6 +41,7 @@ async function withQueuedRun(
     IDPO_AUTO_TIMEOUT_S: options.timeoutSeconds ?? "",
     IDPO_AUTO_OCR_ENGINE: options.rapidOcr ? "rapidocr" : "tesseract",
     IDPO_AUTO_RESPONSE_FORMAT: options.strictFormat ? "strict_confirmed_values_v1" : "plain_json",
+    IDPO_AUTO_LONG_DOCUMENT: "reject",
     IDPO_RAPIDOCR_PYTHON: options.rapidOcr ? process.execPath : "",
     IDPO_RAPIDOCR_WORK_DIR: options.rapidOcr ? root : "",
     IDPO_RAPIDOCR_TIMEOUT_S: "90", IDPO_RAPIDOCR_MAX_RSS_MIB: "1024" };

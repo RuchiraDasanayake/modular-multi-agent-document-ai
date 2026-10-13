@@ -69,6 +69,10 @@ function Get-NativeConfig {
   if ($config.autoResponseFormat -notin @('plain_json', 'strict_confirmed_values_v1')) {
     throw 'autoResponseFormat must be plain_json or strict_confirmed_values_v1.'
   }
+  if (-not $config.ContainsKey('autoLongDocument')) { $config.autoLongDocument = 'reject' }
+  if ($config.autoLongDocument -notin @('reject', 'bounded_text_segments_v1')) {
+    throw 'autoLongDocument must be reject or bounded_text_segments_v1.'
+  }
   if ($config.autoOcrEngine -eq 'rapidocr') {
     foreach ($key in @('rapidOcrPythonPath', 'rapidOcrWorkDir')) {
       if (-not $config.ContainsKey($key) -or -not [IO.Path]::IsPathFullyQualified([string]$config[$key]) -or

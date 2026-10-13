@@ -119,6 +119,7 @@ try {
     IDPO_PRODUCT_PYTHON = [string]$config.pythonPath
     IDPO_AUTO_OCR_ENGINE = [string]$config.autoOcrEngine
     IDPO_AUTO_RESPONSE_FORMAT = [string]$config.autoResponseFormat
+    IDPO_AUTO_LONG_DOCUMENT = [string]$config.autoLongDocument
     IDPO_RAPIDOCR_PYTHON = ''; IDPO_RAPIDOCR_WORK_DIR = ''
     IDPO_RAPIDOCR_TIMEOUT_S = ''; IDPO_RAPIDOCR_MAX_RSS_MIB = ''
   }

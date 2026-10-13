@@ -28,6 +28,12 @@ confirmed-schema output sends an explicit JSON Schema to the provider and indepe
 locally. Both remain opt-in, with defaults unchanged. Neither correct JSON nor an exact OCR quotation establishes
 semantic correctness. See [RapidOCR](PRODUCT_RAPIDOCR.md) and [strict values](PRODUCT_STRICT_CONFIRMED_VALUES.md).
 
+An explicit `bounded_text_segments_v1` profile also seals long-document behavior. Confirmed schemas can process
+up to four lossless text segments, each limited to 24,000 characters. Every source page, including an empty page,
+must have verified coverage before model execution. Invalid or incomplete replies fail the whole candidate;
+conflicting scalar values require review. Complete processing is distinct from correct extraction. Older dispatches
+retain their original behavior. See [long documents](PRODUCT_LONG_DOCUMENT_SEGMENTS.md).
+
 The current runtime must remain understandable, stable and auditable while product stabilization proceeds. Its research
 policy outputs are retained for the frozen October internal study, which is separate from the author-reported accepted
 May submission; whether adaptive routing belongs in the future product is an open measurement decision.

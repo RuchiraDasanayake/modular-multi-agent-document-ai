@@ -91,6 +91,14 @@ the native stack so the web and worker use the same selection. These are experim
 options; the deployment default remains Tesseract with plain JSON until quality trials support
 a different choice.
 
+Optional `autoLongDocument` selects `reject` (historical default) or
+`bounded_text_segments_v1` for confirmed schemas. The latter plans at most four
+24,000-character text segments without overlap or discarded source text. It maps
+evidence back to original page offsets, exposes conflicting scalar values for
+review, and never silently merges a row across segment boundaries. Requests that
+cannot be completely covered within those bounds fail explicitly. Extraction
+profile version 2 pins this policy; version 1 retains the historical text limit.
+
 The launcher sets `PRODUCT_EXECUTION_MODE=postgres` and `PRODUCT_QUEUE_DATABASE_URL` from `databaseUrl`.
 The app role needs schema creation privileges in its own database: pg-boss manages `docai_queue`, and the queue
 adapter initializes `product.execution_dispatches` under a database lock. No existing product metadata is imported
