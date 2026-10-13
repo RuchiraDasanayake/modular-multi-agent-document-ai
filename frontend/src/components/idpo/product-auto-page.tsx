@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { IdpoCard } from "@/components/idpo/card";
+import { productAutoReviewReadiness } from "@/components/idpo/product-auto-review-readiness";
 import { api } from "@/lib/api";
 import { idpoApi } from "@/lib/idpo-api";
 import { clearPendingProductAutoRunRequest, pendingProductAutoRunRequest,
@@ -48,6 +49,17 @@ export function ProductAutoPage() {
   const [error, setError] = useState("");
   const [pendingRunRequest, setPendingRunRequest] = useState<PendingProductAutoRunRequest | null>(null);
   const [pendingRunChecked, setPendingRunChecked] = useState(false);
+  const [reviewRefreshing, setReviewRefreshing] = useState(false);
+  const [reviewRefreshError, setReviewRefreshError] = useState("");
+  const reviewRefreshInFlight = useRef(false);
+  const reviewRefreshGeneration = useRef(0);
+
+  useEffect(() => {
+    reviewRefreshGeneration.current += 1;
+    reviewRefreshInFlight.current = false;
+    setReviewRefreshing(false);
+    setReviewRefreshError("");
+  }, [jobId]);
 
   useEffect(() => {
     setPendingRunChecked(false);
@@ -95,6 +107,41 @@ export function ProductAutoPage() {
 
   const running = runs.some((run) => run.status === "running" || (run.status as string) === "queued");
   const modelActionBlocked = modelConfigured && !isAdmin;
+  const refreshRunStatuses = useCallback(async () => {
+    if (reviewRefreshInFlight.current) return;
+    reviewRefreshInFlight.current = true;
+    const generation = reviewRefreshGeneration.current;
+    setReviewRefreshing(true);
+    try {
+      const data = await idpoApi.listProductAutoRuns(jobId);
+      if (reviewRefreshGeneration.current === generation) {
+        setRuns(data.runs);
+        setReviewRefreshError("");
+      }
+    } catch (cause) {
+      if (reviewRefreshGeneration.current === generation) {
+        setReviewRefreshError(cause instanceof Error ? cause.message : "Could not refresh review status.");
+      }
+    } finally {
+      if (reviewRefreshGeneration.current === generation) {
+        reviewRefreshInFlight.current = false;
+        setReviewRefreshing(false);
+      }
+    }
+  }, [jobId]);
+
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void refreshRunStatuses();
+    };
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [refreshRunStatuses]);
+
   useEffect(() => {
     if (!running) return undefined;
     const timer = window.setInterval(() => {
@@ -106,10 +153,7 @@ export function ProductAutoPage() {
   }, [jobId, running]);
 
   const activeRun = useMemo(() => runs.find((run) => run.runId === activeRunId) ?? runs[0] ?? null, [runs, activeRunId]);
-  const reviewedCount = activeRun?.documents.filter((document) => document.reviewStatus === "completed" &&
-    document.status !== "failed" && document.status !== "unsupported").length ?? 0;
-  const batchReady = activeRun?.status === "success" && activeRun.selectedCount > 0 &&
-    activeRun.documents.length === activeRun.selectedCount && reviewedCount === activeRun.selectedCount;
+  const { reviewedCount, batchReady } = productAutoReviewReadiness(activeRun);
   const formDirty = !brief || JSON.stringify({ intent: briefIntent, fields: briefFields, samples: sampleFileIds }) !==
     JSON.stringify({ intent: brief.intent, fields: brief.fields,
       samples: brief.sample_sources.map((source) => source.file_id) });
@@ -118,9 +162,7 @@ export function ProductAutoPage() {
     run.confirmedBrief.briefId === brief.brief_id && run.confirmedBrief.revision === brief.revision &&
     run.confirmedBrief.payloadSha256 === brief.payload_sha256) : [];
   const previewRun = matchingPreviews[0];
-  const reviewedPreviewRun = matchingPreviews.find((run) => run.status === "success" &&
-    run.documents.length > 0 && run.documents.every((document) => document.status === "needs_review" &&
-      document.reviewStatus === "completed"));
+  const reviewedPreviewRun = matchingPreviews.find((run) => productAutoReviewReadiness(run).previewReady);
   const remainingSelected = selected.filter((fileId) => !sampleFileIds.includes(fileId));
 
   function updateField(index: number, change: Partial<ProductAutoBriefField>) {
@@ -514,7 +556,14 @@ export function ProductAutoPage() {
       </IdpoCard> : null}
 
       <IdpoCard>
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Runs</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Runs</h2>
+          <button type="button" onClick={() => void refreshRunStatuses()} disabled={reviewRefreshing}
+            className="rounded-lg border border-cyan-600 px-3 py-2 text-sm font-medium text-cyan-700 disabled:opacity-50 dark:text-cyan-300">
+            {reviewRefreshing ? "Refreshing…" : "Refresh review status"}
+          </button>
+        </div>
+        {reviewRefreshError ? <p role="alert" className="mt-2 text-sm text-rose-700 dark:text-rose-300">{reviewRefreshError}</p> : null}
         {runs.length === 0 ? <p className="mt-3 text-sm text-slate-500">No automatic extraction runs yet.</p> : (
           <div className="mt-3 flex flex-wrap gap-2">
             {runs.map((run) => (
