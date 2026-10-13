@@ -14,6 +14,16 @@ and open-source components when they meet quality, cost and data-handling gates;
 authorization and spend limits. An agent, memory tier or service boundary earns its place only through a measured
 gain. The existing four-service research topology is not a product requirement.
 
+The primary operator request is **"extract this information from these files"**. Accept a plain-language description,
+an explicit schema with field context, or both. On a representative subset chosen before extraction, draft typed
+fields and repeated groups, show short definitions and examples, ask the user to resolve ambiguous meanings, and
+preview values with source evidence. Pin the confirmed schema and route profile before processing the remainder of
+the batch. Never silently learn a new field meaning or overwrite an approved recipe from unreviewed documents.
+"Any number of files" means a scalable admission path with quotas, chunked intake, backpressure and terminal
+per-file receipts, not infinite simultaneous work. A new format or file feature may be unsupported until its parser,
+evidence and quality slice are validated. No system can guarantee correct semantics on every unstructured input;
+the enforceable guarantee is an explicit, reviewable result or failure for every admitted source.
+
 The later October internal comparison makes this discipline necessary: on CORD-100, static had mean document F1
 **0.886** and mean latency **9.0 s**, versus **0.875** and **12.9 s** for `adaptive_safe`; the paired accuracy difference
 was not significant. The adaptive receipt path was significantly slower. The runtime reward also weakly tracked exact
@@ -170,7 +180,9 @@ memory layer requires a measured quality, cost or reliability gain.
 
 ```text
 Browser -> authenticated API -> job metadata + immutable input/artifact storage
-                              -> bounded worker queue -> parse/OCR -> schema discovery
+                              -> sample parse/OCR -> schema draft and field clarification
+                              -> source-linked preview -> user approval of schema revision
+                              -> bounded worker queue -> parse/OCR
                                                       -> typed extraction against versioned schema
                                                       -> evidence checks + business rules
                                                       -> accept / abstain / human review
@@ -199,7 +211,10 @@ An absent field is distinct from zero or an empty string. For tables, retain row
 must be able to adjudicate conflicts, correct a value, and see the original proposal later. These are target requirements,
 not claims about today's artifact format or UI.
 
-**Auto mode** proposes a schema and extracts values in one job. It can release low-risk results under an explicit policy;
+**Auto mode** starts with an intent, drafts and confirms a schema on a small sample, then extracts the remaining job
+against its pinned revision. A user-supplied schema follows the same meaning check and preview. An approved recipe
+may skip rediscovery when the operator selects it or a separately validated router safely matches it. Auto mode can
+release low-risk results only under an explicit, measured policy;
 ambiguous fields, unsupported values and critical business decisions abstain for review. An approved recipe stabilizes
 the field names, types and normalization for a recurring document family, so later documents do not drift between
 incompatible schemas. Arbitrary keys found in one document are useful for exploration, but they are not automatically

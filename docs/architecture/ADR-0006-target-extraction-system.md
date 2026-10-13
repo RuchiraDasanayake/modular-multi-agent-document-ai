@@ -2,9 +2,12 @@
 
 **Decision: 13 October 2026. Status: target architecture; component admission is conditional on measured gates.**
 
-The product should make a reviewable structured result from a new document
-without a manually entered schema. It should also reuse a human-approved
-recipe when a document family recurs. The objective is **correctly reviewed
+The product should turn a plain-language extraction request and a batch of
+files into reviewable structured results. The user may supply a schema and
+field context; otherwise a representative sample informs a proposed schema.
+Clarify ambiguous meanings and confirm a source-linked preview before applying
+the pinned revision to the remaining batch. Reuse a human-approved recipe
+when a document family recurs. The objective is **correctly reviewed
 documents per total cost**, with source evidence and owner isolation; a zero
 API bill or a high parser benchmark score alone does not meet it. The user
 requires a fresh run of at least 2,000 distinct original documents through
@@ -14,24 +17,25 @@ the changed product extraction path after each substantive implementation.
 
 ```mermaid
 flowchart LR
-    U[Owner-scoped upload] --> S[Immutable source + SHA-256]
-    S --> J[Idempotent run admission]
+    U[Files + extraction request] --> S[Immutable source + SHA-256]
+    S --> O[Sample parse + schema draft]
+    O --> F[Field clarification + source-linked preview]
+    F --> K[Approved schema revision]
+    K --> J[Bounded idempotent batch admission]
     J --> C[Format and capability routing]
     C --> P[Native parser or PDF/image OCR and tables]
     P --> G[Source graph: spans, cells, rows, locators]
-    G --> R{Reviewed recipe?}
-    R -- yes --> V[Source-indexed value proposal]
-    R -- no --> A[Bounded schema naming and typing]
-    A --> V
+    G --> V[Source-indexed values under approved schema]
     V --> Q[Type, row, and source validation]
     Q --> H[Owner-scoped human review and audit]
     H --> E[Versioned structured export]
-    H --> K[Explicit recipe approval]
-    K --> R
+    H --> N[Proposed recipe revision]
+    N --> K
 ```
 
 | Boundary | Target choice | Current evidence and admission rule |
 | --- | --- | --- |
+| Onboarding | Plain-language intent, optional schema/context, deterministic representative sample, bounded model-assisted clarification, source-linked preview and explicit schema confirmation before the full batch. | This flow is not implemented. Current product UI discovers per-document fields or applies one explicitly selected approved recipe. Confirmed meaning must be versioned separately from model confidence; a sample preview is not a generalization guarantee. |
 | Control plane | Keep the existing Next.js owner-scoped UI/API; make the existing PostgreSQL instance authoritative for job/run/review metadata after a live migration, concurrency test and restore drill. Keep source/artifact bytes content-addressed on a shared volume until multi-host operation is measured. | The present product still writes job and review files. The draft PostgreSQL migration is not live. Existing Redis is not a durable product queue merely because it is deployed. See [storage/queue decision](PRODUCT_STORAGE_QUEUE_SEARCH_PRIORITY_20261012.md). |
 | Execution | One bounded Python extraction worker per admitted run, with immutable attempt outputs and a terminal publication keyed by owner, source hash, parser/model profile and recipe revision. Add an outbox and a bounded established queue only after the one-slot path fails measured throughput or recovery targets. | Current worker is one slot and file-leased. A retry must not repeat an ambiguous paid model call. Worker loss, duplicate delivery and restore require tests before switching. |
 | Parsing | Keep the shared `ParsedDocument` evidence contract. Reuse native format parsers for DOCX/XLSX/PPTX/HTML/EML and PDFium for PDF page geometry. Admit OCR and table engines by format/script capability and real-source cell, row, pixel and cost scores. | Native fixture graphs have verified cell locators but repeat one table. RapidOCR exposed more CORD development strings than Tesseract, yet the unchanged extractor mapped zero exact fields/rows. PaddleOCR-VL 1.6 recovered only 14/219 permissive table rows on the frozen PDF development set; TATR and RapidTable remain guarded research trials. |
@@ -88,3 +92,10 @@ search service has no current quality/cost evidence. Add one only when a
 paired, source-disjoint ablation clears the same review-inclusive gate.
 Preserve the conference submission and its reported results as historical
 research evidence; later product measurements do not rewrite them.
+
+On this host, use the user-authorized `I:` volume for large source, model,
+run and evaluation artifacts through configurable roots such as
+`IDPO_DATA_DIR`; do not bake a drive letter into product APIs. Batch size is
+limited by available storage, per-owner quotas and bounded execution, with
+backpressure and explicit per-file outcomes. Disk capacity alone does not
+establish throughput, retention or backup reliability.

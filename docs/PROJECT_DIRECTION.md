@@ -19,8 +19,11 @@ Product development is a third track with new evaluations and claims.
 
 ## Primary Goal
 
-Deliver better structured extraction from an arbitrary document without manual template setup, at a lower total cost
-per accepted document across available local CPU, local GPU and cloud API capacity. Preserve the author-reported
+Deliver better structured extraction from a user's plain-language request and a batch of unfamiliar supported files,
+without manual template setup, at a lower total cost per correctly accepted document across available local CPU,
+local GPU and cloud API capacity. The user may instead supply a schema, examples and field context. The product
+should draft or interpret the schema on a small representative sample, ask for confirmation where field meaning is
+ambiguous, preview source-linked results, then apply an approved version to the remaining batch. Preserve the author-reported
 accepted submission and the separate frozen October evidence. Prefer local and open-source components when they meet
 the measured quality, cost and data-handling gates.
 
@@ -32,6 +35,8 @@ That means:
 - make accuracy, grounded field evidence, review burden, latency and compute/API spend visible together
 - discover document families and typed fields automatically, then stabilize recurring business fields in approved,
   versioned recipes; ambiguous or unsupported content must abstain for review
+- accept large batches through bounded admission and backpressure rather than a fixed UI file count; record a terminal
+  result or explicit failure for each original file, and never claim universal accuracy or support for untested formats
 - fix release blockers before calling the product deployable: access to another user's jobs/runs/artifacts, live Docker
   worker verification, and durable bounded job execution
 - require measured quality or cost gains before keeping AHMN routing, agent loops or separate services in the
@@ -51,6 +56,8 @@ That means:
   quality-cost frontier on the same test set
 - automatic family and typed-schema discovery with source evidence, followed by extraction against a versioned
   proposed or approved schema and a reusable recipe
+- intent-first batch onboarding: optional user schema/context, representative sample, clarified field definitions,
+  source-linked preview, explicit approval, then bounded batch execution and structured export
 - provider-neutral comparisons of local CPU, local GPU and opt-in cloud API extraction, with data controls and spend caps
 - field-level source evidence, side-by-side human review, adjudicated corrections and auditable outcomes
 - defect fixes and focused reduction of the canonical runtime, gateway and frontend job path, with tests
@@ -77,6 +84,8 @@ This phase is successful when:
 - both unauthorized cross-user access and the Docker runner blocker have passing end-to-end regression checks
 - a user can upload an unfamiliar supported document without choosing a template and receive a proposed typed schema,
   grounded values and explicit review or abstention states; schema discovery and value accuracy are scored separately
+- a user can describe a desired output or provide a schema/context, confirm ambiguous fields on a small preview, then
+  process a large batch under that pinned schema revision without silent drift or unbounded parallel work
 - each extracted field can be inspected against source evidence, corrected or abstained from, with review time recorded
 - a candidate system meets predeclared quality and cost gates on an untouched holdout; no agentic or adaptive path is
   promoted based only on an internal proxy reward
@@ -149,6 +158,21 @@ Which code areas are most affected:
 ```
 
 ## Goal Change Record
+
+```text
+Date: 2026-10-13
+Old phase: Accepted paper preserved; product stabilization
+New phase: Accepted paper preserved; intent-first batch product stabilization
+Reason: The user clarified that the primary experience is a plain-language extraction request over many files, with
+  optional schema/context, AI-assisted field clarification, a small preview, approved batch processing and export.
+What is now in scope: schema onboarding and confirmation, sample preview, bounded batch admission, versioned recipe
+  reuse, owner-scoped structured export, and explicit local/cloud route and cost policy.
+What is now out of scope: promising accurate extraction from every file or adding an unmeasured agent loop by default.
+Which docs must be updated: PROJECT_DIRECTION.md, SYSTEM_CONTRACT.md (current gap), PRODUCTIZATION_PLAN.md,
+  JOB_UI_CONTRACT.md and ADR-0006; deployment docs when the storage/execution path changes.
+Which code areas are most affected: frontend product job flow, product metadata, IDPO product worker, review/export,
+  and evaluation. The research and accepted-paper artifacts remain separate.
+```
 
 ```text
 Date: 2026-10-08

@@ -137,6 +137,13 @@ UI runs are admin-only until cloud data and spend controls exist. It does not us
 service, or the separate XAI-HITL service. Its benchmarks and outputs must never be represented as the submitted paper's
 results or as the canonical research runtime's outputs.
 
+The user's target intent-first batch flow is not implemented by this path. The current product screen requires a job
+upload and run selection; it has no natural-language intent-to-schema onboarding, field-meaning confirmation, pinned
+sample preview before the rest of a batch, or durable backpressure for arbitrarily large batches. The current
+candidate is displayed as JSON after review, but no owner-scoped structured download endpoint is in this contract
+yet. The [productization plan](PRODUCTIZATION_PLAN.md) defines these as staged target capabilities. This paragraph
+describes the current gap, not a promise that every format or field can be extracted accurately.
+
 ## Canonical Research Policy Routing
 
 Policy routing runs in-process through `ahmn_core/direct_advisor.py` (Thompson Sampling over the policies whose conditions match, with job-scoped posteriors). The runtime does not call the Guardrails or XAI-HITL services, and RABI and DAAF are not active in it; those are separate services and simulation experiments.

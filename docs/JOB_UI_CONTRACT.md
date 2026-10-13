@@ -6,6 +6,28 @@ It does not replace the current runtime contract in `docs/SYSTEM_CONTRACT.md`.
 
 Instead, it defines the structure the frontend should move toward while preserving the existing runtime path.
 
+## Product batch flow, clarified 13 October 2026
+
+For the opt-in product path, the primary action is **extract requested information from a batch**. Keep one compact
+workspace with these stages: **Files and request → Preview → Extract → Review and export**. The user can describe the
+desired output in ordinary language, enter a schema with field definitions/examples, or ask the system to discover
+one. Advanced parser, model and research policy details belong behind a secondary control.
+
+The preview should show the selected sample files, proposed field names/types/groups, a short meaning for each field,
+and values beside their source evidence. Ask focused clarification questions only where the requested meaning is
+ambiguous. Confirmation pins a schema revision; applying it to the rest of the batch must not silently rename fields
+or infer a new business meaning. New layouts or conflicts can return to review with an explicit reason. Reviewed
+corrections may propose a new recipe revision for later approval.
+
+Large batches need paginated status and results, bounded uploads and workers, resumable admission, cancellation and
+an explicit outcome for each file. Show pending, processing, ready for review, reviewed, unsupported and failed states
+in plain language. Do not label a machine result as reliable merely because JSON parsing or a text quote check passed.
+Display the configured coverage and route/cost policy before the user starts the remainder of a batch.
+
+This is target behavior. Current product routes lack intent onboarding, schema clarification and a sample preview
+gate. The research `adaptive`/`strict`/`both` controls described below remain available for the research runtime;
+they do not define the primary product workflow. See [the implementation boundary](SYSTEM_CONTRACT.md).
+
 ## Purpose
 
 The operator should think in terms of:
