@@ -1,0 +1,85 @@
+{
+  "protocol": "native_s1_source_graph_v1",
+  "fixture_manifest_sha256": "dca2d96ecb8e863d4081f113979d0175564968a402eba3b2fe16b40a9743ca23",
+  "model_calls": 0,
+  "gold_access": false,
+  "product_extraction_calls": 0,
+  "scope": "five self-created native files sharing one synthetic table",
+  "limitations": [
+    "Counts measure source-pointer enumeration, not schema or extraction accuracy.",
+    "First-row labels in DOCX and PPTX are provisional; no semantic approval occurs.",
+    "No PDF/image OCR, unseen language, long document, real family, or HITL cost tested."
+  ],
+  "records": [
+    {
+      "name": "order.docx",
+      "source_sha256": "c962e87d75ad90335e44ec71a07b024e299d8b8c02b0a17e8922f5cd53a57f27",
+      "status": "candidate",
+      "parser_id": "python-docx",
+      "parser_version": "1.2.0",
+      "source_nodes": 9,
+      "table_candidates": 1,
+      "column_candidates": 3,
+      "row_candidates": 2,
+      "abstentions": [],
+      "model_input_bytes": 4677,
+      "model_input_sha256": "03eed12b781c9814a4f8615f2547eea4f6ad6fd4ba8e8005d536345cc556b2fe"
+    },
+    {
+      "name": "order.xlsx",
+      "source_sha256": "37b84b250ed69ca869dfd50e575432c918e35ca8fa71baab7552155e2ce6f3a3",
+      "status": "candidate",
+      "parser_id": "openpyxl",
+      "parser_version": "3.1.5",
+      "source_nodes": 9,
+      "table_candidates": 1,
+      "column_candidates": 3,
+      "row_candidates": 2,
+      "abstentions": [],
+      "model_input_bytes": 4872,
+      "model_input_sha256": "025006e5ea3db163baeb8d7da3ac5496f82d724248add0c901ecb83c9719d648"
+    },
+    {
+      "name": "order.html",
+      "source_sha256": "dcec615260752fd5e58886ed9e2cdb8d44f241fcf7376aadfc9d9f0afcd236af",
+      "status": "candidate",
+      "parser_id": "lxml-html",
+      "parser_version": "6.1.1",
+      "source_nodes": 9,
+      "table_candidates": 1,
+      "column_candidates": 3,
+      "row_candidates": 2,
+      "abstentions": [],
+      "model_input_bytes": 4495,
+      "model_input_sha256": "2d9b99e5855772e7a74e934c32ed347cce1245351dfb21caeaf4a59309eecacc"
+    },
+    {
+      "name": "order.eml",
+      "source_sha256": "289ab4ac838620f80f1742e066e70d41b1d9ef91d8a300469d657dd7818a2193",
+      "status": "candidate",
+      "parser_id": "lxml-html",
+      "parser_version": "6.1.1",
+      "source_nodes": 9,
+      "table_candidates": 1,
+      "column_candidates": 3,
+      "row_candidates": 2,
+      "abstentions": [],
+      "model_input_bytes": 4656,
+      "model_input_sha256": "675c91e6eaf65b8ecb3de13e710fb22ae7a85f3f1c8bf746d343cb375e232441"
+    },
+    {
+      "name": "order.pptx",
+      "source_sha256": "770cf664027c555c0e7beba08d3ef8777c7efe20fd1db8f58b3c002a800f1257",
+      "status": "candidate",
+      "parser_id": "python-pptx",
+      "parser_version": "1.0.2",
+      "source_nodes": 9,
+      "table_candidates": 1,
+      "column_candidates": 3,
+      "row_candidates": 2,
+      "abstentions": [],
+      "model_input_bytes": 4649,
+      "model_input_sha256": "f62fe9a30622e7a6ff76bceef9734a38e45902a2987bb7d243f095fb6e815d40"
+    }
+  ]
+}
