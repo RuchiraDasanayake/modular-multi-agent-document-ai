@@ -347,6 +347,17 @@ def schema_prompt(pages: list[dict[str, object]]) -> str:
     )
 
 
+def keyed_values_example(fields: list[dict[str, object]]) -> str:
+    """Show every confirmed field as a required keyed null, never a subset."""
+    field_ids = [field.get("field_id") for field in fields]
+    if not field_ids or any(not isinstance(field_id, str) or not field_id for field_id in field_ids) or \
+            len(set(field_ids)) != len(field_ids):
+        raise ValueError("Keyed values prompt requires distinct confirmed field IDs")
+    return json.dumps({"values": {
+        field_id: {"value": None, "page": None, "quote": None} for field_id in field_ids
+    }}, separators=(",", ":"))
+
+
 def values_prompt(
     pages: list[dict[str, object]], fields: list[dict[str, object]], intent: str = "",
     *, output_shape: str = "array_v1",
@@ -355,11 +366,7 @@ def values_prompt(
     if intent:
         data["user_intent"] = intent
     if output_shape == "keyed_v2":
-        if not fields or not isinstance(fields[0].get("field_id"), str):
-            raise ValueError("Keyed values prompt requires confirmed field IDs")
-        example = json.dumps({"values": {str(fields[0]["field_id"]): {
-            "value": None, "page": None, "quote": None,
-        }}}, separators=(",", ":"))
+        example = keyed_values_example(fields)
         opening = ("Extract values only for the listed fields. Return JSON only as " + example + ". "
                    "Include one property for every confirmed field ID, including absent values. "
                    "For array[object] fields, the outer page and quote are null; each cell carries its page and quote. ")
