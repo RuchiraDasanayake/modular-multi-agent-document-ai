@@ -4,6 +4,8 @@
 
 **Publisher-provenance addendum (13 October 2026):** [A later receipt](RAPIDTABLE_PUBLISHER_ASSET_RIGHTS_20261013.md) verifies that a fresh RapidAI publisher download is byte-identical to the pinned ONNX file and records the publisher model repository's Apache-2.0 declaration. That supersedes this protocol's earlier *mirror-only exact-asset rights* hold for a local research trial. The cached-wheel notices, installed-byte closure, OCR, localization, page coordinates, guarded runner, and packaging attribution remain held. Historical mirror and `model_rights` fields below describe the earlier source-free receipt; they are not a current claim about publisher provenance. No selected PDF has been run.
 
+The [shared source-free crop transform](TABLE_CROP_SOURCE_FREE_GEOMETRY_20261013.md) passes synthetic cropped/rotated PDF geometry checks but has not processed a detected table or proved RapidTable cell-to-source alignment.
+
 ## Decision and candidate
 
 [RapidTable v3.0.2](https://github.com/RapidAI/RapidTable/releases/tag/v3.0.2) is the next **conditional** low-cost table-structure trial because its [v3 batch output](https://github.com/RapidAI/RapidTable/releases/tag/v3.0.0) can expose HTML, physical cell boxes and logical row/column spans using a small ONNX checkpoint and CPU. It still needs separate table localization, text recognition, and source-coordinate mapping. The local smoke validates an input/output contract on one artificial table; it says nothing about ad-buy accuracy or full-document cost.
