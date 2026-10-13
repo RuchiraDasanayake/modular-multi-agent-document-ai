@@ -106,7 +106,7 @@ def parse_confirmed_strict_values_reply(
             return None
         payload = json.loads(text, object_pairs_hook=_unique_object,
                              parse_float=_finite_float, parse_constant=_reject_constant)
-    except (TypeError, ValueError, UnicodeError):
+    except (TypeError, ValueError, UnicodeError, RecursionError):
         return None
     if not isinstance(payload, dict) or set(payload) != {"values"} or not isinstance(payload["values"], list) or \
             len(payload["values"]) != len(field_types):

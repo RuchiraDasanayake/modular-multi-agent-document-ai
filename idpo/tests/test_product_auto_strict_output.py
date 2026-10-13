@@ -38,6 +38,11 @@ VALUES = {"values": [
 ]}
 
 
+def test_excessively_nested_reply_is_rejected_without_aborting_a_batch() -> None:
+    reply = '{"values":' + '[' * 2000 + 'null' + ']' * 2000 + '}'
+    assert parse_confirmed_strict_values_reply(reply, SCHEMA_FIELDS, PAGES) is None
+
+
 class StrictRecordingModel:
     model = "synthetic-model"
 
