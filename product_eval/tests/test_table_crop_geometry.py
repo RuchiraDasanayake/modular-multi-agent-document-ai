@@ -62,6 +62,8 @@ def test_page_edge_padding_is_recorded_and_bad_boxes_fail() -> None:
         table_crop_from_proposal((1, 1, 10, 10), (100, 100), padding=6)
     with pytest.raises(GeometryError, match="outside table crop"):
         crop_box_to_page_pixels(crop, (0, 0, 16, 10))
+    with pytest.raises(GeometryError, match="upright table crop"):
+        crop_box_to_page_pixels(crop, (0, 0, 52, 10), rotated_clockwise=True)
     with pytest.raises(GeometryError, match="invalid"):
         crop_box_to_page_pixels(crop, (0, 0, float("nan"), 10))
     with pytest.raises(GeometryError, match="invalid table proposal"):
@@ -100,6 +102,7 @@ def test_crop_word_and_pdf_roundtrip_on_rotated_cropped_pdf(
             crop = table_crop_from_proposal(proposal, (bitmap.width, bitmap.height))
             converter = bitmap.get_posconv(page)
             image = bitmap.to_pil().convert("L").crop(crop.raster_box)
+            upright_image = image.rotate(270, expand=True)
             for word in words:
                 local = page_word_to_crop(crop, word.bbox)
                 assert local is not None
@@ -109,6 +112,24 @@ def test_crop_word_and_pdf_roundtrip_on_rotated_cropped_pdf(
                            for a, b in zip(page_box, word.pdf_bbox))
                 pixels = image.crop(tuple(round(value) for value in local))
                 assert pixels.getextrema()[0] < 100
+                upright = page_word_to_crop(
+                    crop, word.bbox, rotated_clockwise=True
+                )
+                assert upright is not None
+                projected = crop_box_to_page_pixels(
+                    crop, upright, rotated_clockwise=True
+                )
+                assert all(math.isclose(a, b, abs_tol=1e-6)
+                           for a, b in zip(projected, word.bbox))
+                rotated_pdf_box = crop_box_to_pdf_page(
+                    crop, upright, converter, rotated_clockwise=True
+                )
+                assert all(math.isclose(a, b, abs_tol=1.0)
+                           for a, b in zip(rotated_pdf_box, word.pdf_bbox))
+                upright_pixels = upright_image.crop(
+                    tuple(round(value) for value in upright)
+                )
+                assert upright_pixels.getextrema()[0] < 100
         finally:
             bitmap.close()
             page.close()

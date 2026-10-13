@@ -87,11 +87,16 @@ def table_crop_from_proposal(
 
 
 def crop_box_to_page_pixels(
-    crop: TableCrop, box: tuple[float, float, float, float]
+    crop: TableCrop,
+    box: tuple[float, float, float, float],
+    *,
+    rotated_clockwise: bool = False,
 ) -> tuple[float, float, float, float]:
-    """Map one fully contained local cell box to the rendered page pixel frame."""
+    """Map an upright local cell box to the rendered page pixel frame."""
     if not _valid_box(box):
         raise GeometryError("invalid local cell box")
+    if rotated_clockwise:
+        box = _upright_box_to_crop(box, crop.size)
     width, height = crop.size
     if box[0] < 0 or box[1] < 0 or box[2] > width or box[3] > height:
         raise GeometryError("local cell box lies outside table crop")
@@ -100,9 +105,12 @@ def crop_box_to_page_pixels(
 
 
 def page_word_to_crop(
-    crop: TableCrop, page_box: tuple[float, float, float, float]
+    crop: TableCrop,
+    page_box: tuple[float, float, float, float],
+    *,
+    rotated_clockwise: bool = False,
 ) -> tuple[float, float, float, float] | None:
-    """Map a word only when it is wholly inside; partial words are ambiguous."""
+    """Map a fully contained word into the upright table crop pixel frame."""
     if not _valid_box(page_box):
         raise GeometryError("invalid source word box")
     if (page_box[0] < 0 or page_box[1] < 0
@@ -115,17 +123,41 @@ def page_word_to_crop(
     if (page_box[0] < left or page_box[1] < top
             or page_box[2] > right or page_box[3] > bottom):
         raise GeometryError("source word crosses table crop edge")
-    return (
+    local = (
         page_box[0] - left, page_box[1] - top,
         page_box[2] - left, page_box[3] - top,
     )
+    return _crop_box_to_upright(local, crop.size) if rotated_clockwise else local
+
+
+def _crop_box_to_upright(
+    box: tuple[float, float, float, float], crop_size: tuple[int, int]
+) -> tuple[float, float, float, float]:
+    """Rotate continuous box edges 90 degrees clockwise, as PIL 270 does."""
+    width, height = crop_size
+    if not _valid_box(box) or box[0] < 0 or box[1] < 0 or box[2] > width or box[3] > height:
+        raise GeometryError("invalid box in unrotated table crop")
+    return height - box[3], box[0], height - box[1], box[2]
+
+
+def _upright_box_to_crop(
+    box: tuple[float, float, float, float], crop_size: tuple[int, int]
+) -> tuple[float, float, float, float]:
+    width, height = crop_size
+    if not _valid_box(box) or box[0] < 0 or box[1] < 0 or box[2] > height or box[3] > width:
+        raise GeometryError("invalid box in upright table crop")
+    return box[1], height - box[2], box[3], height - box[0]
 
 
 def crop_box_to_pdf_page(
     crop: TableCrop,
     box: tuple[float, float, float, float],
     converter: Any,
+    *,
+    rotated_clockwise: bool = False,
 ) -> tuple[float, float, float, float]:
     """Reproject a local cell box through the exact crop and PDFium converter."""
-    page_box = crop_box_to_page_pixels(crop, box)
+    page_box = crop_box_to_page_pixels(
+        crop, box, rotated_clockwise=rotated_clockwise
+    )
     return pixel_box_to_page(page_box, converter, crop.page_width, crop.page_height)
