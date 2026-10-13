@@ -1,0 +1,10 @@
+# Optional separate CPU OCR interpreter; never merge into the main worker env.
+# The local deployment exercised these on Windows x64 / Python 3.11.
+# This is a direct dependency pin list, not a complete wheel/hash lock.
+# Full vetted closure: product_eval/fixtures/rapidtable_v3_runtime_lock.json,
+# excluding rapid-table and opencv-python per tatr_rapidocr_word_lock.json.
+# No TATR or table models are needed. Provision the three locally verified
+# model files from docs/PRODUCT_RAPIDOCR.md; runtime downloading is forbidden.
+rapidocr==3.10.0
+onnxruntime==1.31.0
+opencv-python-headless==5.0.0.93
