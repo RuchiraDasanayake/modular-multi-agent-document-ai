@@ -33,6 +33,26 @@ const KNOWN_OUTCOMES: Record<ProductAutoOutcomeReason, { cause: string; action: 
     cause: "Text preparation failed before a reviewable result could be produced.",
     action: "Check the original image or PDF and retry with a clearer copy. Ask an administrator to inspect OCR if it repeats.",
   },
+  schema_provider_error: {
+    cause: "The model service did not complete schema discovery.",
+    action: "A model call may have been charged. Ask an administrator to check the service before starting a separate attempt.",
+  },
+  invalid_schema_model_response: {
+    cause: "The model did not return a complete, valid schema proposal.",
+    action: "Enter and confirm the required fields, or start a separate attempt. The failed model call may have been charged.",
+  },
+  values_provider_error: {
+    cause: "The model service did not complete value extraction.",
+    action: "A model call may have been charged. Ask an administrator to check the service before starting a separate attempt.",
+  },
+  invalid_values_model_response: {
+    cause: "The model did not return a complete, valid extraction result.",
+    action: "The model call may have been charged. Start a separate attempt only after reviewing this failure.",
+  },
+  invalid_strict_values_model_response: {
+    cause: "The model did not return every required field in a complete, valid result.",
+    action: "The model call may have been charged. Start a separate attempt only after reviewing this failure.",
+  },
 };
 
 export function productAutoOutcomeCopy(status: ProductAutoDocumentStatus,

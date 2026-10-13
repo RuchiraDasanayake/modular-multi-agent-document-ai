@@ -8,6 +8,7 @@ import { GET as exportBatchRoute } from "@/app/api/jobs/[jobId]/auto/[runId]/exp
 import { GET as getDocumentRoute, POST as reviewDocumentRoute } from "@/app/api/jobs/[jobId]/auto/[runId]/docs/[docId]/route";
 import { GET as exportDocumentRoute } from "@/app/api/jobs/[jobId]/auto/[runId]/docs/[docId]/export/route";
 import { GET as getOriginalContentRoute } from "@/app/api/jobs/[jobId]/docs/[docId]/content/route";
+import { POST as createRecipeDraftRoute } from "@/app/api/jobs/[jobId]/auto/recipes/route";
 import type { ProductAutoAuditEvent, ProductAutoReview } from "@/types/product-auto";
 import { resetConfigCacheForTests } from "./config";
 import { addDocumentsToJob, createWorkspaceJob } from "./jobs";
@@ -53,8 +54,8 @@ async function withStorage(run: (dataDir: string) => Promise<void>): Promise<voi
   }
 }
 
-async function fixture(dataDir: string, status: "processed" | "failed" | "unsupported" = "processed",
-  runStatus: "success" | "running" = "success") {
+async function fixture(dataDir: string, status: "processed" | "needs_review" | "failed" | "unsupported" = "processed",
+  runStatus: "success" | "running" = "success", reason?: string) {
   const job = createWorkspaceJob({ ownerUserId: "alice-id" });
   const texts = ["Invoice number: INV-1\nTotal: 10", "Invoice number: INV-2\nTotal: 20"];
   const updated = await addDocumentsToJob(job.jobId, texts.map((text, index) =>
@@ -72,7 +73,7 @@ async function fixture(dataDir: string, status: "processed" | "failed" | "unsupp
     const sourceHash = sha256(fs.readFileSync(path.join(updated.uploadsPath!, source.storedName)));
     const quote = `INV-${index + 1}`;
     const start = texts[index].indexOf(quote);
-    const result = { pages: [{ page: 1, text: texts[index] }], candidate: {
+    const result = { pages: [{ page: 1, text: texts[index] }], ...(reason ? { reason } : {}), candidate: {
       contract_version: 1, doc_id: docId, document_status: status,
       proposed_schema: [{ field_id: "invoice_number", type: "string" }],
       extracted_values: status === "processed"
@@ -114,11 +115,16 @@ async function fixture(dataDir: string, status: "processed" | "failed" | "unsupp
   return { batchUrl, batchParams, review, sources, updated, runDir, recordDir, runId, job, texts, documents, selectedFiles };
 }
 
-for (const status of ["failed", "unsupported"] as const) {
+for (const outcome of [
+  { status: "failed", reason: undefined },
+  { status: "unsupported", reason: undefined },
+  { status: "needs_review", reason: "invalid_strict_values_model_response" },
+] as const) {
+  const { status, reason } = outcome;
   for (const runStatus of ["success", "running"] as const) {
-    test(`${status} document refuses review and export without writes in a ${runStatus} run`, async () =>
+    test(`${status}${reason ? " with legacy invalid model reply" : ""} refuses review and export without writes in a ${runStatus} run`, async () =>
       withStorage(async (dataDir) => {
-        const setup = await fixture(dataDir, status, runStatus);
+        const setup = await fixture(dataDir, status, runStatus, reason);
         const recordPath = path.join(setup.recordDir, `${setup.runId}.json`);
         const recordBefore = fs.readFileSync(recordPath);
         const terminalPath = path.join(setup.recordDir, `${setup.runId}.terminal.json`);
@@ -127,7 +133,13 @@ for (const status of ["failed", "unsupported"] as const) {
         const params = { params: Promise.resolve({ jobId: setup.job.jobId, runId: setup.runId, docId: "doc1" }) };
         const detail = await getDocumentRoute(request(docUrl, "alice"), params);
         assert.equal(detail.status, 200);
-        assert.equal((await detail.json()).sourcePages[0].text, setup.texts[0]);
+        const detailBody = await detail.json();
+        assert.equal(detailBody.sourcePages[0].text, setup.texts[0]);
+        if (reason) {
+          assert.equal(detailBody.candidate.document_status, "failed");
+          assert.equal(detailBody.outcomeReason, reason);
+          assert.equal(detailBody.candidate.extracted_values[0].status, "missing");
+        }
         assert.equal((await exportDocumentRoute(request(`${docUrl}/export`, "bob"), params)).status, 404);
         const rejectedReview = await setup.review("doc1");
         const rejectedExport = await exportDocumentRoute(request(`${docUrl}/export`, "alice"), params);
@@ -149,9 +161,9 @@ for (const status of ["failed", "unsupported"] as const) {
       }));
   }
 
-  test(`${status} document with a valid legacy completed review still cannot export`, async () =>
+  test(`${status}${reason ? " with legacy invalid model reply" : ""} and completed old review still cannot export`, async () =>
     withStorage(async (dataDir) => {
-      const setup = await fixture(dataDir, status);
+      const setup = await fixture(dataDir, status, "success", reason);
       const auditPaths: string[] = [];
       for (const [index, document] of setup.documents.entries()) {
         const review: ProductAutoReview = {
@@ -186,6 +198,16 @@ for (const status of ["failed", "unsupported"] as const) {
         assert.equal(response.status, 409);
         assert.match((await response.json()).error, /Failed or unsupported documents cannot be reviewed or exported/);
       }
+      if (reason) {
+        const recipeUrl = `/api/jobs/${setup.job.jobId}/auto/recipes`;
+        const recipeDraft = await createRecipeDraftRoute(request(recipeUrl, "alice", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ runId: setup.runId, docId: "doc1", expectedReviewRevision: 1,
+            familyName: "Legacy failed example" }),
+        }), { params: Promise.resolve({ jobId: setup.job.jobId }) });
+        assert.equal(recipeDraft.status, 409);
+        assert.match((await recipeDraft.json()).error, /Failed or unsupported documents cannot seed a recipe/);
+      }
       const batch = await exportBatchRoute(request(setup.batchUrl, "alice"), setup.batchParams);
       assert.equal(batch.status, 409);
       assert.match((await batch.json()).error, /0 reviewed, 0 unreviewed, 2 failed or unsupported/);
@@ -195,6 +217,21 @@ for (const status of ["failed", "unsupported"] as const) {
       }
     }));
 }
+
+test("a sealed complete all-null reply remains reviewable instead of a model failure", async () =>
+  withStorage(async (dataDir) => {
+    const setup = await fixture(dataDir, "needs_review", "success", "confirmed_schema_no_grounded_values");
+    const url = `/api/jobs/${setup.job.jobId}/auto/${setup.runId}/docs/doc1`;
+    const params = { params: Promise.resolve({ jobId: setup.job.jobId, runId: setup.runId, docId: "doc1" }) };
+    const detail = await getDocumentRoute(request(url, "alice"), params);
+    assert.equal(detail.status, 200);
+    const body = await detail.json();
+    assert.equal(body.candidate.document_status, "needs_review");
+    assert.equal(body.outcomeReason, undefined);
+    assert.equal(body.candidate.extracted_values[0].status, "missing");
+    assert.equal((await setup.review("doc1")).status, 200);
+    assert.equal((await exportDocumentRoute(request(`${url}/export`, "alice"), params)).status, 200);
+  }));
 
 test("reviewed JSONL batch refuses nonowners and partial reviews, then preserves selected order", async () =>
   withStorage(async (dataDir) => {

@@ -208,9 +208,44 @@ def test_text_workflow_rejects_omitted_field_without_a_second_call(tmp_path: Pat
     candidate, sidecar, _, _ = _run_text(tmp_path, PAGES[0]["text"], model)
     assert len(model.calls) == 1
     assert sidecar["reason"] == "invalid_strict_values_model_response"
-    assert candidate["document_status"] == "needs_review"
+    assert candidate["document_status"] == "failed"
     assert all(item["value"] is None for item in candidate["extracted_values"])
     assert sidecar["model_calls"][0]["raw_reply_sha256"] == hashlib.sha256(raw.encode()).hexdigest()
+
+
+def test_text_workflow_keeps_complete_all_null_values_reviewable(tmp_path: Path) -> None:
+    absent = {"values": {field["field_id"]: {"value": None, "page": None, "quote": None}
+                         for field in FIELDS}}
+    model = TextModel([json.dumps(absent)])
+    candidate, sidecar, _, _ = _run_text(tmp_path, PAGES[0]["text"], model)
+    assert len(model.calls) == 1
+    assert candidate["document_status"] == "needs_review"
+    assert sidecar["reason"] == "confirmed_schema_no_grounded_values"
+    assert all(item["status"] == "missing" for item in candidate["extracted_values"])
+
+
+@pytest.mark.parametrize("reply,reason", [
+    (ModelReply(text=json.dumps(VALUES), latency_ms=1, finish_reason="length", sdk_attempts=1),
+     "invalid_strict_values_model_response"),
+    (ModelReply(text=json.dumps(VALUES), latency_ms=1, finish_reason="stop", refusal=True, sdk_attempts=1),
+     "invalid_strict_values_model_response"),
+    (ModelReply(text="", latency_ms=1, error="transport failure", sdk_attempts=1),
+     "values_provider_error"),
+])
+def test_v2_incomplete_refusal_or_provider_error_fails_without_retry(
+    tmp_path: Path, reply: ModelReply, reason: str,
+) -> None:
+    class ReplyModel(TextModel):
+        def complete_json(self, **kwargs) -> ModelReply:
+            self.calls.append(kwargs)
+            return reply
+
+    model = ReplyModel([])
+    candidate, sidecar, _, _ = _run_text(tmp_path, PAGES[0]["text"], model)
+    assert len(model.calls) == 1
+    assert candidate["document_status"] == "failed"
+    assert sidecar["reason"] == reason
+    assert all(item["status"] == "missing" for item in candidate["extracted_values"])
 
 
 def test_segmented_v2_requires_every_key_in_every_segment_and_keeps_coverage(tmp_path: Path) -> None:

@@ -17,3 +17,10 @@ test("unknown backend failure text never becomes user-facing copy", () => {
   assert.match(copy.sourceNote, /unavailable for review or export/);
   assert.equal(productAutoOutcomeCopy("needs_review", "parse_failed", 0), null);
 });
+
+test("incomplete model output is explained as a failed attempt, not missing source values", () => {
+  const copy = productAutoOutcomeCopy("failed", "invalid_strict_values_model_response", 1);
+  assert.match(copy?.cause ?? "", /every required field/);
+  assert.match(copy?.sourceNote ?? "", /unavailable for review or export/);
+  assert.equal(productAutoOutcomeCopy("needs_review", "invalid_strict_values_model_response", 1), null);
+});

@@ -338,7 +338,7 @@ def test_truncated_schema_response_abstains_without_baseline_fallback(tmp_path: 
     model = FakeModel(ModelReply(text='{"fields":[{"field_id":"invoice_number","type":"string"}]}', latency_ms=1, finish_reason="length"))
     run = process_auto(source, run_id="truncated", model=model, output_root=tmp_path / "runs")
     candidate, sidecar = _result(run["run_dir"])
-    assert candidate["document_status"] == "needs_review"
+    assert candidate["document_status"] == "failed"
     assert candidate["proposed_schema"] == []
     assert candidate["extracted_values"] == []
     assert sidecar["reason"] == "invalid_schema_model_response"
@@ -351,10 +351,47 @@ def test_invalid_schema_model_response_abstains(tmp_path: Path) -> None:
     model = FakeModel(ModelReply(text='{"fields":[{"field_id":"invoice_number","type":"object"}]}', latency_ms=1))
     run = process_auto(source, run_id="invalid_schema", model=model, output_root=tmp_path / "runs")
     candidate, sidecar = _result(run["run_dir"])
-    assert candidate["document_status"] == "needs_review"
+    assert candidate["document_status"] == "failed"
     assert candidate["proposed_schema"] == []
     assert candidate["extracted_values"] == []
     assert sidecar["reason"] == "invalid_schema_model_response"
+
+
+@pytest.mark.parametrize("invalid_reply", [
+    ModelReply(text='{"values":', latency_ms=1),
+    ModelReply(text='{"values":[{"field_id":"invoice_number","value":"INV-42",'
+                    '"page":1,"quote":"INV-42"}]}', latency_ms=1, refusal=True),
+])
+def test_invalid_discovered_values_response_fails_without_second_value_call(
+    tmp_path: Path, invalid_reply: ModelReply,
+) -> None:
+    source = tmp_path / "invoice.txt"
+    source.write_text("Invoice Number: INV-42\n", encoding="utf-8")
+    model = FakeModel(
+        ModelReply(text='{"fields":[{"field_id":"invoice_number","type":"string"}]}', latency_ms=1),
+        invalid_reply,
+    )
+    run = process_auto(source, run_id="invalid_values", model=model, output_root=tmp_path / "runs")
+    candidate, sidecar = _result(run["run_dir"])
+    assert len(model.calls) == 2
+    assert candidate["document_status"] == "failed"
+    assert sidecar["reason"] == "invalid_values_model_response"
+    assert [value["status"] for value in candidate["extracted_values"]] == ["missing"]
+
+
+def test_refused_schema_response_fails_even_with_parseable_body(tmp_path: Path) -> None:
+    source = tmp_path / "invoice.txt"
+    source.write_text("Invoice Number: INV-42\n", encoding="utf-8")
+    model = FakeModel(ModelReply(
+        text='{"fields":[{"field_id":"invoice_number","type":"string"}]}',
+        latency_ms=1, refusal=True,
+    ))
+    run = process_auto(source, run_id="refused_schema", model=model, output_root=tmp_path / "runs")
+    candidate, sidecar = _result(run["run_dir"])
+    assert len(model.calls) == 1
+    assert candidate["document_status"] == "failed"
+    assert sidecar["reason"] == "invalid_schema_model_response"
+    assert candidate["proposed_schema"] == []
 
 
 @pytest.mark.parametrize(

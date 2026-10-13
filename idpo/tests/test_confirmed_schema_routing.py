@@ -81,19 +81,19 @@ def test_confirmed_schema_uses_only_value_call_and_source_receipts(tmp_path: Pat
     assert marker["approved_recipe"] is None
 
 
-def test_schema_mismatch_or_unquoted_value_stays_review_only(tmp_path: Path) -> None:
+def test_invalid_field_fails_but_unquoted_value_stays_review_only(tmp_path: Path) -> None:
     schema_path, digest = snapshot(tmp_path)
     schema = load_confirmed_schema(schema_path, digest)
     source = tmp_path / "invoice.txt"
     source.write_text("Total: 100", encoding="utf-8")
-    for run_id, reply in [
-        ("wrong-field", '{"values":[{"field_id":"other","value":100,"page":1,"quote":"100"}]}'),
-        ("wrong-quote", '{"values":[{"field_id":"total","value":100,"page":1,"quote":"999"}]}'),
+    for run_id, reply, expected_status in [
+        ("wrong-field", '{"values":[{"field_id":"other","value":100,"page":1,"quote":"100"}]}', "failed"),
+        ("wrong-quote", '{"values":[{"field_id":"total","value":100,"page":1,"quote":"999"}]}', "needs_review"),
     ]:
         run = process_auto(source, run_id=run_id, model=OneReplyModel(reply), confirmed_schema=schema,
                            output_root=tmp_path / "runs")
         candidate = json.loads((Path(run["run_dir"]) / "candidates.jsonl").read_text())
-        assert candidate["document_status"] == "needs_review"
+        assert candidate["document_status"] == expected_status
         assert candidate["extracted_values"][0]["status"] != "accepted"
 
 
