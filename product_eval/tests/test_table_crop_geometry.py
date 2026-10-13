@@ -64,6 +64,17 @@ def test_page_edge_padding_is_recorded_and_bad_boxes_fail() -> None:
         crop_box_to_page_pixels(crop, (0, 0, 16, 10))
     with pytest.raises(GeometryError, match="invalid"):
         crop_box_to_page_pixels(crop, (0, 0, float("nan"), 10))
+    with pytest.raises(GeometryError, match="invalid table proposal"):
+        table_crop_from_proposal(None, (100, 100))  # type: ignore[arg-type]
+    with pytest.raises(GeometryError, match="invalid rendered page size"):
+        table_crop_from_proposal((0, 0, 10, 10), None)  # type: ignore[arg-type]
+
+
+def test_numpy_float32_detector_box_is_accepted_without_silent_clamping() -> None:
+    np = pytest.importorskip("numpy")
+    box = np.asarray([1, 2, 10, 12], dtype=np.float32)
+    crop = table_crop_from_proposal(box, (100, 100))  # type: ignore[arg-type]
+    assert crop.proposal_box == (1.0, 2.0, 10.0, 12.0)
 
 
 @pytest.mark.parametrize("rotation", [0, 90, 180, 270])

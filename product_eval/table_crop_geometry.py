@@ -8,6 +8,7 @@ PDFium's converter handles the separate PDF crop/rotation transform.
 from __future__ import annotations
 
 import math
+import numbers
 from dataclasses import dataclass
 from typing import Any
 
@@ -29,11 +30,18 @@ class TableCrop:
         return right - left, bottom - top
 
 
-def _valid_box(box: tuple[float, float, float, float]) -> bool:
-    return (len(box) == 4
-            and all(isinstance(value, (int, float)) and not isinstance(value, bool)
-                    and math.isfinite(value) for value in box)
-            and box[0] < box[2] and box[1] < box[3])
+def _valid_box(box: Any) -> bool:
+    if (isinstance(box, (str, bytes))
+            or not hasattr(box, "__len__") or not hasattr(box, "__getitem__")):
+        return False
+    try:
+        values = tuple(box)
+    except TypeError:
+        return False
+    return (len(values) == 4
+            and all(isinstance(value, numbers.Real) and not isinstance(value, bool)
+                    and math.isfinite(value) for value in values)
+            and values[0] < values[2] and values[1] < values[3])
 
 
 def table_crop_from_proposal(
@@ -43,12 +51,18 @@ def table_crop_from_proposal(
     padding: int = 5,
 ) -> TableCrop:
     """Freeze a detected box as an integer page-raster crop, with at most 5 px pad."""
-    if len(page_size) != 2 or any(
-        not isinstance(value, int) or isinstance(value, bool) or value <= 0
-        for value in page_size
+    if isinstance(page_size, (str, bytes)):
+        raise GeometryError("invalid rendered page size")
+    try:
+        dimensions = tuple(page_size)
+    except TypeError as exc:
+        raise GeometryError("invalid rendered page size") from exc
+    if len(dimensions) != 2 or any(
+        not isinstance(value, numbers.Integral)
+        or isinstance(value, bool) or value <= 0 for value in dimensions
     ):
         raise GeometryError("invalid rendered page size")
-    width, height = page_size
+    width, height = (int(value) for value in dimensions)
     if not isinstance(padding, int) or isinstance(padding, bool) or not 0 <= padding <= 5:
         raise GeometryError("table crop padding must be an integer from 0 to 5")
     if not _valid_box(proposal_box):

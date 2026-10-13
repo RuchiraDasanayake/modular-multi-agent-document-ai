@@ -67,7 +67,8 @@ page-pixel compatibility remain unproven. A separate
 matched six synthetic cells, boxes and row/column positions on CPU; the exact
 model has a [publisher-provenance receipt](evaluations/RAPIDTABLE_PUBLISHER_ASSET_RIGHTS_20261013.md)
 for local research, while installed runtime closure, model packaging attribution
-and the PDF evidence path remain held.
+and the PDF evidence path remain held. The [runtime audit](evaluations/RAPIDTABLE_RUNTIME_PROVENANCE_20261013.md)
+pinpoints three overlapping OpenCV files; a single-owner design is required.
 Neither research arm changes the product extractor or satisfies the row gate.
 
 The next product change should be one bounded, feature-flagged PDF/image

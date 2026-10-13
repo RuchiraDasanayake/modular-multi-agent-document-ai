@@ -15,10 +15,10 @@ from product_eval.rapidtable_runtime_provenance import (
 
 
 class _Distribution:
-    metadata = {"Name": "example"}
     version = "1.0"
 
     def __init__(self, root: Path, record: str) -> None:
+        self.metadata = {"Name": "example"}
         self.root = root
         self.record = record
 
@@ -95,6 +95,27 @@ class RapidTableRuntimeProvenanceTests(TestCase):
             )
             self.assertFalse(result["mismatches"][0]["installed_record_matches_wheel"])
 
+    def test_hashed_installer_extra_is_checked_against_installed_bytes(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            wheel, distribution = self._fixture(root)
+            installer = root / "example-1.0.dist-info/INSTALLER"
+            installer.write_bytes(b"pip")
+            distribution.record += (
+                f"example-1.0.dist-info/INSTALLER,{_record_sha256(b'pip')},3\n"
+            )
+            (root / "example-1.0.dist-info/RECORD").write_text(
+                distribution.record, encoding="utf-8", newline=""
+            )
+            result, _ = audit_wheel(wheel, distribution)
+            self.assertEqual(result["hashed_extra_installed_record_mismatches"], [])
+            installer.write_bytes(b"uv")
+            result, _ = audit_wheel(wheel, distribution)
+            self.assertEqual(
+                result["hashed_extra_installed_record_mismatches"],
+                ["example-1.0.dist-info/INSTALLER"],
+            )
+
     def test_corrupt_wheel_record_fails_closed(self) -> None:
         with TemporaryDirectory() as directory:
             root = Path(directory)
@@ -107,4 +128,14 @@ class RapidTableRuntimeProvenanceTests(TestCase):
                 )
                 archive.writestr("example-1.0.dist-info/RECORD", "bad,row\n")
             with self.assertRaisesRegex(ValueError, "RECORD row"):
+                audit_wheel(wheel, distribution)
+
+    def test_installed_record_requires_unhashed_self_row(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            wheel, distribution = self._fixture(root)
+            distribution.record = distribution.record.replace(
+                "example-1.0.dist-info/RECORD,,\n", ""
+            )
+            with self.assertRaisesRegex(ValueError, "self row"):
                 audit_wheel(wheel, distribution)

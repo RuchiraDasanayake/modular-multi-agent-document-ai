@@ -66,6 +66,9 @@ def audit_wheel(
         wheel_record = _record_rows(archive.read(record_name).decode("utf-8"))
         if wheel_record.keys() != members:
             raise ValueError(f"wheel RECORD member list differs: {wheel.name}")
+        if (wheel_record[record_name] != ("", "")
+                or installed_record.get(record_name) != ("", "")):
+            raise ValueError(f"wheel or installed RECORD self row invalid: {wheel.name}")
         if any(
             ".data/" in name or name.startswith("/") or ".." in Path(name).parts
             for name in members
@@ -96,6 +99,15 @@ def audit_wheel(
     unhashed_extras = [
         name for name in extra_record_paths if not installed_record[name][0]
     ]
+    hashed_extra_mismatches = []
+    for name in extra_record_paths:
+        fields = installed_record[name]
+        if not fields[0]:
+            continue
+        path = Path(distribution.locate_file(name))
+        content = path.read_bytes() if path.is_file() else None
+        if content is None or not _entry_matches(content, fields):
+            hashed_extra_mismatches.append(name)
     installed_record_sha256 = sha256_file(Path(distribution.locate_file(record_name)))
     return (
         {
@@ -105,6 +117,7 @@ def audit_wheel(
             "installed_record_sha256": installed_record_sha256,
             "extra_installed_record_files": len(extra_record_paths),
             "unhashed_extra_installed_record_files": len(unhashed_extras),
+            "hashed_extra_installed_record_mismatches": hashed_extra_mismatches,
             "mismatches": mismatches,
         },
         owned_paths,
@@ -215,6 +228,9 @@ def audit_runtime(
         if len({sha256 for _, sha256 in owner_rows}) > 1
     ]
     mismatch_count = sum(len(row["mismatches"]) for row in packages)
+    hashed_extra_mismatch_count = sum(
+        len(row["hashed_extra_installed_record_mismatches"]) for row in packages
+    )
     unhashed_extra_count = sum(
         row["unhashed_extra_installed_record_files"] for row in packages
     )
@@ -222,7 +238,7 @@ def audit_runtime(
     return {
         "status": (
             "installed_wheel_payload_pass"
-            if mismatch_count == 0
+            if mismatch_count == 0 and hashed_extra_mismatch_count == 0
             else "installed_wheel_payload_hold"
         ),
         "source_pdf_count_opened": 0,
@@ -236,8 +252,9 @@ def audit_runtime(
         ),
         "installed_wheel_payload_mismatches": mismatch_count,
         "installed_wheel_payload_contents_verified": mismatch_count == 0,
+        "hashed_extra_installed_record_mismatches": hashed_extra_mismatch_count,
         "installed_distribution_contents_verified": mismatch_count == 0
-        and unhashed_extra_count == 0,
+        and hashed_extra_mismatch_count == 0 and unhashed_extra_count == 0,
         "unhashed_extra_installed_record_files": unhashed_extra_count,
         "conflicting_shared_paths": collisions,
         "notices": notices,
