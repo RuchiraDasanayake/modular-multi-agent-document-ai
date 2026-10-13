@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { IdpoCard } from "@/components/idpo/card";
 import { idpoApi } from "@/lib/idpo-api";
-import { isVisualProposal, machineProposalLabel, pdfSourcePageUrl, visualLinkedCellsReviewable } from "./product-auto-visual-review";
+import { isVisualProposal, machineProposalLabel, pdfSourcePageUrl, sourceTextPanelCopy, visualLinkedCellsReviewable } from "./product-auto-visual-review";
 import type { ProductAutoAddedFieldInput, ProductAutoAddedLinkedFieldInput, ProductAutoAddedScalarFieldInput, ProductAutoDocumentDetail, ProductAutoEvidence, ProductAutoLinkedCell, ProductAutoLinkedCorrectionRow, ProductAutoReviewDecision, ProductAutoReviewField, ProductAutoScalarType } from "@/types/product-auto";
 
 type Draft = Record<string, { decision: ProductAutoReviewDecision | ""; corrected_value: string; note: string }>;
@@ -228,6 +228,7 @@ export function ProductAutoDocumentPage() {
   const exportUrl = `/api/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(runId)}/docs/${encodeURIComponent(docId)}/export`;
   const previewable = /\.(pdf|png|jpe?g|txt|json)$/i.test(detail.fileName);
   const nativeFormat = /\.(docx|xlsx|pptx|html|eml)$/i.test(detail.fileName);
+  const sourceTextCopy = sourceTextPanelCopy(detail.visualRoute, Boolean(detail.parsedDocument), detail.sourcePages);
   const selectedPageUrl = sourcePage === null ? null :
     pdfSourcePageUrl(originalUrl, detail.fileName, sourcePage, detail.sourcePages);
 
@@ -257,7 +258,7 @@ export function ProductAutoDocumentPage() {
       <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
       <IdpoCard className="lg:sticky lg:top-6">
         <h2 id="original-source" className="text-lg font-semibold text-slate-900 dark:text-white">Original document</h2>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Compare each proposed value and quote against the uploaded source.</p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{sourceTextCopy.introduction}</p>
         {selectedPageUrl ? <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">Showing PDF page {sourcePage}. <a className="text-cyan-700 underline dark:text-cyan-300" href={selectedPageUrl} target="_blank" rel="noopener noreferrer">Open this page in a new tab</a></p> : null}
         {previewable ? (
           <iframe
@@ -274,9 +275,9 @@ export function ProductAutoDocumentPage() {
           </p>
         )}
         <details className="mt-4 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-          <summary className="cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-200">{detail.parsedDocument ? "Native source text by unit" : "OCR text by page"} · copy exact quotes for added fields</summary>
+          <summary className="cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-200">{sourceTextCopy.summary}</summary>
           {detail.parsedDocument ? <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">Native cell addresses point into the unchanged uploaded file. Embedded images, slide notes and email attachments are not read. No cell pixel boxes or field meaning are verified.</p> : null}
-          {detail.sourcePages.length === 0 ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">No OCR text is available for source-backed additions.</p> : null}
+          {sourceTextCopy.emptyMessage ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{sourceTextCopy.emptyMessage}</p> : null}
           <div className="mt-3 max-h-80 space-y-3 overflow-auto">
             {detail.sourcePages.map((page) => <section key={page.page}>
               <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-200">{detail.parsedDocument?.units[page.page - 1]?.label ?? `Page ${page.page}`}</h3>

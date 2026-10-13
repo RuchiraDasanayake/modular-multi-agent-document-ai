@@ -3,6 +3,15 @@
 Frozen on 2026-10-08 for `paper/ieee/main.tex`. Every number in the paper comes from the runs and commands below.
 This file supersedes `paper/evidence_table.md` and `paper/PAPER_LOG.md`, which describe earlier, unpaired runs.
 
+**Verification note, 13 October 2026:** the eight named October raw run bundles
+were not found in the completed local audit. The tables below are preserved
+historical records, not independently regenerated results. Aggregate arithmetic
+is internally consistent, but paired intervals, timings and routing cannot be
+verified without the original artifacts. The unchanged scorer also accepts some
+incorrect or incomplete dates through its general fuzzy-text rule. See the
+[provenance and scorer audit](../docs/OCTOBER_EVIDENCE_PROVENANCE_AUDIT_20261013.md).
+This annotation does not change historical scores or establish their strict-date accuracy.
+
 ## What was compared
 
 | Condition | Policy store | Routing |
@@ -111,8 +120,9 @@ blocked every non-default policy after five observations.
 The original scorer compared dates as strings and read a dot as a thousands separator only when it occurred once.
 Validation rewrites some dates in ISO form, so seven correct FUNSD dates were scored as errors, and one CORD subtotal
 written `2.000.000` did not match `2,000,000`. `scripts/run_idpo_benchmark.py` now treats repeated dot groups of three
-digits as thousands separators and matches date fields that name the same complete calendar date (partial dates never
-match). Tests: `test_case_metrics_reads_repeated_dot_groups_as_thousands_separators`,
+digits as thousands separators and adds a branch for date fields that name the same complete calendar date.
+The general similarity threshold of 0.75 is still evaluated before that branch; it can accept incomplete or wrong
+dates. The earlier statement that partial dates never match was incorrect. Tests: `test_case_metrics_reads_repeated_dot_groups_as_thousands_separators`,
 `test_case_metrics_matches_the_same_date_written_differently` and
 `test_case_metrics_does_not_match_partial_or_different_dates` in `idpo/tests/test_research_features.py`.
 
