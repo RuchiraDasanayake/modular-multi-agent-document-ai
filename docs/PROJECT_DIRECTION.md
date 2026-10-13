@@ -17,6 +17,11 @@ not improve accuracy and added latency on receipts. Camera-ready work must recon
 reviewer comments, venue requirements and later evidence accurately, without overwriting or backdating either study.
 Product development is a third track with new evaluations and claims.
 
+The release target is a usable general-purpose workflow across explicitly supported formats and measured document
+families, not an unrestricted accuracy guarantee. Prioritize confirmed schema quality, repeated rows, source evidence,
+durable execution and correction reuse. Explanations must identify the actual source and validation outcome;
+simulation-only algorithms and disconnected services are not active product capabilities.
+
 ## Primary Goal
 
 Deliver better structured extraction from a user's plain-language request and a batch of unfamiliar supported files,

@@ -6,6 +6,7 @@ import { AccessError } from "@/server/auth";
 import { getCommandConfig, loadRunnerConfig } from "@/server/config";
 import { getJobOrThrow } from "@/server/jobs";
 import { requireCurrentProductAutoBrief } from "@/server/product-auto-brief";
+import { productExecutionQueue, QueueAdmissionError, type ProductDispatch } from "@/server/product-execution-queue";
 import type { ProductAutoBriefRevision } from "@/types/product-auto-brief";
 import type {
   ProductAutoAddedField,
@@ -58,10 +59,11 @@ interface SelectedFile {
 interface RunRecord {
   runId: string;
   jobId: string;
-  status: "running" | "success" | "failed";
+  status: "queued" | "running" | "success" | "failed";
   createdAt: string;
   endedAt?: string;
   serverInstanceId: string;
+  queueDispatch?: { ownerId: string; sha256: string };
   selectedFiles: SelectedFile[];
   approvedRecipe?: {
     recipeId: string; revision: number; auditEventId: string; ownerUserId: string;
@@ -122,6 +124,31 @@ function stagedRecipeFile(runId: string): string {
 
 function stagedSchemaFile(runId: string): string {
   return path.join(path.dirname(stagedInputDir(runId)), `${runId}.schema.json`);
+}
+
+function dispatchFile(jobId: string, runId: string): string {
+  return runFile(jobId, runId).replace(/\.json$/, ".dispatch.json");
+}
+
+interface PreparedDispatch {
+  version: 1;
+  ownerId: string;
+  jobId: string;
+  runId: string;
+  commandSha256: string;
+  inputManifestSha256: string;
+  model?: string;
+  baseUrl?: string;
+}
+
+function commandSha256(): string {
+  // Environment values may contain credentials: persist only their digest.
+  return createHash("sha256").update(JSON.stringify(getCommandConfig("idpo_process_auto"))).digest("hex");
+}
+
+function inputManifestSha256(record: Pick<RunRecord, "selectedFiles" | "approvedRecipe" | "confirmedBrief">): string {
+  return createHash("sha256").update(JSON.stringify({ selectedFiles: record.selectedFiles,
+    approvedRecipe: record.approvedRecipe ?? null, confirmedBrief: record.confirmedBrief ?? null })).digest("hex");
 }
 
 function recipeReceipt(record: RunRecord): Record<string, string | number> | null {
@@ -649,7 +676,7 @@ function validatedDocuments(record: RunRecord, targetDocId?: string): RunRecord[
 function finishRun(jobId: string, runId: string, exitCode: number | null, leaseExpiredFailure = false,
   verifiedDocuments?: RunRecord["documents"]): void {
   const record = readRunRecord(jobId, runId);
-  if (record.status !== "running") return;
+  if (!["queued", "running"].includes(record.status)) return;
   record.endedAt = new Date().toISOString();
   try {
     if (exitCode !== 0) throw new Error("The extraction process failed. Check server logs.");
@@ -673,7 +700,7 @@ function finishRun(jobId: string, runId: string, exitCode: number | null, leaseE
 
 function runForDisplay(jobId: string, runId: string): RunRecord {
   const record = readRunRecord(jobId, runId);
-  if (record.status === "running" && fs.existsSync(path.join(outputDir(runId), "run.json"))) {
+  if (!record.queueDispatch && record.status === "running" && fs.existsSync(path.join(outputDir(runId), "run.json"))) {
     return { ...record, status: "success", documents: validatedDocuments(record) };
   }
   return record;
@@ -694,7 +721,7 @@ export function recoverProductAutoRuns(jobId?: string): { recovered: number; exa
       examined += 1;
       try {
         const record = readRunRecord(currentJobId, runId);
-        if (record.status !== "running") continue;
+        if (record.queueDispatch || record.status !== "running") continue;
         const expired = leaseExpired(record, Date.now());
         if (fs.existsSync(path.join(outputDir(runId), "run.json"))) {
           let documents: RunRecord["documents"];
@@ -839,7 +866,7 @@ export async function startProductAutoRun(
     throw new AccessError("Select one or more distinct documents.", 400);
   }
   recoverProductAutoRuns(jobId);
-  if (listProductAutoRuns(jobId).some((run) => run.status === "running")) {
+  if (listProductAutoRuns(jobId).some((run) => ["queued", "running"].includes(run.status))) {
     throw new AccessError("This job already has an automatic extraction run in progress.", 409);
   }
   const model = process.env.IDPO_AUTO_MODEL?.trim();
@@ -925,6 +952,8 @@ export async function startProductAutoRun(
   const sourceDir = path.resolve(config.uploadsDir, `job_${jobId}`);
   if (path.dirname(sourceDir) !== path.resolve(config.uploadsDir)) throw new AccessError("Invalid job upload location.", 400);
   const selectedFiles: SelectedFile[] = [];
+  const queued = process.env.PRODUCT_EXECUTION_MODE === "postgres";
+  if (queued && !job.ownerUserId) throw new AccessError("Queued extraction requires a job owner.", 409);
   fs.mkdirSync(inputDir, { recursive: true });
   try {
     if (recipeSnapshot && recipeMeta) {
@@ -952,21 +981,46 @@ export async function startProductAutoRun(
         throw new AccessError("A selected source document is unavailable.", 400);
       }
       const staged = path.join(inputDir, document.storedName);
-      try {
-        fs.linkSync(source, staged);
-      } catch {
-        fs.copyFileSync(source, staged);
-      }
+      // A hard link lets later source edits change queued input bytes.
+      fs.copyFileSync(source, staged, fs.constants.COPYFILE_EXCL);
       selectedFiles.push({ fileId: document.fileId, fileName: document.fileName,
-        storedName: document.storedName, sha256: sha256File(source) });
+        storedName: document.storedName, sha256: sha256File(staged) });
+    }
+    let dispatch: PreparedDispatch | undefined;
+    let dispatchHash: string | undefined;
+    if (queued) {
+      dispatch = { version: 1, ownerId: job.ownerUserId!, jobId, runId,
+        commandSha256: commandSha256(),
+        inputManifestSha256: inputManifestSha256({ selectedFiles, approvedRecipe: recipeMeta, confirmedBrief: schemaMeta }),
+        ...(model && baseUrl ? { model, baseUrl } : {}) };
+      const bytes = JSON.stringify(dispatch);
+      fs.mkdirSync(path.dirname(dispatchFile(jobId, runId)), { recursive: true });
+      const handle = fs.openSync(dispatchFile(jobId, runId), "wx", 0o600);
+      try { fs.writeFileSync(handle, bytes, "utf8"); fs.fsyncSync(handle); }
+      finally { fs.closeSync(handle); }
+      dispatchHash = createHash("sha256").update(bytes).digest("hex");
     }
     const record: RunRecord = {
-      runId, jobId, status: "running", createdAt: new Date().toISOString(),
+      runId, jobId, status: queued ? "queued" : "running", createdAt: new Date().toISOString(),
       serverInstanceId: instanceId, selectedFiles, documents: [],
+      ...(dispatch && dispatchHash ? { queueDispatch: { ownerId: dispatch.ownerId, sha256: dispatchHash } } : {}),
       ...(recipeMeta ? { approvedRecipe: recipeMeta } : {}),
       ...(schemaMeta ? { confirmedBrief: schemaMeta } : {}),
     };
     saveRunRecord(record);
+    if (record.queueDispatch) {
+      try { await productExecutionQueue().enqueue(dispatchRequest(record)); }
+      catch (error) {
+        if (error instanceof QueueAdmissionError) {
+          finishRun(jobId, runId, null);
+          throw new AccessError(error.message, error.statusCode);
+        }
+        // A lost commit acknowledgement is ambiguous. Keep the durable intent;
+        // the worker reconciles the same identity without replaying extraction.
+        console.error("Queue admission is awaiting database reconciliation.");
+      }
+      return publicRun(record);
+    }
     writeLease(jobId, runId);
     const command = getCommandConfig("idpo_process_auto");
     const args = command.args.map((arg) => arg.replaceAll("{input_dir}", inputDir).replaceAll("{run_id}", runId));
@@ -994,6 +1048,150 @@ export async function startProductAutoRun(
     }
     throw error;
   }
+}
+
+function dispatchRequest(record: RunRecord): ProductDispatch {
+  if (!record.queueDispatch) throw new Error("Run has no queue dispatch.");
+  return { ownerId: record.queueDispatch.ownerId, jobId: record.jobId, runId: record.runId,
+    dispatchSha256: record.queueDispatch.sha256, documentCount: record.selectedFiles.length };
+}
+
+function verifiedDispatch(request: ProductDispatch): { record: RunRecord; prepared: PreparedDispatch } {
+  const record = readRunRecord(request.jobId, request.runId);
+  if (!record.queueDispatch || record.queueDispatch.ownerId !== request.ownerId ||
+    record.queueDispatch.sha256 !== request.dispatchSha256 ||
+    record.selectedFiles.length !== request.documentCount ||
+    getJobOrThrow(request.jobId).ownerUserId !== request.ownerId) {
+    throw new Error("Queued extraction ownership or identity changed.");
+  }
+  const file = dispatchFile(request.jobId, request.runId);
+  if (fs.statSync(file).size > 65536 || sha256File(file) !== request.dispatchSha256) {
+    throw new Error("Queued extraction profile changed.");
+  }
+  const prepared = parseJsonObject(file) as unknown as PreparedDispatch;
+  if (prepared.version !== 1 || prepared.ownerId !== request.ownerId ||
+    prepared.jobId !== request.jobId || prepared.runId !== request.runId ||
+    prepared.inputManifestSha256 !== inputManifestSha256(record)) {
+    throw new Error("Invalid queued extraction profile.");
+  }
+  return { record, prepared };
+}
+
+/** Called only by the independently supervised worker after PostgreSQL claims the attempt. */
+export async function executePreparedProductAutoRun(request: ProductDispatch, signal: AbortSignal): Promise<void> {
+  const { record, prepared } = verifiedDispatch(request);
+  if (record.status !== "queued" || signal.aborted) throw new Error("Queued extraction is no longer startable.");
+  if (prepared.commandSha256 !== commandSha256()) throw new Error("Worker configuration changed since admission.");
+  if (Boolean(prepared.model) !== Boolean(prepared.baseUrl)) throw new Error("Invalid queued model profile.");
+  if (prepared.baseUrl && modelEndpointRequiresKey(prepared.baseUrl) && !process.env.ICORE_API_KEY?.trim()) {
+    throw new Error("The queued provider credential is unavailable.");
+  }
+  const inputDir = stagedInputDir(request.runId);
+  const expectedNames = new Set(record.selectedFiles.map((file) => file.storedName));
+  const actualNames = fs.readdirSync(inputDir);
+  if (actualNames.length !== expectedNames.size || actualNames.some((name) => !expectedNames.has(name))) {
+    throw new Error("Queued input contains files outside the selected manifest.");
+  }
+  for (const file of record.selectedFiles) {
+    const target = path.resolve(inputDir, file.storedName);
+    if (path.dirname(target) !== inputDir || !fs.lstatSync(target).isFile() || sha256File(target) !== file.sha256) {
+      throw new Error("Queued source bytes changed.");
+    }
+  }
+  for (const [file, hash] of [
+    [stagedRecipeFile(request.runId), record.approvedRecipe?.snapshotSha256],
+    [stagedSchemaFile(request.runId), record.confirmedBrief?.snapshotSha256],
+  ]) {
+    if (hash && sha256File(file!) !== hash) throw new Error("Queued schema bytes changed.");
+  }
+  const command = getCommandConfig("idpo_process_auto");
+  const args = command.args.map((arg) => arg.replaceAll("{input_dir}", inputDir).replaceAll("{run_id}", request.runId));
+  if (prepared.model && prepared.baseUrl) args.push("--model", prepared.model, "--api-base-url", prepared.baseUrl);
+  if (record.approvedRecipe) args.push("--approved-recipe-file", stagedRecipeFile(request.runId),
+    "--approved-recipe-sha256", record.approvedRecipe.snapshotSha256);
+  if (record.confirmedBrief) args.push("--confirmed-schema-file", stagedSchemaFile(request.runId),
+    "--confirmed-schema-sha256", record.confirmedBrief.snapshotSha256);
+  record.status = "running";
+  record.serverInstanceId = instanceId;
+  saveRunRecord(record);
+  writeLease(request.jobId, request.runId);
+  startHeartbeat(request.jobId, request.runId);
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(command.program, args, { cwd: command.cwd,
+      env: { ...process.env, ...command.env, IDPO_DATA_DIR: storageRoot() },
+      windowsHide: true, stdio: "ignore" });
+    const abort = () => {
+      // A killed attempt is terminal. Its external calls may have completed.
+      if (child.exitCode === null && child.pid) {
+        if (process.platform === "win32") {
+          const killer = spawn("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"],
+            { windowsHide: true, stdio: "ignore" });
+          killer.on("error", () => child.kill());
+        } else child.kill("SIGTERM");
+      }
+    };
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) abort();
+    child.once("error", () => {
+      signal.removeEventListener("abort", abort);
+      stopHeartbeat(request.runId);
+      reject(new Error("Extraction process could not start."));
+    });
+    child.once("close", (code) => {
+      signal.removeEventListener("abort", abort);
+      stopHeartbeat(request.runId);
+      if (signal.aborted) { reject(new Error("Extraction attempt interrupted.")); return; }
+      try {
+        finishRun(request.jobId, request.runId, code);
+        if (readRunRecord(request.jobId, request.runId).status !== "success") throw new Error("Extraction output not verified.");
+        resolve();
+      } catch { reject(new Error("Extraction output not verified.")); }
+    });
+  });
+}
+
+export function failQueuedProductAutoRun(request: ProductDispatch): void {
+  const record = readRunRecord(request.jobId, request.runId);
+  if (!record.queueDispatch || record.queueDispatch.ownerId !== request.ownerId ||
+    record.queueDispatch.sha256 !== request.dispatchSha256) throw new Error("Invalid queue failure identity.");
+  if (["success", "failed"].includes(record.status)) return;
+  record.status = "failed";
+  record.endedAt = new Date().toISOString();
+  record.error = "The extraction worker stopped or its outcome is uncertain. No automatic retry was made.";
+  publishTerminalRecord(record);
+  stopHeartbeat(request.runId);
+}
+
+/** Recover a lost admission acknowledgement using the same durable run identity. */
+export async function recoverQueuedProductAutoAdmissions(): Promise<number> {
+  const root = path.join(storageRoot(), "frontend", "auto_runs");
+  if (!fs.existsSync(root)) return 0;
+  let recovered = 0;
+  for (const jobId of fs.readdirSync(root).filter((name) => /^[a-f0-9]{32}$/.test(name))) {
+    for (const name of fs.readdirSync(path.join(root, jobId)).filter((item) => /^auto_[a-f0-9]{32}\.json$/.test(item))) {
+      let record: RunRecord;
+      let request: ProductDispatch;
+      try {
+        record = readRunRecord(jobId, name.slice(0, -5));
+        if (!["queued", "running"].includes(record.status) || !record.queueDispatch) continue;
+        request = dispatchRequest(record);
+      }
+      catch { console.error("Skipped a malformed extraction record during admission recovery."); continue; }
+      const admitted = await productExecutionQueue().get(request.ownerId, request.runId);
+      if (admitted?.status === "failed") { failQueuedProductAutoRun(request); continue; }
+      if (record.status !== "queued" || admitted) continue;
+      try { verifiedDispatch(request); }
+      catch { failQueuedProductAutoRun(request); continue; }
+      try {
+        await productExecutionQueue().enqueue(request);
+        recovered += 1;
+      } catch (error) {
+        if (error instanceof QueueAdmissionError) failQueuedProductAutoRun(request);
+        else throw error;
+      }
+    }
+  }
+  return recovered;
 }
 
 function loadProductAutoDocument(jobId: string, runId: string, docId: string): {

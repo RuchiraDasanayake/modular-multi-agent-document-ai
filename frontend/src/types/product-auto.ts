@@ -211,7 +211,7 @@ export interface ProductAutoRunDocument {
 
 export interface ProductAutoRun {
   runId: string;
-  status: "running" | "success" | "failed";
+  status: "queued" | "running" | "success" | "failed";
   createdAt: string;
   endedAt?: string;
   selectedCount: number;

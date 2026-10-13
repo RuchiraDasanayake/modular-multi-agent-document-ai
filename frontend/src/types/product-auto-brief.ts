@@ -34,3 +34,21 @@ export interface ProductAutoBriefDetail {
   brief: ProductAutoBriefRevision | null;
   staleSampleFileIds: string[];
 }
+
+export interface ProductAutoBriefSuggestion {
+  fields: ProductAutoBriefField[];
+  clarification_questions: string[];
+  provenance: {
+    brief_revision: number;
+    brief_payload_sha256: string;
+    samples: { file_id: string; source_sha256: string; parser_id: string;
+      excerpt_chars: number; truncated: boolean }[];
+    model_id: string;
+    prompt_sha256: string;
+    input_chars: number;
+    max_output_tokens: number;
+    prompt_tokens: number | null;
+    completion_tokens: number | null;
+    latency_ms: number | null;
+  };
+}

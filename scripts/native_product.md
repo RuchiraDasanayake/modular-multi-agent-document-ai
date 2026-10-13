@@ -1,6 +1,6 @@
 # Native Windows product launcher
 
-Requires PowerShell 7.2+ (`pwsh`), Node.js 22+, an initialized PostgreSQL 16 data cluster, the repo extraction Python environment, and a gateway Python environment with gateway dependencies. This starts PostgreSQL, the gateway, and the Next.js frontend on `127.0.0.1`. Extraction remains the existing on-demand local Python subprocess. It does not use Docker or start a queue.
+Requires PowerShell 7.2+ (`pwsh`), Node.js 22.12+, an initialized PostgreSQL 16 data cluster, the repo extraction Python environment, and a gateway Python environment with gateway dependencies. This starts PostgreSQL, the gateway, an independent extraction worker, and the Next.js frontend on `127.0.0.1`. pg-boss provides a durable PostgreSQL queue; the worker executes the local Python extractor. Docker is not required. Run `npm ci` in `frontend` including development dependencies for the TypeScript worker launcher.
 
 Store a private JSON config outside the repo, for example `I:\DocAI-Runtime\native-product.json`:
 
@@ -45,7 +45,31 @@ The generated config has this shape (the sample below is documentation only):
 }
 ```
 
-`gatewayPythonPath` defaults to `pythonPath`; `nodePath` defaults to `node.exe` on PATH; `adminUsername` defaults to `admin`. The `pythonPath` must match the `idpo_process_auto` command in `frontend/runner.config.json`. Give the JSON file a private ACL because it contains credentials. The launcher never writes those secrets to its process receipt or console output.
+`gatewayPythonPath` defaults to `pythonPath`; `nodePath` defaults to `node.exe` on PATH; `adminUsername` defaults to `admin`. The launcher sets `IDPO_PRODUCT_PYTHON` from `pythonPath`, overriding only the product extractor executable so its environment can live on a separate drive. Give the JSON file a private ACL because it contains credentials. The launcher never writes those secrets to its process receipt or console output.
+
+Use Python 3.13 and install `idpo/product_auto/requirements-worker.txt` in a dedicated product environment.
+The historical repository environment may lack PDF, image, OCR or Office dependencies even if text extraction works.
+Verify `python -m pip check` and run the mixed-format parser checks before advertising those formats.
+
+Optional private config fields `autoModel`, `autoApiBaseUrl`, and `icoreApiKey` configure the same provider for the
+web app and worker. Install the `openai` client in the extraction environment for an OpenAI-compatible endpoint.
+Use an explicit HTTPS endpoint, or loopback HTTP for a local server. No provider key belongs in tracked files.
+For portable OCR installations, optional `tesseractPath` and `tessdataDir` set `TESSERACT_CMD` and `TESSDATA_PREFIX`
+in both web helper and extraction worker. Verify the executable and language data before processing scans.
+
+The launcher sets `PRODUCT_EXECUTION_MODE=postgres` and `PRODUCT_QUEUE_DATABASE_URL` from `databaseUrl`.
+The app role needs schema creation privileges in its own database: pg-boss manages `docai_queue`, and the queue
+adapter initializes `product.execution_dispatches` under a database lock. No existing product metadata is imported
+by this step. Artifacts still live beneath `dataDir`; every worker must see the same filesystem paths and runner
+configuration. Default worker concurrency is one, with at most 64 pending runs/20,000 pending documents per owner,
+10,000 documents per run and six hours per active run. These are bounded admission limits, not measured capacity.
+Large jobs should be split into bounded runs until per-document resumption is implemented.
+
+Starting a run stores a sealed execution intent and copies its source bytes before atomic queue admission. Lost
+database acknowledgements are reconciled by the same run identity. A changed source/schema/runner configuration
+fails closed. Worker death or expiry marks the attempt failed; no model call is automatically retried. The user
+may explicitly start a new run after inspecting an uncertain outcome. This avoids silently repeating paid requests
+but does not provide transactional exactly-once execution of an external API.
 
 From the repo root:
 
@@ -57,6 +81,6 @@ pwsh -File scripts/stop_native_product.ps1 -ConfigPath I:\DocAI-Runtime\native-p
 
 The frontend is at `http://127.0.0.1:3000` with the example config. The launcher currently uses Next.js development mode so a checked-out source tree can start without a build. It waits for PostgreSQL, the gateway's deep health check, and the frontend health route. The separate runtime directory holds process state, logs, PostgreSQL files, and new upload/job data. It does not migrate existing `idpo-data`; with the example `dataDir`, the product opens a fresh workspace.
 
-Startup refuses any occupied, untracked port. A second start against a healthy tracked stack is safe. If startup stops partway through, inspect `-Status` and the logs, then run the stop script before retrying. Stop verifies the recorded process identity and only terminates tracked gateway/frontend process trees; PostgreSQL uses `pg_ctl stop -m fast`. It preserves runtime data and logs. A missing or altered process receipt is never treated as authority to kill a port listener.
+Startup refuses any occupied, untracked port. A second start against a healthy tracked stack is safe. If startup stops partway through, inspect `-Status` and the logs, then run the stop script before retrying. Stop verifies the recorded process identity and only terminates tracked gateway/frontend/worker process trees; PostgreSQL uses `pg_ctl stop -m fast`. It preserves runtime data and logs. A missing or altered process receipt is never treated as authority to kill a port listener. Stopping a worker during active extraction produces an uncertain failed attempt; queued attempts persist for restart.
 
 Source-free checks: `pwsh -File scripts/tests/native_product.test.ps1`.

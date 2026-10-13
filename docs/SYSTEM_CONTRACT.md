@@ -10,12 +10,16 @@ It is intentionally shorter and stricter than the long architecture docs.
 The system is a document-processing platform with a canonical research runtime and a separate opt-in product extraction
 path, plus a few legacy or research-facing support surfaces.
 
-The native Windows product launcher runs local PostgreSQL, the authentication gateway and the frontend; extraction
-uses the existing local Python subprocess. Docker and Redis are optional for this product mode. Set
+The native Windows product launcher runs local PostgreSQL, the authentication gateway, a separate extraction worker
+and the frontend. The worker runs the existing local Python extractor. Docker and Redis are optional for this product mode. Set
 `TOKEN_REVOCATION_BACKEND=postgresql` and explicitly apply `gateway/native_auth.sql` to the configured database.
 Refresh rotation uses a durable atomic claim before issuing replacement tokens; storage failures deny refresh.
 The launcher requires persistent explicit secrets and binds only loopback. This is a development runtime with
-process-local rate limits and the existing single-run extraction lease, not a distributed queue. See
+process-local rate limits. Native product extraction uses pg-boss with atomic PostgreSQL admission, per-owner pending
+limits and a single active attempt per job. Sources and schema snapshots are verified before execution; interrupted
+attempts are terminal and never automatically replay paid calls. Queue state survives web restarts. Artifact storage
+is still a configured filesystem shared by web and worker; this does not establish multi-host storage, per-document
+resume, or high availability. The historical direct subprocess mode remains for existing deployments/tests. See
 [`scripts/native_product.md`](../scripts/native_product.md) for setup, startup and ownership-checked shutdown.
 
 The current runtime must remain understandable, stable and auditable while product stabilization proceeds. Its research
@@ -155,7 +159,21 @@ its bytes and fields before running. It skips schema discovery, sends field desc
 source text to the value model, and checks exact source evidence locally. Values remain pending review. The run,
 manifest, and document artifacts carry the same confirmed-schema receipt. This path requires a configured value model
 and currently inherits the admin-only model-call gate. The earlier dynamic discovery and approved-recipe v1 paths
-remain available. AI-generated draft fields and model clarification are not yet part of this confirmation path.
+remain available. An admin can explicitly request `POST /api/jobs/<job_id>/auto/brief/suggest` for the current saved
+draft revision and digest. The server rechecks owner and sample hashes, sends bounded text excerpts from 1–5 sample
+sources to the configured OpenAI-compatible model in one call (at most 1,800 output tokens, no retries), and returns
+typed fields, clarification questions, source hashes, parser IDs, and usage provenance. The response is an editable proposal;
+it does not save, confirm, or run extraction. Users must use the proposed fields in a new draft, resolve questions,
+confirm field meanings, then preview and review. This action currently requires admin access and the product Python
+environment's optional `cloud` dependency for an OpenAI-compatible model. It can also use a loopback model endpoint
+without a cloud key. Sampling uses at most 1,800 characters per source (9,000 total), first two PDF pages, and bounded
+OCR for scans; fields outside those excerpts may need manual addition.
+Each request writes a private, content-free attempt receipt under the configured data directory's
+`frontend/auto_briefs/<owner-hash>/<job-id>/suggestions` folder. Failure receipts record stage, bounded code,
+provider finish reason, usage counts when available, and SHA-256 of the model reply, without the reply or source
+text. `IDPO_AUTO_SUGGEST_CAPTURE_RAW=1` is an explicit operator-only diagnostic option that saves the raw reply
+as a separate local file with owner-only mode where supported; it is off by default. A failed or uncertain request
+is never retried automatically.
 
 The job-scoped recipe API separately records owner-scoped draft, approval, and disable events from completed reviews; it
 requires explicit linked-row group confirmation and can configure one explicitly selected run.

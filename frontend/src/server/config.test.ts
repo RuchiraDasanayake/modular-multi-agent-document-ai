@@ -52,3 +52,21 @@ test("Docker config enables the private product worker and disables unsupported 
   assert.deepEqual(product?.args.slice(0, 3), ["/app/scripts/product-worker-client.mjs", "--input", "{input_dir}"]);
   assert.ok(fs.existsSync(path.join(process.cwd(), "scripts", "product-worker-client.mjs")));
 });
+
+test("dedicated product Python overrides only the automatic extractor", () => {
+  const old = process.env.IDPO_PRODUCT_PYTHON;
+  resetConfigCacheForTests();
+  const original = loadRunnerConfig().commands.map((entry) => ({ ...entry }));
+  try {
+    process.env.IDPO_PRODUCT_PYTHON = path.resolve(os.tmpdir(), "dedicated-product", "python.exe");
+    resetConfigCacheForTests();
+    const updated = loadRunnerConfig();
+    for (const entry of updated.commands) {
+      assert.equal(entry.program, entry.id === "idpo_process_auto" ? process.env.IDPO_PRODUCT_PYTHON
+        : original.find((item) => item.id === entry.id)!.program);
+    }
+  } finally {
+    if (old === undefined) delete process.env.IDPO_PRODUCT_PYTHON; else process.env.IDPO_PRODUCT_PYTHON = old;
+    resetConfigCacheForTests();
+  }
+});

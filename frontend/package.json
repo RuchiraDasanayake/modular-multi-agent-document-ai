@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test:server": "node --import tsx --test scripts/product-worker-client.test.mjs src/server/config.test.ts src/server/review-flow.test.ts src/server/policies.test.ts src/server/review-contract.test.ts src/server/jobs.test.ts src/server/runner.test.ts src/server/proxy.test.ts src/server/access.test.ts src/server/product-auto.test.ts src/server/product-auto-recipes.test.ts src/server/product-auto-brief.test.ts src/server/product-auto-confirmed.test.ts src/components/idpo/job-document-review.test.ts"
+    "test:server": "node --import tsx --test scripts/product-worker-client.test.mjs src/server/config.test.ts src/server/review-flow.test.ts src/server/policies.test.ts src/server/review-contract.test.ts src/server/jobs.test.ts src/server/runner.test.ts src/server/proxy.test.ts src/server/access.test.ts src/server/product-auto.test.ts src/server/product-auto-queue.test.ts src/server/product-auto-recipes.test.ts src/server/product-auto-brief.test.ts src/server/product-auto-brief-suggest.test.ts src/server/product-auto-confirmed.test.ts src/components/idpo/job-document-review.test.ts"
   },
   "dependencies": {
     "atomically": "2.1.1",

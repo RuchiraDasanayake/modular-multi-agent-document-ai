@@ -83,3 +83,83 @@ Field IDs are case-sensitive canonical IDs assigned during human gold adjudicati
 Every metric includes its numerator and denominator or the underlying counts; undefined ratios are JSON `null`. `per_field` and `per_document` list outcomes without copying document text or field values into the report. `measurements` reports coverage and observed sums; partial sums are not totals for the batch.
 
 This scorer does not evaluate semantic row alignment across reordered or split tables, semantic aliases, reviewer corrections, calibrated confidence, OCR accuracy, or normalized business values. Those require adjudicated contracts and dedicated metrics before product claims are made.
+
+## Opt-in annotation-aware assessment
+
+`product_eval.scoped_assessment` is a separate `scope_aware_v1` report. This surface is
+`research_evidence`, with primary action `keep`. The historical scorer and its recorded
+scores are unchanged. Use the new assessment when partial annotations or a different
+OCR text representation make the historical closed-world assumptions inappropriate:
+
+```powershell
+python -m product_eval.scoped_assessment --gold gold.jsonl --candidate candidate.jsonl `
+  --contexts contexts.json --candidate-pages candidate-pages.json --report new-assessment.json
+```
+
+The report path must be new. The CLI records all input byte hashes and checks that they
+did not change during scoring. Context and page manifests reject duplicate JSON keys.
+The extraction runner must not read these evaluator-owned contexts or gold files.
+
+`contexts.json` is an object keyed by every gold document ID, with:
+
+```json
+{
+  "example-document": {
+    "label_scope": "target_fields",
+    "gold_pages_sha256": "<hash of the exact gold numbered text pages>",
+    "candidate_pages_sha256": "<hash of the exact candidate numbered text pages>"
+  }
+}
+```
+
+Compute text identities with `product_eval.scoped_assessment.pages_sha256(pages)`.
+It hashes canonical UTF-8 JSON containing each exact `page` and `text`, ordered by
+page number. It does not normalize whitespace, characters, or page boundaries.
+`candidate-pages.json` maps document IDs to their numbered page lists. Obtain those
+pages from source-verified product result receipts; this scorer verifies the supplied
+text hashes, not the authenticity of their original files. Omit a candidate's page
+entry and hash if its text representation is unavailable. A declared hash without
+the corresponding pages fails validation.
+
+Freeze annotation scope before inspecting model outputs:
+
+| Scope | Interpretation |
+| --- | --- |
+| `complete_document` | Gold exhaustively describes the evaluated document output; extra field IDs are false positives. |
+| `target_fields` | Declared task fields have complete values/absence labels; other fields are unassessed. Suitable for a fixed narrow extraction task. |
+| `positive_only` | Gold contains annotated positives only; absent fields/cells are unknown. Null gold values are rejected. Precision, F1, and false-positive counts are undefined. |
+
+Unknown fields in the latter two scopes are listed as `unassessed_extra_field_ids`,
+with separate counts for proposed schema fields and accepted values. They do not
+become fabricated facts merely because the benchmark did not annotate them. Known
+target scalar values retain strict typed comparison, including null, zero, booleans,
+and wrong scalar/array shapes. Field-name aliases and business normalization remain
+outside this scorer. Scalar metrics exclude reference linked columns; linked rows
+have their own metric. If a cohort includes positive-only documents, its aggregate
+precision/F1 remains undefined; complete per-document metrics remain available.
+
+The new row metric matches whole records independently of row ordinal, one-to-one,
+preserving duplicate multiplicity. Candidate columns must belong to the same schema
+group and row; independently correct cells from different rows/groups cannot form
+a match. Group names themselves need not equal the gold group name. A missing group
+means a single ungrouped table, as in the existing derived VRDU representation.
+For complete/target scopes the known field/value sets must match exactly. For
+positive-only gold every annotated cell must occur together in one candidate row;
+maximum bipartite matching resolves competing sparse matches. This is **annotated
+row coverage**, not proof of unannotated row completeness. Extra unlabelled columns
+are ignored only in partial document scopes. Proposed and accepted rows are separate;
+accepted rows require parent-field and per-cell acceptance.
+
+Evidence reporting separates exact quote authenticity in the candidate's supplied
+text from value-and-span support in the gold coordinate space. Span support is
+assessed only when the exact numbered text hashes match. Different hashes produce
+`incompatible`; unavailable candidate text produces `unknown`. Both remain
+unassessed, with explicit denominators, rather than being counted as wrong evidence.
+Authentic OCR quotes do not by themselves establish semantic correctness or faithful
+transcription of the original image. A future coordinate-alignment adapter may
+establish comparability across OCR engines; this report does not assume one exists.
+
+This module makes no automatic-release or monetary-cost claim. VRDU's all-false
+criticality labels and CORD/FUNSD's sparse annotations cannot establish those claims.
+No historical report is rescored automatically, and no holdout labels or inference
+are required to test the new assessment.

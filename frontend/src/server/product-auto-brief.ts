@@ -83,6 +83,10 @@ function parseFields(value: unknown): ProductAutoBriefField[] {
   });
 }
 
+export function validateProductAutoBriefFields(value: unknown): ProductAutoBriefField[] {
+  return parseFields(value);
+}
+
 function sourcePath(jobId: string, storedName: string): string | null {
   const uploadsRoot = path.resolve(loadRunnerConfig().uploadsDir);
   const directory = path.resolve(uploadsRoot, `job_${jobId}`);
@@ -213,6 +217,20 @@ export function requireCurrentProductAutoBrief(
     throw new AccessError("Extraction brief or sample source changed. Reload before continuing.", 409);
   }
   return brief;
+}
+
+/** Resolve only the pinned job uploads; callers must already enforce job access. */
+export function currentProductAutoBriefSampleFiles(
+  jobId: string, expectedRevision: number, expectedPayloadSha256: string,
+): { file_id: string; source_sha256: string; path: string }[] {
+  const brief = requireCurrentProductAutoBrief(jobId, expectedRevision, expectedPayloadSha256);
+  const job = getJobOrThrow(jobId);
+  return brief.sample_sources.map((sample) => {
+    const stored = job.documents?.find((document) => document.fileId === sample.file_id)?.storedName;
+    const resolved = stored && sourcePath(jobId, stored);
+    if (!resolved) throw new AccessError("A sample source is unavailable in this job.", 409);
+    return { file_id: sample.file_id, source_sha256: sample.source_sha256, path: resolved };
+  });
 }
 
 export function saveProductAutoBrief(jobId: string, actorUserId: string, input: unknown): ProductAutoBriefRevision {
