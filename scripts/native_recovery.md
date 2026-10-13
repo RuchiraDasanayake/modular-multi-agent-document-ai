@@ -116,7 +116,16 @@ $cloneConfig = Join-Path $clone 'passive-config.json'
 pwsh -NoProfile -File scripts/build_native_recovery.ps1 -ConfigPath $cloneConfig
 ```
 
-Provision the clone checkout's existing locked dependencies before the build.
+Provision the clone checkout's own lockfile-matched `frontend/node_modules`
+before the build, including development dependencies needed for type checking.
+Do not link that directory to another checkout on a different drive: the native
+Next/Webpack build can turn the cross-drive package path into an invalid relative
+request. A separate locked install is preferred; a local copy must come from the
+matching installed dependency set. Keep preserved dependency directories or links
+outside the clone frontend, where TypeScript will not treat them as application
+source. The build script's checked sibling dependency junction is still required;
+it must target the clone's own `frontend/node_modules`.
+
 Do not copy `.env` files. The clone gets a fresh JWT secret, relocated database
 URL/ports and no provider configuration. The original private configuration stays
 inside the immutable backup. The only allowed product-data rewrite is each

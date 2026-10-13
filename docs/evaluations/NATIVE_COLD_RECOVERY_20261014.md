@@ -98,7 +98,9 @@ recovery duration. No transaction-loss window was measured.
 The operator's drill chronology includes these failures; the successful phase
 receipts do not erase them:
 
-1. Two earlier backup attempts were refused and left unsealed. One invoked the
+1. Two earlier backup attempts were refused; neither produced a sealed bundle.
+   The first stopped before creating its destination; the second retained an
+   unsealed copy. The first invoked the
    helper through a Windows virtual-environment launcher, whose still-running
    wrapper was correctly detected as a configured runtime user. The other
    coincided with an independent runtime probe and was also correctly refused.
