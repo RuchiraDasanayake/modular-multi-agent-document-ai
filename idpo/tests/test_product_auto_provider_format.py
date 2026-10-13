@@ -94,3 +94,23 @@ def test_strict_format_requires_a_bounded_explicit_schema(monkeypatch) -> None:
     oversized["json_schema"]["schema"]["description"] = "x" * 33_000
     with pytest.raises(ValueError, match="32 KiB"):
         model.complete_json(system="system", prompt="synthetic", response_format=oversized)
+
+
+def test_provider_exposes_refusal_without_leaking_the_refusal_text(monkeypatch) -> None:
+    class FakeOpenAI:
+        def __init__(self, **kwargs: object) -> None:
+            self.chat = types.SimpleNamespace(completions=types.SimpleNamespace(create=self.create))
+
+        def create(self, **kwargs: object) -> types.SimpleNamespace:
+            return types.SimpleNamespace(choices=[types.SimpleNamespace(
+                message=types.SimpleNamespace(content=None, refusal="private refusal detail"),
+                finish_reason="stop")], usage=None)
+
+    monkeypatch.setitem(sys.modules, "openai", types.SimpleNamespace(OpenAI=FakeOpenAI))
+    monkeypatch.setenv("PRODUCT_TEST_KEY", "synthetic-secret")
+    model = OpenAICompatibleChat(base_url="https://example.invalid/v1", model="example-model",
+                                 api_key_env="PRODUCT_TEST_KEY")
+    reply = model.complete_json(system="system", prompt="synthetic", response_format=strict_values_format())
+    assert reply.refusal is True
+    assert reply.text == ""
+    assert "private refusal detail" not in str(reply)

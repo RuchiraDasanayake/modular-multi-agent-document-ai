@@ -20,6 +20,7 @@ class ModelReply:
     error: str | None = None
     error_category: str | None = None
     sdk_attempts: int | None = None
+    refusal: bool = False
 
 
 class OpenAICompatibleChat:
@@ -86,7 +87,8 @@ class OpenAICompatibleChat:
         started = time.perf_counter()
         try:
             response = self.client.chat.completions.create(**request)
-            content = response.choices[0].message.content if response.choices else ""
+            message = response.choices[0].message if response.choices else None
+            content = message.content if message is not None else ""
             usage = getattr(response, "usage", None)
             return ModelReply(
                 text=content or "",
@@ -95,6 +97,7 @@ class OpenAICompatibleChat:
                 completion_tokens=_usage_count(usage, "completion_tokens"),
                 finish_reason=getattr(response.choices[0], "finish_reason", None) if response.choices else None,
                 sdk_attempts=1,
+                refusal=bool(getattr(message, "refusal", None)),
             )
         except Exception as exc:  # noqa: BLE001 - redact provider failures before they reach artifacts
             # Provider exception strings can contain credentials or document text.

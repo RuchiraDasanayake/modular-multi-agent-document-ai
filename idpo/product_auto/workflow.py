@@ -39,6 +39,11 @@ from idpo.product_auto.native_table_proposals import propose_native_tables
 from idpo.product_auto.parsed_document import ParsedDocument
 from idpo.product_auto.provider import ModelReply
 from idpo.product_auto.resource_telemetry import ResourceProbe, elapsed_cpu_ms
+from idpo.product_auto.strict_output import (
+    PROFILE as STRICT_CONFIRMED_VALUES_PROFILE,
+    compile_confirmed_values_response_format,
+    parse_confirmed_strict_values_reply,
+)
 
 CONTRACT_VERSION = 1
 SUPPORTED_INPUT_EXTS = {".json", ".txt", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"} | NATIVE_EXTENSIONS
@@ -66,6 +71,7 @@ def process_auto(
     ocr_page_budget_s: float = DEFAULT_OCR_PAGE_BUDGET_S,
     approved_recipe: ApprovedRecipe | None = None,
     confirmed_schema: ConfirmedSchema | None = None,
+    response_format_profile: str = "plain_json",
     output_root: Path | None = None,
 ) -> dict[str, object]:
     """Write versioned product candidates under IDPO_DATA_DIR/product_runs.
@@ -97,6 +103,19 @@ def process_auto(
         raise ValueError("Choose either an approved recipe or a confirmed schema")
     if (approved_recipe is not None or confirmed_schema is not None) and model is None:
         raise ValueError("An approved recipe or confirmed schema requires a configured value extraction model")
+    if response_format_profile not in {"plain_json", STRICT_CONFIRMED_VALUES_PROFILE}:
+        raise ValueError("Unsupported product response format profile")
+    if response_format_profile == STRICT_CONFIRMED_VALUES_PROFILE and confirmed_schema is None:
+        raise ValueError("Strict confirmed values require a confirmed schema")
+    strict_response_format = (
+        compile_confirmed_values_response_format(confirmed_schema.candidate_fields)
+        if response_format_profile == STRICT_CONFIRMED_VALUES_PROFILE and confirmed_schema is not None else None
+    )
+    response_format_sha256 = (
+        hashlib.sha256(json.dumps(strict_response_format, sort_keys=True, separators=(",", ":"),
+                                  ensure_ascii=False).encode("utf-8")).hexdigest()
+        if strict_response_format is not None else None
+    )
 
     resolved_run_id = run_id or uuid.uuid4().hex
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", resolved_run_id):
@@ -186,7 +205,7 @@ def process_auto(
             doc_resources_started = resource_probe.snapshot()
             candidate, sidecar = _process_document(
                 doc_id, document, ctx, ocr, model, initial_reason, native_parsed, approved_recipe,
-                confirmed_schema,
+                confirmed_schema, strict_response_format, response_format_sha256,
             )
             doc_resources_ended = resource_probe.snapshot()
             duration_ms = round(shared_prepare_ms + (time.perf_counter() - started) * 1000, 3)
@@ -237,6 +256,8 @@ def process_auto(
                 "page_count": len(sidecar["pages"]),
                 "model_call_count": len(sidecar["model_calls"]),
                 "model_sdk_attempt_count": _known_sdk_attempts(sidecar["model_calls"]),
+                "response_format_profile": response_format_profile,
+                "response_format_sha256": response_format_sha256,
                 "resource_usage": resource_usage,
                 **({"approved_recipe": approved_recipe.receipt} if approved_recipe else {}),
                 **({"confirmed_schema": confirmed_schema.receipt} if confirmed_schema else {}),
@@ -260,6 +281,8 @@ def process_auto(
         "ocr_page_budget_s": ocr_page_budget_s,
         "model_configured": model is not None,
         "model_id": getattr(model, "model", None) if model is not None else None,
+        "response_format_profile": response_format_profile,
+        "response_format_sha256": response_format_sha256,
         "approved_recipe": approved_recipe.receipt if approved_recipe else None,
         "confirmed_schema": confirmed_schema.receipt if confirmed_schema else None,
         "model_call_count": sum(int(receipt["model_call_count"]) for receipt in receipts),
@@ -294,6 +317,8 @@ def _process_document(
     native_parsed: ParsedDocument | None = None,
     approved_recipe: ApprovedRecipe | None = None,
     confirmed_schema: ConfirmedSchema | None = None,
+    strict_response_format: dict[str, object] | None = None,
+    response_format_sha256: str | None = None,
 ) -> tuple[dict[str, object], dict[str, object]]:
     candidate: dict[str, object] = {
         "contract_version": CONTRACT_VERSION,
@@ -307,6 +332,8 @@ def _process_document(
         "pages": [],
         "reason": initial_reason,
         "model_calls": [],
+        "response_format_profile": STRICT_CONFIRMED_VALUES_PROFILE if strict_response_format else "plain_json",
+        "response_format_sha256": response_format_sha256,
         "stage_timings_ms": {"ocr": None},
         "api_cost_usd": None,
         "compute_cost_usd": None,
@@ -402,17 +429,28 @@ def _process_document(
             prompt_fields = ([dict(field) for field in confirmed_schema.fields]
                              if confirmed_schema is not None else schema)
             intent = confirmed_schema.intent if confirmed_schema is not None else ""
-            values_reply = _complete_model(model, values_prompt(pages, prompt_fields, intent))
+            prompt = values_prompt(pages, prompt_fields, intent)
+            if strict_response_format is not None:
+                prompt += (" Include every listed field exactly once. For a missing value use null, "
+                           "with page and quote both null. Keep all four keys on every value item.")
+            values_reply = _complete_model(model, prompt, response_format=strict_response_format)
             _record_model_call(sidecar, "values", values_reply)
             proposed_values = (
-                parse_values_reply(values_reply.text, schema, pages)
-                if not values_reply.error and values_reply.finish_reason in {None, "stop"}
+                (parse_confirmed_strict_values_reply(values_reply.text, schema, pages)
+                 if strict_response_format is not None else parse_values_reply(values_reply.text, schema, pages))
+                if not values_reply.error and not values_reply.refusal and
+                (values_reply.finish_reason == "stop" if strict_response_format is not None
+                 else values_reply.finish_reason in {None, "stop"})
                 else None
             )
             if proposed_values is None:
                 force_review = True
                 provider_failed = values_reply.error is not None
-                sidecar["reason"] = "values_provider_error" if provider_failed else "invalid_values_model_response"
+                sidecar["reason"] = (
+                    "values_provider_error" if provider_failed else
+                    "invalid_strict_values_model_response" if strict_response_format is not None else
+                    "invalid_values_model_response"
+                )
             else:
                 values.update(proposed_values)
     elif model is None:
@@ -513,6 +551,7 @@ def _record_model_call(sidecar: dict[str, object], phase: str, reply: ModelReply
         "prompt_tokens": reply.prompt_tokens,
         "completion_tokens": reply.completion_tokens,
         "finish_reason": reply.finish_reason,
+        "refusal": reply.refusal,
         "error": reply.error,
         "error_category": reply.error_category,
         "sdk_attempts": reply.sdk_attempts,
@@ -528,10 +567,14 @@ def _known_sdk_attempts(calls: object) -> int | None:
     return sum(int(count) for count in attempts)
 
 
-def _complete_model(model: ChatModel, prompt: str) -> ModelReply:
+def _complete_model(
+    model: ChatModel, prompt: str, *, response_format: dict[str, object] | None = None,
+) -> ModelReply:
     started = time.perf_counter()
     try:
-        return model.complete_json(system=_MODEL_SYSTEM, prompt=prompt)
+        if response_format is None:
+            return model.complete_json(system=_MODEL_SYSTEM, prompt=prompt)
+        return model.complete_json(system=_MODEL_SYSTEM, prompt=prompt, response_format=response_format)
     except Exception as exc:  # noqa: BLE001 - providers raise SDK-specific exceptions
         return ModelReply(
             text="",
