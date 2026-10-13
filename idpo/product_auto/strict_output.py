@@ -14,6 +14,7 @@ from collections.abc import Mapping, Sequence
 from idpo.product_auto.logic import MAX_FIELDS, MAX_LINKED_ROWS_PER_FIELD, parse_values_reply
 
 PROFILE = "strict_confirmed_values_v1"
+PROFILE_V2 = "strict_confirmed_values_v2"
 MAX_REPLY_BYTES = 1_000_000
 _FIELD_TYPES = {"string", "integer", "decimal", "boolean", "date", "array[object]"}
 
@@ -60,6 +61,46 @@ def compile_confirmed_values_response_format(fields: Sequence[Mapping[str, objec
     }}
 
 
+def compile_confirmed_values_response_format_v2(
+    fields: Sequence[Mapping[str, object]], *, allow_unquoted_cells: bool = False,
+) -> dict[str, object]:
+    """Require each confirmed field by ID in the provider-facing object."""
+    properties: dict[str, object] = {}
+    scalar_types = {
+        "string": ["string", "null"], "date": ["string", "null"],
+        "integer": ["integer", "string", "null"],
+        "decimal": ["number", "string", "null"],
+        "boolean": ["boolean", "string", "null"],
+    }
+    field_types = _field_types(fields)
+    for field_id, field_type in field_types.items():
+        if field_type == "array[object]":
+            # The ICORE strict-schema subset has not been verified for
+            # minLength/maxItems. The local decoder enforces nonblank cells,
+            # <=500 characters, and MAX_LINKED_ROWS_PER_FIELD regardless.
+            value_schema: dict[str, object] = {"type": ["array", "null"], "items": {
+                "type": "object", "properties": {
+                    "row": {"type": "integer"}, "value": {"type": "string"},
+                    "page": {"type": "integer"},
+                    "quote": {"type": ["string", "null"] if allow_unquoted_cells else "string"},
+                }, "required": ["row", "value", "page", "quote"], "additionalProperties": False,
+            }}
+        else:
+            value_schema = {"type": scalar_types[field_type]}
+        properties[field_id] = {"type": "object", "properties": {
+            "value": value_schema,
+            "page": {"type": "null" if field_type == "array[object]" else ["integer", "null"]},
+            "quote": {"type": "null" if field_type == "array[object]" else ["string", "null"]},
+        }, "required": ["value", "page", "quote"], "additionalProperties": False}
+    envelope = {"type": "object", "properties": {"values": {
+        "type": "object", "properties": properties,
+        "required": list(field_types), "additionalProperties": False,
+    }}, "required": ["values"], "additionalProperties": False}
+    return {"type": "json_schema", "json_schema": {
+        "name": "docai_confirmed_values_v2", "strict": True, "schema": envelope,
+    }}
+
+
 def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
     result: dict[str, object] = {}
     for key, value in pairs:
@@ -101,6 +142,69 @@ def parse_confirmed_strict_values_reply(
     if _decode_confirmed_values(text, fields) is None:
         return None
     return parse_values_reply(text, [dict(field) for field in fields], pages)
+
+
+def project_confirmed_values_v2_reply(
+    text: str, fields: Sequence[Mapping[str, object]], pages: list[dict[str, object]],
+    *, allow_unquoted_cells: bool = False,
+) -> str | None:
+    """Validate the raw v2 wire reply before projecting into the v1 local parser.
+
+    The returned string is transient internal input, never provider provenance.
+    """
+    field_types = _field_types(fields)
+    if not isinstance(text, str):
+        return None
+    try:
+        if len(text.encode("utf-8")) > MAX_REPLY_BYTES:
+            return None
+        payload = json.loads(text, object_pairs_hook=_unique_object,
+                             parse_float=_finite_float, parse_constant=_reject_constant)
+    except (TypeError, ValueError, UnicodeError, RecursionError):
+        return None
+    if not isinstance(payload, dict) or set(payload) != {"values"} or \
+            not isinstance(payload["values"], dict) or set(payload["values"]) != set(field_types):
+        return None
+    if not pages or any(not isinstance(page, dict) or type(page.get("page")) is not int or
+                        page["page"] < 1 or not isinstance(page.get("text"), str) for page in pages):
+        return None
+    page_ids = {page["page"] for page in pages}
+    if len(page_ids) != len(pages):
+        return None
+    projected = []
+    for field_id in field_types:
+        item = payload["values"][field_id]
+        if not isinstance(item, dict) or set(item) != {"value", "page", "quote"}:
+            return None
+        value, page, quote = item["value"], item["page"], item["quote"]
+        if page is not None and (type(page) is not int or page not in page_ids):
+            return None
+        if value is None and (page is not None or quote is not None):
+            return None
+        if field_types[field_id] == "array[object]":
+            if page is not None or quote is not None:
+                return None
+            if isinstance(value, list) and any(not isinstance(cell, dict) or
+                                               type(cell.get("page")) is not int or
+                                               cell["page"] not in page_ids for cell in value):
+                return None
+        projected.append({"field_id": field_id, **item})
+    try:
+        local_text = json.dumps({"values": projected}, ensure_ascii=False, allow_nan=False)
+    except (TypeError, ValueError, RecursionError):
+        return None
+    if _decode_confirmed_values(local_text, fields, allow_unquoted_cells=allow_unquoted_cells) is None:
+        return None
+    return local_text
+
+
+def parse_confirmed_strict_values_reply_v2(
+    text: str, fields: Sequence[Mapping[str, object]], pages: list[dict[str, object]],
+) -> dict[str, dict[str, object]] | None:
+    local_text = project_confirmed_values_v2_reply(text, fields, pages)
+    if local_text is None:
+        return None
+    return parse_values_reply(local_text, [dict(field) for field in fields], pages)
 
 
 def _decode_confirmed_values(

@@ -34,9 +34,11 @@ experiment; it does not establish actual document-extraction benefit.
 
 ### October 13 decision update
 
-Current execution: the [frozen Luna 6 campaign](evaluations/MODEL2000_SELECTIVE_V2_EXECUTION_20261013.md)
-is processing 2,000 distinct originals. A [source-disjoint 240-original paired comparison](evaluations/QUALITY240_PREREGISTRATION_20261013.md)
-is preregistered and awaits execution. These use confirmed schemas. Native schema suggestion is being tested
+Current execution: the [frozen Luna 6 campaign](evaluations/MODEL2000_VERIFIED_OPERATIONAL_20261013.md)
+completed and was independently verified: 1,930 of 2,000 distinct originals produced structurally valid complete
+outputs, including one all-null output. The all-original operational gate did not pass; this study has no reference-label
+accuracy measurement. A [source-disjoint 240-original paired comparison](evaluations/QUALITY240_PREREGISTRATION_20261013.md)
+is running with its preregistered settings. These use confirmed schemas. Native schema suggestion is being tested
 separately through the real intent-first API. Neither an unfinished run nor a synthetic workflow smoke establishes
 general-purpose accuracy. Later evidence below is retained in chronological context rather than overwritten.
 

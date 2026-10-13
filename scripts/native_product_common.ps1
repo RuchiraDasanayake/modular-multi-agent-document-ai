@@ -66,8 +66,8 @@ function Get-NativeConfig {
   if (-not $config.ContainsKey('autoOcrEngine')) { $config.autoOcrEngine = 'tesseract' }
   if ($config.autoOcrEngine -notin @('tesseract', 'rapidocr')) { throw 'autoOcrEngine must be tesseract or rapidocr.' }
   if (-not $config.ContainsKey('autoResponseFormat')) { $config.autoResponseFormat = 'plain_json' }
-  if ($config.autoResponseFormat -notin @('plain_json', 'strict_confirmed_values_v1')) {
-    throw 'autoResponseFormat must be plain_json or strict_confirmed_values_v1.'
+  if ($config.autoResponseFormat -notin @('plain_json', 'strict_confirmed_values_v1', 'strict_confirmed_values_v2')) {
+    throw 'autoResponseFormat must be plain_json, strict_confirmed_values_v1, or strict_confirmed_values_v2.'
   }
   if (-not $config.ContainsKey('autoLongDocument')) { $config.autoLongDocument = 'reject' }
   if ($config.autoLongDocument -notin @('reject', 'bounded_text_segments_v1')) {

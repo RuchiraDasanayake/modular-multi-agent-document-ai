@@ -60,13 +60,17 @@ from idpo.product_auto.resource_telemetry import ResourceProbe, elapsed_cpu_ms
 from idpo.product_auto.segments import SegmentPlan, plan_segments
 from idpo.product_auto.strict_output import (
     PROFILE as STRICT_CONFIRMED_VALUES_PROFILE,
+    PROFILE_V2 as STRICT_CONFIRMED_VALUES_PROFILE_V2,
 )
 from idpo.product_auto.strict_output import (
     compile_confirmed_values_response_format,
+    compile_confirmed_values_response_format_v2,
     parse_confirmed_strict_values_reply,
+    parse_confirmed_strict_values_reply_v2,
 )
 from idpo.product_auto.visual_output import (
     PROFILE as STRICT_VISUAL_PROFILE,
+    PROFILE_V2 as STRICT_VISUAL_PROFILE_V2,
 )
 from idpo.product_auto.visual_output import (
     compile_visual_response_format,
@@ -141,9 +145,11 @@ def process_auto(
         raise ValueError("Choose either an approved recipe or a confirmed schema")
     if (approved_recipe is not None or confirmed_schema is not None) and model is None:
         raise ValueError("An approved recipe or confirmed schema requires a configured value extraction model")
-    if response_format_profile not in {"plain_json", STRICT_CONFIRMED_VALUES_PROFILE}:
+    if response_format_profile not in {"plain_json", STRICT_CONFIRMED_VALUES_PROFILE,
+                                       STRICT_CONFIRMED_VALUES_PROFILE_V2}:
         raise ValueError("Unsupported product response format profile")
-    if response_format_profile == STRICT_CONFIRMED_VALUES_PROFILE and confirmed_schema is None:
+    if response_format_profile in {STRICT_CONFIRMED_VALUES_PROFILE,
+                                   STRICT_CONFIRMED_VALUES_PROFILE_V2} and confirmed_schema is None:
         raise ValueError("Strict confirmed values require a confirmed schema")
     if long_document_profile not in {"reject", BOUNDED_TEXT_SEGMENTS_PROFILE}:
         raise ValueError("Unsupported product long document profile")
@@ -160,10 +166,14 @@ def process_auto(
         if not isinstance(getattr(model, "model", None), str) or not model.model.strip() or \
                 type(getattr(model, "max_tokens", None)) is not int or not 1 <= model.max_tokens <= 16_384:
             raise ValueError("Bounded visual documents require a model ID and bounded output tokens")
-        response_format_profile = STRICT_CONFIRMED_VALUES_PROFILE
+        if response_format_profile != STRICT_CONFIRMED_VALUES_PROFILE_V2:
+            response_format_profile = STRICT_CONFIRMED_VALUES_PROFILE
     strict_response_format = (
-        compile_confirmed_values_response_format(confirmed_schema.candidate_fields)
-        if response_format_profile == STRICT_CONFIRMED_VALUES_PROFILE and confirmed_schema is not None else None
+        (compile_confirmed_values_response_format_v2(confirmed_schema.candidate_fields)
+         if response_format_profile == STRICT_CONFIRMED_VALUES_PROFILE_V2 else
+         compile_confirmed_values_response_format(confirmed_schema.candidate_fields))
+        if response_format_profile in {STRICT_CONFIRMED_VALUES_PROFILE,
+                                       STRICT_CONFIRMED_VALUES_PROFILE_V2} and confirmed_schema is not None else None
     )
     response_format_sha256 = (
         hashlib.sha256(json.dumps(strict_response_format, sort_keys=True, separators=(",", ":"),
@@ -267,7 +277,8 @@ def process_auto(
             doc_resources_started = resource_probe.snapshot()
             candidate, sidecar = _process_document(
                 doc_id, document, ctx, ocr, model, initial_reason, native_parsed, approved_recipe,
-                confirmed_schema, strict_response_format, response_format_sha256, long_document_profile,
+                confirmed_schema, strict_response_format, response_format_sha256,
+                response_format_profile, long_document_profile,
                 visual_document_profile, file_path, container_hash,
             )
             doc_resources_ended = resource_probe.snapshot()
@@ -423,6 +434,7 @@ def _process_document(
     confirmed_schema: ConfirmedSchema | None = None,
     strict_response_format: dict[str, object] | None = None,
     response_format_sha256: str | None = None,
+    response_format_profile: str = "plain_json",
     long_document_profile: str = "reject",
     visual_document_profile: str = "disabled",
     original_source: Path | None = None,
@@ -440,7 +452,7 @@ def _process_document(
         "pages": [],
         "reason": initial_reason,
         "model_calls": [],
-        "response_format_profile": STRICT_CONFIRMED_VALUES_PROFILE if strict_response_format else "plain_json",
+        "response_format_profile": response_format_profile,
         "response_format_sha256": response_format_sha256,
         "long_document_profile": long_document_profile,
         "long_document_plan": None,
@@ -531,8 +543,11 @@ def _process_document(
         if use_visual:
             assert confirmed_schema is not None and model is not None
             schema = confirmed_schema.candidate_fields
-            visual_format = compile_visual_response_format(schema)
-            sidecar["response_format_profile"] = STRICT_VISUAL_PROFILE
+            visual_profile = (STRICT_VISUAL_PROFILE_V2
+                              if response_format_profile == STRICT_CONFIRMED_VALUES_PROFILE_V2
+                              else STRICT_VISUAL_PROFILE)
+            visual_format = compile_visual_response_format(schema, profile=visual_profile)
+            sidecar["response_format_profile"] = visual_profile
             sidecar["response_format_sha256"] = hashlib.sha256(json.dumps(
                 visual_format, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
             sidecar["visual_ocr_failure"] = ocr_failure
@@ -541,6 +556,7 @@ def _process_document(
                 ocr_pages=sidecar["ocr_pages"], fields=[dict(field) for field in confirmed_schema.fields],
                 schema=schema, intent=confirmed_schema.intent, model=model, sidecar=sidecar,
                 record_call=_record_model_call,
+                response_format_profile=visual_profile,
             )
             candidate["proposed_schema"] = schema
             # A partial visual result stays private; never publish it as a usable
@@ -613,7 +629,8 @@ def _process_document(
             intent = confirmed_schema.intent if confirmed_schema is not None else ""
             if segmented and long_plan is not None:
                 proposed_values, conflicts, failure_reason = _extract_long_document_values(
-                    model, pages, prompt_fields, schema, intent, long_plan, strict_response_format, sidecar,
+                    model, pages, prompt_fields, schema, intent, long_plan, strict_response_format,
+                    response_format_profile, sidecar,
                 )
                 if failure_reason is not None:
                     force_review = provider_failed = True
@@ -625,14 +642,14 @@ def _process_document(
                         sidecar["scalar_conflicts"] = conflicts
                         sidecar["reason"] = "long_document_scalar_conflict"
             else:
-                prompt = values_prompt(pages, prompt_fields, intent)
+                prompt = values_prompt(pages, prompt_fields, intent,
+                                       output_shape=_values_prompt_shape(response_format_profile))
                 if strict_response_format is not None:
-                    prompt += (" Include every listed field exactly once. For a missing value use null, "
-                               "with page and quote both null. Keep all four keys on every value item.")
+                    prompt += _strict_values_prompt_suffix(response_format_profile)
                 values_reply = _complete_model(model, prompt, response_format=strict_response_format)
                 _record_model_call(sidecar, "values", values_reply)
                 proposed_values = (
-                    (parse_confirmed_strict_values_reply(values_reply.text, schema, pages)
+                    (_parse_strict_values(values_reply.text, schema, pages, response_format_profile)
                      if strict_response_format is not None else parse_values_reply(values_reply.text, schema, pages))
                     if not values_reply.error and not values_reply.refusal and
                     (values_reply.finish_reason == "stop" if strict_response_format is not None
@@ -753,6 +770,7 @@ def _extract_long_document_values(
     intent: str,
     plan: SegmentPlan,
     strict_response_format: dict[str, object] | None,
+    response_format_profile: str,
     sidecar: dict[str, object],
 ) -> tuple[dict[str, dict[str, object]] | None, dict[str, list[dict[str, object]]], str | None]:
     coverage = sidecar["long_document_coverage"]
@@ -765,12 +783,12 @@ def _extract_long_document_values(
         except SegmentMergeError:
             sidecar["failed_segment_index"] = segment.index
             return None, {}, "long_document_segment_invalid"
-        prompt = values_prompt(local_pages, prompt_fields, intent)
+        prompt = values_prompt(local_pages, prompt_fields, intent,
+                               output_shape=_values_prompt_shape(response_format_profile))
         prompt += (" This is one bounded source segment. Return values found in this segment only; "
                    "use null for fields absent here. Row ordinals start at zero within this segment.")
         if strict_response_format is not None:
-            prompt += (" Include every listed field exactly once. For a missing value use null, "
-                       "with page and quote both null. Keep all four keys on every value item.")
+            prompt += _strict_values_prompt_suffix(response_format_profile)
         coverage["attempted_segments"] += 1
         reply = _complete_model(model, prompt, response_format=strict_response_format)
         _record_model_call(sidecar, "values", reply, segment_index=segment.index)
@@ -779,7 +797,7 @@ def _extract_long_document_values(
             return None, {}, ("long_document_segment_provider_error" if reply.error else
                               "long_document_segment_incomplete")
         try:
-            parsed = (parse_confirmed_strict_values_reply(reply.text, schema, local_pages)
+            parsed = (_parse_strict_values(reply.text, schema, local_pages, response_format_profile)
                       if strict_response_format is not None else parse_values_reply(reply.text, schema, local_pages))
         except (RecursionError, OverflowError):
             parsed = None
@@ -867,7 +885,34 @@ def _record_model_call(
     }
     if segment_index is not None:
         call["segment_index"] = segment_index
+    if sidecar.get("response_format_profile") in {
+        STRICT_CONFIRMED_VALUES_PROFILE_V2, STRICT_VISUAL_PROFILE_V2,
+    } and phase in {"values", "visual_values"}:
+        # Hash the actual provider reply, not the transient keyed-to-list
+        # projection used by the existing grounding parser.
+        call["raw_reply_sha256"] = hashlib.sha256(reply.text.encode("utf-8", errors="surrogatepass")).hexdigest()
     calls.append(call)
+
+
+def _strict_values_prompt_suffix(profile: str) -> str:
+    if profile == STRICT_CONFIRMED_VALUES_PROFILE_V2:
+        return (" Return values as an object keyed by every confirmed field_id. "
+                "Every key must contain value, page, and quote. For an absent value "
+                "use null with page and quote both null; do not omit its field key.")
+    return (" Include every listed field exactly once. For a missing value use null, "
+            "with page and quote both null. Keep all four keys on every value item.")
+
+
+def _values_prompt_shape(profile: str) -> str:
+    return "keyed_v2" if profile == STRICT_CONFIRMED_VALUES_PROFILE_V2 else "array_v1"
+
+
+def _parse_strict_values(
+    text: str, schema: list[dict[str, object]], pages: list[dict[str, object]], profile: str,
+) -> dict[str, dict[str, object]] | None:
+    if profile == STRICT_CONFIRMED_VALUES_PROFILE_V2:
+        return parse_confirmed_strict_values_reply_v2(text, schema, pages)
+    return parse_confirmed_strict_values_reply(text, schema, pages)
 
 
 def _known_sdk_attempts(calls: object) -> int | None:

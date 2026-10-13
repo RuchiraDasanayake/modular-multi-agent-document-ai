@@ -37,6 +37,12 @@ confirmed-schema output sends an explicit JSON Schema to the provider and indepe
 locally. Both remain opt-in, with defaults unchanged. Neither correct JSON nor an exact OCR quotation establishes
 semantic correctness. See [RapidOCR](PRODUCT_RAPIDOCR.md) and [strict values](PRODUCT_STRICT_CONFIRMED_VALUES.md).
 
+Strict confirmed values v2 is an additional explicit profile: the provider-facing `values` object requires every
+confirmed field ID, with typed values or null. Its text and visual decoders validate the raw reply before converting
+it to the existing review representation. V1 profiles and default behavior are preserved; completed v1 studies do
+not measure v2 quality. A required key prevents structural omission only when enforced; it does not prove that a
+null or proposed value is correct.
+
 An explicit `bounded_text_segments_v1` profile also seals long-document behavior. Confirmed schemas can process
 up to four lossless text segments, each limited to 24,000 characters. Every source page, including an empty page,
 must have verified coverage before model execution. Invalid or incomplete replies fail the whole candidate;

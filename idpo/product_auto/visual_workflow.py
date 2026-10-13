@@ -13,6 +13,7 @@ from idpo.product_auto.provider import ModelReply
 from idpo.product_auto.segments import MAX_SEGMENT_CHARS
 from idpo.product_auto.visual_input import VisualInputError, prepare_visual_document, plan_visual_requests
 from idpo.product_auto.visual_output import parse_visual_values_reply
+from idpo.product_auto.visual_output import PROFILE as VISUAL_VALUES_PROFILE
 
 PROFILE = "bounded_visual_v1"
 SELECTIVE_PROFILE = "bounded_visual_selective_v2"
@@ -69,6 +70,7 @@ def extract_visual_values(
     *, source: Path, source_sha256: str, pages: list[dict], ocr_pages: list[dict],
     fields: list[dict], schema: list[dict], intent: str, model, sidecar: dict,
     record_call: Callable[[dict, str, ModelReply], None],
+    response_format_profile: str = VISUAL_VALUES_PROFILE,
 ) -> tuple[dict | None, dict, str | None]:
     receipt = sidecar["visual_document"]
     receipt["observed_ocr_pages"] = [page["page"] for page in pages]
@@ -93,7 +95,8 @@ def extract_visual_values(
                   for page, ocr_page in zip(pages, ocr_pages, strict=True)]
         prepared = prepare_visual_document(source, expected_source_sha256=source_sha256, pages=joined)
         requests = plan_visual_requests(prepared, fields=fields, intent=intent,
-                                        model=model.model, max_tokens=model.max_tokens)
+                                        model=model.model, max_tokens=model.max_tokens,
+                                        response_format_profile=response_format_profile)
         # Validate all immutable request bodies and current source identity before
         # the first send. The provider also validates again before each send.
         for request in requests:
@@ -128,7 +131,8 @@ def extract_visual_values(
             return fail("visual_request_provider_error" if reply.error else "visual_request_incomplete")
         try:
             batch_pages = [page for page in pages if page["page"] in attempt["covered_pages"]]
-            parsed = parse_visual_values_reply(reply.text, schema, batch_pages)
+            parsed = parse_visual_values_reply(reply.text, schema, batch_pages,
+                                               profile=response_format_profile)
         except (TypeError, ValueError, RecursionError, OverflowError):
             parsed = None
         if parsed is None:
