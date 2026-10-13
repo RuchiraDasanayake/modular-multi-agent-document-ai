@@ -15,6 +15,14 @@ import time
 from pathlib import Path
 from typing import Any
 
+from idpo.product_auto.parsed_document import (
+    Box,
+    ParsedDocument,
+    SourceAnchor,
+    SourceUnit,
+    Table,
+    TableCell,
+)
 from product_eval.docling_table_diagnostic import source_path, verify_selection
 from product_eval.tatr_asset_preflight import sha256_file
 
@@ -126,6 +134,134 @@ def _validate_output_path(
         raise ValueError("first-PDF output overlaps repository, corpus or model assets")
 
 
+def _verified_anchor(value: Any, unit_id: str) -> SourceAnchor:
+    if not isinstance(value, dict) or value.get("unit_id") != unit_id:
+        raise ValueError("table anchor is missing or references another page")
+    raw = value.get("raw_box")
+    display = value.get("display_box")
+    if not isinstance(raw, dict) or not isinstance(display, dict):
+        raise TypeError("table anchor lacks raw and rendered source boxes")
+    raw_box = Box(**raw)
+    display_box = Box(**display)
+    if raw_box.space != "pdf_points_bottom_left" or display_box.space != "normalized_top_left":
+        raise ValueError("table anchor uses an unexpected coordinate frame")
+    if any(value.get(key) is not None for key in ("text_span", "quote", "native_locator")):
+        raise ValueError("PDF table anchor contains an unsupported text locator")
+    return SourceAnchor(unit_id=unit_id, raw_box=raw_box, display_box=display_box)
+
+
+def _verify_content_artifacts(output_dir: Path, receipt: dict[str, Any],
+                              source_sha256: str) -> None:
+    from PIL import Image
+
+    try:
+        parsed = json.loads((output_dir / "parsed_document.json").read_text(encoding="utf-8"))
+        raw_pages = json.loads((output_dir / "raw_pages.json").read_text(encoding="utf-8"))
+        legend = json.loads((output_dir / "first_nonempty_source_overlay_legend.json")
+                            .read_text(encoding="utf-8"))
+        if (parsed.get("contract_version") != 2
+                or parsed.get("source_sha256") != source_sha256
+                or parsed.get("source_format") != "pdf"
+                or not isinstance(raw_pages, list)):
+            raise ValueError("worker did not emit source-bound PDF parser artifacts")
+        unit_data = parsed["units"]
+        table_data = parsed["tables"]
+        if (not isinstance(unit_data, list) or not isinstance(table_data, list)
+                or not 1 <= len(unit_data) <= 20
+                or len(raw_pages) != len(unit_data)
+                or receipt.get("page_count") != len(unit_data)):
+            raise ValueError("parser page count differs from worker receipt")
+        units: list[SourceUnit] = []
+        for index, (item, detail) in enumerate(zip(unit_data, raw_pages, strict=True)):
+            unit = SourceUnit(**item)
+            if (unit.unit_id != f"page-{index + 1}" or unit.ordinal != index
+                    or unit.kind != "pdf_page" or not unit.text
+                    or unit.width is not None or unit.height is not None
+                    or not isinstance(detail, dict)
+                    or detail.get("page_number") != index + 1
+                    or detail.get("pdf_page_size_frame") != "cropbox_after_rotation"
+                    or detail.get("pdf_rotation_degrees") not in (0, 90, 180, 270)
+                    or not isinstance(detail.get("tables"), list)):
+                raise ValueError("parser page metadata has an inconsistent coordinate frame")
+            size = detail.get("rendered_size_pixels")
+            if (not isinstance(size, list) or len(size) != 2
+                    or any(type(value) is not int or value <= 0 for value in size)
+                    or size[0] * size[1] > 35_000_000):
+                raise ValueError("parser page has invalid rendered dimensions")
+            units.append(unit)
+
+        tables: list[Table] = []
+        cell_count = 0
+        nonempty_count = 0
+        for item in table_data:
+            table_id = item["table_id"]
+            if not isinstance(table_id, str) or not isinstance(item.get("cells"), list):
+                raise TypeError("parser table is malformed")
+            page_number = int(table_id.split("-t", 1)[0].removeprefix("p"))
+            if not 1 <= page_number <= len(units):
+                raise ValueError("parser table refers to an absent page")
+            unit_id = f"page-{page_number}"
+            anchors = item.get("anchors")
+            if not isinstance(anchors, list) or len(anchors) != 1:
+                raise ValueError("parser table lacks one source-page anchor")
+            table_anchor = _verified_anchor(anchors[0], unit_id)
+            raw_details = [detail for detail in raw_pages[page_number - 1]["tables"]
+                           if detail.get("table_id") == table_id]
+            if len(raw_details) != 1 or len(raw_details[0].get("cells", [])) != len(item["cells"]):
+                raise ValueError("parser table differs from raw source detail")
+            cells: list[TableCell] = []
+            for cell_data, raw_cell in zip(item["cells"], raw_details[0]["cells"], strict=True):
+                if (not isinstance(cell_data, dict) or not isinstance(raw_cell, dict)
+                        or any(cell_data.get(key) != raw_cell.get(key)
+                               for key in ("row", "column", "row_span", "column_span", "text"))):
+                    raise ValueError("parser cell differs from raw source detail")
+                anchors = cell_data.get("anchors")
+                if not isinstance(anchors, list) or len(anchors) != 1:
+                    raise ValueError("parser cell lacks one source-page anchor")
+                cell_anchor = _verified_anchor(anchors[0], unit_id)
+                outer = table_anchor.display_box
+                inner = cell_anchor.display_box
+                if (inner.x0 < outer.x0 - 1e-6 or inner.y0 < outer.y0 - 1e-6
+                        or inner.x1 > outer.x1 + 1e-6 or inner.y1 > outer.y1 + 1e-6):
+                    raise ValueError("parser cell lies outside its table anchor")
+                cells.append(TableCell(
+                    cell_data["row"], cell_data["column"], cell_data["text"],
+                    cell_data["row_span"], cell_data["column_span"],
+                    anchors=(cell_anchor,),
+                ))
+                cell_count += 1
+                nonempty_count += bool(cell_data["text"].strip())
+            tables.append(Table(table_id, tuple(cells), anchors=(table_anchor,)))
+        ParsedDocument(source_sha256, "pdf", parsed["parser_id"],
+                       parsed["parser_version"], tuple(units), tuple(tables),
+                       parser_config_sha256=parsed.get("parser_config_sha256"))
+        if (not tables or not nonempty_count or receipt.get("table_count") != len(tables)
+                or receipt.get("cell_count") != cell_count
+                or receipt.get("nonempty_cell_count") != nonempty_count
+                or sum(len(page["tables"]) for page in raw_pages) != len(tables)):
+            raise ValueError("worker counts disagree with parsed source tables")
+        first = next(table for table in tables if any(cell.text.strip() for cell in table.cells))
+        page_number = int(first.table_id.split("-t", 1)[0].removeprefix("p"))
+        expected_size = tuple(raw_pages[page_number - 1]["rendered_size_pixels"])
+        with Image.open(output_dir / "first_nonempty_source_overlay.png") as overlay:
+            if overlay.format != "PNG" or overlay.size != expected_size:
+                raise ValueError("source overlay is not the expected rendered PNG")
+            overlay.verify()
+        if (legend.get("source_sha256") != source_sha256
+                or legend.get("page_number") != page_number
+                or legend.get("table_id") != first.table_id
+                or not isinstance(legend.get("cells"), list)
+                or len(legend["cells"]) != len(first.cells)):
+            raise ValueError("source overlay legend differs from parsed table")
+        for entry, cell in zip(legend["cells"], first.cells, strict=True):
+            if (entry.get("label") != f"{first.table_id}:r{cell.row}c{cell.column}"
+                    or entry.get("text") != cell.text
+                    or entry.get("display_box") != cell.anchors[0].display_box.__dict__):
+                raise ValueError("source overlay legend has a mismatched cell")
+    except (KeyError, TypeError, IndexError, AttributeError, OverflowError, OSError) as exc:
+        raise ValueError("worker parser artifact is malformed") from exc
+
+
 def _verify_worker_result(
     output_dir: Path, source_sha256: str, expected_runtime_lock: Path,
 ) -> dict[str, Any]:
@@ -157,12 +293,11 @@ def _verify_worker_result(
         ("parsed_document.json", "parsed_document_sha256"),
         ("raw_pages.json", "raw_pages_sha256"),
         ("first_nonempty_source_overlay.png", "overlay_sha256"),
+        ("first_nonempty_source_overlay_legend.json", "overlay_legend_sha256"),
     ):
         if sha256_file(output_dir / name) != receipt.get(key):
             raise ValueError(f"worker artifact changed: {name}")
-    parsed = json.loads((output_dir / "parsed_document.json").read_text(encoding="utf-8"))
-    if parsed.get("contract_version") != 2 or parsed.get("source_sha256") != source_sha256:
-        raise ValueError("worker did not emit the source-bound ParsedDocument v2")
+    _verify_content_artifacts(output_dir, receipt, source_sha256)
     return receipt
 
 

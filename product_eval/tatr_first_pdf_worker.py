@@ -8,6 +8,7 @@ fails the document until the separate OCR geometry route is reviewed.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import numbers
@@ -157,8 +158,11 @@ def parse_native_page(
     source_text = " ".join(word.text for word in words)
     unit_id = f"page-{page_number}"
     page_width, page_height = page.get_size()
-    unit = SourceUnit(unit_id, "pdf_page", page_number - 1, source_text,
-                      width=float(page_width), height=float(page_height))
+    # PDFium's raw PDF boxes use the unrotated page coordinate system, while
+    # get_size() applies CropBox and page rotation. The v2 unit has no origin
+    # or rotation fields, so dimensions here would misdescribe raw_box. Keep
+    # the complete page transform in raw_pages.json and the rendered overlay.
+    unit = SourceUnit(unit_id, "pdf_page", page_number - 1, source_text)
     page_image = bitmap.to_pil().convert("RGB")
     raw_detection = infer(page_image, "detection")
     active = _active_tables(raw_detection)
@@ -168,9 +172,10 @@ def parse_native_page(
         "page_number": page_number,
         "rendered_size_pixels": image_size,
         "pdf_page_size_points": [page_width, page_height],
+        "pdf_page_size_frame": "cropbox_after_rotation",
         "pdf_cropbox_points": list(page.get_cropbox()),
         "pdf_mediabox_points": list(page.get_mediabox()),
-        "pdf_rotation_degrees": page.get_rotation() * 90,
+        "pdf_rotation_degrees": page.get_rotation(),
         "word_route": "pdfium_native",
         "native_words": [asdict(word) for word in words],
         "raw_detection_queries": raw_detection,
@@ -196,13 +201,14 @@ def parse_native_page(
         if len(structure_tables) != 1:
             raise ValueError("structure model lacks one frozen table box")
         structure_table_box = _as_box(structure_tables[0]["bbox"])
-        table_pixel_box = crop_box_to_page_pixels(
+        raw_table_pixel_box = crop_box_to_page_pixels(
             crop, structure_table_box, rotated_clockwise=rotated,
         )
-        table_pdf_box = crop_box_to_pdf_page(
+        raw_table_pdf_box = crop_box_to_pdf_page(
             crop, structure_table_box, converter, rotated_clockwise=rotated,
         )
-        _check_source_reprojection(table_pixel_box, table_pdf_box, converter, image_size)
+        _check_source_reprojection(raw_table_pixel_box, raw_table_pdf_box,
+                                   converter, image_size)
         table_id = f"p{page_number}-t{table_number}"
         cells: list[TableCell] = []
         cell_details: list[dict[str, Any]] = []
@@ -230,11 +236,31 @@ def parse_native_page(
                 "local_box": local_box, "page_pixel_box": pixel_box,
                 "pdf_page_box": pdf_box,
             })
+        if not cell_details:
+            raise ValueError("structure model produced no source-anchored cells")
+        table_pixel_box = (
+            min(item["page_pixel_box"][0] for item in cell_details),
+            min(item["page_pixel_box"][1] for item in cell_details),
+            max(item["page_pixel_box"][2] for item in cell_details),
+            max(item["page_pixel_box"][3] for item in cell_details),
+        )
+        table_pdf_box = (
+            min(item["pdf_page_box"][0] for item in cell_details),
+            min(item["pdf_page_box"][1] for item in cell_details),
+            max(item["pdf_page_box"][2] for item in cell_details),
+            max(item["pdf_page_box"][3] for item in cell_details),
+        )
+        _check_source_reprojection(table_pixel_box, table_pdf_box, converter, image_size)
         tables.append(Table(table_id, tuple(cells), anchors=(
             _source_anchor(unit_id, table_pixel_box, table_pdf_box, image_size),
         )))
         detail["tables"].append({
             "table_id": table_id, "detector_query": detected,
+            "raw_structure_table_crop_box": structure_table_box,
+            "raw_structure_table_page_pixel_box": raw_table_pixel_box,
+            "raw_structure_table_pdf_page_box": raw_table_pdf_box,
+            "emitted_table_page_pixel_box": table_pixel_box,
+            "emitted_table_pdf_page_box": table_pdf_box,
             "crop": asdict(crop), "rotated_clockwise": rotated,
             "crop_word_count": len(crop_words),
             "raw_structure_queries": raw_structure,
@@ -299,23 +325,27 @@ class PinnedCpuModels:
         )
 
 
-def _overlay_first_nonempty(source: Path, document: ParsedDocument, output_dir: Path) -> Path:
+def _overlay_first_nonempty(
+    source_bytes: bytes, document: ParsedDocument, output_dir: Path,
+) -> tuple[Path, Path]:
     """Reopen the source and render a separate 300-DPI source-pixel overlay."""
     import pypdfium2 as pdfium
-    from PIL import ImageDraw
+    from PIL import ImageDraw, ImageFont
 
     for table in document.tables:
         if not any(cell.text.strip() for cell in table.cells):
             continue
         first = table.anchors[0]
         page_number = int(first.unit_id.split("-")[1])
-        pdf = pdfium.PdfDocument(source)
+        pdf = pdfium.PdfDocument(source_bytes)
         try:
             page = pdf[page_number - 1]
             bitmap = page.render(scale=DPI / 72, rotation=0)
             try:
                 image = bitmap.to_pil().convert("RGB")
                 draw = ImageDraw.Draw(image)
+                font = ImageFont.load_default(size=18)
+                legend: list[dict[str, Any]] = []
                 for cell in table.cells:
                     anchor = cell.anchors[0]
                     box = anchor.display_box
@@ -324,9 +354,31 @@ def _overlay_first_nonempty(source: Path, document: ParsedDocument, output_dir: 
                     draw.rectangle((box.x0 * image.width, box.y0 * image.height,
                                     box.x1 * image.width, box.y1 * image.height),
                                    outline="red", width=3)
+                    label = f"{table.table_id}:r{cell.row}c{cell.column}"
+                    text_box = draw.textbbox((0, 0), label, font=font)
+                    tag_width = text_box[2] - text_box[0] + 8
+                    tag_height = text_box[3] - text_box[1] + 8
+                    tag_x = min(int(box.x0 * image.width), image.width - tag_width)
+                    tag_y = max(0, int(box.y0 * image.height) - tag_height)
+                    draw.rectangle((tag_x, tag_y, tag_x + tag_width,
+                                    tag_y + tag_height), fill="white", outline="red")
+                    draw.text((tag_x + 4, tag_y + 4 - text_box[1]), label,
+                              fill="red", font=font)
+                    legend.append({
+                        "label": label, "table_id": table.table_id,
+                        "row": cell.row, "column": cell.column,
+                        "text": cell.text, "display_box": asdict(box),
+                    })
                 path = output_dir / "first_nonempty_source_overlay.png"
+                legend_path = output_dir / "first_nonempty_source_overlay_legend.json"
                 image.save(path)
-                return path
+                _write_new_json(legend_path, {
+                    "source_sha256": document.source_sha256,
+                    "page_number": page_number,
+                    "table_id": table.table_id,
+                    "cells": legend,
+                })
+                return path, legend_path
             finally:
                 bitmap.close()
                 page.close()
@@ -341,9 +393,10 @@ def run_document(
 ) -> dict[str, Any]:
     import pypdfium2 as pdfium
 
-    if source.stat().st_size > MAX_FILE_BYTES or sha256_file(source) != expected_sha256:
+    source_bytes = source.read_bytes()
+    if len(source_bytes) > MAX_FILE_BYTES or hashlib.sha256(source_bytes).hexdigest() != expected_sha256:
         raise ValueError("source exceeds frozen limit or differs from the selection hash")
-    pdf = pdfium.PdfDocument(source)
+    pdf = pdfium.PdfDocument(source_bytes)
     units: list[SourceUnit] = []
     tables: list[Table] = []
     pages: list[dict[str, Any]] = []
@@ -377,7 +430,7 @@ def run_document(
     )
     _write_new_json(output_dir / "parsed_document.json", document.to_dict())
     _write_new_json(output_dir / "raw_pages.json", pages)
-    overlay = _overlay_first_nonempty(source, document, output_dir)
+    overlay, legend = _overlay_first_nonempty(source_bytes, document, output_dir)
     return {
         "status": "first_pdf_needs_visual_review",
         "source_sha256": expected_sha256,
@@ -388,6 +441,8 @@ def run_document(
         "raw_pages_sha256": sha256_file(output_dir / "raw_pages.json"),
         "overlay_sha256": sha256_file(overlay),
         "overlay_file": overlay.name,
+        "overlay_legend_sha256": sha256_file(legend),
+        "overlay_legend_file": legend.name,
         "manual_source_pixel_verdict": "pending",
         "can_continue_other_11": False,
         "gold_opened": False,
