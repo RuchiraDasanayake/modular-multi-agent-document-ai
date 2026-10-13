@@ -119,6 +119,14 @@ def test_snapshot_tamper_and_invalid_fields_fail_before_model(tmp_path: Path) ->
     assert not (tmp_path / "runs" / "no-model").exists()
 
 
+def test_full_bounded_unicode_brief_fits_worker_snapshot_limit(tmp_path: Path) -> None:
+    fields = [{"field_id": f"field_{index}", "type": "string", "description": "界" * 1000,
+               "example_values": ["界" * 200] * 3} for index in range(24)]
+    path, digest = snapshot(tmp_path, fields=fields)
+    assert path.stat().st_size > 64 * 1024
+    assert len(load_confirmed_schema(path, digest).fields) == 24
+
+
 def test_cli_carries_confirmed_schema_without_contacting_model_for_empty_source(tmp_path: Path) -> None:
     schema_path, digest = snapshot(tmp_path)
     source = tmp_path / "empty.txt"

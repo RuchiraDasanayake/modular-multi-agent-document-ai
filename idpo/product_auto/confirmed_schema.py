@@ -9,7 +9,9 @@ import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
-MAX_SNAPSHOT_BYTES = 64 * 1024
+# A 24-field brief with 1,000-character descriptions and three 200-character
+# examples may exceed 64 KiB when the user's text is multibyte UTF-8.
+MAX_SNAPSHOT_BYTES = 256 * 1024
 _BRIEF_ID = re.compile(r"brief_[a-f0-9]{32}\Z")
 _HEX32 = re.compile(r"[a-f0-9]{32}\Z")
 _SHA256 = re.compile(r"[a-f0-9]{64}\Z")
