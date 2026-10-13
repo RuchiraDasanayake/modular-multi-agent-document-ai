@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -32,6 +33,24 @@ _SYSTEM = ("Return only a JSON object with fields and clarification_questions. "
 
 class ChatModel(Protocol):
     def complete_json(self, *, system: str, prompt: str) -> ModelReply: ...
+
+
+class SuggestionFailure(ValueError):
+    def __init__(self, stage: str, code: str, reply: ModelReply | None = None) -> None:
+        super().__init__(code)
+        self.stage = stage
+        self.code = code
+        self.reply = reply
+
+    def diagnostic(self) -> dict[str, object]:
+        reply = self.reply
+        return {"stage": self.stage, "code": self.code,
+                "finish_reason": reply.finish_reason if reply else None,
+                "prompt_tokens": reply.prompt_tokens if reply else None,
+                "completion_tokens": reply.completion_tokens if reply else None,
+                "sdk_attempts": reply.sdk_attempts if reply else None,
+                "raw_reply_sha256": hashlib.sha256(reply.text.encode("utf-8")).hexdigest()
+                if reply and reply.text else None}
 
 
 def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -127,18 +146,24 @@ def _bounded_text(value: object, limit: int, *, required: bool = True) -> str:
 def _parse_suggestion(text: str) -> tuple[list[dict[str, object]], list[str]]:
     if len(text) > MAX_RESPONSE_CHARS:
         raise ValueError("Model suggestion exceeds response limit")
-    result = json.loads(text, object_pairs_hook=_unique_object)
-    if not isinstance(result, dict) or set(result) != {"fields", "clarification_questions"}:
+    content = text.strip()
+    if content.startswith("```"):
+        match = re.fullmatch(r"```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```", content, re.IGNORECASE)
+        if not match:
+            raise ValueError("Invalid fenced JSON suggestion")
+        content = match.group(1)
+    result = json.loads(content, object_pairs_hook=_unique_object)
+    if not isinstance(result, dict) or set(result) not in ({"fields"}, {"fields", "clarification_questions"}):
         raise ValueError("Invalid model suggestion contract")
     raw_fields = result["fields"]
-    questions = result["clarification_questions"]
+    questions = result.get("clarification_questions", [])
     if not isinstance(raw_fields, list) or not 1 <= len(raw_fields) <= MAX_FIELDS or not isinstance(questions, list) or len(questions) > MAX_QUESTIONS:
         raise ValueError("Invalid model suggestion count")
     fields: list[dict[str, object]] = []
     seen: set[str] = set()
     for raw in raw_fields:
-        if not isinstance(raw, dict) or set(raw) not in ({"field_id", "type", "description", "example_values"},
-                                                      {"field_id", "type", "group", "description", "example_values"}):
+        required = {"field_id", "type", "description"}
+        if not isinstance(raw, dict) or not required.issubset(raw) or set(raw) - required - {"group", "example_values"}:
             raise ValueError("Invalid suggested field")
         field_id = _bounded_text(raw["field_id"], 64)
         if not _FIELD_ID.fullmatch(field_id) or field_id != field_id.lower() or field_id.endswith("_") or field_id in seen:
@@ -148,7 +173,7 @@ def _parse_suggestion(text: str) -> tuple[list[dict[str, object]], list[str]]:
         if not isinstance(field_type, str) or field_type not in _TYPES:
             raise ValueError("Invalid suggested field type")
         description = _bounded_text(raw["description"], 1000)
-        examples = raw["example_values"]
+        examples = raw.get("example_values", [])
         if not isinstance(examples, list) or len(examples) > 3:
             raise ValueError("Invalid suggested examples")
         parsed: dict[str, object] = {"field_id": field_id, "type": field_type,
@@ -161,7 +186,7 @@ def _parse_suggestion(text: str) -> tuple[list[dict[str, object]], list[str]]:
     return fields, [_bounded_text(question, 200) for question in questions]
 
 
-def suggest_fields(request: dict[str, object], model: ChatModel) -> dict[str, object]:
+def suggest_fields(request: dict[str, object], model: ChatModel, *, raw_reply_path: Path | None = None) -> dict[str, object]:
     """Read pinned sources and make exactly one provider call after all preflight checks."""
     if set(request) != {"contract_version", "brief_revision", "brief_payload_sha256", "intent", "existing_fields", "samples", "model"} or request["contract_version"] != 1:
         raise ValueError("Invalid draft request")
@@ -210,16 +235,34 @@ def suggest_fields(request: dict[str, object], model: ChatModel) -> dict[str, ob
                          "required_output": {"fields": [{"field_id": "lowercase_id", "type": "string|integer|decimal|boolean|date|array[object]", "description": "meaning", "example_values": ["example"]}], "clarification_questions": ["question"]},
                          "limits": "Propose 1 to 12 fields and at most 5 questions. Use only relevant fields. Every field needs a useful description. Examples must come from the excerpts or be omitted. Repeated fields need a group."}, ensure_ascii=False, separators=(",", ":"))
     reply = model.complete_json(system=_SYSTEM, prompt=prompt)
-    if reply.error or reply.finish_reason not in (None, "stop"):
-        raise ValueError("Schema suggestion model failed or was truncated")
-    fields, questions = _parse_suggestion(reply.text)
+    if raw_reply_path is not None and reply.text and len(reply.text.encode("utf-8")) <= 64 * 1024:
+        if not raw_reply_path.is_absolute() or raw_reply_path.suffix != ".txt" or not raw_reply_path.parent.is_dir():
+            raise SuggestionFailure("capture", "invalid_raw_reply_path", reply)
+        handle = os.open(raw_reply_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        try:
+            with os.fdopen(handle, "w", encoding="utf-8") as captured:
+                captured.write(reply.text)
+        except BaseException:
+            raw_reply_path.unlink(missing_ok=True)
+            raise
+    if reply.error:
+        raise SuggestionFailure("provider", reply.error_category or "provider_error", reply)
+    if reply.finish_reason not in (None, "stop"):
+        raise SuggestionFailure("provider", "non_stop_finish_reason", reply)
+    try:
+        fields, questions = _parse_suggestion(reply.text)
+    except json.JSONDecodeError as exc:
+        raise SuggestionFailure("parse", "invalid_json", reply) from exc
+    except ValueError as exc:
+        raise SuggestionFailure("parse", "invalid_contract", reply) from exc
     return {"fields": fields, "clarification_questions": questions,
             "provenance": {"brief_revision": revision, "brief_payload_sha256": digest,
                            "samples": provenance, "model": request["model"],
                            "prompt_sha256": hashlib.sha256((_SYSTEM + "\n" + prompt).encode("utf-8")).hexdigest(),
                            "input_chars": len(prompt), "max_output_tokens": MODEL_MAX_TOKENS,
                            "prompt_tokens": reply.prompt_tokens, "completion_tokens": reply.completion_tokens,
-                           "latency_ms": round(reply.latency_ms, 1), "sdk_attempts": reply.sdk_attempts}}
+                           "latency_ms": round(reply.latency_ms, 1), "sdk_attempts": reply.sdk_attempts,
+                           "raw_reply_sha256": hashlib.sha256(reply.text.encode("utf-8")).hexdigest()}}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -236,12 +279,20 @@ def main(argv: list[str] | None = None) -> int:
         request = json.loads(raw, object_pairs_hook=_unique_object)
         if not isinstance(request, dict) or not isinstance(request.get("model"), dict) or set(request["model"]) != {"id", "base_url"}:
             raise ValueError("Invalid model request")
+        raw_reply_path = request.pop("raw_reply_path", None)
+        if raw_reply_path is not None and not isinstance(raw_reply_path, str):
+            raise ValueError("Invalid raw reply destination")
         model = OpenAICompatibleChat(base_url=request["model"]["base_url"], model=request["model"]["id"],
                                      api_key_env="ICORE_API_KEY", timeout_s=45, max_tokens=MODEL_MAX_TOKENS)
-        print(json.dumps(suggest_fields(request, model), ensure_ascii=False, separators=(",", ":")))
+        print(json.dumps(suggest_fields(request, model,
+                                        raw_reply_path=Path(raw_reply_path) if raw_reply_path else None),
+                         ensure_ascii=False, separators=(",", ":")))
         return 0
+    except SuggestionFailure as exc:
+        print(json.dumps(exc.diagnostic(), separators=(",", ":")), file=sys.stderr)
+        return 1
     except Exception as exc:  # noqa: BLE001 - do not expose provider or source text
-        print(json.dumps({"error": type(exc).__name__}), file=sys.stderr)
+        print(json.dumps({"stage": "setup", "code": type(exc).__name__}, separators=(",", ":")), file=sys.stderr)
         return 1
 
 

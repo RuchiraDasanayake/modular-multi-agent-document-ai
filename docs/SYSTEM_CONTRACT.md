@@ -168,6 +168,12 @@ confirm field meanings, then preview and review. This action currently requires 
 environment's optional `cloud` dependency for an OpenAI-compatible model. It can also use a loopback model endpoint
 without a cloud key. Sampling uses at most 1,800 characters per source (9,000 total), first two PDF pages, and bounded
 OCR for scans; fields outside those excerpts may need manual addition.
+Each request writes a private, content-free attempt receipt under the configured data directory's
+`frontend/auto_briefs/<owner-hash>/<job-id>/suggestions` folder. Failure receipts record stage, bounded code,
+provider finish reason, usage counts when available, and SHA-256 of the model reply, without the reply or source
+text. `IDPO_AUTO_SUGGEST_CAPTURE_RAW=1` is an explicit operator-only diagnostic option that saves the raw reply
+as a separate local file with owner-only mode where supported; it is off by default. A failed or uncertain request
+is never retried automatically.
 
 The job-scoped recipe API separately records owner-scoped draft, approval, and disable events from completed reviews; it
 requires explicit linked-row group confirmation and can configure one explicitly selected run.

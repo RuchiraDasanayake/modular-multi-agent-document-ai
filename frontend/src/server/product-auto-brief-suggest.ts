@@ -25,6 +25,67 @@ type HelperInput = {
   model: { id: string; base_url: string };
 };
 
+type HelperDiagnostic = {
+  stage: string; code: string; finish_reason?: string | null;
+  prompt_tokens?: number | null; completion_tokens?: number | null;
+  sdk_attempts?: number | null; raw_reply_sha256?: string | null;
+  helper_output_sha256?: string | null;
+};
+
+type AttemptContext = {
+  id: string; jobId: string; directory: string; receiptFile: string; rawReplyPath: string | null;
+};
+
+class SuggestionHelperFailure extends Error {
+  constructor(readonly diagnostic: HelperDiagnostic) { super("Schema suggestion helper failed."); }
+}
+
+function safeDiagnostic(raw: string): HelperDiagnostic {
+  try {
+    const parsed: unknown = JSON.parse(raw.trim().split(/\r?\n/).at(-1) ?? "");
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
+    const value = parsed as Record<string, unknown>;
+    const bounded = (text: unknown) => typeof text === "string" && /^[A-Za-z0-9_]{1,64}$/.test(text);
+    const count = (number: unknown) => number === null ||
+      (typeof number === "number" && Number.isSafeInteger(number) && number >= 0 && number <= 10_000_000);
+    if (!bounded(value.stage) || !bounded(value.code) ||
+      value.finish_reason !== undefined && value.finish_reason !== null && !bounded(value.finish_reason) ||
+      !count(value.prompt_tokens ?? null) || !count(value.completion_tokens ?? null) ||
+      !count(value.sdk_attempts ?? null) ||
+      value.raw_reply_sha256 !== undefined && value.raw_reply_sha256 !== null &&
+      (typeof value.raw_reply_sha256 !== "string" || !SHA256.test(value.raw_reply_sha256))) throw new Error();
+    return { stage: value.stage as string, code: value.code as string,
+      finish_reason: value.finish_reason as string | null | undefined,
+      prompt_tokens: value.prompt_tokens as number | null | undefined,
+      completion_tokens: value.completion_tokens as number | null | undefined,
+      sdk_attempts: value.sdk_attempts as number | null | undefined,
+      raw_reply_sha256: value.raw_reply_sha256 as string | null | undefined };
+  } catch { return { stage: "helper", code: "unknown_failure" }; }
+}
+
+function providerReplyHash(output: unknown): string | null {
+  if (!output || typeof output !== "object" || Array.isArray(output)) return null;
+  const provenance = (output as Record<string, unknown>).provenance;
+  if (!provenance || typeof provenance !== "object" || Array.isArray(provenance)) return null;
+  const hash = (provenance as Record<string, unknown>).raw_reply_sha256;
+  return typeof hash === "string" && SHA256.test(hash) ? hash : null;
+}
+
+function writeAttemptReceipt(attempt: AttemptContext, input: HelperInput,
+  status: "started" | "failed" | "completed", diagnostic: HelperDiagnostic): void {
+  const receipt = {
+    contract_version: 1, attempt_id: attempt.id, job_id: attempt.jobId,
+    brief_revision: input.brief_revision, brief_payload_sha256: input.brief_payload_sha256,
+    model_id: input.model.id, sample_sources: input.samples.map((sample) => ({
+      file_id: sample.file_id, source_sha256: sample.source_sha256 })),
+    status, ...diagnostic, raw_reply_saved: Boolean(attempt.rawReplyPath && fs.existsSync(attempt.rawReplyPath)),
+    updated_at: new Date().toISOString(),
+  };
+  const temporary = `${attempt.receiptFile}.${randomUUID()}.tmp`;
+  fs.writeFileSync(temporary, JSON.stringify(receipt, null, 2), { flag: "wx", mode: 0o600 });
+  fs.renameSync(temporary, attempt.receiptFile);
+}
+
 function configuredModel(): HelperInput["model"] {
   const id = process.env.IDPO_AUTO_MODEL?.trim();
   const baseUrl = process.env.IDPO_AUTO_API_BASE_URL?.trim();
@@ -49,12 +110,12 @@ function helperDirectory(jobId: string, ownerId: string): string {
   return path.join(path.dirname(loadRunnerConfig().runsDir), "frontend", "auto_briefs", ownerHash, jobId, "suggestions");
 }
 
-async function runDraftHelper(input: HelperInput, jobId: string, ownerId: string): Promise<unknown> {
+async function runDraftHelper(input: HelperInput, _jobId: string, _ownerId: string,
+  attempt: AttemptContext): Promise<unknown> {
   const command = getCommandConfig("idpo_process_auto");
-  const directory = helperDirectory(jobId, ownerId);
-  fs.mkdirSync(directory, { recursive: true });
-  const file = path.join(directory, `${randomUUID()}.request.json`);
-  const bytes = Buffer.from(JSON.stringify(input), "utf8");
+  const file = path.join(attempt.directory, `${attempt.id}.request.json`);
+  const bytes = Buffer.from(JSON.stringify({ ...input,
+    ...(attempt.rawReplyPath ? { raw_reply_path: attempt.rawReplyPath } : {}) }), "utf8");
   if (bytes.length > MAX_REQUEST_BYTES) throw new AccessError("The sample request is too large.", 400);
   fs.writeFileSync(file, bytes, { flag: "wx", mode: 0o600 });
   try {
@@ -66,7 +127,7 @@ async function runDraftHelper(input: HelperInput, jobId: string, ownerId: string
         stdio: ["ignore", "pipe", "pipe"], shell: false,
       });
       let stdout = "";
-      let stderrBytes = 0;
+      let stderr = "";
       let settled = false;
       const finish = (error?: Error, value?: string) => {
         if (settled) return;
@@ -76,24 +137,30 @@ async function runDraftHelper(input: HelperInput, jobId: string, ownerId: string
       };
       const timer = setTimeout(() => {
         child.kill();
-        finish(new Error("Schema suggestion helper timed out."));
+        finish(new SuggestionHelperFailure({ stage: "helper", code: "timeout" }));
       }, HELPER_TIMEOUT_MS);
       child.stdout.setEncoding("utf8");
       child.stdout.on("data", (chunk: string) => {
         stdout += chunk;
         if (Buffer.byteLength(stdout, "utf8") > MAX_OUTPUT_BYTES) {
           child.kill();
-          finish(new Error("Schema suggestion helper output exceeded limit."));
+          finish(new SuggestionHelperFailure({ stage: "helper", code: "output_limit" }));
         }
       });
-      child.stderr.on("data", (chunk: Buffer) => {
-        stderrBytes += chunk.length;
-        if (stderrBytes > 8192) child.kill();
+      child.stderr.setEncoding("utf8");
+      child.stderr.on("data", (chunk: string) => {
+        stderr += chunk;
+        if (Buffer.byteLength(stderr, "utf8") > 8192) {
+          child.kill();
+          finish(new SuggestionHelperFailure({ stage: "helper", code: "stderr_limit" }));
+        }
       });
-      child.on("error", (error) => finish(error));
-      child.on("close", (code) => code === 0 ? finish(undefined, stdout) : finish(new Error("Schema suggestion helper failed.")));
+      child.on("error", () => finish(new SuggestionHelperFailure({ stage: "helper", code: "start_failed" })));
+      child.on("close", (code) => code === 0 ? finish(undefined, stdout) :
+        finish(new SuggestionHelperFailure(safeDiagnostic(stderr))));
     });
-    return JSON.parse(output) as unknown;
+    try { return JSON.parse(output) as unknown; }
+    catch { throw new SuggestionHelperFailure({ stage: "helper", code: "invalid_stdout" }); }
   } finally {
     fs.rmSync(file, { force: true });
   }
@@ -160,7 +227,7 @@ function validateSuggestion(value: unknown, input: HelperInput): ProductAutoBrie
 }
 
 export async function suggestProductAutoBrief(jobId: string, user: AuthenticatedUser, rawRequest: unknown,
-  helper: (input: HelperInput, jobId: string, ownerId: string) => Promise<unknown> = runDraftHelper,
+  helper: (input: HelperInput, jobId: string, ownerId: string, attempt: AttemptContext) => Promise<unknown> = runDraftHelper,
 ): Promise<ProductAutoBriefSuggestion> {
   const job = requireJob(jobId, user);
   requireAdmin(user);
@@ -194,12 +261,39 @@ export async function suggestProductAutoBrief(jobId: string, user: Authenticated
       type: field.type, description: field.description.slice(0, 200),
       example_values: field.example_values.map((value) => value.slice(0, 80)) })),
   };
+  const directory = helperDirectory(jobId, job.ownerUserId);
+  fs.mkdirSync(directory, { recursive: true });
+  const attemptId = randomUUID();
+  const attempt: AttemptContext = { id: attemptId, jobId, directory,
+    receiptFile: path.join(directory, `${attemptId}.diagnostic.json`),
+    rawReplyPath: process.env.IDPO_AUTO_SUGGEST_CAPTURE_RAW === "1"
+      ? path.join(directory, `${attemptId}.reply.txt`) : null };
+  writeAttemptReceipt(attempt, input, "started", { stage: "helper", code: "started" });
   let raw: unknown;
-  try { raw = await helper(input, jobId, job.ownerUserId); }
-  catch { throw new AccessError("AI field suggestion failed. Check the server model and sample parser.", 502); }
+  try { raw = await helper(input, jobId, job.ownerUserId, attempt); }
+  catch (error) {
+    const diagnostic = error instanceof SuggestionHelperFailure ? error.diagnostic :
+      { stage: "helper", code: "unknown_failure" };
+    writeAttemptReceipt(attempt, input, "failed", diagnostic);
+    throw new AccessError(`AI field suggestion failed (reference ${attemptId}).`, 502);
+  }
   let suggestion: ProductAutoBriefSuggestion;
   try { suggestion = validateSuggestion(raw, input); }
-  catch { throw new AccessError("The model returned an invalid field suggestion.", 502); }
-  requireCurrentProductAutoBrief(jobId, brief.revision, brief.payload_sha256);
+  catch {
+    const output = JSON.stringify(raw) ?? "undefined";
+    writeAttemptReceipt(attempt, input, "failed", { stage: "node_validation", code: "invalid_suggestion",
+      raw_reply_sha256: providerReplyHash(raw),
+      helper_output_sha256: createHash("sha256").update(output).digest("hex") });
+    throw new AccessError(`The model returned an invalid field suggestion (reference ${attemptId}).`, 502);
+  }
+  try { requireCurrentProductAutoBrief(jobId, brief.revision, brief.payload_sha256); }
+  catch {
+    writeAttemptReceipt(attempt, input, "failed", { stage: "postflight", code: "source_or_revision_changed" });
+    throw new AccessError("Extraction brief or sample source changed. Reload before continuing.", 409);
+  }
+  writeAttemptReceipt(attempt, input, "completed", { stage: "complete", code: "ok",
+    prompt_tokens: suggestion.provenance.prompt_tokens,
+    completion_tokens: suggestion.provenance.completion_tokens, sdk_attempts: 1,
+    raw_reply_sha256: providerReplyHash(raw) });
   return suggestion;
 }

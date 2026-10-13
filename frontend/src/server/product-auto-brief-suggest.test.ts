@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { createHash } from "node:crypto";
 import { POST as saveBriefRoute } from "@/app/api/jobs/[jobId]/auto/brief/route";
 import { POST as suggestRoute } from "@/app/api/jobs/[jobId]/auto/brief/suggest/route";
 import { resetConfigCacheForTests } from "./config";
@@ -92,10 +93,21 @@ test("AI suggestion checks owner, admin, draft revision, sources, and leaves dra
   assert.equal(JSON.stringify(result).includes(".txt"), false);
   assert.equal(getProductAutoBrief(job.jobId).brief?.state, "draft");
   assert.deepEqual(getProductAutoBrief(job.jobId).brief?.fields, []);
+  const diagnostics = path.join(process.env.IDPO_DATA_DIR!, "frontend", "auto_briefs",
+    createHash("sha256").update("alice-id").digest("hex"), job.jobId, "suggestions");
+  const completed = fs.readdirSync(diagnostics).filter((name) => name.endsWith(".diagnostic.json"))
+    .map((name) => JSON.parse(fs.readFileSync(path.join(diagnostics, name), "utf8")));
+  assert.equal(completed.length, 1);
+  assert.equal(completed[0].status, "completed");
+  assert.equal(JSON.stringify(completed).includes("Invoice A"), false);
+  assert.equal(JSON.stringify(completed).includes(".txt"), false);
   await assert.rejects(suggestProductAutoBrief(job.jobId, admin, pin,
     async () => ({ fields: [{ field_id: "invalid", type: "made-up", description: "Bad", example_values: [] }],
       clarification_questions: [], provenance: {} })),
   (error: unknown) => error instanceof Error && "statusCode" in error && error.statusCode === 502);
+  const afterInvalid = fs.readdirSync(diagnostics).filter((name) => name.endsWith(".diagnostic.json"))
+    .map((name) => JSON.parse(fs.readFileSync(path.join(diagnostics, name), "utf8")));
+  assert.equal(afterInvalid.filter((receipt) => receipt.status === "failed" && receipt.stage === "node_validation").length, 1);
 
   const sample = inputSource(job.jobId, fileId);
   fs.writeFileSync(sample, "Invoice B\nAmount due 999.99");

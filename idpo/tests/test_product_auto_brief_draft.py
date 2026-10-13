@@ -10,7 +10,12 @@ from pathlib import Path
 
 import pytest
 
-from idpo.product_auto.brief_draft import MAX_SAMPLE_CHARS, main, suggest_fields
+from idpo.product_auto.brief_draft import (
+    MAX_SAMPLE_CHARS,
+    SuggestionFailure,
+    main,
+    suggest_fields,
+)
 from idpo.product_auto.provider import ModelReply
 
 
@@ -68,6 +73,41 @@ def test_source_change_prevents_model_call(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="changed"):
         suggest_fields(request, model)
     assert model.calls == []
+
+
+def test_optional_examples_questions_and_json_fence_are_normalized(tmp_path: Path) -> None:
+    sample = tmp_path / "invoice.txt"
+    sample.write_text("Invoice SYN-1001", encoding="utf-8")
+    model = FakeModel('```json\n{"fields":[{"field_id":"invoice_number","type":"string",'
+                      '"description":"The invoice identifier"}]}\n```')
+    result = suggest_fields(_request(sample), model)
+    assert result["fields"][0]["example_values"] == []
+    assert result["clarification_questions"] == []
+
+
+def test_failed_model_contract_diagnostic_has_hash_and_no_source_text(tmp_path: Path) -> None:
+    sample = tmp_path / "invoice.txt"
+    sample.write_text("Private fixture text", encoding="utf-8")
+    model = FakeModel("not JSON: Private fixture text")
+    with pytest.raises(SuggestionFailure) as raised:
+        suggest_fields(_request(sample), model)
+    diagnostic = raised.value.diagnostic()
+    assert diagnostic["stage"] == "parse"
+    assert diagnostic["code"] == "invalid_json"
+    assert len(diagnostic["raw_reply_sha256"]) == 64
+    assert "Private fixture text" not in json.dumps(diagnostic)
+
+
+def test_raw_reply_capture_is_explicit_and_private_to_caller(tmp_path: Path) -> None:
+    sample = tmp_path / "invoice.txt"
+    sample.write_text("Total 123.45", encoding="utf-8")
+    response = _reply()
+    raw_path = tmp_path / "provider.reply.txt"
+    result = suggest_fields(_request(sample), FakeModel(response), raw_reply_path=raw_path)
+    assert raw_path.read_text(encoding="utf-8") == response
+    assert str(raw_path) not in json.dumps(result)
+    with pytest.raises(FileExistsError):
+        suggest_fields(_request(sample), FakeModel(response), raw_reply_path=raw_path)
 
 
 @pytest.mark.parametrize("response", [
