@@ -52,11 +52,17 @@ def test_cross_process_payload_accepts_only_consistent_upright_words() -> None:
     assert provenance["line_count"] == 1
     for mutate in (
         lambda value: value["line_orientations"][0].update(label="180"),
+        lambda value: value["line_orientations"][0].update(score=1.5),
         lambda value: value["word_tokens"][0].update(source="pdfium_native"),
         lambda value: value["word_tokens"][0].update(bbox=[1, 1, 19, 10]),
         lambda value: value["word_tokens"][0].update(ocr_engine="other"),
         lambda value: value["word_tokens"][0].update(ocr_revision="other"),
         lambda value: value["raw_lines"][0]["words"][0].update(text="BETA"),
+        lambda value: (value["raw_lines"][0]["words"][0].update(
+            polygon=[[50.0, 1.0], [70.0, 1.0], [70.0, 10.0], [50.0, 10.0]]),
+            value["word_tokens"][0].update(
+                bbox=[50.0, 1.0, 70.0, 10.0],
+                ocr_polygon=[[50.0, 1.0], [70.0, 1.0], [70.0, 10.0], [50.0, 10.0]])),
         lambda value: value.update(input_png_sha256="1" * 64),
     ):
         mutant = deepcopy(_payload())

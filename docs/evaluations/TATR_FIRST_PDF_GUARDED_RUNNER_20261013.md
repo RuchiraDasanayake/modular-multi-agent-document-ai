@@ -35,11 +35,18 @@ selection. It is not wired into product extraction, human review, or the
   PDF page points. The worker rejects partial crop words, ambiguous cell
   grids, out-of-bounds boxes, invalid spans, duplicate word assignments, and
   failed page-coordinate round trips. It emits `ParsedDocument v2` with
-  source-page boxes and no invented quote anchors.
-- A separate PDFium reopen/rerender produces `first_nonempty_source_overlay.png`
-  with cell boxes drawn over source pixels. The supervisor verifies artifact
-  hashes and at least one nonempty table cell, then stops with a **pending
-  manual visual verdict**. No continuation to the other eleven is automated.
+  source-page boxes and no invented quote anchors. The emitted table anchor
+  encloses the **refined cell union**; the raw structure-table query box is
+  retained separately. `SourceUnit` dimensions are omitted because PDFium's
+  raw MediaBox coordinate frame differs from the rotated/cropped page view;
+  CropBox, MediaBox, rotation and rendered size are in `raw_pages.json`.
+- The worker reads and hashes the selected PDF bytes once, then uses those
+  same in-memory bytes for parsing and a separate PDFium rerender. It writes
+  `first_nonempty_source_overlay.png` with stable table/row/column labels and
+  a text/box legend. The supervisor reconstructs the parsed table contract,
+  compares cell counts and text with raw details and the legend, validates the
+  overlay PNG and dimensions, and stops with a **pending manual visual
+  verdict**. No continuation to the other eleven is automated.
 
 The text route follows the pre-score amendment at the top of
 [`TATR_ADBUY12_RESEARCH_PROTOCOL_20261013.md`](TATR_ADBUY12_RESEARCH_PROTOCOL_20261013.md).
@@ -52,6 +59,14 @@ checks the returned line/word consistency and accepts no mixed native/OCR page,
 partial OCR result, retry or score-based word filter. An OCR failure fails the
 document. The parser version for this word-route integration is
 `research-word-route-first-pdf-v2`.
+
+Child environments are allowlisted and offline; host cloud/API credentials,
+proxy and cache overrides are not passed through. The supervisor records the
+allowlisted environment's key set and digest, clean Git commit, source-code
+hashes, and actual C:/I: volume roots/IDs. A separate committed first-PDF
+research gate must match the source selection, cohort, code and CPU/OCR locks
+before document inference; the earlier CPU **synthetic** receipt's
+`document_inference_permitted: false` remains true for that receipt.
 
 Failure receipts store only bounded error type/reason codes. They do not
 persist arbitrary exception messages or tracebacks, which can include private
@@ -73,7 +88,7 @@ source text or secrets when this research code is reused.
 The 35-million-pixel and 20-proposal safety caps are declared before any
 selected PDF or gold is opened. Crossing either cap fails the PDF; the runner
 does not silently truncate pages or proposals. Its output directory must be
-new, on the declared data disk, and outside the repository, corpus and model
+new, on the frozen I: data disk, and outside the repository, corpus and model
 stage. Any child failure or resource violation leaves a failure receipt and
 does not trigger a retry.
 

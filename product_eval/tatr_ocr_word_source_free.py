@@ -184,7 +184,13 @@ def verify_runtime(runtime_root: Path, wheelhouse: Path, notices_root: Path) -> 
         if dist.version != row["version"]:
             raise ValueError(f"installed version differs: {row['package']}")
         verified_files += _verify_installed_record(dist, runtime_root)
-        record_hashes[row["package"]] = hashlib.sha256(dist.read_text("RECORD").encode()).hexdigest()
+        record_files = [item for item in dist.files or [] if item.name == "RECORD"
+                        and ".dist-info" in str(item)]
+        if len(record_files) != 1:
+            raise ValueError(f"installed RECORD path is ambiguous: {row['package']}")
+        record_hashes[row["package"]] = hashlib.sha256(
+            Path(dist.locate_file(record_files[0])).read_bytes()
+        ).hexdigest()
     if importlib.metadata.version("rapidocr") != lock["rapidocr_version"]:
         raise ValueError("RapidOCR version differs")
     if importlib.metadata.version("onnxruntime") != lock["onnxruntime_version"]:

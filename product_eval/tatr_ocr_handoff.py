@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -24,6 +23,7 @@ from product_eval.tatr_ocr_word_source_free import (
     OCR_REVISION,
     _polygon,
 )
+from product_eval.tatr_process_env import environment_sha256, isolated_worker_env
 
 OCR_PAGE_SECONDS = 120
 
@@ -91,9 +91,15 @@ def validate_ocr_payload(
                 or not isinstance(orientation.get("score"), (int, float))
                 or isinstance(orientation["score"], bool)
                 or not math.isfinite(orientation["score"])
-                or orientation["score"] <= 0.9):
+                or not 0.9 < orientation["score"] <= 1):
             raise ValueError("OCR line metadata or orientation is invalid")
-        _polygon(line["polygon"], image_size)
+        line_polygon = _polygon(line["polygon"], image_size)
+        line_bounds = (
+            min(point[0] for point in line_polygon),
+            min(point[1] for point in line_polygon),
+            max(point[0] for point in line_polygon),
+            max(point[1] for point in line_polygon),
+        )
         score = line.get("score")
         if (not isinstance(score, (int, float)) or isinstance(score, bool)
                 or not math.isfinite(score) or not 0 <= score <= 1):
@@ -113,6 +119,11 @@ def validate_ocr_payload(
                 raise ValueError("OCR raw line word differs from flattened token")
             polygon = _polygon(word["polygon"], image_size)
             box = token["bbox"]
+            center_x = (box[0] + box[2]) / 2
+            center_y = (box[1] + box[3]) / 2
+            if (not line_bounds[0] - 2 <= center_x <= line_bounds[2] + 2
+                    or not line_bounds[1] - 2 <= center_y <= line_bounds[3] + 2):
+                raise ValueError("OCR word lies outside its parent line")
             if box != [min(point[0] for point in polygon),
                        min(point[1] for point in polygon),
                        max(point[0] for point in polygon),
@@ -164,11 +175,7 @@ class OcrPageHandoff:
             "--notices-root", str(self.notices_root),
             "--result-json", str(result_json),
         ]
-        environment = {
-            **os.environ,
-            "PYTHONPATH": str(repo_root), "PYTHONNOUSERSITE": "1",
-            "PYTHONDONTWRITEBYTECODE": "1", "OMP_NUM_THREADS": "4",
-        }
+        environment = isolated_worker_env(self.python, repo_root)
         with (page_dir / "ocr.log").open("xb") as log:
             process = subprocess.Popen(command, cwd=repo_root, env=environment,
                                        stdout=log, stderr=subprocess.STDOUT)
@@ -197,5 +204,7 @@ class OcrPageHandoff:
             "ocr_log_relative": str((page_dir / "ocr.log").relative_to(self.output_root)),
             "ocr_log_sha256": sha256_file(page_dir / "ocr.log"),
             "ocr_timeout_seconds": OCR_PAGE_SECONDS,
+            "ocr_child_env_keys": sorted(environment),
+            "ocr_child_env_sha256": environment_sha256(environment),
         })
         return tokens, provenance

@@ -25,6 +25,7 @@ from idpo.product_auto.parsed_document import (
 )
 from product_eval.docling_table_diagnostic import source_path, verify_selection
 from product_eval.tatr_asset_preflight import sha256_file
+from product_eval.tatr_process_env import environment_sha256, isolated_worker_env
 
 GIB = 1024**3
 PREFLIGHT_RAM_BYTES = 6 * GIB
@@ -37,6 +38,20 @@ CONVERSION_SECONDS = 360
 FIRST_WORKER_SECONDS = 600
 FULL_RUN_SECONDS = 3600
 POLL_SECONDS = 0.5
+HOST_VOLUME = "C:"
+DATA_VOLUME = "I:"
+CODE_PATHS = (
+    "product_eval/tatr_first_pdf_runner.py",
+    "product_eval/tatr_first_pdf_worker.py",
+    "product_eval/tatr_native_geometry.py",
+    "product_eval/table_crop_geometry.py",
+    "product_eval/tatr_cell_compat.py",
+    "product_eval/tatr_ocr_handoff.py",
+    "product_eval/tatr_ocr_page_worker.py",
+    "product_eval/tatr_ocr_word_source_free.py",
+    "product_eval/tatr_process_env.py",
+    "idpo/product_auto/parsed_document.py",
+)
 
 
 def _write_new_json(path: Path, value: dict[str, Any]) -> None:
@@ -132,6 +147,64 @@ def _validate_output_path(
     if any(destination.is_relative_to(root.resolve(strict=True)) for root in
            (repo_root, corpus_root, asset_root)):
         raise ValueError("first-PDF output overlaps repository, corpus or model assets")
+
+
+def _frozen_volumes(
+    repo_root: Path, cpu_python: Path, ocr_python: Path, output_dir: Path,
+    host_disk_root: Path, data_disk_root: Path,
+) -> dict[str, Any]:
+    """Bind the resource samples to this frozen C:/I: research host."""
+    host = Path(f"{HOST_VOLUME}\\").resolve(strict=True)
+    data = Path(f"{DATA_VOLUME}\\").resolve(strict=True)
+    if (repo_root.drive.upper() != HOST_VOLUME
+            or cpu_python.drive.upper() != DATA_VOLUME
+            or ocr_python.drive.upper() != DATA_VOLUME
+            or output_dir.drive.upper() != DATA_VOLUME
+            or host_disk_root.resolve(strict=True) != host
+            or data_disk_root.resolve(strict=True) != data):
+        raise ValueError("trial paths differ from frozen C:/I: volume profile")
+    return {
+        "host_root": host, "data_root": data,
+        "host_volume_id": os.stat(host).st_dev,
+        "data_volume_id": os.stat(data).st_dev,
+    }
+
+
+def _code_provenance(repo_root: Path) -> dict[str, Any]:
+    status = subprocess.run(
+        ["git", "-C", str(repo_root), "status", "--porcelain"],
+        capture_output=True, text=True, check=True, timeout=20,
+    )
+    if status.stdout.strip():
+        raise ValueError("first-PDF trial requires a clean Git checkout")
+    head = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+        capture_output=True, text=True, check=True, timeout=20,
+    ).stdout.strip()
+    return {"git_commit": head,
+            "source_sha256": {name: sha256_file(repo_root / name) for name in CODE_PATHS}}
+
+
+def _verify_trial_gate(
+    gate_path: Path, *, code_provenance: dict[str, Any],
+    selection: Path, cohort: Path, cpu_lock: Path, ocr_lock: Path,
+) -> dict[str, Any]:
+    gate = json.loads(gate_path.read_text(encoding="utf-8"))
+    required = {
+        "version": 1,
+        "scope": "one_first_pdf_research_trial",
+        "document_inference_permitted": True,
+        "max_documents": 1,
+        "gold_access_permitted": False,
+        "selection_sha256": sha256_file(selection),
+        "cohort_sha256": sha256_file(cohort),
+        "cpu_runtime_lock_sha256": sha256_file(cpu_lock),
+        "ocr_runtime_lock_sha256": sha256_file(ocr_lock),
+        "code_source_sha256": code_provenance["source_sha256"],
+    }
+    if not isinstance(gate, dict) or gate != required:
+        raise ValueError("first-PDF research inference gate differs from committed inputs")
+    return {"gate_sha256": sha256_file(gate_path), **gate}
 
 
 def _verified_anchor(value: Any, unit_id: str) -> SourceAnchor:
@@ -307,10 +380,14 @@ def run_first_pdf(
     torchvision_wheel: Path, expected_runtime_lock: Path,
     ocr_python: Path, ocr_runtime_root: Path, ocr_wheelhouse: Path,
     ocr_notices_root: Path,
+    trial_gate: Path,
     output_dir: Path, host_disk_root: Path, data_disk_root: Path,
 ) -> dict[str, Any]:
     repo_root = Path(__file__).resolve().parents[1]
-    _validate_output_path(output_dir, repo_root, corpus_root, asset_root, data_disk_root)
+    volumes = _frozen_volumes(repo_root, cpu_python, ocr_python, output_dir,
+                              host_disk_root, data_disk_root)
+    _validate_output_path(output_dir, repo_root, corpus_root, asset_root,
+                          volumes["data_root"])
     output_dir.mkdir(exist_ok=False)
     started = time.monotonic()
     source: Path | None = None
@@ -320,10 +397,23 @@ def run_first_pdf(
     minimum_available = 2**63 - 1
     reason: str | None = None
     exit_code: int | None = None
+    code_provenance: dict[str, Any] | None = None
+    gate_provenance: dict[str, Any] | None = None
     try:
+        code_provenance = _code_provenance(repo_root)
         committed_lock = repo_root / "product_eval" / "fixtures" / "tatr_cpu_runtime_lock_v1.json"
+        committed_gate = repo_root / "product_eval" / "fixtures" / "tatr_first_pdf_research_gate_v1.json"
         if expected_runtime_lock.resolve(strict=True) != committed_lock.resolve(strict=True):
             raise ValueError("TATR CPU runtime lock must be the committed fixture")
+        if trial_gate.resolve(strict=True) != committed_gate.resolve(strict=True):
+            raise ValueError("first-PDF trial gate must be the committed fixture")
+        from product_eval.tatr_ocr_word_source_free import LOCK_PATH as OCR_LOCK_PATH
+
+        gate_provenance = _verify_trial_gate(
+            trial_gate, code_provenance=code_provenance,
+            selection=selection, cohort=cohort,
+            cpu_lock=expected_runtime_lock, ocr_lock=OCR_LOCK_PATH,
+        )
         selected = verify_selection(selection, cohort, corpus_root)
         first = selected[0]
         first_hash = first["source_sha256"]
@@ -346,7 +436,7 @@ def run_first_pdf(
         ocr_notices_root = ocr_notices_root.resolve(strict=True)
         if ocr_python.parent.parent != ocr_runtime_root:
             raise ValueError("OCR Python executable is outside pinned runtime")
-        before = _resource_sample(None, host_disk_root, data_disk_root)
+        before = _resource_sample(None, volumes["host_root"], volumes["data_root"])
         reason = resource_violation(**before, before_worker=True)
         if reason:
             raise RuntimeError(f"first-PDF preflight resource violation: {reason}")
@@ -363,13 +453,8 @@ def run_first_pdf(
             "--ocr-notices-root", str(ocr_notices_root),
             "--output-dir", str(output_dir),
         ]
-        environment = {
-            **os.environ,
-            "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1",
-            "HF_HUB_DISABLE_TELEMETRY": "1", "OMP_NUM_THREADS": "4",
-            "PYTHONDONTWRITEBYTECODE": "1", "PYTHONNOUSERSITE": "1",
-            "PYTHONPATH": str(repo_root),
-        }
+        environment = isolated_worker_env(cpu_python, repo_root)
+        worker_env_sha256 = environment_sha256(environment)
         with (output_dir / "worker.log").open("xb") as log:
             process = subprocess.Popen(
                 command, cwd=repo_root, env=environment,
@@ -378,7 +463,7 @@ def run_first_pdf(
             ready_at: float | None = None
             while True:
                 now = time.monotonic()
-                sample = _resource_sample(process, host_disk_root, data_disk_root)
+                sample = _resource_sample(process, volumes["host_root"], volumes["data_root"])
                 peak_tree_rss = max(peak_tree_rss, sample["tree_rss"])
                 minimum_available = min(minimum_available, sample["available_ram"])
                 reason = resource_violation(**sample, before_worker=False)
@@ -412,6 +497,8 @@ def run_first_pdf(
         result = _verify_worker_result(
             output_dir, first["source_sha256"], expected_runtime_lock,
         )
+        if _code_provenance(repo_root) != code_provenance:
+            raise ValueError("first-PDF runner code changed during the worker run")
         status = result["status"]
         receipt = {
             "status": status, "first_document_id": first["doc_id"],
@@ -424,6 +511,11 @@ def run_first_pdf(
             "minimum_host_available_bytes": minimum_available,
             "worker_log_sha256": sha256_file(output_dir / "worker.log"),
             "worker_receipt_sha256": sha256_file(output_dir / "worker_receipt.json"),
+            "worker_env_keys": sorted(environment),
+            "worker_env_sha256": worker_env_sha256,
+            "code_provenance": code_provenance,
+            "trial_gate": gate_provenance,
+            "volume_provenance": {key: str(value) for key, value in volumes.items()},
         }
     except Exception as exc:  # noqa: BLE001 - every worker/preflight failure needs a receipt
         receipt = {
@@ -437,6 +529,9 @@ def run_first_pdf(
             "minimum_host_available_bytes": None if minimum_available == 2**63 - 1 else minimum_available,
             "worker_log_sha256": sha256_file(output_dir / "worker.log")
             if (output_dir / "worker.log").is_file() else None,
+            "code_provenance": code_provenance,
+            "trial_gate": gate_provenance,
+            "volume_provenance": {key: str(value) for key, value in volumes.items()},
         }
     finally:
         if process is not None and process.poll() is None:
@@ -459,6 +554,7 @@ def main() -> None:
     parser.add_argument("--ocr-runtime-root", type=Path, required=True)
     parser.add_argument("--ocr-wheelhouse", type=Path, required=True)
     parser.add_argument("--ocr-notices-root", type=Path, required=True)
+    parser.add_argument("--trial-gate", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--host-disk-root", type=Path, required=True)
     parser.add_argument("--data-disk-root", type=Path, required=True)

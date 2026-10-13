@@ -11,7 +11,9 @@ import pytest
 from product_eval.table_crop_geometry import table_crop_from_proposal
 from product_eval.tatr_cell_compat import load_official_cell_functions
 from product_eval.tatr_first_pdf_runner import (
+    _frozen_volumes,
     _validate_output_path,
+    _verify_trial_gate,
     _verify_worker_result,
     resource_violation,
 )
@@ -80,6 +82,54 @@ def test_resource_boundaries_are_fail_closed() -> None:
                               before_worker=False) == "data_disk_floor"
     assert resource_violation(**{**good, "tree_rss": 8 * gib + 1},
                               before_worker=False) == "process_tree_rss_ceiling"
+
+
+def test_trial_volume_roots_are_bound_to_actual_host_and_output_drives() -> None:
+    if not Path("I:/").is_dir():
+        pytest.skip("frozen I: data disk is unavailable")
+    paths = (Path("C:/repo"), Path("I:/cpu/python.exe"), Path("I:/ocr/python.exe"),
+             Path("I:/trial"), Path("C:/"), Path("I:/"))
+    volumes = _frozen_volumes(*paths)
+    assert volumes["host_root"].drive.upper() == "C:"
+    assert volumes["data_root"].drive.upper() == "I:"
+    assert isinstance(volumes["host_volume_id"], int)
+    with pytest.raises(ValueError, match="frozen C:/I:"):
+        _frozen_volumes(*paths[:3], Path("C:/trial"), *paths[4:])
+    with pytest.raises(ValueError, match="frozen C:/I:"):
+        _frozen_volumes(*paths[:4], Path("I:/"), Path("I:/"))
+
+
+def test_document_inference_requires_separate_source_and_code_bound_gate(
+    tmp_path: Path,
+) -> None:
+    from product_eval.tatr_asset_preflight import sha256_file
+
+    files = {name: tmp_path / name for name in
+             ("selection", "cohort", "cpu_lock", "ocr_lock", "gate.json")}
+    for name, path in files.items():
+        if name != "gate.json":
+            path.write_text(name, encoding="utf-8")
+    code = {"source_sha256": {"runner.py": "a" * 64}}
+    gate = {
+        "version": 1, "scope": "one_first_pdf_research_trial",
+        "document_inference_permitted": True,
+        "max_documents": 1, "gold_access_permitted": False,
+        "selection_sha256": sha256_file(files["selection"]),
+        "cohort_sha256": sha256_file(files["cohort"]),
+        "cpu_runtime_lock_sha256": sha256_file(files["cpu_lock"]),
+        "ocr_runtime_lock_sha256": sha256_file(files["ocr_lock"]),
+        "code_source_sha256": code["source_sha256"],
+    }
+    gate_path = files["gate.json"]
+    gate_path.write_text(json.dumps(gate), encoding="utf-8")
+    args = {"code_provenance": code, "selection": files["selection"],
+            "cohort": files["cohort"], "cpu_lock": files["cpu_lock"],
+            "ocr_lock": files["ocr_lock"]}
+    assert _verify_trial_gate(gate_path, **args)["max_documents"] == 1
+    gate["gold_access_permitted"] = True
+    gate_path.write_text(json.dumps(gate), encoding="utf-8")
+    with pytest.raises(ValueError, match="research inference gate"):
+        _verify_trial_gate(gate_path, **args)
 
 
 def test_output_must_be_new_and_outside_inputs(tmp_path: Path) -> None:
