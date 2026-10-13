@@ -111,11 +111,14 @@ Provision the separate CPU environment and model hashes documented in
 [the RapidOCR adapter contract](../docs/PRODUCT_RAPIDOCR.md). Startup then runs its additional
 synthetic local OCR check. Tesseract remains required for schema sampling.
 
-Optional `autoResponseFormat` selects `plain_json` (default) or
-`strict_confirmed_values_v1`. The strict profile applies only to user-confirmed schemas;
+Optional `autoResponseFormat` selects `plain_json` (default),
+`strict_confirmed_values_v1`, or `strict_confirmed_values_v2`. V2 requires every field ID
+as a keyed property in the provider schema; v1 uses the historical array envelope. Both
+retain independent local validation and human review. These profiles apply only to user-confirmed schemas;
 discovery and approved recipes retain plain JSON. The provider receives a strict schema and
 the product independently validates the returned envelope and source evidence. This does not
 establish semantic accuracy or guarantee that every compatible provider enforces the schema.
+See [the strict values contract](../docs/PRODUCT_STRICT_CONFIRMED_VALUES.md) before opting into v2.
 
 New queue dispatch version 3 seals the selected OCR environment, bounds and response format
 alongside the model budget. Later environment edits cannot change an admitted attempt. Versions
