@@ -13,7 +13,7 @@ import type {
   ShadowComparison,
   ValidationError,
 } from "@/types/idpo";
-import { listRunDirectories, resolvePathForDisplay, resolvePrimaryRunPath, resolveRunFilePath, resolveRunRoot } from "@/server/paths";
+import { listRunDirectories, resolvePathForDisplay, resolvePrimaryRunPath, resolveRunDocumentDirectory, resolveRunFilePath, resolveRunRoot, sanitizeDocumentId } from "@/server/paths";
 import { readReviewArtifact } from "@/server/review";
 import { asNumber, average, percentile, readJsonFile, readJsonLines, readTextFile, toIsoString } from "@/server/utils";
 
@@ -838,17 +838,18 @@ export function getRunDocuments(runId: string): DocumentSummary[] {
 }
 
 export function readRunOcrText(runId: string, docId: string): string {
-  if (!runId || !docId || path.basename(docId) !== docId) {
+  if (!runId) {
     return "";
   }
   let primaryPath: string;
   try {
+    sanitizeDocumentId(docId);
     primaryPath = resolvePrimaryRunPath(resolveRunRoot(runId).rootPath);
   } catch {
     return "";
   }
   const payload = readJsonFile<Record<string, unknown>>(
-    path.join(primaryPath, "docs", docId, "preprocessing", "ocr", "text.json"),
+    path.join(resolveRunDocumentDirectory(primaryPath, docId), "preprocessing", "ocr", "text.json"),
   );
   const pages = Array.isArray(payload?.pages) ? payload.pages : [];
   return pages
@@ -862,8 +863,9 @@ export function readRunOcrText(runId: string, docId: string): string {
 
 export function getRunDocument(runId: string, docId: string): Record<string, unknown> {
   const context = buildRunContext(runId);
+  sanitizeDocumentId(docId);
   const review = readReviewArtifact(runId, docId);
-  const docsLayoutDir = path.join(context.primaryPath, "docs", docId);
+  const docsLayoutDir = resolveRunDocumentDirectory(context.primaryPath, docId);
   if (fs.existsSync(docsLayoutDir) && fs.statSync(docsLayoutDir).isDirectory()) {
     const dae = readJsonFile<Record<string, unknown>>(path.join(docsLayoutDir, "dae", "output.json")) ?? {};
     const extract = readJsonFile<Record<string, unknown>>(path.join(docsLayoutDir, "structuring", "extracted.json")) ?? {};

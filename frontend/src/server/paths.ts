@@ -4,10 +4,33 @@ import { loadRunnerConfig } from "@/server/config";
 
 export function sanitizeRunId(runId: string): string {
   const cleaned = runId.trim();
-  if (!/^[a-zA-Z0-9_.-]+$/.test(cleaned)) {
+  if (cleaned === "." || cleaned === ".." || !/^[a-zA-Z0-9_.-]+$/.test(cleaned)) {
     throw new Error("Invalid runId");
   }
   return cleaned;
+}
+
+export function sanitizeDocumentId(docId: string): string {
+  // A document ID is one path segment. Checking both separators matters when
+  // artifacts are shared between Windows development and Linux deployment.
+  if (!docId || docId.length > 255 || docId === "." || docId === ".." ||
+    /[\\/\u0000-\u001f\u007f<>:"|?*]/u.test(docId) || /[. ]$/u.test(docId)) {
+    throw new Error("Invalid docId");
+  }
+  return docId;
+}
+
+export function resolveRunDocumentDirectory(primaryPath: string, docId: string): string {
+  const docsRoot = path.resolve(primaryPath, "docs");
+  const documentDir = ensurePathInside(docsRoot, path.resolve(docsRoot, sanitizeDocumentId(docId)));
+  if (fs.existsSync(docsRoot)) {
+    const realPrimary = fs.realpathSync(primaryPath);
+    const realDocsRoot = ensurePathInside(realPrimary, fs.realpathSync(docsRoot));
+    if (fs.existsSync(documentDir)) {
+      ensurePathInside(realDocsRoot, fs.realpathSync(documentDir));
+    }
+  }
+  return documentDir;
 }
 
 export function ensurePathInside(baseDir: string, target: string): string {
