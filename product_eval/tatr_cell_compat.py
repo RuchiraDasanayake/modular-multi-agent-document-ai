@@ -110,8 +110,15 @@ def prepare_word_tokens(
     prepared: list[dict[str, Any]] = []
     seen: set[tuple[str, str, tuple[float, ...]]] = set()
     source_mode: str | None = None
+    previous_native_end = 0
     for index, token in enumerate(tokens):
         if isinstance(token, WordToken):
+            if (not isinstance(token.char_start, int) or isinstance(token.char_start, bool)
+                    or not isinstance(token.char_end, int) or isinstance(token.char_end, bool)
+                    or token.char_start < previous_native_end
+                    or token.char_end <= token.char_start):
+                raise ValueError("native PDFium words are not in source character order")
+            previous_native_end = token.char_end
             data: dict[str, Any] = {
                 "text": token.text, "bbox": token.bbox,
                 "source": token.source, "reading_order": index,
@@ -202,8 +209,14 @@ def cells_from_synthetic_objects(
     cells, confidence = official.structure_to_cells(structures[0], words)
     occupied: set[tuple[int, int]] = set()
     assigned: set[str] = set()
+    cell_boxes: list[list[float]] = []
     for cell in cells:
-        _box(cell["bbox"], image_size)
+        box = _box(cell["bbox"], image_size)
+        for previous in cell_boxes:
+            if (min(box[2], previous[2]) > max(box[0], previous[0])
+                    and min(box[3], previous[3]) > max(box[1], previous[1])):
+                raise ValueError("TATR cells have overlapping source boxes")
+        cell_boxes.append(box)
         if not cell["row_nums"] or not cell["column_nums"]:
             raise ValueError("TATR cell lacks row/column indexes")
         for row in cell["row_nums"]:

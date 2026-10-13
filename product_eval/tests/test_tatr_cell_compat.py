@@ -87,8 +87,16 @@ def test_bad_scan_word_fails_closed(mutant: dict) -> None:
 
 def test_duplicate_native_word_is_not_silently_deduplicated() -> None:
     token = _native("A", (1, 2, 10, 12), 0)
-    with pytest.raises(ValueError, match="duplicate"):
+    with pytest.raises(ValueError):
         prepare_word_tokens([token, token], (100, 40))
+
+
+def test_reordered_native_words_fail_source_character_order() -> None:
+    with pytest.raises(ValueError, match="source character order"):
+        prepare_word_tokens([
+            _native("Later", (55, 2, 85, 12), 1),
+            _native("First", (5, 2, 35, 12), 0),
+        ], (100, 40))
 
 
 def test_official_simple_grid_preserves_empty_cell_and_unique_word_assignment(official) -> None:
@@ -148,6 +156,17 @@ def test_out_of_image_active_object_rejected_before_official_code(official) -> N
     objects = _grid_objects() + [_object("table row", (-1, 0, 100, 20))]
     with pytest.raises(ValueError, match="outside"):
         cells_from_synthetic_objects(official, objects, [], (100, 40))
+
+
+def test_different_grid_cells_with_overlapping_source_boxes_fail(official) -> None:
+    tokens = [
+        _native("Wide", (5, 4, 60, 14), 0),
+        _native("Right", (70, 4, 85, 14), 1),
+        _native("Low", (5, 24, 20, 34), 2),
+        _native("Far", (55, 24, 70, 34), 3),
+    ]
+    with pytest.raises(ValueError, match="overlapping source boxes"):
+        cells_from_synthetic_objects(official, _grid_objects(), tokens, (100, 40))
 
 
 def test_frozen_threshold_profile_differs_from_upstream_row_handling(official) -> None:

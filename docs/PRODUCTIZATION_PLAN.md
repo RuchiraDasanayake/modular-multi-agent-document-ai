@@ -59,7 +59,10 @@ quality or replace the 2,000-source end-to-end gate.
 
 The [TATR source-free stage](evaluations/TATR_ADBUY12_ASSET_AND_SOURCE_FREE_PREP_20261013.md)
 verified two pinned model weights and synthetic page geometry, but has not
-loaded a model on a selected PDF or reconstructed a scored row. A separate
+loaded a model on a selected PDF or reconstructed a scored row. Its
+[source-free cell adapter](evaluations/TATR_CELL_COMPAT_SOURCE_FREE_20261013.md)
+reconstructs synthetic grids and rejects overlapping boxes; model-output and
+page-pixel compatibility remain unproven. A separate
 [RapidTable source-free trial](evaluations/RAPIDTABLE_V3_ADBUY12_PROTOCOL_20261013.md)
 matched six synthetic cells, boxes and row/column positions on CPU; the exact
 model has a [publisher-provenance receipt](evaluations/RAPIDTABLE_PUBLISHER_ASSET_RIGHTS_20261013.md)
