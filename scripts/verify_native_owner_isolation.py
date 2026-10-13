@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import secrets
 import urllib.error
 import urllib.request
@@ -16,13 +17,49 @@ import uuid
 from pathlib import Path
 
 
+def require(condition: bool, message: str) -> None:
+    """Verification checks must execute even when Python optimization is enabled."""
+    if not condition:
+        raise AssertionError(message)
+
+
+def validate_fixture(fixture: object) -> dict:
+    """Reject incomplete or unsafe positive controls before any HTTP mutation."""
+    def identifier(value):
+        return isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value) is not None
+
+    def digest(value):
+        return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+    def positive_integer(value):
+        return type(value) is int and value > 0
+
+    require(isinstance(fixture, dict) and fixture.get("contract") == "synthetic_visual_hitl_v1",
+            "Use the completed synthetic visual workflow receipt")
+    require(identifier(fixture.get("job_id")) and positive_integer(fixture.get("brief_confirmed_revision")),
+            "Fixture requires a valid job and confirmed brief")
+    runs = fixture.get("runs")
+    require(isinstance(runs, list) and len(runs) == 2 and all(isinstance(run, dict) for run in runs),
+            "Fixture requires completed preview and batch runs")
+    require({run.get("phase") for run in runs if isinstance(run.get("phase"), str)} == {"preview", "batch"},
+            "Fixture requires distinct preview and batch phases")
+    for run in runs:
+        require(identifier(run.get("run_id")) and identifier(run.get("doc_id"))
+                and digest(run.get("reviewed_export_sha256")), "Fixture result identity or export hash is invalid")
+        require(positive_integer(run.get("review_revision")) and run.get("reviewed_json_status") == 200,
+                "Fixture result has not completed review and export")
+    require(len({run["run_id"] for run in runs}) == len({run["doc_id"] for run in runs}) == 2,
+            "Fixture must identify two distinct runs and documents")
+    require(type(fixture.get("batch_jsonl_line_count")) is int and fixture["batch_jsonl_line_count"] == 1
+            and digest(fixture.get("batch_jsonl_sha256")), "Fixture batch export is incomplete")
+    return fixture
+
+
 def verify(config_path: Path, fixture_path: Path, output: Path) -> dict:
-    output.mkdir(parents=True, exist_ok=False)
-    cfg = json.loads(config_path.read_text(encoding="utf-8-sig"))
     fixture_bytes = fixture_path.read_bytes()
-    fixture = json.loads(fixture_bytes)
-    if fixture.get("contract") != "synthetic_visual_hitl_v1":
-        raise ValueError("Use the completed synthetic visual workflow receipt")
+    fixture = validate_fixture(json.loads(fixture_bytes))
+    cfg = json.loads(config_path.read_text(encoding="utf-8-sig"))
+    output.mkdir(parents=True, exist_ok=False)
     web = f"http://127.0.0.1:{int(cfg['frontendPort'])}"
     gateway = f"http://127.0.0.1:{int(cfg['gatewayPort'])}"
     report: dict = {"contract": "native_owner_isolation_v1", "status": "running",
@@ -82,10 +119,9 @@ def verify(config_path: Path, fixture_path: Path, output: Path) -> dict:
                        {"username": username, "password": password,
                         "email": username + "@example.com", "role": "viewer"}, 201)
             account = json.loads(raw)
-            if account["role"] != "viewer":
-                raise AssertionError("Fixture account must be a viewer")
             report["created_viewer_ids"].append(account["id"])
             persist()
+            require(account.get("role") == "viewer", "Fixture account must be a viewer")
             viewer_tokens[name] = login(username, password, f"viewer {name} login")
         a, b = viewer_tokens["a"], viewer_tokens["b"]
         raw = call("owner creates job", web, "/api/jobs", a, "POST",
@@ -97,13 +133,13 @@ def verify(config_path: Path, fixture_path: Path, output: Path) -> dict:
         source = job["documents"][0]
         job_route = f"/api/jobs/{job_id}"
         source_route = job_route + f"/docs/{source['fileId']}/content"
-        assert call("owner reads exact uploaded bytes", web, source_route, a) == content
+        require(call("owner reads exact uploaded bytes", web, source_route, a) == content, "Owner source bytes differ")
         call("other viewer cannot read source", web, source_route, b, expected=404)
         call("anonymous cannot read source", web, source_route, expected=401)
         upload(job_id, b, 404, "other viewer cannot append upload")
         call("other viewer cannot rename job", web, job_route, b, "PATCH", {"jobName": "changed"}, 404)
         listed = json.loads(call("other viewer lists jobs", web, "/api/jobs", b))["jobs"]
-        assert job_id not in {item["jobId"] for item in listed}
+        require(job_id not in {item["jobId"] for item in listed}, "Other viewer listed the owner's job")
         before = call("owner reads job before denied requests", web, job_route, a)
         brief_body = {"expectedRevision": 0, "intent": "Extract the final amount",
                       "sampleFileIds": [source["fileId"]], "fields": []}
@@ -123,16 +159,16 @@ def verify(config_path: Path, fixture_path: Path, output: Path) -> dict:
         ]:
             call("cross-owner " + method + " " + (suffix or "/job"), web,
                  job_route + suffix, b, method, body, 404)
-        assert call("owner job remains unchanged", web, job_route, a) == before
+        require(call("owner job remains unchanged", web, job_route, a) == before, "Denied requests changed the owner's job")
         after = json.loads(call("owner draft remains unchanged", web, job_route + "/auto/brief", a))["brief"]
-        assert after == draft
+        require(after == draft, "Denied requests changed the owner's draft")
         # Use real, previously reviewed artifacts so a missing file cannot mask
         # accidental authorization. The administrator's exports must still match.
         for run in fixture["runs"]:
             route = f"/api/jobs/{fixture['job_id']}/auto/{run['run_id']}"
             detail = route + f"/docs/{run['doc_id']}"
             original = call("administrator reads reviewed export", web, detail + "/export", admin_token)
-            assert hashlib.sha256(original).hexdigest() == run["reviewed_export_sha256"]
+            require(hashlib.sha256(original).hexdigest() == run["reviewed_export_sha256"], "Reviewed export fixture hash differs")
             for name, token in viewer_tokens.items():
                 for method, suffix, body in [("GET", detail, None), ("POST", detail, {}),
                                              ("GET", detail + "/export", None),
@@ -140,7 +176,8 @@ def verify(config_path: Path, fixture_path: Path, output: Path) -> dict:
                     call(f"viewer {name} denied existing {run['phase']} " + method + " " +
                          ("export" if suffix.endswith("/export") else "review"),
                          web, suffix, token, method, body, 404)
-            assert call("administrator export unchanged", web, detail + "/export", admin_token) == original
+            require(call("administrator export unchanged", web, detail + "/export", admin_token) == original,
+                    "Denied requests changed the reviewed export")
         report["status"] = "passed"
     except Exception as exc:
         report["status"] = "failed"
@@ -159,7 +196,7 @@ def verify(config_path: Path, fixture_path: Path, output: Path) -> dict:
                     if json.loads(raw).get("is_active") is not False:
                         raise AssertionError("Temporary account did not become inactive")
                     report["disabled_viewer_ids"].append(user_id)
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - attempt cleanup for every created account and report failures
                     report["status"] = "failed"
                     report.setdefault("cleanup_errors", []).append(type(exc).__name__)
         persist()

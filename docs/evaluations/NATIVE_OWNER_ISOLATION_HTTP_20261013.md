@@ -48,6 +48,27 @@ python scripts/verify_native_owner_isolation.py `
 Local report: `I:\DocAI-Runtime\owner-isolation-http-v1\result.json`.
 SHA-256: `e64756ee93e76d110ffcba9ebe9cc7b44c3b2757b67accf89669ea7e7d955183`.
 
+## Subsequent verifier hardening
+
+An independent offline review found three defects in the supporting verifier.
+Python `assert` removed critical checks, including HTTP reads inside assertions,
+under `-O` or `PYTHONOPTIMIZE`. A receipt with the correct contract but no runs
+could omit all existing-result/export controls. An unexpected registration role
+raised before recording the newly created account ID, preventing its cleanup.
+
+The verifier now uses explicit checks under optimized Python, requires completed
+preview and batch receipts with safe distinct IDs, export hashes and review/export
+completion markers before reading configuration or making HTTP requests, and
+records each created ID before checking its role. The surfaces remain
+`supporting`, with action `keep`. No product authorization policy changed.
+
+Twenty-four offline tests use self-authored receipts and a mocked HTTP transport.
+They cover all six value-preservation checks under normal and optimized Python,
+incomplete/unsafe fixtures before HTTP, and cleanup after an unexpected account
+role. The complete mocked path executes the same 52 checks. No extra live HTTP,
+provider or OCR call was made. These tests harden future verification; the prior
+52-check result and its recorded hash above are unchanged.
+
 ## Limits
 
 This does not audit every legacy route, filesystem races, session expiry, CSRF,
