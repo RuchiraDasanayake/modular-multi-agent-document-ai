@@ -29,7 +29,7 @@ from product_eval.run_gate import _preflight_ocr
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_LOCK = ROOT / "product_eval/fixtures/docling_graph_v1_dev_sources.json"
-SOURCE_LOCK_SHA256 = "61bef64cafb35739eba3a087fe5a742c57e68c340834325a8f77e49f63c5b047"
+SOURCE_LOCK_SHA256 = "6dae1ba273a9c5f9b68419dd61dd79bddde33cbc46092d7c9466969ea9d62ec1"
 MODEL = "innobot-luna-6"
 MAX_CALLS = 6
 OUTPUT_TOKENS = 8192

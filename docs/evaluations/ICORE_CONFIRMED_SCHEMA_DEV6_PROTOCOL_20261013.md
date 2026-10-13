@@ -7,7 +7,8 @@ execution. The user authorized ICORE Luna 6 testing. No Sonnet model is used.
 Use the six previously scored development originals from
 `product_eval/fixtures/docling_graph_v1_dev_sources.json`: two VRDU registration
 PDFs, two VRDU ad-buy PDFs and two CORD development PNGs. The source-only lock has
-canonical LF SHA-256 `61bef64cafb35739eba3a087fe5a742c57e68c340834325a8f77e49f63c5b047`.
+canonical LF SHA-256 `6dae1ba273a9c5f9b68419dd61dd79bddde33cbc46092d7c9466969ea9d62ec1`
+(the prior Windows CRLF byte hash is `61bef64cafb35739eba3a087fe5a742c57e68c340834325a8f77e49f63c5b047`).
 Reserved CORD sources and the proposed quality240 cohort are excluded.
 
 Before inference, `python -m product_eval.icore_confirmed_dev prepare` verifies

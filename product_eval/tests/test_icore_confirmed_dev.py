@@ -1,9 +1,18 @@
 from __future__ import annotations
 
+import hashlib
 import json
 
 from idpo.product_auto.provider import ModelReply
-from product_eval.icore_confirmed_dev import MAX_CALLS, MODEL, RecordedChat
+from product_eval.icore_confirmed_dev import MAX_CALLS, MODEL, SOURCE_LOCK, SOURCE_LOCK_SHA256, RecordedChat
+
+
+def test_source_lock_pin_uses_canonical_lf_and_existing_six_scored_sources():
+    raw = SOURCE_LOCK.read_bytes().replace(b"\r\n", b"\n")
+    assert hashlib.sha256(raw).hexdigest() == SOURCE_LOCK_SHA256
+    selected = [s for s in json.loads(raw)["sources"] if s["role"] == "scored"]
+    assert len({s["source_sha256"] for s in selected}) == 6
+    assert all(sum(s["family"] == family for s in selected) == 2 for family in {s["family"] for s in selected})
 
 
 class FakeChat:
