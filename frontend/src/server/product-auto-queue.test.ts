@@ -15,6 +15,7 @@ const digest = (bytes: string | Buffer) => createHash("sha256").update(bytes).di
 const holder = globalThis as typeof globalThis & { __productQueue?: ProductExecutionQueue };
 
 interface StoredRecord {
+  queueDispatch?: { ownerId: string; sha256: string };
   selectedFiles: Array<{ fileId: string; fileName: string; storedName: string; sha256: string }>;
   confirmedBrief?: { snapshotSha256: string };
   approvedRecipe?: Record<string, unknown>;
@@ -27,14 +28,17 @@ async function withQueuedRun(
     command: ReturnType<typeof loadRunnerConfig>["commands"][number];
     admissions: ProductDispatch[];
   }) => Promise<void>,
-  options: { schema?: boolean; admissionError?: boolean; holdChild?: boolean } = {},
+  options: { schema?: boolean; admissionError?: boolean; holdChild?: boolean;
+    maxOutputTokens?: string; timeoutSeconds?: string } = {},
 ): Promise<void> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "idpo-queue-dispatch-"));
   const dataDir = path.join(root, "data");
   const env = { IDPO_DATA_DIR: dataDir, PRODUCT_EXECUTION_MODE: "postgres",
     PRODUCT_QUEUE_DATABASE_URL: "postgresql://127.0.0.1:1/unused_test_database",
     IDPO_AUTO_MODEL: options.schema ? "fixture-model" : "",
-    IDPO_AUTO_API_BASE_URL: options.schema ? "http://127.0.0.1:1/v1" : "", ICORE_API_KEY: "" };
+    IDPO_AUTO_API_BASE_URL: options.schema ? "http://127.0.0.1:1/v1" : "", ICORE_API_KEY: "",
+    IDPO_AUTO_MAX_OUTPUT_TOKENS: options.maxOutputTokens ?? "",
+    IDPO_AUTO_TIMEOUT_S: options.timeoutSeconds ?? "" };
   const previousEnv = Object.fromEntries(Object.keys(env).map((key) => [key, process.env[key]]));
   const previousQueue = holder.__productQueue;
   const previousFetch = globalThis.fetch;
@@ -104,6 +108,57 @@ ${options.holdChild ? "setInterval(() => {}, 1000);" : "process.exit(1);"}`);
 const readRecord = (file: string) => JSON.parse(fs.readFileSync(file, "utf8")) as StoredRecord;
 
 test("queued execution validates admitted inputs before starting a subprocess", async (t) => {
+  await t.test("pins a server model budget across an environment change", async () => withQueuedRun(async (f) => {
+    const profile = JSON.parse(fs.readFileSync(f.recordPath.replace(/\.json$/, ".dispatch.json"), "utf8"));
+    assert.equal(profile.version, 2);
+    assert.deepEqual(profile.modelBudget, { maxOutputTokens: 4096, timeoutSeconds: 90 });
+    process.env.IDPO_AUTO_MAX_OUTPUT_TOKENS = "128";
+    process.env.IDPO_AUTO_TIMEOUT_S = "10";
+    await assert.rejects(executePreparedProductAutoRun(f.request, new AbortController().signal), /output not verified/i);
+    const { args } = JSON.parse(fs.readFileSync(f.capturePath, "utf8")) as { args: string[] };
+    assert.deepEqual(args.slice(args.indexOf("--max-tokens"), args.indexOf("--max-tokens") + 4),
+      ["--max-tokens", "4096", "--timeout-s", "90"]);
+  }, { schema: true, maxOutputTokens: "4096", timeoutSeconds: "90" }));
+
+  await t.test("new model-backed runs get bounded defaults", async () => withQueuedRun(async (f) => {
+    const profile = JSON.parse(fs.readFileSync(f.recordPath.replace(/\.json$/, ".dispatch.json"), "utf8"));
+    assert.equal(profile.version, 2);
+    assert.deepEqual(profile.modelBudget, { maxOutputTokens: 8192, timeoutSeconds: 180 });
+  }, { schema: true }));
+
+  await t.test("old version-one dispatches retain their original CLI defaults", async () => withQueuedRun(async (f) => {
+    const file = f.recordPath.replace(/\.json$/, ".dispatch.json");
+    const profile = JSON.parse(fs.readFileSync(file, "utf8"));
+    profile.version = 1;
+    delete profile.modelBudget;
+    const bytes = JSON.stringify(profile);
+    fs.writeFileSync(file, bytes);
+    const oldDigest = digest(bytes);
+    const record = readRecord(f.recordPath);
+    record.queueDispatch!.sha256 = oldDigest;
+    fs.writeFileSync(f.recordPath, JSON.stringify(record));
+    await assert.rejects(executePreparedProductAutoRun({ ...f.request, dispatchSha256: oldDigest },
+      new AbortController().signal), /output not verified/i);
+    const { args } = JSON.parse(fs.readFileSync(f.capturePath, "utf8")) as { args: string[] };
+    assert.equal(args.includes("--max-tokens"), false);
+    assert.equal(args.includes("--timeout-s"), false);
+  }, { schema: true }));
+
+  await t.test("rejects an invalid sealed model budget before worker execution", async () => withQueuedRun(async (f) => {
+    const file = f.recordPath.replace(/\.json$/, ".dispatch.json");
+    const profile = JSON.parse(fs.readFileSync(file, "utf8"));
+    profile.modelBudget.timeoutSeconds = 601;
+    const bytes = JSON.stringify(profile);
+    fs.writeFileSync(file, bytes);
+    const changedDigest = digest(bytes);
+    const record = readRecord(f.recordPath);
+    record.queueDispatch!.sha256 = changedDigest;
+    fs.writeFileSync(f.recordPath, JSON.stringify(record));
+    await assert.rejects(executePreparedProductAutoRun({ ...f.request, dispatchSha256: changedDigest },
+      new AbortController().signal), /model budget/i);
+    assert.equal(fs.existsSync(f.capturePath), false);
+  }, { schema: true }));
+
   await t.test("admission snapshots original uploads rather than linking their bytes", async () => withQueuedRun(async (f) => {
     const source = readRecord(f.recordPath).selectedFiles[0];
     fs.writeFileSync(f.sourcePath, "Changed after admission");

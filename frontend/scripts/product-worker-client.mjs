@@ -11,7 +11,7 @@ export function parseArguments(values) {
     throw new Error("Research job execution is unavailable in this Docker deployment. Use Automatic extraction or the single-host research runner.");
   }
   const allowed = new Set(["--input", "--run-id", "--model", "--api-base-url",
-    "--approved-recipe-file", "--approved-recipe-sha256"]);
+    "--approved-recipe-file", "--approved-recipe-sha256", "--max-tokens", "--timeout-s"]);
   const parsed = {};
   for (let index = 0; index < values.length; index += 2) {
     const flag = values[index];
@@ -28,11 +28,20 @@ export function parseArguments(values) {
     (parsed["--approved-recipe-file"] && !parsed["--model"])) {
     throw new Error("Approved recipe requires a snapshot, digest, and value model.");
   }
+  const maxTokens = parsed["--max-tokens"];
+  const timeoutSeconds = parsed["--timeout-s"];
+  if (Boolean(maxTokens) !== Boolean(timeoutSeconds) || (maxTokens && !parsed["--model"]) ||
+    (maxTokens && (!/^[1-9][0-9]*$/.test(maxTokens) || Number(maxTokens) > 16384)) ||
+    (timeoutSeconds && (!/^[1-9][0-9]*$/.test(timeoutSeconds) || Number(timeoutSeconds) > 600))) {
+    throw new Error("Invalid product model budget.");
+  }
   return {
     input_dir: parsed["--input"],
     run_id: parsed["--run-id"],
     model: parsed["--model"] ?? null,
     api_base_url: parsed["--api-base-url"] ?? null,
+    max_tokens: maxTokens ? Number(maxTokens) : null,
+    timeout_s: timeoutSeconds ? Number(timeoutSeconds) : null,
     approved_recipe_file: parsed["--approved-recipe-file"] ?? null,
     approved_recipe_sha256: parsed["--approved-recipe-sha256"] ?? null,
   };

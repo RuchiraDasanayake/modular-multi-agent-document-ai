@@ -506,6 +506,21 @@ def test_cli_process_auto_without_model_uses_runtime_data_root(tmp_path: Path, m
     _assert_exact_evidence(candidate, sidecar)
 
 
+@pytest.mark.parametrize("flag,value", [
+    ("--max-tokens", "0"), ("--max-tokens", "16385"), ("--max-tokens", "1.5"),
+    ("--timeout-s", "0"), ("--timeout-s", "601"), ("--timeout-s", "1e2"),
+])
+def test_cli_process_auto_rejects_out_of_bounds_model_budget(tmp_path: Path, monkeypatch, flag: str, value: str) -> None:
+    from idpo.cli import main
+
+    source = tmp_path / "invoice.txt"
+    source.write_text("Total: 100", encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["idpo", "process-auto", "--input", str(source), flag, value])
+    with pytest.raises(SystemExit) as error:
+        main()
+    assert error.value.code == 2
+
+
 def test_openai_compatible_adapter_uses_env_key_and_sanitizes_errors(monkeypatch) -> None:
     secret = "test-secret-that-must-not-be-logged"
     monkeypatch.setenv("PRODUCT_TEST_KEY", secret)

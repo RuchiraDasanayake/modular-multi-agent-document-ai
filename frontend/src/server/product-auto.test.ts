@@ -10,9 +10,10 @@ import { GET as getAutoDocRoute, POST as reviewAutoDocRoute } from "@/app/api/jo
 import { GET as exportAutoDocRoute } from "@/app/api/jobs/[jobId]/auto/[runId]/docs/[docId]/export/route";
 import { GET as getOriginalContentRoute } from "@/app/api/jobs/[jobId]/docs/[docId]/content/route";
 import { idpoApi, parseReportedActiveMinutes } from "@/lib/idpo-api";
-import { resetConfigCacheForTests } from "./config";
+import { loadRunnerConfig, resetConfigCacheForTests } from "./config";
 import { addDocumentsToJob, createWorkspaceJob } from "./jobs";
-import { deriveProductAutoCorrectedResult, productAutoAvailability, recoverProductAutoRuns } from "./product-auto";
+import { deriveProductAutoCorrectedResult, getProductAutoRun, productAutoAvailability,
+  recoverProductAutoRuns, startProductAutoRun } from "./product-auto";
 import type { ProductAutoCandidate, ProductAutoReview } from "@/types/product-auto";
 
 function request(pathname: string, token: string, init?: RequestInit): Request {
@@ -836,6 +837,85 @@ test("a viewer cannot trigger operator configured model calls", async () => with
     body: JSON.stringify({ selectedFileIds: [updated.documents![0].fileId] }),
   }), { params: Promise.resolve({ jobId: job.jobId }) });
   assert.equal(response.status, 403);
+}));
+
+test("invalid server model budgets reject admission before any extraction run", async () => withStorage(async () => {
+  const oldTokens = process.env.IDPO_AUTO_MAX_OUTPUT_TOKENS;
+  const oldTimeout = process.env.IDPO_AUTO_TIMEOUT_S;
+  try {
+    process.env.IDPO_AUTO_MODEL = "local-open-model";
+    process.env.IDPO_AUTO_API_BASE_URL = "http://127.0.0.1:1/v1";
+    const job = createWorkspaceJob({ ownerUserId: "admin-id" });
+    const uploaded = await addDocumentsToJob(job.jobId, [new File(["Total: 100"], "invoice.txt")]);
+    const url = `/api/jobs/${job.jobId}/auto`;
+    for (const [tokens, timeout] of [["0", ""], ["16385", ""], ["1.5", ""],
+      ["", "0"], ["", "601"], ["", "1e2"]]) {
+      process.env.IDPO_AUTO_MAX_OUTPUT_TOKENS = tokens;
+      process.env.IDPO_AUTO_TIMEOUT_S = timeout;
+      const response = await startAutoRoute(request(url, "admin", { method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ selectedFileIds: [uploaded.documents![0].fileId] }),
+      }), { params: Promise.resolve({ jobId: job.jobId }) });
+      assert.equal(response.status, 503, `${tokens}/${timeout}`);
+    }
+    process.env.IDPO_AUTO_MAX_OUTPUT_TOKENS = "";
+    process.env.IDPO_AUTO_TIMEOUT_S = "";
+    const browserOverride = await startAutoRoute(request(url, "admin", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ selectedFileIds: [uploaded.documents![0].fileId], maxOutputTokens: 1 }),
+    }), { params: Promise.resolve({ jobId: job.jobId }) });
+    assert.equal(browserOverride.status, 400);
+    const runsDir = path.join(process.env.IDPO_DATA_DIR!, "frontend", "auto_runs", job.jobId);
+    assert.equal(fs.existsSync(runsDir), false);
+  } finally {
+    if (oldTokens === undefined) delete process.env.IDPO_AUTO_MAX_OUTPUT_TOKENS;
+    else process.env.IDPO_AUTO_MAX_OUTPUT_TOKENS = oldTokens;
+    if (oldTimeout === undefined) delete process.env.IDPO_AUTO_TIMEOUT_S;
+    else process.env.IDPO_AUTO_TIMEOUT_S = oldTimeout;
+  }
+}));
+
+test("direct product execution forwards the server model budget to its child", async () => withStorage(async (dataDir) => {
+  const oldMode = process.env.PRODUCT_EXECUTION_MODE;
+  const oldTokens = process.env.IDPO_AUTO_MAX_OUTPUT_TOKENS;
+  const oldTimeout = process.env.IDPO_AUTO_TIMEOUT_S;
+  try {
+    process.env.PRODUCT_EXECUTION_MODE = "direct";
+    process.env.IDPO_AUTO_MODEL = "local-open-model";
+    process.env.IDPO_AUTO_API_BASE_URL = "http://127.0.0.1:1/v1";
+    process.env.IDPO_AUTO_MAX_OUTPUT_TOKENS = "3072";
+    process.env.IDPO_AUTO_TIMEOUT_S = "75";
+    const command = loadRunnerConfig().commands.find((item) => item.id === "idpo_process_auto")!;
+    const capturePath = path.join(path.dirname(dataDir), "direct-args.json");
+    const workerPath = path.join(path.dirname(dataDir), "capture-direct.cjs");
+    fs.writeFileSync(workerPath, "require('node:fs').writeFileSync(process.env.CAPTURE_PATH, JSON.stringify(process.argv.slice(2))); process.exit(1);");
+    command.program = process.execPath;
+    command.args = [workerPath, "--input", "{input_dir}", "--run-id", "{run_id}"];
+    command.cwd = path.dirname(dataDir);
+    command.env = { CAPTURE_PATH: capturePath };
+    const job = createWorkspaceJob({ ownerUserId: "admin-id" });
+    const uploaded = await addDocumentsToJob(job.jobId, [new File(["Total: 100"], "invoice.txt")]);
+    const run = await startProductAutoRun(job.jobId, [uploaded.documents![0].fileId], true);
+    const deadline = Date.now() + 5000;
+    while (!fs.existsSync(capturePath) && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    assert.equal(fs.existsSync(capturePath), true);
+    const args = JSON.parse(fs.readFileSync(capturePath, "utf8")) as string[];
+    assert.deepEqual(args.slice(args.indexOf("--max-tokens"), args.indexOf("--max-tokens") + 4),
+      ["--max-tokens", "3072", "--timeout-s", "75"]);
+    while (getProductAutoRun(job.jobId, run.runId).status !== "failed" && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    assert.equal(getProductAutoRun(job.jobId, run.runId).status, "failed");
+  } finally {
+    if (oldMode === undefined) delete process.env.PRODUCT_EXECUTION_MODE;
+    else process.env.PRODUCT_EXECUTION_MODE = oldMode;
+    if (oldTokens === undefined) delete process.env.IDPO_AUTO_MAX_OUTPUT_TOKENS;
+    else process.env.IDPO_AUTO_MAX_OUTPUT_TOKENS = oldTokens;
+    if (oldTimeout === undefined) delete process.env.IDPO_AUTO_TIMEOUT_S;
+    else process.env.IDPO_AUTO_TIMEOUT_S = oldTimeout;
+  }
 }));
 
 test("only exact loopback HTTP model endpoints can run without a server API key", async () => withStorage(async () => {

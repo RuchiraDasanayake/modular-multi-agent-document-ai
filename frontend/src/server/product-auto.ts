@@ -39,6 +39,10 @@ const MAX_ADDED_QUOTE = 500;
 const SCHEMA_FIELD_ID = /^[\p{L}][\p{L}\p{N}_]{0,63}$/u;
 const SCHEMA_TYPES = new Set(["string", "integer", "decimal", "boolean", "date", "array[object]"]);
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const DEFAULT_MODEL_MAX_OUTPUT_TOKENS = 8192;
+const MAX_MODEL_MAX_OUTPUT_TOKENS = 16384;
+const DEFAULT_MODEL_TIMEOUT_S = 180;
+const MAX_MODEL_TIMEOUT_S = 600;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const LEASE_TIMEOUT_MS = 5 * 60_000;
 const RECOVERY_INTERVAL_MS = 30_000;
@@ -130,8 +134,13 @@ function dispatchFile(jobId: string, runId: string): string {
   return runFile(jobId, runId).replace(/\.json$/, ".dispatch.json");
 }
 
+interface ModelBudget {
+  maxOutputTokens: number;
+  timeoutSeconds: number;
+}
+
 interface PreparedDispatch {
-  version: 1;
+  version: 1 | 2;
   ownerId: string;
   jobId: string;
   runId: string;
@@ -139,6 +148,42 @@ interface PreparedDispatch {
   inputManifestSha256: string;
   model?: string;
   baseUrl?: string;
+  modelBudget?: ModelBudget;
+}
+
+function validModelBudget(value: unknown): value is ModelBudget {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const budget = value as Record<string, unknown>;
+  return Object.keys(budget).sort().join() === "maxOutputTokens,timeoutSeconds" &&
+    Number.isSafeInteger(budget.maxOutputTokens) && (budget.maxOutputTokens as number) >= 1 &&
+    (budget.maxOutputTokens as number) <= MAX_MODEL_MAX_OUTPUT_TOKENS &&
+    Number.isSafeInteger(budget.timeoutSeconds) && (budget.timeoutSeconds as number) >= 1 &&
+    (budget.timeoutSeconds as number) <= MAX_MODEL_TIMEOUT_S;
+}
+
+function configuredModelBudget(): ModelBudget {
+  const bounded = (name: string, fallback: number, maximum: number): number => {
+    const raw = process.env[name];
+    if (raw === undefined || raw === "") return fallback;
+    if (!/^[1-9][0-9]*$/.test(raw)) throw new AccessError(`Invalid server model budget: ${name}.`, 503);
+    const number = Number(raw);
+    if (!Number.isSafeInteger(number) || number > maximum) {
+      throw new AccessError(`Invalid server model budget: ${name}.`, 503);
+    }
+    return number;
+  };
+  return {
+    maxOutputTokens: bounded("IDPO_AUTO_MAX_OUTPUT_TOKENS", DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
+      MAX_MODEL_MAX_OUTPUT_TOKENS),
+    timeoutSeconds: bounded("IDPO_AUTO_TIMEOUT_S", DEFAULT_MODEL_TIMEOUT_S, MAX_MODEL_TIMEOUT_S),
+  };
+}
+
+function appendModelArguments(args: string[], model?: string, baseUrl?: string, budget?: ModelBudget): void {
+  if (!model || !baseUrl) return;
+  args.push("--model", model, "--api-base-url", baseUrl);
+  if (budget) args.push("--max-tokens", String(budget.maxOutputTokens),
+    "--timeout-s", String(budget.timeoutSeconds));
 }
 
 function commandSha256(): string {
@@ -794,6 +839,7 @@ export function productAutoAvailability(): { available: boolean; modelConfigured
   let modelConfigured = false;
   if (model && baseUrl) {
     try {
+      configuredModelBudget();
       modelConfigured = !modelEndpointRequiresKey(baseUrl) || Boolean(process.env.ICORE_API_KEY?.trim());
     } catch {
       modelConfigured = false;
@@ -876,6 +922,7 @@ export async function startProductAutoRun(
     throw new AccessError("The server model key is missing.", 503);
   }
   if (model && !admin) throw new AccessError("Admin access is required to start model-backed extraction.", 403);
+  const modelBudget = model ? configuredModelBudget() : undefined;
   if (approvedRecipeSelection && !model) {
     throw new AccessError("An approved recipe requires a configured value extraction model.", 503);
   }
@@ -989,10 +1036,10 @@ export async function startProductAutoRun(
     let dispatch: PreparedDispatch | undefined;
     let dispatchHash: string | undefined;
     if (queued) {
-      dispatch = { version: 1, ownerId: job.ownerUserId!, jobId, runId,
+      dispatch = { version: modelBudget ? 2 : 1, ownerId: job.ownerUserId!, jobId, runId,
         commandSha256: commandSha256(),
         inputManifestSha256: inputManifestSha256({ selectedFiles, approvedRecipe: recipeMeta, confirmedBrief: schemaMeta }),
-        ...(model && baseUrl ? { model, baseUrl } : {}) };
+        ...(model && baseUrl ? { model, baseUrl, modelBudget } : {}) };
       const bytes = JSON.stringify(dispatch);
       fs.mkdirSync(path.dirname(dispatchFile(jobId, runId)), { recursive: true });
       const handle = fs.openSync(dispatchFile(jobId, runId), "wx", 0o600);
@@ -1024,7 +1071,7 @@ export async function startProductAutoRun(
     writeLease(jobId, runId);
     const command = getCommandConfig("idpo_process_auto");
     const args = command.args.map((arg) => arg.replaceAll("{input_dir}", inputDir).replaceAll("{run_id}", runId));
-    if (model && baseUrl) args.push("--model", model, "--api-base-url", baseUrl);
+    appendModelArguments(args, model, baseUrl, modelBudget);
     if (recipeMeta) args.push("--approved-recipe-file", stagedRecipeFile(runId),
       "--approved-recipe-sha256", recipeMeta.snapshotSha256);
     if (schemaMeta) args.push("--confirmed-schema-file", stagedSchemaFile(runId),
@@ -1069,10 +1116,14 @@ function verifiedDispatch(request: ProductDispatch): { record: RunRecord; prepar
     throw new Error("Queued extraction profile changed.");
   }
   const prepared = parseJsonObject(file) as unknown as PreparedDispatch;
-  if (prepared.version !== 1 || prepared.ownerId !== request.ownerId ||
+  if ((prepared.version !== 1 && prepared.version !== 2) || prepared.ownerId !== request.ownerId ||
     prepared.jobId !== request.jobId || prepared.runId !== request.runId ||
     prepared.inputManifestSha256 !== inputManifestSha256(record)) {
     throw new Error("Invalid queued extraction profile.");
+  }
+  if (prepared.version === 1 ? prepared.modelBudget !== undefined :
+    (!prepared.model || !prepared.baseUrl || !validModelBudget(prepared.modelBudget))) {
+    throw new Error("Invalid queued model budget.");
   }
   return { record, prepared };
 }
@@ -1106,7 +1157,7 @@ export async function executePreparedProductAutoRun(request: ProductDispatch, si
   }
   const command = getCommandConfig("idpo_process_auto");
   const args = command.args.map((arg) => arg.replaceAll("{input_dir}", inputDir).replaceAll("{run_id}", request.runId));
-  if (prepared.model && prepared.baseUrl) args.push("--model", prepared.model, "--api-base-url", prepared.baseUrl);
+  appendModelArguments(args, prepared.model, prepared.baseUrl, prepared.modelBudget);
   if (record.approvedRecipe) args.push("--approved-recipe-file", stagedRecipeFile(request.runId),
     "--approved-recipe-sha256", record.approvedRecipe.snapshotSha256);
   if (record.confirmedBrief) args.push("--confirmed-schema-file", stagedSchemaFile(request.runId),

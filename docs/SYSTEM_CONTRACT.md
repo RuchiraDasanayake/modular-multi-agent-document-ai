@@ -111,8 +111,16 @@ zero exact CORD fields or linked rows from either engine. The product default re
 Local loopback HTTP servers may run without an API key; remote providers require an HTTPS URL and server-side key. The model can replace the
 heuristic schema. Proposed values require exact text-span evidence and a matching, JSON-round-trippable typed value
 for machine acceptance. Ambiguous boolean quotes and partial identifier matches stay pending review. A newly
-discovered schema is unapproved, so every document remains `needs_review` until an operator reviews it. A separate
-owner-scoped registry can save a completed review as a draft schema and explicitly approve it as `approved_shadow`.
+discovered schema is unapproved, so every document remains `needs_review` until an operator reviews it.
+
+New model-backed product runs use a server-only output budget of 8,192 tokens and a 180-second per-call timeout by
+default. `IDPO_AUTO_MAX_OUTPUT_TOKENS` (1–16,384) and `IDPO_AUTO_TIMEOUT_S` (1–600) can lower or raise those limits;
+invalid settings reject admission. PostgreSQL queue dispatch version 2 seals the selected limits with its profile digest,
+so later environment changes do not alter a prepared run. Previously prepared version 1 dispatches retain their earlier
+CLI defaults of 1,200 tokens and 60 seconds. Direct CLI calls also retain those defaults unless flags are supplied.
+The separate draft-suggestion action keeps its own 1,800-token limit; the 24,000-character source cap is unchanged.
+
+A separate owner-scoped registry can save a completed review as a draft schema and explicitly approve it as `approved_shadow`.
 The operator may select a current approved revision for one run. The frontend rechecks its source
 review and owner, freezes a SHA-256-bound schema snapshot, and the worker skips schema induction
 and calls the model only for values. A stale or disabled selection fails closed; an invalid response

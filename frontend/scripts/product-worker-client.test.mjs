@@ -22,3 +22,18 @@ test("Docker bridge rejects a partial recipe or recipe without a value model", (
   assert.throws(() => parseArguments([...base, "--approved-recipe-file", "/stage.recipe.json",
     "--approved-recipe-sha256", "b".repeat(64)]), /Approved recipe requires/);
 });
+
+test("Docker bridge forwards only a complete bounded model budget", () => {
+  const base = ["--input", "/stage", "--run-id", "auto_" + "a".repeat(32),
+    "--model", "local-model", "--api-base-url", "http://localhost:8000/v1"];
+  const parsed = parseArguments([...base, "--max-tokens", "8192", "--timeout-s", "180"]);
+  assert.equal(parsed.max_tokens, 8192);
+  assert.equal(parsed.timeout_s, 180);
+  assert.equal(parseArguments(base).max_tokens, null, "old dispatches preserve worker defaults");
+  for (const extra of [["--max-tokens", "8192"], ["--timeout-s", "180"],
+    ["--max-tokens", "16385", "--timeout-s", "180"],
+    ["--max-tokens", "8192", "--timeout-s", "601"],
+    ["--max-tokens", "1e3", "--timeout-s", "180"]]) {
+    assert.throws(() => parseArguments([...base, ...extra]), /model budget/i);
+  }
+});
