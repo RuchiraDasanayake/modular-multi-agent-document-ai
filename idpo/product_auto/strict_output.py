@@ -98,6 +98,15 @@ def parse_confirmed_strict_values_reply(
     text: str, fields: Sequence[Mapping[str, object]], pages: list[dict[str, object]],
 ) -> dict[str, dict[str, object]] | None:
     """Reject malformed, incomplete, or extra output before local grounding."""
+    if _decode_confirmed_values(text, fields) is None:
+        return None
+    return parse_values_reply(text, [dict(field) for field in fields], pages)
+
+
+def _decode_confirmed_values(
+    text: str, fields: Sequence[Mapping[str, object]], *, allow_unquoted_cells: bool = False,
+) -> dict[str, object] | None:
+    """Shared closed-envelope validation; visual callers opt into unquoted cells."""
     field_types = _field_types(fields)
     if not isinstance(text, str):
         return None
@@ -137,7 +146,8 @@ def parse_confirmed_strict_values_reply(
                     cell["row"] in seen_rows or not isinstance(cell["value"], str) or \
                     not cell["value"].strip() or len(cell["value"]) > 500 or \
                     type(cell["page"]) is not int or cell["page"] < 1 or \
-                    not isinstance(cell["quote"], str) or not cell["quote"] or len(cell["quote"]) > 24_000:
+                    not (allow_unquoted_cells and cell["quote"] is None or
+                         isinstance(cell["quote"], str) and 0 < len(cell["quote"]) <= 24_000):
                 return None
             seen_rows.add(cell["row"])
-    return parse_values_reply(text, [dict(field) for field in fields], pages)
+    return payload
