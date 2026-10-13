@@ -53,9 +53,18 @@ def validate_segment_plan(plan: SegmentPlan, source_pages: Sequence[Mapping[str,
         raise SegmentMergeError("Unsupported or oversized segment plan")
     if len({page["page"] for page in source_pages}) != len(source_pages):
         raise SegmentMergeError("Repeated source page")
+    if len(plan.source_pages) != len(source_pages):
+        raise SegmentMergeError("Segment plan source-page receipt mismatch")
+    for planned, actual in zip(plan.source_pages, source_pages):
+        text = actual["text"]
+        if (not isinstance(text, str) or planned.page != actual["page"] or
+                planned.text_length != len(text) or
+                planned.source_text_sha256 != hashlib.sha256(text.encode("utf-8")).hexdigest()):
+            raise SegmentMergeError("Segment plan source-page receipt mismatch")
     originals = {page["page"]: page["text"] for page in source_pages}
     order = {page["page"]: index for index, page in enumerate(source_pages)}
     offsets = {page: 0 for page in originals}
+    seen_pages: set[int] = set()
     last_page_order = -1
     for segment_index, segment in enumerate(plan.segments):
         if segment.index != segment_index or not 0 < segment.char_count <= MAX_SEGMENT_CHARS:
@@ -69,8 +78,9 @@ def validate_segment_plan(plan: SegmentPlan, source_pages: Sequence[Mapping[str,
                     hashlib.sha256(original.encode("utf-8")).hexdigest() != part.source_text_sha256:
                 raise SegmentMergeError("Segment plan source coverage mismatch")
             offsets[part.page] = part.end
+            seen_pages.add(part.page)
             last_page_order = order[part.page]
-    if any(offsets[page] != len(text) for page, text in originals.items()):
+    if seen_pages != set(originals) or any(offsets[page] != len(text) for page, text in originals.items()):
         raise SegmentMergeError("Segment plan source coverage incomplete")
 
 

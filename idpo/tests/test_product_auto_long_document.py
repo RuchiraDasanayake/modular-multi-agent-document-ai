@@ -265,3 +265,19 @@ def test_provider_error_stops_before_next_segment(tmp_path: Path) -> None:
     assert not sidecar["segment_proposals"]
     assert candidate["document_status"] == "failed"
     assert manifest["long_document"]["full_source_covered"] is False
+
+
+def test_plan_guard_includes_empty_pages_and_checks_source_page_receipt() -> None:
+    pages = [{"page": 1, "text": ""}, {"page": 2, "text": "alpha beta"}]
+    plan = plan_segments(pages, max_chars=8)
+    assert plan.supported
+    validate_segment_plan(plan, pages)
+    first = plan.segments[0]
+    missing_empty = replace(plan, segments=(replace(first, slices=tuple(
+        part for part in first.slices if part.page != 1)), *plan.segments[1:]))
+    with pytest.raises(SegmentMergeError, match="coverage"):
+        validate_segment_plan(missing_empty, pages)
+    altered_receipt = replace(plan, source_pages=(replace(plan.source_pages[0], source_text_sha256="0" * 64),
+                                                  *plan.source_pages[1:]))
+    with pytest.raises(SegmentMergeError, match="source-page receipt"):
+        validate_segment_plan(altered_receipt, pages)
