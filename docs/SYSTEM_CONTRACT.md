@@ -226,6 +226,8 @@ For failed or unsupported documents, the owner-scoped detail API may expose an a
 the sealed result sidecar. It never returns an arbitrary sidecar error string. The document page maps that code to
 fixed cause and next-step copy, keeps the original available, and withholds review and export controls because the
 run has no complete reviewable result. Unknown reasons use a generic explanation.
+The review-save and individual-export APIs also reject these document statuses with HTTP 409, including previously
+saved completed reviews. A failed result cannot become exportable through a direct API call or a legacy review.
 
 The owner-scoped `/api/jobs/<job_id>/auto/brief` API stores a revisioned extraction brief with plain-language intent,
 typed field meanings and examples, and 1–5 sample file IDs bound to source SHA-256 hashes. `GET` reports stale sample
