@@ -79,6 +79,6 @@ requests with no proxy/redirect/retry, and keeps credentials and response bodies
 checked the script/result hashes and the distinct source/export counts. Startup receipts are mutable operational
 files; the hashes above identify this particular startup, not every later deployment.
 
-This establishes readback and negative-admission behavior for the selected fixtures. It does not establish browser
+This establishes readback, negative admission, and same-key paid replay for the selected fixtures. It does not establish browser
 usability, general-purpose correctness, priced cost, or successful restoration from backup. The cold recovery drill
 must wait until the benchmark releases the shared parser runtime.
