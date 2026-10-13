@@ -14,8 +14,8 @@ The native Windows product launcher runs local PostgreSQL, the authentication ga
 and the frontend. The worker runs the existing local Python extractor. Docker and Redis are optional for this product mode. Set
 `TOKEN_REVOCATION_BACKEND=postgresql` and explicitly apply `gateway/native_auth.sql` to the configured database.
 Refresh rotation uses a durable atomic claim before issuing replacement tokens; storage failures deny refresh.
-The launcher requires persistent explicit secrets and binds only loopback. This is a development runtime with
-process-local rate limits. Native product extraction uses pg-boss with atomic PostgreSQL admission, per-owner pending
+The launcher requires persistent explicit secrets and binds only loopback. It supports a verified production frontend
+build or a development server; rate limits remain process-local. Native product extraction uses pg-boss with atomic PostgreSQL admission, per-owner pending
 limits and a single active attempt per job. Sources and schema snapshots are verified before execution; interrupted
 attempts are terminal and never automatically replay paid calls. Queue state survives web restarts. Artifact storage
 is still a configured filesystem shared by web and worker; this does not establish multi-host storage, per-document
@@ -151,7 +151,11 @@ The owner-scoped `GET /api/jobs/<job_id>/auto/<run_id>/docs/<doc_id>/export` rou
 after that document's review is complete. It rechecks the original source, OCR-page, machine-result, and review hashes
 at download time. The export carries typed fields, per-field status and provenance, source and machine hashes, and the
 review revision; it omits the raw source and server file paths. A human-corrected value is still a reviewer assertion
-unless it has explicit evidence. This is a per-document export; bulk run export is not implemented.
+unless it has explicit evidence. The owner-scoped `GET /api/jobs/<job_id>/auto/<run_id>/export` route downloads
+reviewed JSONL in selected-file order. Every selected document must have complete, current, source-linked review;
+partial, failed, missing or stale results return a conflict instead of an incomplete download. The current batch
+export is bounded to 5,000 documents and 64 MiB. Shared sealed-run and source verification avoids rereading the
+entire run for every exported document.
 
 The owner-scoped `/api/jobs/<job_id>/auto/brief` API stores a revisioned extraction brief with plain-language intent,
 typed field meanings and examples, and 1–5 sample file IDs bound to source SHA-256 hashes. `GET` reports stale sample
@@ -198,8 +202,8 @@ results or as the canonical research runtime's outputs.
 The native product screen implements intent entry, bounded AI schema suggestions, field-meaning confirmation,
 source-pinned sample preview and a reviewed-preview gate before the remaining batch. The queue enforces finite
 per-owner admission limits. The authenticated synthetic smoke verifies this flow on two text invoices; it does not
-establish real-document quality or arbitrary scale. Reviewed JSON is downloadable per document; bulk export is
-still absent. UI labels call machine-accepted values **Text matched** because exact OCR quotes do not establish
+establish real-document quality or arbitrary scale. Reviewed JSON is downloadable per document and JSONL per
+completed run under the limits above. UI labels call machine-accepted values **Text matched** because exact OCR quotes do not establish
 correct field meaning or correspondence to the original image. Human review remains a separate decision.
 The [productization plan](PRODUCTIZATION_PLAN.md) records the remaining quality, cost and deployment gates.
 
