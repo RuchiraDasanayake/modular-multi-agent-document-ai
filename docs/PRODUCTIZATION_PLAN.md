@@ -114,7 +114,7 @@ memory layer requires a measured quality, cost or reliability gain.
 - Owner-scoped access to jobs, runs, uploaded documents and artifacts must be verified across every frontend and gateway
   entrypoint before an external release. Existing or in-progress access code is not a substitute for two-user tests.
   A two-user audit reproduced a cross-owner legacy run-artifact read via a traversal document ID; frontend commits
-  `3ded1f0` and `d78d21e` now reject unsafe IDs and confine document/review paths. The 76-test frontend server suite,
+  `3ded1f0` and `d78d21e` now reject unsafe IDs and confine document/review paths. The 77-test frontend server suite,
   TypeScript and targeted lint passed for the scoped fix. This is not a completed audit of every entrypoint.
 - Preserve the submitted manuscript once verified and keep the October draft's configurations, scorer, run IDs,
   negative result and simulation-only claims intact as separate evidence. New product benchmarks get separate
