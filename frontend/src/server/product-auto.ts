@@ -12,6 +12,7 @@ import { productExecutionQueue, QueueAdmissionError, type ProductDispatch } from
 import { appendExtractionArguments, configuredExtractionProfile, extractionEnvironment,
   validExtractionProfile, type ExtractionProfile } from "@/server/product-auto-profile";
 import type { ProductAutoBriefRevision } from "@/types/product-auto-brief";
+import { PRODUCT_AUTO_OUTCOME_REASONS } from "@/types/product-auto";
 import type {
   ProductAutoAddedField,
   ProductAutoAddedLinkedCell,
@@ -34,6 +35,7 @@ import type {
 } from "@/types/product-auto";
 
 const SAFE_ID = /^[a-zA-Z0-9_-]{1,100}$/;
+const SAFE_OUTCOME_REASONS = new Set<string>(PRODUCT_AUTO_OUTCOME_REASONS);
 const MAX_REVIEW_NOTE = 2000;
 const MAX_CORRECTION = 10000;
 const MAX_LINKED_CORRECTION = 300000;
@@ -1506,6 +1508,9 @@ function loadProductAutoDocument(jobId: string, runId: string, docId: string, se
   }
   const result = parseResultBytes(bytes);
   const candidate = candidateFromArtifact(result.candidate, docId, result.pages);
+  const outcomeReason = (candidate.document_status === "failed" || candidate.document_status === "unsupported") &&
+    typeof result.reason === "string" && SAFE_OUTCOME_REASONS.has(result.reason)
+    ? result.reason as ProductAutoDocumentDetail["outcomeReason"] : undefined;
   const sourcePages = readSourcePages(result);
   let visualRoute: ProductAutoDocumentDetail["visualRoute"];
   if (result.visual_document !== undefined) {
@@ -1545,7 +1550,8 @@ function loadProductAutoDocument(jobId: string, runId: string, docId: string, se
     sourceHash,
     detail: {
       runId, fileId: document.fileId, fileName: document.fileName,
-      candidate, sourcePages, ...(visualRoute ? { visualRoute } : {}),
+      candidate, sourcePages, ...(outcomeReason ? { outcomeReason } : {}),
+      ...(visualRoute ? { visualRoute } : {}),
       ...(parsedDocument ? { parsedDocument } : {}), review, auditTrail,
       correctedResult: deriveProductAutoCorrectedResult(candidate, review, visualRoute),
     },

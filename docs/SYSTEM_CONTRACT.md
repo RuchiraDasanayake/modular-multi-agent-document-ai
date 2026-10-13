@@ -222,6 +222,11 @@ partial, failed, missing or stale results return a conflict instead of an incomp
 export is bounded to 5,000 documents and 64 MiB. Shared sealed-run and source verification avoids rereading the
 entire run for every exported document.
 
+For failed or unsupported documents, the owner-scoped detail API may expose an allowlisted `outcomeReason` code from
+the sealed result sidecar. It never returns an arbitrary sidecar error string. The document page maps that code to
+fixed cause and next-step copy, keeps the original available, and withholds review and export controls because the
+run has no complete reviewable result. Unknown reasons use a generic explanation.
+
 The owner-scoped `/api/jobs/<job_id>/auto/brief` API stores a revisioned extraction brief with plain-language intent,
 typed field meanings and examples, and 1–5 sample file IDs bound to source SHA-256 hashes. `GET` reports stale sample
 IDs; `POST` requires the current revision and appends an immutable draft event. `PATCH` explicitly confirms the current

@@ -334,6 +334,51 @@ test("automatic extraction keeps source access private and rejects conflicting r
   assert.equal((await getAutoDocRoute(request(docUrl, "alice"), detailParams)).status, 409);
 }));
 
+test("failed document details expose only allowlisted outcome codes to the owner", async () => withStorage(async (dataDir) => {
+  const job = createWorkspaceJob({ ownerUserId: "alice-id" });
+  const uploaded = await addDocumentsToJob(job.jobId, [new File(["synthetic image bytes"], "frames.tiff")]);
+  const source = uploaded.documents![0];
+  const sourceHash = createHash("sha256").update(fs.readFileSync(path.join(uploaded.uploadsPath!, source.storedName))).digest("hex");
+  const cases = [
+    { suffix: "c", status: "unsupported", reason: "multi_frame_image_unsupported", expected: "multi_frame_image_unsupported" },
+    { suffix: "d", status: "failed", reason: "provider exception: private raw diagnostic", expected: undefined },
+  ] as const;
+  for (const item of cases) {
+    const runId = `auto_${item.suffix.repeat(32)}`;
+    const docId = `doc_${item.suffix}`;
+    const runDir = path.join(dataDir, "product_runs", runId);
+    const resultDir = path.join(runDir, "docs", docId);
+    fs.mkdirSync(resultDir, { recursive: true });
+    const resultBytes = Buffer.from(JSON.stringify({ pages: [], reason: item.reason,
+      candidate: { contract_version: 1, doc_id: docId, document_status: item.status,
+        proposed_schema: [], extracted_values: [] } }));
+    const resultHash = createHash("sha256").update(resultBytes).digest("hex");
+    fs.writeFileSync(path.join(resultDir, "result.json"), resultBytes);
+    fs.writeFileSync(path.join(runDir, "run.json"), JSON.stringify({ contract_version: 1, run_id: runId, doc_count: 1 }));
+    fs.writeFileSync(path.join(runDir, "manifest.jsonl"), JSON.stringify({ contract_version: 1,
+      run_id: runId, doc_id: docId, source_file: source.storedName, source_container_sha256: sourceHash,
+      document_status: item.status, result_sha256: resultHash }) + "\n");
+    const recordDir = path.join(dataDir, "frontend", "auto_runs", job.jobId);
+    fs.mkdirSync(recordDir, { recursive: true });
+    fs.writeFileSync(path.join(recordDir, `${runId}.json`), JSON.stringify({
+      runId, jobId: job.jobId, status: "success", createdAt: "2026-10-13T00:00:00Z",
+      serverInstanceId: "synthetic", selectedFiles: [{ fileId: source.fileId, fileName: source.fileName,
+        storedName: source.storedName, sha256: sourceHash }],
+      documents: [{ docId, fileId: source.fileId, fileName: source.fileName, status: item.status,
+        fieldCount: 0, acceptedCount: 0, reviewStatus: "unreviewed", machineResultSha256: resultHash }],
+    }));
+    const url = `/api/jobs/${job.jobId}/auto/${runId}/docs/${docId}`;
+    const params = { params: Promise.resolve({ jobId: job.jobId, runId, docId }) };
+    assert.equal((await getAutoDocRoute(request(url, "bob"), params)).status, 404);
+    const response = await getAutoDocRoute(request(url, "alice"), params);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.outcomeReason, item.expected);
+    assert.equal(body.sourcePages.length, 0);
+    assert.equal(JSON.stringify(body).includes("private raw diagnostic"), false);
+  }
+}));
+
 test("native source downloads safely and exposes only a hash-matched parsed artifact", async () => withStorage(async (dataDir) => {
   const job = createWorkspaceJob({ ownerUserId: "alice-id" });
   const updated = await addDocumentsToJob(job.jobId, [new File(["<p>Order: A1</p>"], "order.html", { type: "text/html" })]);
