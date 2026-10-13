@@ -217,6 +217,8 @@ export interface ProductAutoRun {
   selectedCount: number;
   documents: ProductAutoRunDocument[];
   approvedRecipe?: { recipeId: string; revision: number; familyName: string; snapshotSha256: string };
+  confirmedBrief?: { briefId: string; revision: number; payloadSha256: string; snapshotSha256: string;
+    phase: "preview" | "batch"; previewRunId?: string };
   error?: string;
 }
 

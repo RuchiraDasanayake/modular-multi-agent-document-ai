@@ -9,6 +9,7 @@ import type {
 } from "@/types/idpo";
 import type { ProductAutoAddedFieldInput, ProductAutoCorrectedResult, ProductAutoDocumentDetail, ProductAutoReview, ProductAutoReviewField, ProductAutoRun, ProductAutoSourceDocument } from "@/types/product-auto";
 import type { ProductAutoRecipeRevision } from "@/types/product-auto-recipes";
+import type { ProductAutoBriefDetail, ProductAutoBriefField, ProductAutoBriefRevision } from "@/types/product-auto-brief";
 
 async function localRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
@@ -48,12 +49,35 @@ export const idpoApi = {
     return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto/recipes`);
   },
 
+  getProductAutoBrief(jobId: string): Promise<ProductAutoBriefDetail> {
+    return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto/brief`);
+  },
+
+  saveProductAutoBrief(jobId: string, expectedRevision: number, intent: string,
+    fields: ProductAutoBriefField[], sampleFileIds: string[]): Promise<{ brief: ProductAutoBriefRevision }> {
+    return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto/brief`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedRevision, intent, fields, sampleFileIds }),
+    });
+  },
+
+  confirmProductAutoBrief(jobId: string, expectedRevision: number,
+    expectedPayloadSha256: string): Promise<{ brief: ProductAutoBriefRevision }> {
+    return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto/brief`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedRevision, expectedPayloadSha256 }),
+    });
+  },
+
   startProductAutoRun(jobId: string, selectedFileIds: string[],
-    approvedRecipe?: { recipeId: string; expectedRevision: number }): Promise<ProductAutoRun> {
+    approvedRecipe?: { recipeId: string; expectedRevision: number },
+    confirmedBrief?: { expectedRevision: number; payloadSha256: string; phase: "preview" | "batch";
+      previewRunId?: string }): Promise<ProductAutoRun> {
     return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ selectedFileIds, ...(approvedRecipe ? { approvedRecipe } : {}) }),
+      body: JSON.stringify({ selectedFileIds, ...(approvedRecipe ? { approvedRecipe } : {}),
+        ...(confirmedBrief ? { confirmedBrief } : {}) }),
     });
   },
 

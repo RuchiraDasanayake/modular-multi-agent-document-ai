@@ -52,7 +52,27 @@ export async function POST(request: Request, { params }: Params) {
       }
       approvedRecipe = rawSelection as { recipeId: string; expectedRevision: number };
     }
-    const run = await startProductAutoRun(jobId, selectedFileIds, user.role === "admin", approvedRecipe);
+    const rawBrief = body && typeof body === "object" && !Array.isArray(body)
+      ? (body as Record<string, unknown>).confirmedBrief : undefined;
+    let confirmedBrief: { expectedRevision: number; payloadSha256: string;
+      phase: "preview" | "batch"; previewRunId?: string } | undefined;
+    if (rawBrief !== undefined) {
+      if (!rawBrief || typeof rawBrief !== "object" || Array.isArray(rawBrief)) {
+        throw new AccessError("Choose a confirmed schema revision.", 400);
+      }
+      const selection = rawBrief as Record<string, unknown>;
+      if (Object.keys(selection).some((key) => !["expectedRevision", "payloadSha256", "phase", "previewRunId"].includes(key)) ||
+        !Number.isSafeInteger(selection.expectedRevision) || typeof selection.expectedRevision !== "number" ||
+        selection.expectedRevision < 2 || typeof selection.payloadSha256 !== "string" ||
+        !/^[a-f0-9]{64}$/.test(selection.payloadSha256) ||
+        !["preview", "batch"].includes(String(selection.phase)) ||
+        selection.previewRunId !== undefined && typeof selection.previewRunId !== "string") {
+        throw new AccessError("Choose a confirmed schema revision and phase.", 400);
+      }
+      confirmedBrief = selection as typeof confirmedBrief;
+    }
+    const run = await startProductAutoRun(jobId, selectedFileIds, user.role === "admin",
+      approvedRecipe, confirmedBrief);
     return NextResponse.json(run, { status: 202, headers: noStore });
   } catch (error) {
     if (error instanceof AccessError) return apiError(error);

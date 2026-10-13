@@ -5,6 +5,8 @@ import { spawn } from "node:child_process";
 import { AccessError } from "@/server/auth";
 import { getCommandConfig, loadRunnerConfig } from "@/server/config";
 import { getJobOrThrow } from "@/server/jobs";
+import { requireCurrentProductAutoBrief } from "@/server/product-auto-brief";
+import type { ProductAutoBriefRevision } from "@/types/product-auto-brief";
 import type {
   ProductAutoAddedField,
   ProductAutoAddedLinkedCell,
@@ -65,6 +67,10 @@ interface RunRecord {
     recipeId: string; revision: number; auditEventId: string; ownerUserId: string;
     familyName: string; snapshotSha256: string;
   };
+  confirmedBrief?: {
+    briefId: string; revision: number; auditEventId: string; ownerUserId: string; jobId: string;
+    payloadSha256: string; snapshotSha256: string; phase: "preview" | "batch"; previewRunId?: string;
+  };
   documents: Array<ProductAutoRunDocument & { machineResultSha256?: string }>;
   error?: string;
 }
@@ -114,6 +120,10 @@ function stagedRecipeFile(runId: string): string {
   return path.join(path.dirname(stagedInputDir(runId)), `${runId}.recipe.json`);
 }
 
+function stagedSchemaFile(runId: string): string {
+  return path.join(path.dirname(stagedInputDir(runId)), `${runId}.schema.json`);
+}
+
 function recipeReceipt(record: RunRecord): Record<string, string | number> | null {
   const recipe = record.approvedRecipe;
   return recipe ? {
@@ -124,6 +134,23 @@ function recipeReceipt(record: RunRecord): Record<string, string | number> | nul
 
 function matchesRecipeReceipt(value: unknown, record: RunRecord): boolean {
   const expected = recipeReceipt(record);
+  if (expected === null) return value == null;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const actual = value as Record<string, unknown>;
+  return Object.keys(actual).length === Object.keys(expected).length &&
+    Object.entries(expected).every(([key, wanted]) => actual[key] === wanted);
+}
+
+function confirmedSchemaReceipt(record: RunRecord): Record<string, string | number> | null {
+  const brief = record.confirmedBrief;
+  return brief ? {
+    brief_id: brief.briefId, revision: brief.revision, audit_event_id: brief.auditEventId,
+    payload_sha256: brief.payloadSha256, snapshot_sha256: brief.snapshotSha256,
+  } : null;
+}
+
+function matchesConfirmedSchemaReceipt(value: unknown, record: RunRecord): boolean {
+  const expected = confirmedSchemaReceipt(record);
   if (expected === null) return value == null;
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const actual = value as Record<string, unknown>;
@@ -566,8 +593,11 @@ function validatedDocuments(record: RunRecord, targetDocId?: string): RunRecord[
     throw new Error("Run completion marker does not match this run.");
   }
   if (!matchesRecipeReceipt(marker.approved_recipe, record) ||
-    record.approvedRecipe && getJobOrThrow(record.jobId).ownerUserId !== record.approvedRecipe.ownerUserId) {
-    throw new Error("Run recipe receipt does not match its owner-scoped selection.");
+    !matchesConfirmedSchemaReceipt(marker.confirmed_schema, record) ||
+    record.approvedRecipe && getJobOrThrow(record.jobId).ownerUserId !== record.approvedRecipe.ownerUserId ||
+    record.confirmedBrief && (getJobOrThrow(record.jobId).ownerUserId !== record.confirmedBrief.ownerUserId ||
+      record.confirmedBrief.jobId !== record.jobId)) {
+    throw new Error("Run schema receipt does not match its owner-scoped selection.");
   }
   const receipts = parseJsonLines(path.join(runDir, "manifest.jsonl"));
   if (receipts.length !== marker.doc_count) throw new Error("Incomplete extraction manifest.");
@@ -586,8 +616,9 @@ function validatedDocuments(record: RunRecord, targetDocId?: string): RunRecord[
     if (typeof receipt.result_sha256 !== "string" || !/^[a-f0-9]{64}$/.test(receipt.result_sha256)) {
       throw new Error("Machine result receipt is missing or invalid.");
     }
-    if (!matchesRecipeReceipt(receipt.approved_recipe, record)) {
-      throw new Error("Document recipe receipt differs from the selected recipe.");
+    if (!matchesRecipeReceipt(receipt.approved_recipe, record) ||
+      !matchesConfirmedSchemaReceipt(receipt.confirmed_schema, record)) {
+      throw new Error("Document schema receipt differs from the selected schema.");
     }
     if (targetDocId && docId !== targetDocId) return [];
     const { bytes, sha256: machineResultHash } = readResultBytes(record.runId, docId);
@@ -595,8 +626,9 @@ function validatedDocuments(record: RunRecord, targetDocId?: string): RunRecord[
       throw new Error("Machine result and extraction receipt differ.");
     }
     const result = parseResultBytes(bytes);
-    if (!matchesRecipeReceipt(result.approved_recipe, record)) {
-      throw new Error("Machine result recipe differs from the selected recipe.");
+    if (!matchesRecipeReceipt(result.approved_recipe, record) ||
+      !matchesConfirmedSchemaReceipt(result.confirmed_schema, record)) {
+      throw new Error("Machine result schema differs from the selected schema.");
     }
     const candidate = candidateFromArtifact(result.candidate, docId, result.pages);
     if (candidate.document_status !== receipt.document_status) throw new Error("Candidate and receipt status differ.");
@@ -634,6 +666,7 @@ function finishRun(jobId: string, runId: string, exitCode: number | null, leaseE
   if (publishTerminalRecord(record) && !leaseExpiredFailure) {
     fs.rmSync(stagedInputDir(runId), { recursive: true, force: true });
     if (fs.existsSync(stagedRecipeFile(runId))) fs.unlinkSync(stagedRecipeFile(runId));
+    if (fs.existsSync(stagedSchemaFile(runId))) fs.unlinkSync(stagedSchemaFile(runId));
   }
   stopHeartbeat(runId);
 }
@@ -711,6 +744,13 @@ function publicRun(record: RunRecord): ProductAutoRun {
       recipeId: record.approvedRecipe.recipeId, revision: record.approvedRecipe.revision,
       familyName: record.approvedRecipe.familyName, snapshotSha256: record.approvedRecipe.snapshotSha256,
     } } : {}),
+    ...(record.confirmedBrief ? { confirmedBrief: {
+      briefId: record.confirmedBrief.briefId, revision: record.confirmedBrief.revision,
+      payloadSha256: record.confirmedBrief.payloadSha256,
+      snapshotSha256: record.confirmedBrief.snapshotSha256,
+      phase: record.confirmedBrief.phase,
+      ...(record.confirmedBrief.previewRunId ? { previewRunId: record.confirmedBrief.previewRunId } : {}),
+    } } : {}),
     documents: record.documents.map((document) => ({
       docId: document.docId, fileId: document.fileId, fileName: document.fileName,
       status: document.status, fieldCount: document.fieldCount, acceptedCount: document.acceptedCount,
@@ -761,9 +801,36 @@ export function getProductAutoRun(jobId: string, runId: string): ProductAutoRun 
   return publicRun(runForDisplay(jobId, runId));
 }
 
+function requireReviewedPreview(jobId: string, previewRunId: string, brief: ProductAutoBriefRevision): void {
+  requireSafeId(previewRunId);
+  const preview = readRunRecord(jobId, previewRunId);
+  const selected = preview.confirmedBrief;
+  if (preview.status !== "success" || !selected || selected.phase !== "preview" ||
+    selected.briefId !== brief.brief_id || selected.revision !== brief.revision ||
+    selected.auditEventId !== brief.audit_event_id || selected.payloadSha256 !== brief.payload_sha256 ||
+    selected.ownerUserId !== brief.owner_user_id || selected.jobId !== jobId) {
+    throw new AccessError("Review a preview from the current confirmed schema before applying it to the batch.", 409);
+  }
+  const samples = new Map(brief.sample_sources.map((item) => [item.file_id, item.source_sha256]));
+  if (preview.selectedFiles.length !== samples.size || preview.selectedFiles.some((file) =>
+    samples.get(file.fileId) !== file.sha256)) {
+    throw new AccessError("The preview source set differs from the confirmed samples.", 409);
+  }
+  let documents: RunRecord["documents"];
+  try { documents = validatedDocuments(preview); }
+  catch { throw new AccessError("Preview extraction artifacts changed. Run a new preview.", 409); }
+  if (!documents.length || documents.some((document) => document.status !== "needs_review" ||
+    recordedReviewStatus(preview, document) !== "completed") ||
+    new Set(documents.map((document) => document.fileId)).size !== samples.size) {
+    throw new AccessError("Complete source-linked review of every preview document before applying the batch.", 409);
+  }
+}
+
 export async function startProductAutoRun(
   jobId: string, selectedFileIds: string[], admin: boolean,
   approvedRecipeSelection?: { recipeId: string; expectedRevision: number },
+  confirmedBriefSelection?: { expectedRevision: number; payloadSha256: string;
+    phase: "preview" | "batch"; previewRunId?: string },
 ): Promise<ProductAutoRun> {
   const config = loadRunnerConfig();
   if (!productAutoAvailability().available) throw new AccessError("Automatic extraction is unavailable on this deployment.", 503);
@@ -784,6 +851,12 @@ export async function startProductAutoRun(
   if (model && !admin) throw new AccessError("Admin access is required to start model-backed extraction.", 403);
   if (approvedRecipeSelection && !model) {
     throw new AccessError("An approved recipe requires a configured value extraction model.", 503);
+  }
+  if (approvedRecipeSelection && confirmedBriefSelection) {
+    throw new AccessError("Choose one explicit schema for this run.", 400);
+  }
+  if (confirmedBriefSelection && !model) {
+    throw new AccessError("A confirmed schema requires a configured value extraction model.", 503);
   }
   let recipeSnapshot: Record<string, unknown> | undefined;
   let recipeMeta: RunRecord["approvedRecipe"];
@@ -807,6 +880,44 @@ export async function startProductAutoRun(
       snapshotSha256: createHash("sha256").update(JSON.stringify(recipeSnapshot)).digest("hex"),
     };
   }
+  let schemaSnapshot: Record<string, unknown> | undefined;
+  let schemaMeta: RunRecord["confirmedBrief"];
+  if (confirmedBriefSelection) {
+    const brief = requireCurrentProductAutoBrief(jobId, confirmedBriefSelection.expectedRevision,
+      confirmedBriefSelection.payloadSha256);
+    if (brief.state !== "confirmed" || brief.owner_user_id !== job.ownerUserId) {
+      throw new AccessError("Confirm the current schema before extraction.", 409);
+    }
+    const sampleIds = brief.sample_sources.map((item) => item.file_id);
+    if (confirmedBriefSelection.phase === "preview") {
+      if (confirmedBriefSelection.previewRunId || selectedFileIds.length !== sampleIds.length ||
+        selectedFileIds.some((fileId) => !sampleIds.includes(fileId))) {
+        throw new AccessError("Preview exactly the confirmed sample files.", 400);
+      }
+    } else if (confirmedBriefSelection.phase === "batch") {
+      if (!confirmedBriefSelection.previewRunId ||
+        selectedFileIds.some((fileId) => sampleIds.includes(fileId))) {
+        throw new AccessError("Choose remaining files and a reviewed preview.", 400);
+      }
+      requireReviewedPreview(jobId, confirmedBriefSelection.previewRunId, brief);
+    } else {
+      throw new AccessError("Invalid confirmed-schema phase.", 400);
+    }
+    schemaSnapshot = {
+      contract_version: 1, brief_id: brief.brief_id, revision: brief.revision,
+      audit_event_id: brief.audit_event_id, state: brief.state,
+      owner_user_id: brief.owner_user_id, job_id: brief.job_id,
+      intent: brief.intent, fields: brief.fields, sample_sources: brief.sample_sources,
+      payload_sha256: brief.payload_sha256,
+    };
+    schemaMeta = {
+      briefId: brief.brief_id, revision: brief.revision, auditEventId: brief.audit_event_id,
+      ownerUserId: brief.owner_user_id, jobId, payloadSha256: brief.payload_sha256,
+      snapshotSha256: createHash("sha256").update(JSON.stringify(schemaSnapshot)).digest("hex"),
+      phase: confirmedBriefSelection.phase,
+      ...(confirmedBriefSelection.previewRunId ? { previewRunId: confirmedBriefSelection.previewRunId } : {}),
+    };
+  }
   const documents = selectedFileIds.map((fileId) => job.documents?.find((document) => document.fileId === fileId));
   if (documents.some((document) => !document)) throw new AccessError("A selected document was not found.", 400);
   const runId = `auto_${randomUUID().replace(/-/g, "")}`;
@@ -820,6 +931,15 @@ export async function startProductAutoRun(
       const handle = fs.openSync(stagedRecipeFile(runId), "wx", 0o600);
       try {
         fs.writeFileSync(handle, JSON.stringify(recipeSnapshot), "utf8");
+        fs.fsyncSync(handle);
+      } finally {
+        fs.closeSync(handle);
+      }
+    }
+    if (schemaSnapshot && schemaMeta) {
+      const handle = fs.openSync(stagedSchemaFile(runId), "wx", 0o600);
+      try {
+        fs.writeFileSync(handle, JSON.stringify(schemaSnapshot), "utf8");
         fs.fsyncSync(handle);
       } finally {
         fs.closeSync(handle);
@@ -844,6 +964,7 @@ export async function startProductAutoRun(
       runId, jobId, status: "running", createdAt: new Date().toISOString(),
       serverInstanceId: instanceId, selectedFiles, documents: [],
       ...(recipeMeta ? { approvedRecipe: recipeMeta } : {}),
+      ...(schemaMeta ? { confirmedBrief: schemaMeta } : {}),
     };
     saveRunRecord(record);
     writeLease(jobId, runId);
@@ -852,6 +973,8 @@ export async function startProductAutoRun(
     if (model && baseUrl) args.push("--model", model, "--api-base-url", baseUrl);
     if (recipeMeta) args.push("--approved-recipe-file", stagedRecipeFile(runId),
       "--approved-recipe-sha256", recipeMeta.snapshotSha256);
+    if (schemaMeta) args.push("--confirmed-schema-file", stagedSchemaFile(runId),
+      "--confirmed-schema-sha256", schemaMeta.snapshotSha256);
     const child = spawn(command.program, args, {
       cwd: command.cwd,
       env: { ...process.env, ...command.env, IDPO_DATA_DIR: storageRoot() },
@@ -867,6 +990,7 @@ export async function startProductAutoRun(
     else {
       fs.rmSync(inputDir, { recursive: true, force: true });
       if (fs.existsSync(stagedRecipeFile(runId))) fs.unlinkSync(stagedRecipeFile(runId));
+      if (fs.existsSync(stagedSchemaFile(runId))) fs.unlinkSync(stagedSchemaFile(runId));
     }
     throw error;
   }
