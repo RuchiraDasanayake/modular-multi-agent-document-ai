@@ -126,6 +126,9 @@ def test_document_inference_requires_separate_source_and_code_bound_gate(
             "cohort": files["cohort"], "cpu_lock": files["cpu_lock"],
             "ocr_lock": files["ocr_lock"]}
     assert _verify_trial_gate(gate_path, **args)["max_documents"] == 1
+    changed_code = {"source_sha256": {"runner.py": "b" * 64}}
+    with pytest.raises(ValueError, match="research inference gate"):
+        _verify_trial_gate(gate_path, **{**args, "code_provenance": changed_code})
     gate["gold_access_permitted"] = True
     gate_path.write_text(json.dumps(gate), encoding="utf-8")
     with pytest.raises(ValueError, match="research inference gate"):

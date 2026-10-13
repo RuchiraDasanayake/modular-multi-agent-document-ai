@@ -40,18 +40,6 @@ FULL_RUN_SECONDS = 3600
 POLL_SECONDS = 0.5
 HOST_VOLUME = "C:"
 DATA_VOLUME = "I:"
-CODE_PATHS = (
-    "product_eval/tatr_first_pdf_runner.py",
-    "product_eval/tatr_first_pdf_worker.py",
-    "product_eval/tatr_native_geometry.py",
-    "product_eval/table_crop_geometry.py",
-    "product_eval/tatr_cell_compat.py",
-    "product_eval/tatr_ocr_handoff.py",
-    "product_eval/tatr_ocr_page_worker.py",
-    "product_eval/tatr_ocr_word_source_free.py",
-    "product_eval/tatr_process_env.py",
-    "idpo/product_auto/parsed_document.py",
-)
 
 
 def _write_new_json(path: Path, value: dict[str, Any]) -> None:
@@ -181,8 +169,13 @@ def _code_provenance(repo_root: Path) -> dict[str, Any]:
         ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
         capture_output=True, text=True, check=True, timeout=20,
     ).stdout.strip()
+    roots = (repo_root / "product_eval", repo_root / "idpo" / "product_auto")
+    paths = [repo_root / "idpo" / "__init__.py"]
+    for root in roots:
+        paths.extend(root.rglob("*.py"))
+    names = sorted(path.relative_to(repo_root).as_posix() for path in paths)
     return {"git_commit": head,
-            "source_sha256": {name: sha256_file(repo_root / name) for name in CODE_PATHS}}
+            "source_sha256": {name: sha256_file(repo_root / name) for name in names}}
 
 
 def _verify_trial_gate(
