@@ -4,7 +4,7 @@
   "uploadsDir": "../../idpo-data/frontend/uploads",
   "jobsDir": "../../idpo-data/frontend/jobs",
   "demoSampleRunsDir": "./demo_sample_runs",
-  "maxUploadMb": 25,
+  "maxUploadMb": 20,
   "allowedExtensions": [
     ".pdf",
     ".png",
