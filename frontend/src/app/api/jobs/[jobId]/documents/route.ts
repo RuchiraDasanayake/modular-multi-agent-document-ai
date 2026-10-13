@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { recoveryReadOnlyResponse } from "@/lib/recovery-access";
 import { addStagedDocumentsToJob } from "@/server/jobs";
 import { requireJob } from "@/server/access";
 import { requireUser } from "@/server/auth";
@@ -13,6 +14,10 @@ interface Params {
 }
 
 export async function POST(request: Request, { params }: Params) {
+  // Uploads deliberately bypass the proxy to preserve streaming, so enforce the
+  // passive recovery boundary here before authentication or body parsing.
+  const blocked = recoveryReadOnlyResponse(request);
+  if (blocked) return blocked;
   let staged: StagedUpload[] = [];
   try {
     const user = await requireUser(request.headers);

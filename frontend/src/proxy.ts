@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { recoveryReadOnlyResponse } from "./lib/recovery-access";
 
 // Public routes that don't require authentication
 const publicPaths = [
@@ -70,6 +71,17 @@ function isUnexpiredJwt(token: string): boolean {
 }
 
 export async function proxy(request: NextRequest) {
+  const blocked = recoveryReadOnlyResponse(request);
+  if (blocked) return blocked;
+  const response = await sessionProxy(request);
+  if (process.env.IDPO_RECOVERY_READ_ONLY === "1") {
+    response.headers.set("X-DocAI-Recovery", "read-only");
+    response.headers.set("Cache-Control", "no-store");
+  }
+  return response;
+}
+
+async function sessionProxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isSessionApi = sessionApiPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
