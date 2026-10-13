@@ -25,11 +25,19 @@ def test_image_request_keeps_fixed_fields_and_enforces_byte_budget() -> None:
 
 
 def test_image_limits_preserve_complete_aspect_and_never_upscale() -> None:
-    small = Image.new("RGB", (2200, 1700))
+    small = Image.new("RGB", (1800, 1700))
     assert runner.bounded_image(small) is small
     bounded = runner.bounded_image(Image.new("RGB", (4000, 4000)))
     assert bounded.width == bounded.height
-    assert bounded.width <= 3072 and bounded.width * bounded.height <= 6_000_000
+    assert bounded.width <= 2048 and bounded.width * bounded.height <= 2048 * 2048
+
+
+def test_encoded_json_matches_transport_and_enforces_whole_request_bound(monkeypatch) -> None:
+    body = runner.request_body(b"fixture", [{"field_id": "total", "type": "string"}], "Amount", [])
+    assert runner.encoded_request_size(body) == len(httpx.Request("POST", "https://example.test", json=body).content)
+    monkeypatch.setattr(runner, "MAX_REQUEST_BYTES", 100)
+    with pytest.raises(ValueError, match="request byte limit"):
+        runner.request_body(b"fixture", [], "", [])
 
 
 def test_visual_proposals_and_text_matches_both_require_review() -> None:
