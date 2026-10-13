@@ -1,6 +1,6 @@
 # Guarded first-PDF TATR runner and research trial
 
-**Status: synthetic integration passed; two separately gated first-PDF trials failed before table output.**
+**Status: synthetic integration passed; three separately gated first-PDF trials failed before table output.**
 This is a research-only runner for the first source in the frozen VRDU ad-buy
 selection. It is not wired into product extraction, human review, or the
 2,000-document quality gate. The owning surfaces are `product_eval/`
@@ -218,3 +218,19 @@ unchanged source selection and CPU/OCR locks, and fresh
 `I:\DocAI-Benchmarks\tatr-adbuy12-v3` output. It permits one further
 selected-PDF attempt without gold access. Its source-pixel overlays need
 independent visual review before other documents or any quality claim.
+
+The clean `9b8175305b93ccb75731598a0e52447324e6f156` v3 trial was run
+once into the fresh v3 directory. Offline model startup succeeded, but the
+worker stopped with a bounded `GeometryError` after 38.413 s. The supervisor
+recorded `status: failed`, `reason: worker_failed`, no parsed table or overlay,
+no gold access, and eleven unattempted sources. The immutable v3
+`first_pdf_receipt.json` SHA-256 is
+`db87a6c3d1333bf0d3f4cbf59b9a73141e01c3716f3cafc0ff6a7d2df78ed007`.
+The v3 output must remain untouched. A source-only replay of all three pages
+with an empty detector returned 515/658/206 native words and the expected
+single page-one omission without a geometry error. Thus the observed v3
+failure occurs **after** the source-word route, but the bounded receipt does
+not identify whether it was the omitted-word/table overlap guard or a later
+crop/cell/source-anchor check. No TATR table-quality result exists. Further
+model trials require a newly declared diagnostic or candidate profile; this
+arm must not enter product extraction on these receipts.
