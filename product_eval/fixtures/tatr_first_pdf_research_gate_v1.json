@@ -1,0 +1,23 @@
+{
+  "code_source_sha256": {
+    "idpo/product_auto/parsed_document.py": "656d8ac269d8592be959fdf022b7d7a5a183c2488317986481a615a7a07c4ffc",
+    "product_eval/table_crop_geometry.py": "e138f6c6d062e43d5c14c13eed4e445a7ed736bf10c8bb95def0d2b98d2c5d7f",
+    "product_eval/tatr_cell_compat.py": "6fc220b173186722e8e06a6c5cc87bf5f2782a1101e6cfc4568f7a439a7f693d",
+    "product_eval/tatr_first_pdf_runner.py": "e4cf12110c5e14b297185c1bd7a02a28c742f7196f0a1dd9bd6f46bcaf1b2157",
+    "product_eval/tatr_first_pdf_worker.py": "61adc50173a78f0810ec6f2758e4ea9d5c10bb7fa724eb2bc3bfd062f584a60e",
+    "product_eval/tatr_native_geometry.py": "6c3811142c074936891eb9b81acf9e3bc83cf02ca747cd175af58e4c50f854f1",
+    "product_eval/tatr_ocr_handoff.py": "defd8d6e20273b40eb14a57d759c91d0afd9a6656e093e57a080c02cb1009aff",
+    "product_eval/tatr_ocr_page_worker.py": "c6918a88c3145395b0be001df957f19e39a39b07d3666f18bbae278b723321cb",
+    "product_eval/tatr_ocr_word_source_free.py": "02caebf5f23ad8d61bcd5cd84d0fba8c5d394f325a829bb4a12bf59fbda66916",
+    "product_eval/tatr_process_env.py": "5754af1d0a16465b7e3023821e53954add348dad01926f3b49fed839af8419c0"
+  },
+  "cohort_sha256": "98f4fcbd6521594304da3a80104362cf89174c87c27ed08ce90a1158fef4bc90",
+  "cpu_runtime_lock_sha256": "56cb1244518b2ad2013574901c7dac7cea69e1fe0061e81cbfdcdac5f837417b",
+  "document_inference_permitted": true,
+  "gold_access_permitted": false,
+  "max_documents": 1,
+  "ocr_runtime_lock_sha256": "7e4279f2400b63ceeea10990f166388b3c8d155ceea34aea2203c81a316e1d9c",
+  "scope": "one_first_pdf_research_trial",
+  "selection_sha256": "b843d48146a60f02bb206900ee06d446eb82ba484a3781c291235864b5230d2d",
+  "version": 1
+}

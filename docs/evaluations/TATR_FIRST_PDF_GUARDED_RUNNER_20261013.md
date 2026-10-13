@@ -67,6 +67,11 @@ hashes, and actual C:/I: volume roots/IDs. A separate committed first-PDF
 research gate must match the source selection, cohort, code and CPU/OCR locks
 before document inference; the earlier CPU **synthetic** receipt's
 `document_inference_permitted: false` remains true for that receipt.
+The committed [research gate](../../product_eval/fixtures/tatr_first_pdf_research_gate_v1.json),
+SHA-256 `ea8ce08c4283ca0204015ea4da7c26776881502526866094d110926d74b48f3b`,
+permits exactly one selected PDF with no gold access, tied to ten source files
+and the unchanged selection/cohort/runtime-lock hashes. This gate is not a
+product release permission or a new quality result.
 
 Failure receipts store only bounded error type/reason codes. They do not
 persist arbitrary exception messages or tracebacks, which can include private
