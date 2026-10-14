@@ -1,6 +1,10 @@
-# IDPO Architecture
+# Research IDPO Architecture
 
-This file documents the runtime that is actually supported today.
+This file documents the research document pipeline. The current extraction
+product has a separate confirmed-schema path, persistent worker queue and review
+contract. See the [system contract](SYSTEM_CONTRACT.md) for both boundaries and
+the [native product guide](../scripts/native_product.md) for Windows deployment
+without Docker.
 
 ## Runtime path
 

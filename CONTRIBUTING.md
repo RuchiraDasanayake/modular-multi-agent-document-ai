@@ -4,7 +4,10 @@ Thank you for your interest in contributing! This document provides guidelines f
 
 ## Project Structure
 
-This is a **monorepo** with 4 Python microservices, an API gateway, and a Next.js frontend — all orchestrated with Docker Compose.
+This monorepo contains the document extraction product and separate research services.
+The supported Windows product runs natively with PostgreSQL, the gateway, a persistent
+Python worker and the Next.js frontend. The research services and optional Docker
+deployment have separate prerequisites and validation boundaries.
 
 | Directory     | Owner              | Description                         |
 | ------------- | ------------------ | ----------------------------------- |
@@ -13,9 +16,16 @@ This is a **monorepo** with 4 Python microservices, an API gateway, and a Next.j
 | `xai_hitl/`   | Pathirana M.M.     | XAI explanations + HITL feedback    |
 | `idpo/`       | Nayanapriya S.A.T. | Document processing orchestration   |
 | `gateway/`    | Shared             | JWT auth + reverse proxy            |
-| `frontend/`   | Shared             | Next.js 15 web application          |
+| `frontend/`   | Shared             | Next.js 16 web application          |
 
 ## Getting Started
+
+For Windows without Docker, follow the [native product setup](scripts/native_product.md).
+It describes the runtime configuration, production build, launcher, health checks and
+storage directories. Then use the [product quickstart](docs/PRODUCT_QUICKSTART.md)
+to create a job, confirm a schema, preview, review and export.
+
+For the optional Docker deployment:
 
 ```bash
 # 1. Clone the repo
@@ -29,7 +39,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-This starts the service stack and UI. Docker's Automatic extraction path uses a
+Docker's Automatic extraction path uses a
 private product worker and shared data volume. The canonical research job runner
 still requires the single-host setup. See [Public Demo Deployment](docs/PUBLIC_DEMO_DEPLOYMENT.md)
 for each supported path and its validation limits.
