@@ -1,7 +1,15 @@
-# Final Evidence
+# Historical October Evidence
 
-Frozen on 2026-10-08 for `paper/ieee/main.tex`. Every number in the paper comes from the runs and commands below.
-This file supersedes `paper/evidence_table.md` and `paper/PAPER_LOG.md`, which describe earlier, unpaired runs.
+This historical record was frozen on 2026-10-08 for the later internal draft `paper/ieee/main.tex`.
+It supersedes `paper/evidence_table.md` and `paper/PAPER_LOG.md` for that historical study only.
+
+**Current simulation evidence:** use the
+[corrected experiment at revision `b967efe`](../docs/AHMN_CORRECTED_SIMULATION_RESULT_20261013.md) and its
+[scenario-isolation audit](../docs/AHMN_SIMULATION_ISOLATION_20261013.md). The old simulation table and its
+31% drift / 3% combined reduction claims below predate the shared-scenario-state correction and are superseded.
+They remain here as historical records and must not populate the camera-ready revision. The separate
+[verified 2,000-original operational study](../docs/evaluations/MODEL2000_VERIFIED_OPERATIONAL_20261013.md)
+reports attempt accounting and a failed operational gate; it does not validate the historical document scores.
 
 **Verification note, 13 October 2026:** the eight named October raw run bundles
 were not found in the completed local audit. The tables below are preserved
@@ -164,6 +172,12 @@ On CORD-100 the adaptive reward counted 94 of 100 documents as successes (reward
 below 1 and 34 had a wrong or missing labelled value.
 
 ## Simulation (RABI and DAAF)
+
+**Superseded historical simulation:** the figures and interpretation in this section were produced before the
+scenario-isolation correction at `b967efe`. Shared mutable reward state contaminated drift and combined runs.
+Use the [corrected experiment](../docs/AHMN_CORRECTED_SIMULATION_RESULT_20261013.md) for current claims.
+Running the corrected simulator does not reproduce this historical table. The original cells and prose are
+preserved below to retain the record of what was previously reported.
 
 Cumulative regret, mean +/- standard deviation over 30 seeds (`ahmn_core/output/experiment_results.json`, regenerated
 by the command above and not tracked). Each seed fixes both the NumPy and the Python random generators, and two full
