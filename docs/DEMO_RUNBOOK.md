@@ -125,8 +125,10 @@ complete originals. It is structural coverage across separate studies; the basel
 original 2,000-source all-source gate remains failed. Frozen campaigns retain their own incident procedures;
 demo controls do not authorize replaying them.
 
-Final paper/slide generation and layout checks, author details, consent, signatures and author-controlled conference
-submission remain separate sign-off items. Editable author Word forms have been delivered privately for completion.
+The [technical conference handoff](CONFERENCE_HANDOFF_20261014.md) has a verified five-page paper, two-page
+reviewer response and ten-slide deck; all pages/slides passed visual inspection. Author details, consent, signatures
+and author-controlled conference submission remain separate sign-off items. Editable author Word forms are included
+privately for completion. Native Microsoft Word/PowerPoint execution was not tested by these rendering checks.
 Chrome/Edge file selection and saving a download remain unverified after Windows URL control stopped; the user
 could not check them. Authenticated API exports and prior browser review/copy checks do not close that delivery
 check. Use the latest evidence record when presenting status. Arbitrary-document accuracy, lower cost and high

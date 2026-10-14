@@ -1,5 +1,10 @@
 # IDPO Research Paper — Master Log
 
+> **14 October 2026 handoff:** the current five-page Word/PDF manuscript, two-page reviewer response and ten-slide
+> presentation are recorded in the [technical conference handoff](../docs/CONFERENCE_HANDOFF_20261014.md).
+> Their verified document and corrected synthetic evidence are separate from this historical log and its LaTeX draft.
+> Author completion and approval remain pending.
+
 > **Superseded.** This log covers the earlier draft and its unpaired runs, including a research claim the final paper
 > does not make. The final evidence, run folders and regeneration commands are in
 > [`FINAL_EVIDENCE.md`](FINAL_EVIDENCE.md), and the paper is `ieee/main.tex`. Keep this file for history only.
