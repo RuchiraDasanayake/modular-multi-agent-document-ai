@@ -221,14 +221,15 @@ Which code areas are most affected: frontend job API/runner, gateway access chec
 
 ## Current Next Step
 
-1. complete the already frozen [model-assisted 2,000-source execution](evaluations/MODEL2000_SELECTIVE_V2_EXECUTION_20261013.md),
-   retaining every failure, uncertain paid attempt and source that exceeds the declared limits; do not replace failed
-   sources or change the executing candidate mid-run
-2. execute the [preregistered 240-source paired comparison](evaluations/QUALITY240_PREREGISTRATION_20261013.md),
+1. retain the completed [verified 2,000-source operational evidence](evaluations/MODEL2000_VERIFIED_OPERATIONAL_20261013.md),
+   including every failure and uncertain paid attempt; use the [release verification record](evaluations/RELEASE_VERIFICATION_20261014.md)
+   to close the remaining product and conference gates without opening another architecture workstream
+2. finish the [preregistered 240-source paired comparison](evaluations/QUALITY240_PREREGISTRATION_20261013.md) once
+   provider availability is restored, retaining the frozen candidate and all original outcomes;
    seal both arms before opening references, and report exact scalar and whole-row recall with paired uncertainty;
    these experiments use confirmed schemas and do not validate automatic schema discovery
-3. finish the native intent-to-export workflow verification across advertised formats, then verify recovery and
-   supported operating limits; PostgreSQL queueing and native startup are implemented, while multiple frontend
+3. complete browser review/export verification; authenticated nine-format workflow and native cold recovery checks
+   have passed within their documented scope; PostgreSQL queueing and native startup are implemented, while multiple frontend
    writers, priced total cost and measured human review time remain open
 4. use the separately preserved [corrected simulation](AHMN_CORRECTED_SIMULATION_RESULT_20261013.md) and new measured
    product evidence to prepare the conference revision, keeping synthetic bandit behavior, actual document

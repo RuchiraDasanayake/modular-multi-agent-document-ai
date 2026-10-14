@@ -33,6 +33,8 @@ It includes a separate research pipeline for studying adaptive document policies
 > The product remains a research prototype. The separate
 > [240-source paired quality comparison](docs/evaluations/QUALITY240_PREREGISTRATION_20261013.md)
 > is preregistered and its final result remains pending.
+> The [14 October release verification](docs/evaluations/RELEASE_VERIFICATION_20261014.md) records the tested
+> model-failure safeguards, native build/export checks and remaining conference sign-off gates.
 > The [productization plan](docs/PRODUCTIZATION_PLAN.md) retains the earlier failed baselines and release gates;
 > [`paper/FINAL_EVIDENCE.md`](paper/FINAL_EVIDENCE.md) preserves the separate historical research results.
 
