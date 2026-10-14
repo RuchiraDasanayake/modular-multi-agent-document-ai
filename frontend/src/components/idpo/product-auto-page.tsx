@@ -47,6 +47,7 @@ export function ProductAutoPage() {
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [downloadingRunId, setDownloadingRunId] = useState<string | null>(null);
+  const [exportMessage, setExportMessage] = useState<{ runId: string; text: string } | null>(null);
   const [error, setError] = useState("");
   const [pendingRunRequest, setPendingRunRequest] = useState<PendingProductAutoRunRequest | null>(null);
   const [pendingRunChecked, setPendingRunChecked] = useState(false);
@@ -172,6 +173,10 @@ export function ProductAutoPage() {
   const previewRun = matchingPreviews[0];
   const reviewedPreviewRun = matchingPreviews.find((run) => productAutoReviewReadiness(run).previewReady);
   const remainingSelected = selected.filter((fileId) => !sampleFileIds.includes(fileId));
+  const repeatsBatchFiles = confirmed && runs.some((run) => run.confirmedBrief?.phase === "batch" &&
+    run.confirmedBrief.briefId === brief.brief_id && run.confirmedBrief.revision === brief.revision &&
+    run.confirmedBrief.payloadSha256 === brief.payload_sha256 &&
+    run.documents.some((document) => remainingSelected.includes(document.fileId)));
 
   function updateField(index: number, change: Partial<ProductAutoBriefField>) {
     setBriefFields((current) => current.map((field, fieldIndex) => fieldIndex === index
@@ -302,13 +307,23 @@ export function ProductAutoPage() {
     setError("The prior request was not retried. A new extraction request may incur another model call.");
   }
 
-  async function downloadReviewedBatch() {
-    if (!activeRun || !batchReady) return;
+  async function downloadReviewedBatch(copy = false) {
+    if (!activeRun || !batchReady || downloadingRunId !== null) return;
     const runId = activeRun.runId;
     setDownloadingRunId(runId);
     setError("");
+    setExportMessage(null);
     try {
       const blob = await idpoApi.downloadProductAutoReviewedBatch(jobId, runId);
+      if (copy) {
+        try {
+          await navigator.clipboard.writeText(await blob.text());
+          setExportMessage({ runId, text: "Reviewed batch JSONL copied." });
+        } catch {
+          setExportMessage({ runId, text: "Clipboard access is unavailable. Use Download reviewed batch." });
+        }
+        return;
+      }
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -317,6 +332,7 @@ export function ProductAutoPage() {
       link.click();
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      setExportMessage({ runId, text: "Download requested. If your browser blocks the file, use Copy reviewed JSONL." });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not download the reviewed batch.");
       void idpoApi.listProductAutoRuns(jobId).then((data) => setRuns(data.runs)).catch(() => undefined);
@@ -344,7 +360,7 @@ export function ProductAutoPage() {
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{documents.length} {documents.length === 1 ? "file" : "files"} in this job. Uploading does not start extraction.</p>
         <ProductFileUpload key={jobId} jobId={jobId} disabled={starting || running || briefBusy || suggesting} onUploaded={refreshFiles} />
       </IdpoCard>
-      {pendingRunRequest ? <IdpoCard>
+      {pendingRunRequest && !starting ? <IdpoCard>
         <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">An extraction start may already have been accepted.</p>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Check runs or retry the same selection and schema. The saved request key prevents a repeated paid attempt after a lost response.</p>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -507,9 +523,12 @@ export function ProductAutoPage() {
           <button type="button" disabled={!confirmed || !reviewedPreviewRun || remainingSelected.length === 0 ||
             !available || !modelConfigured || modelActionBlocked || running || starting || briefBusy} onClick={() => void startConfirmedRun("batch")}
             className="rounded-lg border border-cyan-600 px-4 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-50 disabled:opacity-50 dark:text-cyan-300">
-            Apply to {remainingSelected.length} remaining files
+            Extract {remainingSelected.length} selected {remainingSelected.length === 1 ? "file" : "files"}
           </button>
         </div>
+        {repeatsBatchFiles ? <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">
+          Some selected files already have batch results for this schema. Open those results below before starting another run, which may incur another model charge.
+        </p> : null}
         {previewRun ? <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
           Latest preview {previewRun.status}. {reviewedPreviewRun ? "A reviewed sample preview is ready for the batch." :
             "Review every preview document using the links in Runs below."}
@@ -600,12 +619,18 @@ export function ProductAutoPage() {
               <button type="button" onClick={() => void downloadReviewedBatch()}
                 disabled={!batchReady || downloadingRunId !== null}
                 className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-800 disabled:cursor-not-allowed disabled:opacity-50">
-                {downloadingRunId === activeRun.runId ? "Preparing download…" : "Download reviewed batch"}
+                {downloadingRunId === activeRun.runId ? "Preparing export…" : "Download reviewed batch"}
+              </button>
+              <button type="button" onClick={() => void downloadReviewedBatch(true)}
+                disabled={!batchReady || downloadingRunId !== null}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700">
+                Copy reviewed JSONL
               </button>
               <p className="text-sm text-slate-600 dark:text-slate-300">
                 {reviewedCount} of {activeRun.selectedCount} reviewed. JSONL has one structured result per document.
               </p>
             </div>
+            {exportMessage?.runId === activeRun.runId ? <p role="status" className="mb-3 text-sm text-slate-600 dark:text-slate-300">{exportMessage.text}</p> : null}
             <table className="w-full min-w-[600px] text-sm">
               <thead><tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-700"><th className="py-2 pr-3">Document</th><th className="py-2 pr-3">Status</th><th className="py-2 pr-3">Fields</th><th className="py-2 pr-3">Text matched</th><th className="py-2 pr-3">Human review</th></tr></thead>
               <tbody>{activeRun.documents.map((document) => (

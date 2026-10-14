@@ -9,7 +9,7 @@ export function sourceTextPanelCopy(
     introduction: visual
       ? "Compare image-derived values with the original source. Record the page you observed for added values."
       : "Compare each proposed value and source quote against the uploaded document.",
-    summary: `${isNative ? "Native source text by unit" : "OCR text by page"} · ${visual
+    summary: `${isNative ? "Native source text by unit" : "Extracted text by page"} · ${visual
       ? "image additions use a reviewer-observed page" : "copy exact quotes for added fields"}`,
     emptyMessage: sourcePages.length === 0
       ? "No source pages were recorded. Source-backed additions require a valid page."

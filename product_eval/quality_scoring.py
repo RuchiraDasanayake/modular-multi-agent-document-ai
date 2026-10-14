@@ -201,6 +201,8 @@ def assemble_scores(bundle: dict, gold: dict) -> dict:
         uncertainty[metric] = result
     return {"families": reports, "paired_sources": [per_source[key] for key in sorted(per_source)],
             "paired_uncertainty": uncertainty, "all_sources_retained": True, "usd_cost": None,
+            "execution_amendments": {"transport": bundle.get("transport_amendment"),
+                                     "http408_stop_resolutions": bundle.get("http408_execution_resolutions", [])},
             "human_release_measured": False,
             "accepted_status_interpretation": "Inherited accepted_* metrics refer to machine field status; no human review or release was measured",
             "whole_document_visual_truth_established": False, "quality_threshold_release_pass": None,
@@ -208,9 +210,11 @@ def assemble_scores(bundle: dict, gold: dict) -> dict:
 
 
 def run_analysis(run: Path, seal_sha256: str, output: Path, *, vrdu_root: Path, cord_gold: Path,
-                 transport_amendment_sha256: str | None = None) -> dict:
+                 transport_amendment_sha256: str | None = None,
+                 http408_resolution_sha256: list[str] | tuple[str, ...] = ()) -> dict:
     verification.require(not output.exists() and not output.resolve().is_relative_to(run.resolve()), "New external analysis directory required")
-    bundle = verification.verify_campaign(run, seal_sha256, transport_amendment_sha256=transport_amendment_sha256)
+    bundle = verification.verify_campaign(run, seal_sha256, transport_amendment_sha256=transport_amendment_sha256,
+                                         http408_resolution_sha256=http408_resolution_sha256)
     output.mkdir(parents=True, exist_ok=False)
     write_new(output / "verified-before-labels.json", bundle["receipt"])
     gold, reference_receipt = load_references(bundle["sources"], vrdu_root, cord_gold, output)
@@ -224,7 +228,7 @@ def run_analysis(run: Path, seal_sha256: str, output: Path, *, vrdu_root: Path, 
     code_root = Path(__file__).resolve().parents[1]
     receipt = {**bundle["receipt"], "reference_conversion": reference_receipt,
                "analysis_modules_sha256": {name: digest_file(code_root / "product_eval" / name) for name in (
-                   "quality_scoring.py", "quality_scoring_verification.py", "paired_uncertainty.py")},
+                   "quality_scoring.py", "quality_scoring_verification.py", "quality_http408_resolution.py", "paired_uncertainty.py")},
                "python_version": platform.python_version(), "files": {path.name: digest_file(path) for path in sorted(output.iterdir())},
                "no_inference_or_ocr": True, "no_reference_repairs": True}
     sha = write_new(output / "scoring-receipt.json", receipt)
@@ -237,9 +241,11 @@ def main() -> None:
         parser.add_argument(f"--{name}", required=True, type=Path)
     parser.add_argument("--prediction-seal-sha256", required=True)
     parser.add_argument("--transport-amendment-sha256")
+    parser.add_argument("--http408-resolution-sha256", action="append", default=[])
     args = parser.parse_args()
     result = run_analysis(args.run, args.prediction_seal_sha256, args.output, vrdu_root=args.vrdu_root, cord_gold=args.cord_gold,
-                          transport_amendment_sha256=args.transport_amendment_sha256)
+                          transport_amendment_sha256=args.transport_amendment_sha256,
+                          http408_resolution_sha256=args.http408_resolution_sha256)
     print(json.dumps(result, indent=2))
 
 
