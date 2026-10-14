@@ -111,10 +111,23 @@ failure boundaries; unknown provider usage is not zero cost.
 
 Keep the [2,000-original operational report](evaluations/MODEL2000_VERIFIED_OPERATIONAL_20261013.md) separate:
 1,987 originals began model requests and 1,930 had strict/full-coverage outputs; its all-source gate did not pass,
-and those counts do not measure value correctness. The [preregistered paired quality study](evaluations/QUALITY240_PREREGISTRATION_20261013.md)
-must finish, seal and pass independent verification before its labels are opened and results reported. Frozen
-campaigns require their own explicit incident procedures; the demo controls do not authorize replaying them.
+and those counts do not measure value correctness. The [paired quality study](evaluations/QUALITY240_RESULTS_20261014.md)
+completed on 13–14 October UTC; all 480 source-arm outcomes were sealed and independently verified before reference
+access and scoring. Its results are mixed: scalar macro recall was 64.77% text / 65.09% selective and whole-row macro
+recall 34.13% / 41.74%, with both macro difference intervals including zero. Receipt rows improved while ad-buy
+rows declined. Valid complete outcomes were 222/240 and 217/240; each arm retained 14 uncertain sources. Known
+candidate token volume was higher; USD cost remains unknown. Describe these as fixed-schema reference agreement,
+not demonstrated automatic schema quality or an extraction guarantee.
 
-Research/release thresholds, final camera-ready results and layout checks, author details, consent, signatures and
-author-controlled conference submission remain separate sign-off items. Use the latest evidence record when
-presenting their status; a successful demonstration does not close those gates.
+The [source union](evaluations/VERIFIED_SOURCE_UNION_RESULT_20261014.md) counts the operational study and
+source-disjoint candidate arm only: 2,240 selected, 2,225 model-attempted, 2,147 valid complete and 2,146 non-null
+complete originals. It is structural coverage across separate studies; the baseline does not add documents and the
+original 2,000-source all-source gate remains failed. Frozen campaigns retain their own incident procedures;
+demo controls do not authorize replaying them.
+
+Final paper/slide generation and layout checks, author details, consent, signatures and author-controlled conference
+submission remain separate sign-off items. Editable author Word forms have been delivered privately for completion.
+Chrome/Edge file selection and saving a download remain unverified after Windows URL control stopped; the user
+could not check them. Authenticated API exports and prior browser review/copy checks do not close that delivery
+check. Use the latest evidence record when presenting status. Arbitrary-document accuracy, lower cost and high
+availability are not certified by the demo or these studies.

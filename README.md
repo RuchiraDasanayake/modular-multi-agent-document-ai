@@ -6,9 +6,9 @@
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-000000.svg?logo=next.js&logoColor=white)](frontend/package.json)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.114+-009485.svg?logo=fastapi&logoColor=white)](gateway/requirements.txt)
 
-A document extraction workspace: describe the information you need, confirm a schema from sample files, preview
-the results, process the remaining files, and review source evidence before exporting structured JSON.
-It includes a separate research pipeline for studying adaptive document policies.
+A native Windows extraction and review workspace: describe the information you need, confirm a schema from sample
+files, preview the results, process the remaining files, and review source evidence before exporting structured JSON.
+Its usable workflow and bounded research evidence are documented separately from the adaptive-policy research tools.
 
 > **Research results and how to reproduce them:** see [`docs/REPRODUCING_RESULTS.md`](docs/REPRODUCING_RESULTS.md).
 
@@ -22,21 +22,27 @@ It includes a separate research pipeline for studying adaptive document policies
 > In the [six-source paired development comparison](docs/evaluations/PAIRED_PRODUCT_DEV6_RESULTS_20261013.md),
 > bounded image extraction matched 20/34 scalar targets and 29/43 whole rows, versus 14/34 and 0/43
 > for text alone. It used 3.83 times as many tokens; all image proposals required review.
-> An explicit [selective routing candidate](docs/evaluations/SELECTIVE_VISUAL_ROUTING_V2_20261013.md)
-> now reserves image input for repeated fields, long text and missing OCR text on eligible sources.
-> Its held-out quality and cost comparison remains pending.
-> General-purpose accuracy, cost per correct document and production readiness are **not yet validated**.
+> The [240-source paired comparison](docs/evaluations/QUALITY240_RESULTS_20261014.md) completed on 13–14 October
+> UTC, with all 480 source-arm outcomes terminal, sealed and independently verified before reference access.
+> Scalar macro recall was 64.77% for strict text and 65.09% for selective vision; whole-row macro recall was 34.13%
+> and 41.74%. Both paired macro difference intervals include zero. Receipt rows improved while ad-buy rows declined.
+> The candidate used more known tokens: 1,597,180 versus 878,447; usage was unknown on 16 versus 13 attempts.
+> Valid complete outcomes numbered 217/240 versus 222/240, and both arms retained 14 uncertain sources.
+> These fixed-schema results do not establish general-purpose accuracy, schema-discovery quality or lower USD cost.
 > The [verified 2,000-original operational study](docs/evaluations/MODEL2000_VERIFIED_OPERATIONAL_20261013.md)
 > recorded model attempts for 1,987 originals and strict/full-coverage outputs for 1,930; 1,929 were non-null.
 > All valid outputs require review. The all-source gate did not pass; coverage is not accuracy.
 > Its separate image-header check passed all 798 cohort images under the later release guard.
-> The product remains a research prototype. The separate
-> [240-source paired quality comparison](docs/evaluations/QUALITY240_PREREGISTRATION_20261013.md)
-> is preregistered and its final result remains pending.
+> The [verified source union](docs/evaluations/VERIFIED_SOURCE_UNION_RESULT_20261014.md) combines the operational
+> study and the source-disjoint candidate arm: 2,240 selected originals, 2,225 with model requests begun, 2,147 valid
+> complete outputs and 2,146 non-null complete outputs. The text baseline contributes no extra sources; these counts
+> measure structural coverage across separate studies, not semantic correctness or human release quality.
 > The [14 October release verification](docs/evaluations/RELEASE_VERIFICATION_20261014.md) records the tested
 > model-failure safeguards, native build/export checks and remaining conference sign-off gates.
 > The [productization plan](docs/PRODUCTIZATION_PLAN.md) retains the earlier failed baselines and release gates;
 > [`paper/FINAL_EVIDENCE.md`](paper/FINAL_EVIDENCE.md) preserves the separate historical research results.
+> Final paper/slide generation and visual checks, author approval/signatures and ordinary-browser file delivery
+> remain open. Arbitrary-document accuracy, cost per correct document and high availability are not certified.
 
 ## Product Workflow
 

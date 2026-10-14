@@ -1,0 +1,119 @@
+{
+  "version": 1,
+  "kind": "verified_source_union",
+  "status": "accounted",
+  "baseline_arm_counted": false,
+  "source_disjoint": true,
+  "shared_originals": {
+    "non_null_full_coverage": 0,
+    "request_begun": 0,
+    "selected": 0,
+    "valid_full_coverage": 0
+  },
+  "distinct_union": {
+    "non_null_full_coverage": 2146,
+    "request_begun": 2225,
+    "selected": 2240,
+    "valid_full_coverage": 2147
+  },
+  "at_least_2000": {
+    "non_null_full_coverage": true,
+    "request_begun": true,
+    "selected": true,
+    "valid_full_coverage": true
+  },
+  "families": {
+    "ad-buy-form": {
+      "non_null_full_coverage": 373,
+      "request_begun": 400,
+      "selected": 405,
+      "valid_full_coverage": 373
+    },
+    "receipt": {
+      "non_null_full_coverage": 786,
+      "request_begun": 828,
+      "selected": 838,
+      "valid_full_coverage": 786
+    },
+    "registration-form": {
+      "non_null_full_coverage": 987,
+      "request_begun": 997,
+      "selected": 997,
+      "valid_full_coverage": 988
+    }
+  },
+  "studies": {
+    "operational": {
+      "attempt_accounting": {
+        "attempts_with_unknown_sdk_count": 0,
+        "attempts_with_unknown_usage": 26,
+        "known_sdk_attempts": 2053,
+        "uncertain_attempts": 26
+      },
+      "non_null_full_coverage": 1929,
+      "request_begun": 1987,
+      "request_begun_attempts": 2053,
+      "sealed_pre_model_rejections": 13,
+      "selected": 2000,
+      "source_states": {
+        "sealed": 1974,
+        "uncertain": 26
+      },
+      "uncertain_before_model": 0,
+      "valid_all_null_originals": 1,
+      "valid_full_coverage": 1930,
+      "valid_strict_reply_attempts": 1996
+    },
+    "quality_candidate": {
+      "attempt_accounting": {
+        "attempts_with_unknown_completion_tokens": 16,
+        "attempts_with_unknown_prompt_tokens": 16,
+        "attempts_with_unknown_sdk_attempts": 0,
+        "known_sdk_attempts": 247,
+        "uncertain_attempts": 14
+      },
+      "non_null_full_coverage": 217,
+      "request_begun": 238,
+      "request_begun_attempts": 247,
+      "sealed_pre_model_rejections": 2,
+      "selected": 240,
+      "source_states": {
+        "sealed": 226,
+        "uncertain": 14
+      },
+      "uncertain_before_model": 0,
+      "valid_all_null_originals": 0,
+      "valid_full_coverage": 217,
+      "valid_strict_reply_attempts": 226
+    }
+  },
+  "registered_profiles_sha256": {
+    "operational": "bd0ca513c77a2d6088604fed7e8865282547159e212429282dba59bc55da5e41",
+    "quality_candidate": "d9a3654f46eb0b45c6b391297317fe0d42ab11e10633b1d9a8f4826a3b4fb940"
+  },
+  "inputs": {
+    "operational_protocol_sha256": "b9571b78a9be196573cd14c7ac8b4050cb741f091646eeb1c76257bfdae69eeb",
+    "operational_receipt_sha256": "a1f6023f66002abb37bb5b9c1b57fdf519670392b60462601c79081f133fa57f",
+    "operational_report_sha256": "d18822bee95558bc66b34452152868104acf4e3b2571eda82e0916d8555ec4cb",
+    "operational_seal_sha256": "700e380ff440b93e485ad90e511c93b2f82e126dd8013a2a7878b346e44c97ea",
+    "quality_protocol_sha256": "3cf41aac59be90d610a4479d1d9876bbf77894e9d55162983a8713b510594075",
+    "quality_receipt_sha256": "ac97bdd7dfc29b9e612ffcf6e623c74e757971009b45d9495d17f95e87388809",
+    "quality_result_sha256": "61a3ba744005d607dcb7be931988bd8058395af2749bfb90ff514ddb96b75f45",
+    "quality_seal_sha256": "baed791acffbaa44171525cb51810f808db691615eebbc83b99890a75d3229cd"
+  },
+  "accuracy_measured": false,
+  "human_release_measured": false,
+  "labels_opened": false,
+  "predictions_opened": false,
+  "usd_cost": null,
+  "limitations": [
+    "Consumes externally pinned independent verification/scoring attestations; does not rerun them.",
+    "Request begun does not prove delivery, billing, completion or correctness; unknown attempts remain unknown.",
+    "Full coverage uses the current verifier's strict parsed reply and source-coverage criteria, not semantic correctness.",
+    "Non-null full coverage means at least one non-null field, not a correct or complete semantic extraction.",
+    "Each study retains its own denominator. Shared source bytes count once; two partial results cannot form a success.",
+    "The text baseline contributes no sources or results. Human review and release were not measured."
+  ],
+  "source_report_sha256": "b69438a7555fc191c230eeef7bd9220950d92e092c9ae424cb1eeefb0a83b9f2",
+  "publication_scope": "Stage totals, family totals, study totals and provenance hashes only; original-level identities and execution-profile objects are omitted. Helper access flags describe the union calculation, not the earlier quality scoring."
+}

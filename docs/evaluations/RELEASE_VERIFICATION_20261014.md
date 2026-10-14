@@ -88,12 +88,13 @@ application commit `d06f984286aa7b3e6cad5937cf193fdf53dbe384` is `GZmahZ4Wgx04zL
 | Gate | Current evidence / remaining action |
 | --- | --- |
 | 2,000-original operational execution | Completed and independently verified: 1,987 originals began model requests; 1,930 strict/full-coverage outputs. All-source success gate failed. [Report](MODEL2000_VERIFIED_OPERATIONAL_20261013.md). |
-| Paired extraction quality | Frozen 240-source comparison stopped again on rate limiting after a bounded resume. Text: 44 sealed, 3 uncertain, 193 unstarted; candidate: 46 sealed, 2 uncertain, 192 unstarted. Valid/full-coverage outputs: 44 text, 45 candidate. Labels remain unopened. Resume only unstarted slots once availability is restored, then seal, verify and score. |
-| ICORE availability | The separate 25-source strict-v2 development trial stopped after its first request returned HTTP 429; 24 sources remain unstarted. A later quality-study resume completed additional work before another 429. Latest stop receipt: `8be599b1d363318843eac102cce1445a30c0c2e0675e9c536092cf6cf90a286d`. No automatic retry or default promotion. |
-| Latest release accuracy | The completed 2,000-source campaign predates these fixes. Its measurements cannot be attributed to this release. JPEG packing checks and synthetic v2 checks are engineering evidence only. |
+| Paired extraction quality | [Completed on 13–14 October UTC](QUALITY240_RESULTS_20261014.md): all 480 slots terminal, sealed and independently verified before reference access. Scalar macro recall 64.77% text / 65.09% selective; whole-row macro 34.13% / 41.74%; both macro difference intervals include zero. Receipt rows improve, ad-buy rows decline. Valid complete outcomes: 222/240 text, 217/240 candidate; 14 uncertain sources per arm. |
+| ICORE accounting | The quality campaign is permanently closed. Provider failures and unknown usage remain in its denominators; known tokens total 878,447 text / 1,597,180 candidate, with usage unknown on 13/16 attempts. No USD cost or current provider-availability guarantee is inferred. The separate strict-v2 development trial remains an incomplete diagnostic and was not promoted. |
+| Distinct-source volume | [Verified union](VERIFIED_SOURCE_UNION_RESULT_20261014.md): 2,240 selected, 2,225 model-attempted, 2,147 valid complete and 2,146 non-null complete originals across the operational study and source-disjoint candidate arm; baseline excluded. Structural coverage does not establish semantic correctness or replace the failed original operational gate. |
+| Latest release accuracy | Both frozen extraction studies use their registered implementations. Their measurements cannot be attributed to later UI/provider fixes. JPEG packing checks and synthetic v2 checks are engineering evidence only. |
 | Browser workflow | Sign-in, creation, upload, schema confirmation and existing review rendering verified. Authenticated exports pass; browser file-save delivery remains unconfirmed. |
-| Camera-ready paper and slides | Official-template working drafts include verified operational results and corrected simulation. Paired quality results and final layout verification remain. |
-| Author package | Confirm department/city wording, corresponding author, required secondary contacts, all-author approval and declaration signatures. External submission remains author-controlled. |
+| Camera-ready paper and slides | Official-template working drafts and verified paired reporting inputs are prepared. Final manuscript/reviewer-response and slide generation, rendering and visual inspection remain. |
+| Author package | Editable Word completion/declaration forms delivered privately. Department/city wording, corresponding author, secondary contacts, author approval, consent, signatures and dates remain author input. External submission remains author-controlled. |
 
 Release work is limited to these gates and reproducible defects found while completing them. Additional agent loops,
 service migrations and unmeasured parser replacements are not prerequisites for this conference package.
@@ -118,4 +119,22 @@ synthetic PDF export still has revision 2 and SHA-256
 `125909f9b053ab6f1458e58a59a4c35640c888c2eb47a6cf34b933c49e8e2e2b`.
 That check made zero model calls. Windows browser control stopped because it could
 not reliably identify the current URL, so it supplies no new browser-delivery
-evidence. The paired quality study continues with its original frozen code.
+evidence. The paired quality study subsequently completed with its original frozen code; see the result report above.
+
+The latest dated main revision is `f2a8ef93b92757845c67fe86aeec5c3a4e14754c`.
+Its retained frontend build is `vI8XZs2w6kUsZ3w3gFwjp`, completed 14 October at
+13:36:56 UTC, with source fingerprint
+`ed84fc98ac78f5df49769912c09547f08c962158fb813debe80faae8f62bb8d3`.
+These 194 passed/five skipped frontend checks and the matching production build
+are implementation evidence. Later research-runtime/recovery clarifications do
+not change the frozen study or validate the missing historical bundles.
+Post-evaluation native verification passed the current-byte fingerprint check,
+four verified service identities, three owned listening ports and worker health. A fresh authenticated
+GET of the retained reviewed PDF export matched
+`125909f9b053ab6f1458e58a59a4c35640c888c2eb47a6cf34b933c49e8e2e2b`
+with zero model calls. Private verification receipt SHA-256:
+`5ac9779928ea70a6ec89bc5b5de2cab2c3baba33bf5a1c9bdc5bbf4ab79cd968`.
+Documentation/evidence edits were still being prepared during that check;
+final clean-main verification follows their publication merge.
+Chrome/Edge file selection and saved-download delivery remain unverified after
+Windows URL control stopped and the user could not perform the manual check.

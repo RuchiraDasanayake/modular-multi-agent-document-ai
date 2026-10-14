@@ -85,7 +85,7 @@ the last source closure, including provider and operator pauses and excluding
 later sealing and analysis. Exact process-active campaign duration was not
 recorded. All 240 sources per arm remain in the source denominator.
 
-## Execution checkpoint, 14 October
+## Completed analysis, 14 October
 
 Preparation copied all 269 exact registered modules and the five analysis modules.
 The unchanged fourteen-module guard passed against the real protocol, with no
@@ -93,13 +93,26 @@ prediction contents or reference labels read and zero model calls. Independently
 retained analysis manifest SHA:
 `a8c712379c8c8f1ab5bea7609365f15421d3af793925466a460cb54574c2e6db`.
 
-The prediction campaign is incomplete. At the latest inspected provider HTTP 503
-stop, text had 146 sealed, 6 uncertain and 88 unstarted sources; candidate had 147
-sealed, 5 uncertain and 88 unstarted sources. These are execution states, not
-accuracy measurements. The consecutive provider errors were preserved without
-replay. Execution remains stopped at control SHA
-`d5c2f133a2d997d2dfe53da83875da35477f2a9ee13e440202bbe1062bf866ef`.
-No prediction seal exists, and scoring has not run. A successful small provider
-canary earlier in the session did not establish reliability for document requests.
-Investigate provider availability before resuming untouched sources; retain every
-original denominator and unknown-usage event.
+The campaign completed on 13–14 October UTC with all 480 source-arm slots
+terminal and no unstarted slots. The prediction seal was independently verified
+before reference access and isolated offline scoring. An independent count-based
+recalculation passed 231 checks and reproduced every primary family/macro
+bootstrap interval endpoint exactly. See the
+[actual result report](QUALITY240_RESULTS_20261014.md) and
+[source-union report](VERIFIED_SOURCE_UNION_RESULT_20261014.md).
+
+| Evidence | SHA-256 |
+| --- | --- |
+| Prediction seal | `baed791acffbaa44171525cb51810f808db691615eebbc83b99890a75d3229cd` |
+| Independent pre-reference verification | `3d7cfc983a5cf9d04eff67e21b3bc26c3b2bfe9682f53ae0544bddf82010347e` |
+| Scored quality results | `61a3ba744005d607dcb7be931988bd8058395af2749bfb90ff514ddb96b75f45` |
+| Scoring receipt | `ac97bdd7dfc29b9e612ffcf6e623c74e757971009b45d9495d17f95e87388809` |
+| Timing/usage report | `d9531b68ff439d104d1908919502d9f94c1a7e4aa611b8db6e4e55562b58b3d3` |
+| Independent numeric reconciliation | `731cbe90e26c3d3442e349a2e37882921fe44862f81413f141a6311574bf2f7e` |
+
+Both macro paired-difference intervals include zero. Receipt whole-row recall
+improves while ad-buy rows decline; candidate known token volume is higher.
+The primary scalar denominator retains all 54 historical ordered-list/schema
+mismatches per arm. Provider errors, 14 uncertain sources per arm and unknown
+usage remain visible. These results support no universal accuracy, automatic
+schema-quality or lower-USD-cost claim, and no frozen outcome was replayed.

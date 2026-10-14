@@ -5,9 +5,10 @@ Classification: `research_evidence`; action: `keep`.
 Status: terminal accounting and independent offline verification complete;
 **the all-source operational gate did not pass**. This records the campaign
 frozen on 13 October 2026, with its final report packaged on 14 October.
-The separate [paired quality evaluation](QUALITY240_PREREGISTRATION_20261013.md)
-remains pending. The product remains a research prototype with unvalidated
-general-purpose accuracy, cost per correct document and production readiness.
+The separate [paired quality evaluation](QUALITY240_RESULTS_20261014.md) has
+completed with mixed results; the later source union is described below. The
+native extraction/review workflow is usable, while general-purpose accuracy,
+cost per correct document and production readiness remain unvalidated.
 
 ## Method and denominator
 
@@ -193,13 +194,21 @@ Earlier negative development baselines and historical research summaries remain
 available with their original limitations; this operational result does not
 replace or validate them.
 
-## Remaining evaluation
+## Subsequent evaluation, 14 October
 
-Complete the preregistered, source-disjoint paired quality study, independently
-verify both arms before reference access, and report creator-label agreement
-with its annotation limits and paired uncertainty. Its confirmed-schema metrics
-will still not establish schema-discovery accuracy or universal document quality.
-The [prospective source-union helper](VERIFIED_SOURCE_UNION_20261013.md) can later
-account for distinct selected, attempted and complete originals across the two
-studies while preserving their separate denominators and this failed gate.
-No such combined result is claimed here.
+The separate [240-original paired comparison](QUALITY240_RESULTS_20261014.md)
+completed on 13–14 October UTC. Both arms were permanently closed and all 480
+outcomes independently verified before reference access and offline scoring.
+Its results are mixed: both scalar and whole-row macro difference intervals
+include zero; receipt rows improve and ad-buy rows decline. Candidate known
+token volume is higher, while USD cost remains unknown. This fixed-schema
+comparison does not establish schema-discovery or arbitrary-document accuracy.
+
+The [verified source union](VERIFIED_SOURCE_UNION_RESULT_20261014.md), using the
+[source-union helper](VERIFIED_SOURCE_UNION_20261013.md), accounts for 2,240
+distinct selected originals across this operational study and the source-disjoint
+candidate arm: 2,225 with model requests begun, 2,147 valid complete outputs and
+2,146 non-null complete outputs. The text baseline contributes no extra sources.
+These are structural criteria across separate studies, not semantic correctness.
+This later union preserves every measured table and denominator above and does
+not turn the original failed all-source gate into a pass.

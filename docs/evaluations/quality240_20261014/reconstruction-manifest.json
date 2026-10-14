@@ -1,0 +1,5138 @@
+{
+  "version": 1,
+  "type": "quality240_portable_reconstruction_manifest",
+  "registered_protocol_sha256": "3cf41aac59be90d610a4479d1d9876bbf77894e9d55162983a8713b510594075",
+  "registered_inventory_sha256": "214def43738fd2bafb3102d80b4f26287e5b405140206abc767c361521e135ab",
+  "coordinator_commit": "1d1d55a501b007f6d815f4880517c3ec980b1607",
+  "registered_python_source_sha256": {
+    "idpo/__init__.py": "127a5f97f45a9e1402447fe8665792502c0c87f880e7737b1374e4a4796e17db",
+    "idpo/agents/__init__.py": "0abc22df692cb0bc6ccd8488a9ff7b1b897e2ca753cee33e9b12a75af95b2dbf",
+    "idpo/agents/answering.py": "769e64e16296e268a4e441d23ad3130fc0ddae1467ce1ae456c91513f40a5f1c",
+    "idpo/agents/base.py": "bf139bc0a8e3df20048b9ad72ec175170e13aa12955175e5a057282d7d57dc50",
+    "idpo/agents/chunking.py": "44f3f5d63b15503c66cd9145bf669dc04f4354f04747f510ea78b8e7d9d10ae9",
+    "idpo/agents/degarble.py": "4f3ed20fcf1cd2cb2a9ac751ab092d4f2fabf6c3120860e4e0169c763ce9b014",
+    "idpo/agents/doc_analysis.py": "a8881adf538a30c35d60540e0b4b70425ed27514552c60574b95fc566882ec3a",
+    "idpo/agents/escalation.py": "df56de8d657df9dfed15036d3ef1768b6d13ee2bba016ea9f91b77dc4f6c3a7f",
+    "idpo/agents/extraction_descriptions.py": "88136981ecec5c473dc3f2c4e3a8d965958830b8b1248981758ae0467311987e",
+    "idpo/agents/extraction_generic_kv.py": "3c0c7a3a4b0e4004807a8bbd6a1978f1ca0c3c2f7de61cdcb822bdb06a4ca7d5",
+    "idpo/agents/extraction_heuristics.py": "3b9347832cf743b7b3ff4d45d1e9046ada16807d7807f71d527f6d6148488ca4",
+    "idpo/agents/extraction_parsing.py": "6c6f506cd140c6ca588b1b8ed99da5391303914a36b668e70657efc2dd3ec4ed",
+    "idpo/agents/extraction_prompts.py": "f7533815ef501c4ea2899c3d2713e96bdbbc0e78ad54723dbf3f4d7636a75a7d",
+    "idpo/agents/extraction_providers.py": "6a9f0c33f12b921466b299477e8e08b22fa493c411d1df84cf58459ddd2d2b22",
+    "idpo/agents/extraction_rules.py": "68fa5800d9fe3be4c630bdda6c10344c0fb8277dfd61b063d03af338b7ac639d",
+    "idpo/agents/intake.py": "6f83e9f0c8f9712c1d7b5160fee8eef90cabcac31a8084f4cb9a6964f90580e4",
+    "idpo/agents/llm_extraction.py": "7164fbc6eaf4408836cdbe189b7dffd196f3e97bcb803d40d959e12bb74384a6",
+    "idpo/agents/preprocess.py": "451ab517af9381a8b017346ec9f2e7cba8fba7e079d3f1ed0cead4381e282344",
+    "idpo/agents/recovery.py": "0330db54bf7923b004992aed50ce8b8acd7ddaf068aaa198bfc8be5baae94c1a",
+    "idpo/agents/retrieval_agent.py": "29cd14c796c454f18d139bffb0d2a1816d594f40f1dff6441abaf3b0a8cb4f31",
+    "idpo/agents/structuring.py": "e799cc5feb544a769e9270ef70db2ef906d696cba2b2fb3c989f6d5a98f21619",
+    "idpo/agents/validation.py": "392fd215bf2b3c7564f5c8ae7b6da4ff6409189865a34040bd6637674b172408",
+    "idpo/cli.py": "b7870855b460f751a8d022d6838c0a2047486a251a8a35c39082b70c46a43095",
+    "idpo/core/__init__.py": "0abc22df692cb0bc6ccd8488a9ff7b1b897e2ca753cee33e9b12a75af95b2dbf",
+    "idpo/core/artifacts.py": "f5a23601e7b6fcd3268c2f980964cfc8d603a51ba8d0a9625bb26afd9230c3b8",
+    "idpo/core/budget.py": "11cf3e950b7621ebad07111dc9a3630406591320b3f4f50a502cf72ad6d934b7",
+    "idpo/core/calibration.py": "40ebed32b2eb43b5bd4fb333f675c33ebd9ef921e027cb0e57293f9831f43961",
+    "idpo/core/config.py": "40bcee0c9b9a7939a01e67494c2e53d82ddffad88cdbf17075f9c6a6b5ae6e7e",
+    "idpo/core/contracts.py": "7bb43b57074ae516701158bd7ef6957b8ea5224a159ff8d2dd38d785b41d39c4",
+    "idpo/core/metrics.py": "cec6dad7776421d8efd536fb07e88cfd1e5e4eaed3b7fc43efa43385eb556605",
+    "idpo/core/pdf_native.py": "6502dd718dbba8a042da7784a70a28896115ac1f6a16dd312554b02e881d7377",
+    "idpo/core/pdf_raster.py": "91717d03c9e7e16f5a2c2838fe864bf6f9ad2ce95c0a11c46adc3509903ebcb7",
+    "idpo/core/policy_store.py": "6f9747c257b875ce2f266bae1e697272028caca410a4d12bccf0c2249f58fb81",
+    "idpo/core/preflight.py": "6a1f49c177c19b9c6619aaf83a0c3563d781f4f6855921b6154556e667ae1823",
+    "idpo/core/provenance.py": "612044822c7cd3f8c4a6c2bf3ef6b7610253ed3b9475ed7448033d8061a4ae95",
+    "idpo/core/storage.py": "4dce87a16f08e04f478b39fb2dabe8490dc6d2dc35c11481e2663f32e95a16ed",
+    "idpo/core/types.py": "428c5143f218c7b9586ec44a38ce4f915dd3daae8b409f7b75537fcae048370d",
+    "idpo/evaluation/__init__.py": "0abc22df692cb0bc6ccd8488a9ff7b1b897e2ca753cee33e9b12a75af95b2dbf",
+    "idpo/evaluation/runner.py": "732c8cfdf4b14c723a46b181bbc5b1fc118d677a6d46c617e4c12f087a908d0d",
+    "idpo/integration.py": "acbb6e1a995c1fd3a47f1406e04140030d81e4b0abf26f3fe048e74ff1d926e9",
+    "idpo/pipeline/__init__.py": "7f89599ff7372c14c7b4c126d987468f96e38ce1710f08ac73fcd59a9bf5a096",
+    "idpo/pipeline/doc_artifacts.py": "4919785fecca7f38cac0ffc52aea094f440b071f6e3d15f11c70142eb9336d0f",
+    "idpo/pipeline/doc_records.py": "fa50ab14807b56aca8cac89f1c8d941c0755563d698fa9c50de9579e1aa521a5",
+    "idpo/pipeline/executor.py": "441f56eaec47763e9fa3df43f50b96feed58a55bbc4acaf1a7d6837e999d8fa2",
+    "idpo/pipeline/feedback.py": "7851488a4b1594af8d3db77a63daede792444859ea5ba9cee3411467bf2301f2",
+    "idpo/pipeline/inbox.py": "3f39959f53c453f4f38f158e92fb14a3d43056534a8b7593c70e36e9a9e5d091",
+    "idpo/pipeline/job_context.py": "cbb0fa3e7bf3b11ce7085e7d2c6cf503c06e3ec8dbe3a171185147b92f83c1a9",
+    "idpo/pipeline/orchestrator.py": "0c8b97637e2e32150ef969006effd9b075cc712eb62e6baff726156361152380",
+    "idpo/pipeline/planning.py": "26afcfc3350b13d669d657898d899d2b282f1c8466655dabf3bfeead9ad0da9e",
+    "idpo/pipeline/policy_advisor.py": "861ad5ab299c40e4c231cc3f2bceafcff5dc30fe8b0503df106dc013e45a8b57",
+    "idpo/pipeline/policy_safety.py": "a7887b385e2c7a5bdccc051ec574cb4786964913a08393b43f6adfd48c041144",
+    "idpo/pipeline/results.py": "4aacf672a3ccd2a4c5fcf98309104ea1c86723ab3a99bae6f9c45a1ee32b184e",
+    "idpo/pipeline/reward.py": "a8f8ae2f3ea95b91de46d43817b4d4d320cefb207be5b51ce3c7ad14387b77cd",
+    "idpo/pipeline/run_reports.py": "4126bb2959e3dcbb5e9ed23034dbb5b2013d235bcda750e97921a78ac4c48af7",
+    "idpo/pipeline/serialization.py": "24d8205ea4d53a776029760c184461e09986d20e1ef538370b7059ca1ff7d3cd",
+    "idpo/pipeline/telemetry.py": "69d78d1915b2a50a3c8fdee48623841c7c41bdcb3a3585444da9c322d9b15057",
+    "idpo/product_auto/__init__.py": "5507016316bb1f9cedf641521335f229850abac6cd3a40a035365087de9677bd",
+    "idpo/product_auto/approved_recipe.py": "e2d121bcf93f69a3dd5226776b138c6483a2ef6a7f4978f8f9c0e7266cb47a24",
+    "idpo/product_auto/brief_draft.py": "fac5ba20f492d21c7f27bdc3c5fa4b92386d0ec71496c8a6c78b778a240b4b6e",
+    "idpo/product_auto/confirmed_schema.py": "6b3b22e99e3c52eeeef4966558756214b0df3b0e1b1e784040c35bbbb111bc70",
+    "idpo/product_auto/logic.py": "ba6e2952bcdd242a6ad2a5db443cbcc08b4b33f633f58c14da1b38768ac09a58",
+    "idpo/product_auto/long_document.py": "e263a136b86bbdfc777a874e34709e4db37229beb52a058742c448522a1c5237",
+    "idpo/product_auto/native_formats.py": "73938ec7ec17b376c7e925e534aa1218aa50b5b4381cec247aa057617d7e7d6e",
+    "idpo/product_auto/native_table_proposals.py": "a1098b23dae8528d7f98e48251caba264f493b12ab3e7810427b46a03bc17761",
+    "idpo/product_auto/parsed_document.py": "9c6c4c12eb40f8b590be0650c372d50adecf582ec15f02ae0f68975983db9496",
+    "idpo/product_auto/provider.py": "41fccdb3908ee9be874bc4316f858e990b4d594d2ff32708b09547c485a8c95c",
+    "idpo/product_auto/rapid_ocr.py": "879d64b4b1ca4c1bc1f43d0a68e8b2d9c4215923cbafab36197c2d29ac527c28",
+    "idpo/product_auto/rapid_ocr_protocol.py": "419f67d17ef9a9486068d42f727617d012fa638c996ca42422e5751954d4f25c",
+    "idpo/product_auto/rapid_ocr_worker.py": "2b86307a93713ca870d55455f25f1a23dc031d8ab1a6afc249591b9af0d54070",
+    "idpo/product_auto/resource_telemetry.py": "503e66b5e49214f7224069d73a0b3533be3c82fe47d38bc36d34d61de87a9b66",
+    "idpo/product_auto/segments.py": "c00081ac8f6a1a99ebdbd259ab794167b583515437076663dedf2f0953d65eb2",
+    "idpo/product_auto/strict_output.py": "834b54af2bcd27fbd23fdda8ad0f63ba1ce8488efb9c79d8180ffe22f0fda456",
+    "idpo/product_auto/visual_input.py": "d24593c324a5b6c8cafeafbd585101cee0e61bd45347e38b7757e55fa2202e78",
+    "idpo/product_auto/visual_output.py": "4fe2a82ed8464be9c1f3c7d89e81bd7ab26137c6f05d25f657f40e97374372d1",
+    "idpo/product_auto/visual_workflow.py": "376a06bf4d7a89f2652b4cd1b97e015c0e67cc79ab044c0330c460fbb97bb818",
+    "idpo/product_auto/worker_server.py": "566bbd75d0d6152ba945616c3f488fc71c0d98ab4729d09a34f3fa4fc1b8ca67",
+    "idpo/product_auto/workflow.py": "fa7264e2946634f6ab35bf9a4a0ea2feaf93bef6fba6a63a3cde19fe177d6dce",
+    "idpo/retrieval/__init__.py": "0abc22df692cb0bc6ccd8488a9ff7b1b897e2ca753cee33e9b12a75af95b2dbf",
+    "idpo/retrieval/bm25.py": "f7f87b2150c08b4ec639518e8061f1f90f03a2714f4b674f11dfadefdd5bfee2",
+    "idpo/retrieval/context_selector.py": "150bdd339f6fb32745e51797906f8b5c538337569430fef5b72a37cc2cd46528",
+    "idpo/retrieval/hybrid.py": "076862b1dcff36e18811167f943a0d4522f974d68b62eeda899e89294dbe742a",
+    "idpo/retrieval/index_bundle.py": "663efc58e1f2f7a98d827dee85cc3c5c75da86d0dfa36bcdf4093a2f3ba46c16",
+    "idpo/retrieval/vector_store.py": "10799a33bf39bf4fd391ebfb9152bc6ae3ac217aa938d59601bd7382ef279eca",
+    "idpo/tests/__init__.py": "23a89d92cb6177954060ffc887880a626914a65c45030817719f94263d109c6d",
+    "idpo/tests/test_approved_recipe_routing.py": "0a933bcca7382e93347033a06ee352e25974de81d99dc236e7f789fdc96faaf5",
+    "idpo/tests/test_confirmed_schema_routing.py": "8c6daed3d4515f085855b6772ea5242f195488412c9da3a2ac682f8b0178eb64",
+    "idpo/tests/test_cord_benchmark_pack.py": "0648f8cedcabc26be4c3fb57411454390bc5f3748216391662cb046661bc73e0",
+    "idpo/tests/test_extraction_enhancements.py": "ebcf70c4e21467a5fddcad487126c4d4c0a029786852328aaf4ddaecf5ce0e42",
+    "idpo/tests/test_extraction_providers.py": "ca26b3d7d30de720e13ae96b38462f165408f2b77cb4903dfcf478e9704914c2",
+    "idpo/tests/test_idpo.py": "1daf237fe5633b31b15c5e2edfbb72f6502c2e2814f3835e2e79112e04edf920",
+    "idpo/tests/test_native_table_proposals.py": "0fc7106905c357aaa6568ba267790abda03d10dcf39d359b073401ba01c57086",
+    "idpo/tests/test_parsed_document.py": "a16105a799640c3fe23a61cdce2f06c0462f3c918ff1e9794181b484edf6cd47",
+    "idpo/tests/test_pdf_native_layer.py": "d4890a00bf489edd51333405cf750b07548120aef5c2579c6eea7ff972d363a5",
+    "idpo/tests/test_pdf_raster_bounds.py": "4e537e5ac9b0ea09f772aec4811736029716f921b963a37a518b44481d38bbc6",
+    "idpo/tests/test_pipeline_telemetry_transaction.py": "3dbcd50a92a148138976e13e3fbab901e6bfb9f0413ae4dcc75a9c2dd2f606a0",
+    "idpo/tests/test_pipeline_tuning_upgrades.py": "cc1045e25c3b6852d0bb621f36bf8ca0748d4d1744fbed965d5c2e0cce80d72c",
+    "idpo/tests/test_preflight_pdf_rasterizer.py": "98b820b032f70e885253ce1347d70eb057fa9036df97812e422bc5219525e5c3",
+    "idpo/tests/test_preprocess_ocr.py": "db200a835fd39959296acb2624ec53d94cc518bcb4525d562f7580c3ca5829b9",
+    "idpo/tests/test_product_auto.py": "d51b58f326b7271e1bd4711b4715a648c1790a667c0bfa8534e82f6f0bfa458b",
+    "idpo/tests/test_product_auto_brief_draft.py": "9a432caded8fe022c1612dccbb528877a826a82d75e0b375dff2b57dcc8e4f0a",
+    "idpo/tests/test_product_auto_grounding.py": "b5c6b4be8e6287f73107790fe5e33c04b968de0fe0c99713658943661cf09c16",
+    "idpo/tests/test_product_auto_linked.py": "ca92dbde8122485bde6123dc2e1a2f6097b406158021d23564ac6d75f72e9e0a",
+    "idpo/tests/test_product_auto_long_document.py": "17a8e5554e7fff110c2831a128da50c88058c06435f93d05df831f2827b53261",
+    "idpo/tests/test_product_auto_provider_format.py": "d3c5008cde6476f73a5ec995414b0b2721de525b9b4746d361a8621b6e62b439",
+    "idpo/tests/test_product_auto_strict_output.py": "427179198d1cf07c8beeca97a9d40ee40e7941503c7c04862dd5a85e2d517960",
+    "idpo/tests/test_product_native_formats.py": "256cedefc01d9c0ee87738b4861fb8b4e834efba877e37f347a4d8dcfcbe5842",
+    "idpo/tests/test_product_rapid_ocr.py": "8f17f9cbc0a11be3ab999c6b3f77df2a8a4d84fa331cd2301d3f816b98d490a3",
+    "idpo/tests/test_product_rapid_ocr_integration.py": "4f1e0f8601d95fed1a15cfa3801548f26ef979e9fa676416b36db014e8d49111",
+    "idpo/tests/test_product_resource_telemetry.py": "f3119bb557f13394c5e3908ce1991dd6fef9180908685147070e54867b695961",
+    "idpo/tests/test_product_segments.py": "32b70ebd865a2c7368ba2b27c6d0c55a44805043b2f95e5b454a2a55753fe22e",
+    "idpo/tests/test_product_visual_boundary.py": "fbc6020be1a12d94134175b7c9fd0dac5fbff0cf130e129e27a051f4da944fea",
+    "idpo/tests/test_product_visual_workflow.py": "9e05b611eb403e1b811ac56833251cda8a00472a0d571faa0b9b154de359d56e",
+    "idpo/tests/test_product_worker.py": "18a48042270a6b22c98744d9998f1d80ae5d95177da6d81f90f7af0b490921c0",
+    "idpo/tests/test_research_features.py": "3914bcdd737740d747bff99ed24d98e54698703d868f79358184ac3fec2eb756",
+    "idpo/tests/test_runtime_optimizations.py": "70e25e2669695f012fd87db2cc72a963c6cfeae5b4124889dc4ed2b9de751f8a",
+    "idpo/tests/test_storage_paths.py": "6600b68ba1e1d3a6e6ee86f8aaa6bf8b3dc6c635ee0c5d1982fe596cc2e63573",
+    "idpo/ui/__init__.py": "8bf1fcd6064d80337f52fbd988246361aaa36609627df41dd4cb2ccda7058763",
+    "idpo/ui/app.py": "dd3f8baf4911e963f9703fcf72753c4670fc0e545769abee03d24348b28e091f",
+    "product_eval/__init__.py": "bb03b9c0abab515558848fcc64c1cf3b59cf21233b1d02e27fe498c5860549ea",
+    "product_eval/cli.py": "877b939e7e87fcf45cd87ad1d2c2f7d187273d826223ec486654cff6f5803d2e",
+    "product_eval/constrained_output_diagnostic.py": "683c5fc757a163336b608734ecf574d066d35b6566a7bfbeafab4e90aa861ca2",
+    "product_eval/contracts.py": "d32b5372a1e369bfed0639490aed7bba7e0da31f6009f3cf32fefda271f9c887",
+    "product_eval/cord_model_ocr_replay.py": "c59288c1d4291284562425c4ee939a20d8b6f375ae3b5de641ade67134959b7f",
+    "product_eval/cord_ocr_line_graph.py": "f02908ba6da4d5fd737cca69de9f541e297c2707c90bc848a97b332e5d87e2f0",
+    "product_eval/cord_page_ocr_diagnostic.py": "bac0a18f9b599ef14f2769033f4bf5a43ccef1a87898b650d45d8f2b36ded5db",
+    "product_eval/cord_rapidocr_product_smoke.py": "f2895bfe4cf3099a842beebc4531e4de6f905f9f0f2da44b37d2bba1555039a4",
+    "product_eval/cord_spatial_pair_rows.py": "510df11f266367041bf5728c30ec89dd30a16b6d8a2806da1721f4c992a55d6d",
+    "product_eval/cord_spatial_rows.py": "7574ce9d515d70c6bd8e1b9f1d66c82f3e1681875dc4da33e597f1bafac5ed13",
+    "product_eval/cord_word_ocr_diagnostic.py": "b633149125038d34b32de7b339a562657fff23c901dfe7727ea0fb28b6ce252b",
+    "product_eval/datasets/__init__.py": "5c952dc29b7c994aa3d86bf84b0a8f98277f60cda0a4d331f0fe230f403a5731",
+    "product_eval/datasets/cord_positive_score.py": "e7aa537f595afdb4ee08d4986467d4a83f7b3a9eead79b137282711eaa0ea897",
+    "product_eval/datasets/cord_test.py": "5b4e444d51f9de89f16f0a76380975866d6f7d93614b83337ea8565ecdfde5b3",
+    "product_eval/datasets/funsd_positive_score.py": "3a4768672d3056287fc36b1facbb01e9135cce861928c1fd5beb6b714f8dd00d",
+    "product_eval/datasets/funsd_remainder.py": "c16020a1c54ce10e6f94013822f2bc592f6814af39c64f630393ece7b679ed76",
+    "product_eval/datasets/mixed_cord_positive.py": "19e1f6779cba6ce7ab484335cb373f26b08c3e377fc705e9e21981298ebd095c",
+    "product_eval/datasets/mixed_vrdu_cord_train.py": "ee279428a551f389486e6fc6e305b98b3ae09ea7e0a1fbadaf87156e4b0d1e9a",
+    "product_eval/datasets/vrdu.py": "4b0cdd603a1f22d13456879b39036267b0a2571830b6d2cb071f20fb0473004a",
+    "product_eval/datasets/vrdu_analysis.py": "a2f3268f8c7cbc27049351a361ed6a8bbf284b37b849717201dcfcab55853994",
+    "product_eval/docling_table_diagnostic.py": "73338bebe38366d1ced8ff91821fb3417e1cca49c1b43e8f45947b26f98c611e",
+    "product_eval/execution.py": "d49279a1cc87307f5b3e073059dea82d0fa5f7c91175cd43dc720b1f8316d1a4",
+    "product_eval/final_gate_freeze.py": "3936c78bc30f5bc1360dfcaf1f33898fa8b0a05c6c3a9fa2185494c4efa86074",
+    "product_eval/final_gate_ledger.py": "37ed9361678bcca41c4c148999de4f733796ef783210c265518497239ad903dd",
+    "product_eval/final_model_gate.py": "b39760a45a8c33cbfa07bdbda835860f762c1fd67b21286fb98a876024199475",
+    "product_eval/gliner25_hub_acquisition.py": "0fc92b9dedd4acb91d664564ade7616c4fb7666d0cdb6c3bd263058410867167",
+    "product_eval/gliner25_small_oracle_diagnostic.py": "e3d15ab65e1b74d11648c7a77cb0b13486a02d47018f199fd763aaeeb3cd21e2",
+    "product_eval/granite_source_free_smoke.py": "0523aebdde442ce0f46b1b3b4bf47747ce55a465eef3cfc87396d6562835dce3",
+    "product_eval/graph_schema_diagnostic.py": "111c312703c29ab5ab40dc9cce6c014eea2f30f2aaf37d34e19f585775ef9c5d",
+    "product_eval/icore_capability_diagnostic.py": "2ba167ffd07c77de40a011f9840be81d12e83c5a60b3486af9ae037b5a93ce55",
+    "product_eval/icore_confirmed_dev.py": "34a02a2a1600da7111d7c0880a463641ab31b804fb0850983dd39d51ee11d037",
+    "product_eval/icore_real_dev_diagnostic.py": "8af76df1b8862106490970fe056d49120d2d55a5974dde3e9298bd7ad4907744",
+    "product_eval/icore_real_dev_runner.py": "23c4575e46521fb5c7ff08313dfc594b320535777830da6e89916775cebb6cca",
+    "product_eval/icore_transport_onecall.py": "b329e3b41844933b30eece8d32c2e2a672de41a5f73ee025e560fef2029d6bba",
+    "product_eval/icore_two_public_runner.py": "e4ebab04f6832e6363592a909d10c1a210e34e3ecb48d8de12162b342538f6c6",
+    "product_eval/icore_vision_dev3.py": "e7d928bc25c587987ba0c2d017b732392ff811963b6fb5539f236921280f9660",
+    "product_eval/linked_rows.py": "339f569c9d4f91db9367685f0d30696591d3bc74a87cbfdcc438b45dbd8fd5d4",
+    "product_eval/mineru_table_diagnostic.py": "87f52cbc447da5bbf23a8cace9ddb8d78cf4a61b9208b77b04ea728ec7eb1d95",
+    "product_eval/mixed_format_docling_diagnostic.py": "710519e666a975a1dad0dc08de816f1d0a6ab9639ab7d0fa7fcccebc9311417a",
+    "product_eval/mixed_format_native_diagnostic.py": "0166a8926ef4aab4167713eae1ef1158ac098d11f35200bcfe18a386f14ded87",
+    "product_eval/native_source_graph.py": "659b3a858c4d22d8f08b4c8f22d6fe36e4ff90beae380c6a907e3e1f6d29b820",
+    "product_eval/nuextract3_dev_diagnostic.py": "e49f621725ed15538bf0cc1db64e6c3dacb679b61ae8370cefaafd648685ba50",
+    "product_eval/nuextract3_group_leaf_pilot.py": "6d97b003f0cd025c1afe4b18fd1b292a23f316ca13ab96ee4fc276c652b33550",
+    "product_eval/nuextract3_group_leaf_scorer.py": "ca1795ed2c3891b6a973bb684e9aea40e5cebfe7c77a9a194f40d0458a29a47e",
+    "product_eval/ocr_candidate_diagnostic.py": "bcfc0350fa34633f15d8be1e021220cb0ac35684aa9537ebc6d6fc430f75d797",
+    "product_eval/oracle_schema_diagnostic.py": "8e11692ca61ff869a28b007dd33017422022e4456933415e9c5572594064d732",
+    "product_eval/oracle_vl_diagnostic.py": "9048dd4fb91a8f3a463a2b3a2876dd3f03d8d430fef8c05c163e453eca5bcb88",
+    "product_eval/paddleocr_vl_pilot.py": "67e629857774ebee311073c9d00632134137d26c5c8865d4c82cc62eace772e7",
+    "product_eval/paddleocr_vl_table_diagnostic.py": "a473e43715903b31c479f3eb5b952871cd4945f863970555bf629597b675327b",
+    "product_eval/paddleocr_vl_worker.py": "4813c54ce6aeaf1507ec899647780a59a66df874e820f0ba961c660d3d2a196e",
+    "product_eval/pdfplumber_table_diagnostic.py": "54c559780561a262f2d5f6d85acffd6247aed4834c94a2842e252de602b0a5bd",
+    "product_eval/ppstructure_table_diagnostic.py": "d110a0dda91f7dd559b5cf17361639412416990beec932789ae0d724cc1291a7",
+    "product_eval/prepare_ppstructure_config.py": "fc4fa045cc97f492acd9c6a059081dc6ad6947ecaf39aceb217654735ce70f17",
+    "product_eval/product_candidate_dev.py": "efbd9b6579638357592e8be9a0cf8ac201a7b12da97b3813eb370748aa8323d9",
+    "product_eval/quality_comparison.py": "30e72727a350c7ffa6dc664df5626b691d5c0a78672f4fc37e410282123863bf",
+    "product_eval/rapidtable_adbuy12_preflight.py": "e562f0e5cf2c7e766b2b5860fb377161160ee0c5e748ee4dfcccf5b7ff3e59f0",
+    "product_eval/rapidtable_runtime_provenance.py": "f3a744bba4a7fac962f76e0b6e7e2265a21c138af4a6b12d289f6a0c585dbaf4",
+    "product_eval/rapidtable_table_only_preflight.py": "0e08d6784ae9b11c26a50ba5c987fe3ad827e29de8600037f688e6b737019dcb",
+    "product_eval/real_native_parser_diagnostic.py": "274f7ca90d3b00966552c5ddb9dcc9b59795f7ad5d2b68ba4d4bd54666b377a7",
+    "product_eval/receipt_analysis.py": "6a0a932c6e95e7a3d31fd1f2f521110e778565d81c26c936452db5fcf51bc585",
+    "product_eval/run_gate.py": "5dafd5237c0e9fa3069b4eabba75702d8e02962d9e13e8c0b9302fa88184c6da",
+    "product_eval/s1_grammar_probe.py": "85cd806a4dc29ada90fe2dfa488fb3d21bc02305b83aab19e0057713fa068d22",
+    "product_eval/s1_schema_reply.py": "a0b81e7e28e0121dc73fef0a3099edc4000a79a1bc32220a330c84a2549f48da",
+    "product_eval/schema12_blind_schema_preflight.py": "f05dd47aabebd08396f451246f634b51afd1a5090346fa9613c19d53a6c81236",
+    "product_eval/schema_only_scorer.py": "3ad9ce539e2acddfa9d567a61b60acce546dfc82e0acda6902560c9009d79c02",
+    "product_eval/scoped_assessment.py": "4859d184ca02226525c0effd96a34fcbef33c970efa4ebc80e258b80e9064fa0",
+    "product_eval/scorer.py": "9d97b3857b4bac0ccf2bc1bde0ca1915384471cf0e38029271cb56ca3634a1ab",
+    "product_eval/table_crop_geometry.py": "fbbecd6e323999eb1630a1a07c0a58a1febd860706d148c614e55a1182cda204",
+    "product_eval/tablemagic_v2_pilot.py": "c30fbfbe11c20d6e156a5ed0cef076fea70f81582404749f4c1853b4f1263bb9",
+    "product_eval/tablemagic_v2_table_diagnostic.py": "1dca7ef6a87d6ab107bd178df6499d9fd3b9a30092fb37dd9f9bf87fbc2192b1",
+    "product_eval/tablemagic_v2_worker.py": "25178d3d9172bad2fa697db1fdbe93dcf2e456d1e0e462861084ce6c3f73dd72",
+    "product_eval/tablemagic_v2_xet_acquire.py": "a2ceb955e2f8324fdfaefbc7f5b749f38b557c7b9591b8a4797e0b2ee974bab3",
+    "product_eval/tatr_asset_preflight.py": "a57c6d073fcbdae9032e119f98ea4d17f207becf7763fc36584215f7dcd92890",
+    "product_eval/tatr_cell_compat.py": "6fc220b173186722e8e06a6c5cc87bf5f2782a1101e6cfc4568f7a439a7f693d",
+    "product_eval/tatr_cpu_runtime_receipt.py": "537584d6eb5f0d0faaa205aab0e5f7532fb8ce773620897d3c2f0fad46d58d8a",
+    "product_eval/tatr_first_pdf_runner.py": "dd9df06731d3465e2a4bb10f5d661a085da9f19468ea0a5cb445acfe04d64662",
+    "product_eval/tatr_first_pdf_worker.py": "60be659c742c3d485b9a45f22739088c8bca776b2b7ad442647d52b8fb94992a",
+    "product_eval/tatr_native_geometry.py": "0e2e4a9e53b53ea0d97c6e86e64cab0b602100703936552c37629a67f7649c52",
+    "product_eval/tatr_ocr_handoff.py": "defd8d6e20273b40eb14a57d759c91d0afd9a6656e093e57a080c02cb1009aff",
+    "product_eval/tatr_ocr_page_worker.py": "c6918a88c3145395b0be001df957f19e39a39b07d3666f18bbae278b723321cb",
+    "product_eval/tatr_ocr_word_source_free.py": "02caebf5f23ad8d61bcd5cd84d0fba8c5d394f325a829bb4a12bf59fbda66916",
+    "product_eval/tatr_output_adapter.py": "af2bc65973fa96b9990d17a0a2f32858be2d90e668fedd4fbb3ccdeb87958183",
+    "product_eval/tatr_process_env.py": "4157e585f07e76631bc4092fbb9f42453079817abaabf363cea595a59bb5ad1f",
+    "product_eval/tatr_rect.py": "6d668fedcc34cbd408737cfe00f0eebbfe2fd31410a6341b96638ff3658b58f3",
+    "product_eval/tests/test_constrained_output_diagnostic.py": "fdc1784cf65d07233aed91b3c00564f209dd5a08a98dd09e9a187ef9c9d1705d",
+    "product_eval/tests/test_cord_model_ocr_replay.py": "a78ddeb7bf2a60e704f592f305aba99e9078b9a33d9a8b636bfa86469559c3d2",
+    "product_eval/tests/test_cord_ocr_line_graph.py": "6cad2ec5d24e42042bf45f19c7453f294bec1ed1a3bbcdcfbb62091b62934689",
+    "product_eval/tests/test_cord_page_ocr_diagnostic.py": "cd16428e030832e65aabf7301a912a2f2ed5b5477022ef1511b78bfff5c32f4f",
+    "product_eval/tests/test_cord_rapidocr_product_smoke.py": "71b22f854dd5e89944375f9df1b75e0ec007ec00e6f9944c486a8a2bde1e7b33",
+    "product_eval/tests/test_cord_spatial_pair_rows.py": "125952877d77d320e310f6a3cd3e18d187ee0adaa53ec47a8f06b3b7ed57b1c8",
+    "product_eval/tests/test_cord_spatial_rows.py": "54cbc0775f4fbc887771d8d3f45dc0de2d50743e77cc2449bc4011a2fcbd41e6",
+    "product_eval/tests/test_cord_test.py": "ec6552f8bee513d5096c0a00d2bd9d2aac81c7d2f2028d21b9f303dba4966313",
+    "product_eval/tests/test_cord_word_ocr_diagnostic.py": "08c5d42135483529223f51670f495d181e49d8f7cbbbec41e58148027e1b2481",
+    "product_eval/tests/test_docling_table_diagnostic.py": "683bdc9e1b175faec32304bff81dd956fc44ffd28ef3a467247b63760f62f107",
+    "product_eval/tests/test_execution.py": "19bacd4e55bde1bec6068829b41eebeee3527beeefe2444dbd3ab6482e9847b0",
+    "product_eval/tests/test_final_model_gate.py": "f9941533a379aa6daf38c7ee2be7e187081c8c65ea6dd26d618bb4eeaaf9b782",
+    "product_eval/tests/test_funsd_remainder.py": "45f0e462a38a8f12ebf17cb4d90148990012d6f686126c668256ad34272f163e",
+    "product_eval/tests/test_gliner25_hub_acquisition.py": "704784fabc758f83f977bfa843d21849a2ecd3e6865dce310c78df3d6b9df5e1",
+    "product_eval/tests/test_gliner25_small_oracle_diagnostic.py": "292505930caaa6f9ddabc0d16518fd7520c949a133f63847574cffcf394ecbb4",
+    "product_eval/tests/test_granite_source_free_smoke.py": "0a0821be8dbf4439377dfc1fe811c822de19644f7c948dc773c1856f67c072ed",
+    "product_eval/tests/test_graph_schema_diagnostic.py": "648a1eb0f762c082efdc0e86ba6b87fee8fb63ae733c884d7408aff9bb97d65a",
+    "product_eval/tests/test_icore_capability_diagnostic.py": "cb1c228568dc78c94bb18d87671a9fb755aa1bfab0376ae7345ba252acc19705",
+    "product_eval/tests/test_icore_confirmed_dev.py": "624e6fdaf90964c1a591d5f43a9a070148d0abbe9779ce4bffee98713ce17027",
+    "product_eval/tests/test_icore_real_dev_runner.py": "8a89129856c4b2c2c7d8855bbf3660ef04dc14e4b6dd349df21e6bb4093a9c39",
+    "product_eval/tests/test_icore_transport_onecall.py": "bfab44543ce4b6623b0e3d7918ecac68970fd397dec3c0108d70967b0a8226e3",
+    "product_eval/tests/test_icore_two_public_runner.py": "e356f5f784214047f153bd79ef094c9ded7130eb593df6f82642141db0f991c7",
+    "product_eval/tests/test_icore_vision_dev3.py": "ebeb5cc2d6ba09cd7745998f1f69b74d733c0b3ad8469f694ebe22b5cb7ad217",
+    "product_eval/tests/test_mineru_table_diagnostic.py": "7b207c1ad0822a1773e68fe6f77f503a98fda612e669c4291cc0015bd1a5d64a",
+    "product_eval/tests/test_mixed_format_native_diagnostic.py": "1176eb2cc67bda1052fe769fa2f9d10a3a54617033e9ecbe1e228039bdceeeb0",
+    "product_eval/tests/test_mixed_vrdu_cord_train.py": "8b3926054d90a3f035d9bc801e0b38e24b041154b8119bc1b0da9906d1a6e37c",
+    "product_eval/tests/test_native_source_graph.py": "db5ccb2360ff2048a12de91f614631a55fbb8256da764374a8ce7dadf2778ea1",
+    "product_eval/tests/test_nuextract3_dev_diagnostic.py": "9290650b7d54379e8e2d491d87ce5ffd20ca86b0aff754e646d1ac993c52d1d7",
+    "product_eval/tests/test_nuextract3_group_leaf_pilot.py": "f75b8e9769a96091eaf09292de236fc4d00077b4c586bd696b6e9f061f015132",
+    "product_eval/tests/test_nuextract3_group_leaf_scorer.py": "460d9d37ab5f94cb364bf1ad003fb36be8c0bed9bc83fbfb4191791c874d558b",
+    "product_eval/tests/test_ocr_candidate_diagnostic.py": "b2c9036b262a8bf3917461fa60e2549e5cce4a10220e63beecb927326557f0d6",
+    "product_eval/tests/test_oracle_schema_diagnostic.py": "706b68c0ce4123a98d76373fc5f4f053f57b5364e3c4cbdbb6994b7826dcf610",
+    "product_eval/tests/test_oracle_vl_diagnostic.py": "b3c28fa1c4b5533cd4d999fbb010a1b6c14fff0139fa36e7ee95dceb15007854",
+    "product_eval/tests/test_paddleocr_vl_pilot.py": "bb052a69c5f7123fc329f64b22cffb2ca11635e37a04f0461d9477f583d39e89",
+    "product_eval/tests/test_paddleocr_vl_table_diagnostic.py": "d1952d7e734a31aa16cc61a03eeb628436e1b7f198240f7887c92ab44fbb9e21",
+    "product_eval/tests/test_pdfplumber_table_diagnostic.py": "c2ee8299687dd4218cda77e11358406d8470e91c265157ef816f1709ee1d3595",
+    "product_eval/tests/test_ppstructure_table_diagnostic.py": "a55ddbd2054b123f0e91f4949b4bfbdcc211fd8d3e134a72e048320f2d49cd6c",
+    "product_eval/tests/test_prepare_ppstructure_config.py": "bd2c2b9943469b6847f0d5603f53f62cd0d2b3622fa6d69fb6a6deda5499eec2",
+    "product_eval/tests/test_product_candidate_dev.py": "ee1c3dc40ee1eeb26dd0c0b64cabbe97ad66d28d9df04bfa500879269f7f87e6",
+    "product_eval/tests/test_quality_comparison.py": "8d76e9eb30b95423eab9832f98725b8f4654d74e16783f7db229566e78e2abdc",
+    "product_eval/tests/test_rapidtable_adbuy12_preflight.py": "7faad60468e3f4e3b369df5806ef934e0c9e661a286dd17ac50291bc26ffcd8e",
+    "product_eval/tests/test_rapidtable_runtime_provenance.py": "6a94da92c440b3b0fe62aab58bf5e3a22b08c96cc67f60278aa368c0a97eccaa",
+    "product_eval/tests/test_rapidtable_table_only_preflight.py": "cc1bdaa4d2ac7a2450f86f81bf54519f46111d88e5814d121ad4d286b429cfc7",
+    "product_eval/tests/test_real_native_parser_diagnostic.py": "d900469238da42ce9c1f8d018a57b8c85c99532aafa7d503f3ebcf2e0d185565",
+    "product_eval/tests/test_receipt_analysis.py": "a9a6389e443d5976d8b77919bfc010f9ee9e2902840a1a8f1f0982c553da6a91",
+    "product_eval/tests/test_run_gate.py": "1739c7641b3286b48651955100427e05f3694e14d063add06a81bdab0261441d",
+    "product_eval/tests/test_s1_grammar_probe.py": "d43b41ff1fce0cd5d3057108a0397d89887acf062c56fa3e154e0ed0a47c1c67",
+    "product_eval/tests/test_s1_schema_reply.py": "3f2fa2d4861381f5f29c9b6c3efe61a04ce5d5323fe65fbc14a38e97ea7c4528",
+    "product_eval/tests/test_schema12_blind_schema_preflight.py": "67c504b326a830d678e6dd2ecccb64f49f30975cbf9c676c15ba7a4fedf8c58e",
+    "product_eval/tests/test_schema_only_scorer.py": "74cb01a0c4a203e916d68494fbfcc6881d9c8e1d1e81d63599a3bcc45256ea3a",
+    "product_eval/tests/test_scoped_assessment.py": "54f611f97e10c9468dd72900de2fe002ff3540287073e5a33923fb9a01525355",
+    "product_eval/tests/test_scorer.py": "04c20423d5c8375cc858d2035f2cb80b4d1360a32380d1551bb3c60625dc5c9a",
+    "product_eval/tests/test_table_crop_geometry.py": "204f85693010e31d8ed2641fffe5c8290ab67ed7de4c53dc2d48c84139a87c8f",
+    "product_eval/tests/test_tablemagic_v2_pilot.py": "a05b7ebace5c9134dbe974c8bfac0206ace3fe40b52cb06549f952e598749acf",
+    "product_eval/tests/test_tablemagic_v2_xet_acquire.py": "d0c3c756584d607b9b7b58d12f7e240f9c02418c0f9866d866a7abd0f147a4e7",
+    "product_eval/tests/test_tatr_asset_preflight.py": "0fa73c7091808b8faec0a6b6ba00338a2eaa38d4d01867bb70a3e6e1890136de",
+    "product_eval/tests/test_tatr_cell_compat.py": "9756927c75cc45778153286593b703e0404df87febb082c38492e7cb955969df",
+    "product_eval/tests/test_tatr_cpu_runtime_receipt.py": "d8d6d39e27309672824019494b17bed73578f06eff2680178b430c04b77dbb28",
+    "product_eval/tests/test_tatr_first_pdf_runner.py": "c3948c693d73377e517265909151188902766a3f8afdb8af35086adfab8574a7",
+    "product_eval/tests/test_tatr_native_geometry.py": "36e93d94a629f8e746aaeb6822a48869f0d5b293cb7e301d6c6a1b2a43c75bce",
+    "product_eval/tests/test_tatr_ocr_handoff.py": "2a346926e31930a7fbe8a061c56ebb48f499220a4735d4eff67bb8f9ca9991f5",
+    "product_eval/tests/test_tatr_ocr_word_source_free.py": "d96edd569b02444dc14c4debff4e7d58b761f7028b6870da79a8c9049ce3f223",
+    "product_eval/tests/test_tatr_output_adapter.py": "addd81ba8d32665c9ac25c7d89cac05e9d455217425afc422632a8817ca00b99",
+    "product_eval/tests/test_tatr_process_env.py": "72909762a0187cedd46ad96cc2e4489a2aeb8221a1b3481c7f8404577ea9d6cc",
+    "product_eval/tests/test_vrdu.py": "c650d5946ebda668dd077daedd6c6e475b16f23ddfd0fc4e3653da2f8629c411",
+    "product_eval/tests/test_vrdu_analysis.py": "b0b57e034f6f27230daccee8235b2eb748b7cdfdc0b22c85abbec627c65598b9",
+    "product_eval/verify_execution.py": "4c2f5ac0999944392d597281c262655143b5e1608d6d50de9efb169f0844b6f3"
+  },
+  "source_only_metadata": true,
+  "reference_labels_included": false,
+  "raw_documents_included": false,
+  "is_original_registered_protocol": false,
+  "path_mapping": "Resolve each file_name within the indicated creator dataset and family, verifying the exact source_sha256 and size; original host paths are excluded.",
+  "reproduction_scope": "Reconstruct original inputs and fixed schemas. A new host freeze has its own protocol hash; this portable manifest does not replace the original sealed protocol.",
+  "profiles": {
+    "candidate": {
+      "base_url": "https://icore.innobothealth.us/innobot-api/v1",
+      "batch_size": 25,
+      "long_document_profile": "bounded_text_segments_v1",
+      "max_calls": 960,
+      "max_calls_per_source": 4,
+      "max_tokens": 8192,
+      "model": "innobot-luna-6",
+      "ocr_engine": "rapidocr",
+      "parallel_validation": null,
+      "response_format_profile": "strict_confirmed_values_v1",
+      "timeout_s": 180,
+      "visual_document_profile": "bounded_visual_selective_v2",
+      "workers": 1
+    },
+    "text": {
+      "base_url": "https://icore.innobothealth.us/innobot-api/v1",
+      "batch_size": 25,
+      "long_document_profile": "bounded_text_segments_v1",
+      "max_calls": 960,
+      "max_calls_per_source": 4,
+      "max_tokens": 8192,
+      "model": "innobot-luna-6",
+      "ocr_engine": "rapidocr",
+      "parallel_validation": null,
+      "response_format_profile": "strict_confirmed_values_v1",
+      "timeout_s": 180,
+      "visual_document_profile": "disabled",
+      "workers": 1
+    }
+  },
+  "schemas": {
+    "ad-buy-form": {
+      "file": "schemas/ad-buy-form.json",
+      "sha256": "3fd04649edb13e920915d5e326522587a57af4abfd8499f8ae0d8f501dc73675"
+    },
+    "receipt": {
+      "file": "schemas/receipt.json",
+      "sha256": "0ebeb253954b8726d9e46a3b24fbedfb30cb5b5f9957cde98580deee948f80b7"
+    },
+    "registration-form": {
+      "file": "schemas/registration-form.json",
+      "sha256": "36c53ff90a098d05e1c2b8d2a7d35ebb3c29e6915f354658a03671d8d9a9dcfd"
+    }
+  },
+  "schedule": [
+    {
+      "arm": "text",
+      "doc_id": "470baa7da632018b1dc5348590d541ca",
+      "family_ordinal": 0,
+      "pair_index": 0
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "470baa7da632018b1dc5348590d541ca",
+      "family_ordinal": 0,
+      "pair_index": 0
+    },
+    {
+      "arm": "text",
+      "doc_id": "c40dec036bf66a533de1702c2d4a5840",
+      "family_ordinal": 0,
+      "pair_index": 1
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "c40dec036bf66a533de1702c2d4a5840",
+      "family_ordinal": 0,
+      "pair_index": 1
+    },
+    {
+      "arm": "text",
+      "doc_id": "5e1d2f3a95f63552508a18a4c13df9db",
+      "family_ordinal": 0,
+      "pair_index": 2
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "5e1d2f3a95f63552508a18a4c13df9db",
+      "family_ordinal": 0,
+      "pair_index": 2
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "7d80ba5258bf81c3c020294a1d2a9ce2",
+      "family_ordinal": 1,
+      "pair_index": 3
+    },
+    {
+      "arm": "text",
+      "doc_id": "7d80ba5258bf81c3c020294a1d2a9ce2",
+      "family_ordinal": 1,
+      "pair_index": 3
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "dcc74bfa9b910516ab69410017544c49",
+      "family_ordinal": 1,
+      "pair_index": 4
+    },
+    {
+      "arm": "text",
+      "doc_id": "dcc74bfa9b910516ab69410017544c49",
+      "family_ordinal": 1,
+      "pair_index": 4
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "e0a548598413f94d36aa317183c13fce",
+      "family_ordinal": 1,
+      "pair_index": 5
+    },
+    {
+      "arm": "text",
+      "doc_id": "e0a548598413f94d36aa317183c13fce",
+      "family_ordinal": 1,
+      "pair_index": 5
+    },
+    {
+      "arm": "text",
+      "doc_id": "10f700ea975fa6980b5c3a0e34b49d36",
+      "family_ordinal": 2,
+      "pair_index": 6
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "10f700ea975fa6980b5c3a0e34b49d36",
+      "family_ordinal": 2,
+      "pair_index": 6
+    },
+    {
+      "arm": "text",
+      "doc_id": "95e2e71234aea020f66d61467b1fddf3",
+      "family_ordinal": 2,
+      "pair_index": 7
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "95e2e71234aea020f66d61467b1fddf3",
+      "family_ordinal": 2,
+      "pair_index": 7
+    },
+    {
+      "arm": "text",
+      "doc_id": "785f38ec0af3bc3cfe544098e71808c0",
+      "family_ordinal": 2,
+      "pair_index": 8
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "785f38ec0af3bc3cfe544098e71808c0",
+      "family_ordinal": 2,
+      "pair_index": 8
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "b452324cff3d1219dd93b882e5e30297",
+      "family_ordinal": 3,
+      "pair_index": 9
+    },
+    {
+      "arm": "text",
+      "doc_id": "b452324cff3d1219dd93b882e5e30297",
+      "family_ordinal": 3,
+      "pair_index": 9
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "e1a4399a8da4442dfac7414ad0ee7718",
+      "family_ordinal": 3,
+      "pair_index": 10
+    },
+    {
+      "arm": "text",
+      "doc_id": "e1a4399a8da4442dfac7414ad0ee7718",
+      "family_ordinal": 3,
+      "pair_index": 10
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "ca1c2f6407b307875b12ae2f0453bb05",
+      "family_ordinal": 3,
+      "pair_index": 11
+    },
+    {
+      "arm": "text",
+      "doc_id": "ca1c2f6407b307875b12ae2f0453bb05",
+      "family_ordinal": 3,
+      "pair_index": 11
+    },
+    {
+      "arm": "text",
+      "doc_id": "a54e8d2254bae62f722f47db48dc257d",
+      "family_ordinal": 4,
+      "pair_index": 12
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "a54e8d2254bae62f722f47db48dc257d",
+      "family_ordinal": 4,
+      "pair_index": 12
+    },
+    {
+      "arm": "text",
+      "doc_id": "79896d0ce03acfa016c6e2ed86ba7236",
+      "family_ordinal": 4,
+      "pair_index": 13
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "79896d0ce03acfa016c6e2ed86ba7236",
+      "family_ordinal": 4,
+      "pair_index": 13
+    },
+    {
+      "arm": "text",
+      "doc_id": "2b48ca9d45b8faf53118ed3da7347763",
+      "family_ordinal": 4,
+      "pair_index": 14
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "2b48ca9d45b8faf53118ed3da7347763",
+      "family_ordinal": 4,
+      "pair_index": 14
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "c23bd733d96c320beb2c287fae580060",
+      "family_ordinal": 5,
+      "pair_index": 15
+    },
+    {
+      "arm": "text",
+      "doc_id": "c23bd733d96c320beb2c287fae580060",
+      "family_ordinal": 5,
+      "pair_index": 15
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "a5c32146499914ba298c6c4dd52a2bb2",
+      "family_ordinal": 5,
+      "pair_index": 16
+    },
+    {
+      "arm": "text",
+      "doc_id": "a5c32146499914ba298c6c4dd52a2bb2",
+      "family_ordinal": 5,
+      "pair_index": 16
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "bf30754e71e31920f677e83fbb40de2a",
+      "family_ordinal": 5,
+      "pair_index": 17
+    },
+    {
+      "arm": "text",
+      "doc_id": "bf30754e71e31920f677e83fbb40de2a",
+      "family_ordinal": 5,
+      "pair_index": 17
+    },
+    {
+      "arm": "text",
+      "doc_id": "bacea7e3270512cf69a991ba29986b1b",
+      "family_ordinal": 6,
+      "pair_index": 18
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "bacea7e3270512cf69a991ba29986b1b",
+      "family_ordinal": 6,
+      "pair_index": 18
+    },
+    {
+      "arm": "text",
+      "doc_id": "d3dda8a65a6051f57b5f579c6ff0241f",
+      "family_ordinal": 6,
+      "pair_index": 19
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "d3dda8a65a6051f57b5f579c6ff0241f",
+      "family_ordinal": 6,
+      "pair_index": 19
+    },
+    {
+      "arm": "text",
+      "doc_id": "ea7fc0856c3c62b186b203f8c2962e48",
+      "family_ordinal": 6,
+      "pair_index": 20
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "ea7fc0856c3c62b186b203f8c2962e48",
+      "family_ordinal": 6,
+      "pair_index": 20
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "6f76e4ed4de26ba4c7348fa50bcf0de3",
+      "family_ordinal": 7,
+      "pair_index": 21
+    },
+    {
+      "arm": "text",
+      "doc_id": "6f76e4ed4de26ba4c7348fa50bcf0de3",
+      "family_ordinal": 7,
+      "pair_index": 21
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "df0c7a741be1001a932b5bafd8dfcba0",
+      "family_ordinal": 7,
+      "pair_index": 22
+    },
+    {
+      "arm": "text",
+      "doc_id": "df0c7a741be1001a932b5bafd8dfcba0",
+      "family_ordinal": 7,
+      "pair_index": 22
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "fee0c3a5a1b5223ad18f366fa21af171",
+      "family_ordinal": 7,
+      "pair_index": 23
+    },
+    {
+      "arm": "text",
+      "doc_id": "fee0c3a5a1b5223ad18f366fa21af171",
+      "family_ordinal": 7,
+      "pair_index": 23
+    },
+    {
+      "arm": "text",
+      "doc_id": "3165c0762fab81b99160d71260e88a50",
+      "family_ordinal": 8,
+      "pair_index": 24
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "3165c0762fab81b99160d71260e88a50",
+      "family_ordinal": 8,
+      "pair_index": 24
+    },
+    {
+      "arm": "text",
+      "doc_id": "8625904d6e719dea9ec37a8a0c9d51e3",
+      "family_ordinal": 8,
+      "pair_index": 25
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "8625904d6e719dea9ec37a8a0c9d51e3",
+      "family_ordinal": 8,
+      "pair_index": 25
+    },
+    {
+      "arm": "text",
+      "doc_id": "ac96cd8707f26f62fd5e890f654cbbad",
+      "family_ordinal": 8,
+      "pair_index": 26
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "ac96cd8707f26f62fd5e890f654cbbad",
+      "family_ordinal": 8,
+      "pair_index": 26
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "f4c38567a35c4a503daf39ffd2db475b",
+      "family_ordinal": 9,
+      "pair_index": 27
+    },
+    {
+      "arm": "text",
+      "doc_id": "f4c38567a35c4a503daf39ffd2db475b",
+      "family_ordinal": 9,
+      "pair_index": 27
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "e6312308ccf7404d039e61fd46a69d76",
+      "family_ordinal": 9,
+      "pair_index": 28
+    },
+    {
+      "arm": "text",
+      "doc_id": "e6312308ccf7404d039e61fd46a69d76",
+      "family_ordinal": 9,
+      "pair_index": 28
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "c9f11cd3105f6154f011a06c64d8a8f8",
+      "family_ordinal": 9,
+      "pair_index": 29
+    },
+    {
+      "arm": "text",
+      "doc_id": "c9f11cd3105f6154f011a06c64d8a8f8",
+      "family_ordinal": 9,
+      "pair_index": 29
+    },
+    {
+      "arm": "text",
+      "doc_id": "d3d98dfb30b81a6b44f6ab8922356aba",
+      "family_ordinal": 10,
+      "pair_index": 30
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "d3d98dfb30b81a6b44f6ab8922356aba",
+      "family_ordinal": 10,
+      "pair_index": 30
+    },
+    {
+      "arm": "text",
+      "doc_id": "1523c6e8d7635fca3fe2e5f0540f2e63",
+      "family_ordinal": 10,
+      "pair_index": 31
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "1523c6e8d7635fca3fe2e5f0540f2e63",
+      "family_ordinal": 10,
+      "pair_index": 31
+    },
+    {
+      "arm": "text",
+      "doc_id": "3ec674c193377db497bcd3066a8ac6b2",
+      "family_ordinal": 10,
+      "pair_index": 32
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "3ec674c193377db497bcd3066a8ac6b2",
+      "family_ordinal": 10,
+      "pair_index": 32
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "cb299952e01e34e4df6a9807ba678b74",
+      "family_ordinal": 11,
+      "pair_index": 33
+    },
+    {
+      "arm": "text",
+      "doc_id": "cb299952e01e34e4df6a9807ba678b74",
+      "family_ordinal": 11,
+      "pair_index": 33
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "4c9166ae63a8c8e8cea2c260108a7345",
+      "family_ordinal": 11,
+      "pair_index": 34
+    },
+    {
+      "arm": "text",
+      "doc_id": "4c9166ae63a8c8e8cea2c260108a7345",
+      "family_ordinal": 11,
+      "pair_index": 34
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "a2a45d0317eb70d7b6dd10c809f0068f",
+      "family_ordinal": 11,
+      "pair_index": 35
+    },
+    {
+      "arm": "text",
+      "doc_id": "a2a45d0317eb70d7b6dd10c809f0068f",
+      "family_ordinal": 11,
+      "pair_index": 35
+    },
+    {
+      "arm": "text",
+      "doc_id": "acda56361744c525a5c0913695b21376",
+      "family_ordinal": 12,
+      "pair_index": 36
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "acda56361744c525a5c0913695b21376",
+      "family_ordinal": 12,
+      "pair_index": 36
+    },
+    {
+      "arm": "text",
+      "doc_id": "9cea252d8549e8e00ca20c0c51699a46",
+      "family_ordinal": 12,
+      "pair_index": 37
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "9cea252d8549e8e00ca20c0c51699a46",
+      "family_ordinal": 12,
+      "pair_index": 37
+    },
+    {
+      "arm": "text",
+      "doc_id": "500074d6eb0dc7b9b0b3ad8345a64b22",
+      "family_ordinal": 12,
+      "pair_index": 38
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "500074d6eb0dc7b9b0b3ad8345a64b22",
+      "family_ordinal": 12,
+      "pair_index": 38
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "3ef97f6d1be18803e3921ad4d011cab1",
+      "family_ordinal": 13,
+      "pair_index": 39
+    },
+    {
+      "arm": "text",
+      "doc_id": "3ef97f6d1be18803e3921ad4d011cab1",
+      "family_ordinal": 13,
+      "pair_index": 39
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "e1df0fc07969c3149c66cb538e069bac",
+      "family_ordinal": 13,
+      "pair_index": 40
+    },
+    {
+      "arm": "text",
+      "doc_id": "e1df0fc07969c3149c66cb538e069bac",
+      "family_ordinal": 13,
+      "pair_index": 40
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "97b34f02c25c6d4ec3da25ba09a12dbb",
+      "family_ordinal": 13,
+      "pair_index": 41
+    },
+    {
+      "arm": "text",
+      "doc_id": "97b34f02c25c6d4ec3da25ba09a12dbb",
+      "family_ordinal": 13,
+      "pair_index": 41
+    },
+    {
+      "arm": "text",
+      "doc_id": "0fe4de6ebc5beda6824697b4cb6213d1",
+      "family_ordinal": 14,
+      "pair_index": 42
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "0fe4de6ebc5beda6824697b4cb6213d1",
+      "family_ordinal": 14,
+      "pair_index": 42
+    },
+    {
+      "arm": "text",
+      "doc_id": "53acf583bf9ae31746b7a9170cb88511",
+      "family_ordinal": 14,
+      "pair_index": 43
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "53acf583bf9ae31746b7a9170cb88511",
+      "family_ordinal": 14,
+      "pair_index": 43
+    },
+    {
+      "arm": "text",
+      "doc_id": "fa87783560d3d99b4687be406aeec354",
+      "family_ordinal": 14,
+      "pair_index": 44
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "fa87783560d3d99b4687be406aeec354",
+      "family_ordinal": 14,
+      "pair_index": 44
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "337f00f141c9eaffab9ee3bac4ed798e",
+      "family_ordinal": 15,
+      "pair_index": 45
+    },
+    {
+      "arm": "text",
+      "doc_id": "337f00f141c9eaffab9ee3bac4ed798e",
+      "family_ordinal": 15,
+      "pair_index": 45
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "72532e4f203bbbdfa9f7614d8bf276b8",
+      "family_ordinal": 15,
+      "pair_index": 46
+    },
+    {
+      "arm": "text",
+      "doc_id": "72532e4f203bbbdfa9f7614d8bf276b8",
+      "family_ordinal": 15,
+      "pair_index": 46
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "ec6b315866965d0467034fde850f65af",
+      "family_ordinal": 15,
+      "pair_index": 47
+    },
+    {
+      "arm": "text",
+      "doc_id": "ec6b315866965d0467034fde850f65af",
+      "family_ordinal": 15,
+      "pair_index": 47
+    },
+    {
+      "arm": "text",
+      "doc_id": "a5847be0ebe8e26920200ea624c38482",
+      "family_ordinal": 16,
+      "pair_index": 48
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "a5847be0ebe8e26920200ea624c38482",
+      "family_ordinal": 16,
+      "pair_index": 48
+    },
+    {
+      "arm": "text",
+      "doc_id": "372052c057bd3be7ade19ca4cb09b1ee",
+      "family_ordinal": 16,
+      "pair_index": 49
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "372052c057bd3be7ade19ca4cb09b1ee",
+      "family_ordinal": 16,
+      "pair_index": 49
+    },
+    {
+      "arm": "text",
+      "doc_id": "c9627500adfd0671bf908ca0bed94c60",
+      "family_ordinal": 16,
+      "pair_index": 50
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "c9627500adfd0671bf908ca0bed94c60",
+      "family_ordinal": 16,
+      "pair_index": 50
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "65cd45cebd9c0ac819adb24522f61a3a",
+      "family_ordinal": 17,
+      "pair_index": 51
+    },
+    {
+      "arm": "text",
+      "doc_id": "65cd45cebd9c0ac819adb24522f61a3a",
+      "family_ordinal": 17,
+      "pair_index": 51
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "dd61117e8cd8bca7e376c4b840e27452",
+      "family_ordinal": 17,
+      "pair_index": 52
+    },
+    {
+      "arm": "text",
+      "doc_id": "dd61117e8cd8bca7e376c4b840e27452",
+      "family_ordinal": 17,
+      "pair_index": 52
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "1b8f08a97aedccfd85b310be4d930fe4",
+      "family_ordinal": 17,
+      "pair_index": 53
+    },
+    {
+      "arm": "text",
+      "doc_id": "1b8f08a97aedccfd85b310be4d930fe4",
+      "family_ordinal": 17,
+      "pair_index": 53
+    },
+    {
+      "arm": "text",
+      "doc_id": "509dd9dbefc47f4d57478c8856cdb87d",
+      "family_ordinal": 18,
+      "pair_index": 54
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "509dd9dbefc47f4d57478c8856cdb87d",
+      "family_ordinal": 18,
+      "pair_index": 54
+    },
+    {
+      "arm": "text",
+      "doc_id": "161bd151ffc696a153179c0bca9fa2bd",
+      "family_ordinal": 18,
+      "pair_index": 55
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "161bd151ffc696a153179c0bca9fa2bd",
+      "family_ordinal": 18,
+      "pair_index": 55
+    },
+    {
+      "arm": "text",
+      "doc_id": "d00ca5c23730c5f005b64ab042619596",
+      "family_ordinal": 18,
+      "pair_index": 56
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "d00ca5c23730c5f005b64ab042619596",
+      "family_ordinal": 18,
+      "pair_index": 56
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "af63920b42c46989626151f4bd5b6745",
+      "family_ordinal": 19,
+      "pair_index": 57
+    },
+    {
+      "arm": "text",
+      "doc_id": "af63920b42c46989626151f4bd5b6745",
+      "family_ordinal": 19,
+      "pair_index": 57
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "5455bea3725f5d7842ce0171cd3fc4f3",
+      "family_ordinal": 19,
+      "pair_index": 58
+    },
+    {
+      "arm": "text",
+      "doc_id": "5455bea3725f5d7842ce0171cd3fc4f3",
+      "family_ordinal": 19,
+      "pair_index": 58
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "cae3d20bc146d4e2c096dd0baf166053",
+      "family_ordinal": 19,
+      "pair_index": 59
+    },
+    {
+      "arm": "text",
+      "doc_id": "cae3d20bc146d4e2c096dd0baf166053",
+      "family_ordinal": 19,
+      "pair_index": 59
+    },
+    {
+      "arm": "text",
+      "doc_id": "7cb9db5655a311af45afc1db11495ec9",
+      "family_ordinal": 20,
+      "pair_index": 60
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "7cb9db5655a311af45afc1db11495ec9",
+      "family_ordinal": 20,
+      "pair_index": 60
+    },
+    {
+      "arm": "text",
+      "doc_id": "dab7be728a8c8f94b5647bd8d24801d3",
+      "family_ordinal": 20,
+      "pair_index": 61
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "dab7be728a8c8f94b5647bd8d24801d3",
+      "family_ordinal": 20,
+      "pair_index": 61
+    },
+    {
+      "arm": "text",
+      "doc_id": "651ae026471d0ff24c32b55de58c2b73",
+      "family_ordinal": 20,
+      "pair_index": 62
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "651ae026471d0ff24c32b55de58c2b73",
+      "family_ordinal": 20,
+      "pair_index": 62
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "5a060da05936542fcb8371c6564ed640",
+      "family_ordinal": 21,
+      "pair_index": 63
+    },
+    {
+      "arm": "text",
+      "doc_id": "5a060da05936542fcb8371c6564ed640",
+      "family_ordinal": 21,
+      "pair_index": 63
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "1f97cea8eaca20022a33b6b9872f72d8",
+      "family_ordinal": 21,
+      "pair_index": 64
+    },
+    {
+      "arm": "text",
+      "doc_id": "1f97cea8eaca20022a33b6b9872f72d8",
+      "family_ordinal": 21,
+      "pair_index": 64
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "0a468efbccbd560b9756a86440adbf53",
+      "family_ordinal": 21,
+      "pair_index": 65
+    },
+    {
+      "arm": "text",
+      "doc_id": "0a468efbccbd560b9756a86440adbf53",
+      "family_ordinal": 21,
+      "pair_index": 65
+    },
+    {
+      "arm": "text",
+      "doc_id": "3a00a2c2794e1cd4e81b5ddb39a2d255",
+      "family_ordinal": 22,
+      "pair_index": 66
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "3a00a2c2794e1cd4e81b5ddb39a2d255",
+      "family_ordinal": 22,
+      "pair_index": 66
+    },
+    {
+      "arm": "text",
+      "doc_id": "b4f9eeae4c6c32add409bdb0045d44f1",
+      "family_ordinal": 22,
+      "pair_index": 67
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "b4f9eeae4c6c32add409bdb0045d44f1",
+      "family_ordinal": 22,
+      "pair_index": 67
+    },
+    {
+      "arm": "text",
+      "doc_id": "814f6f105d9141aca8dbc97883804b61",
+      "family_ordinal": 22,
+      "pair_index": 68
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "814f6f105d9141aca8dbc97883804b61",
+      "family_ordinal": 22,
+      "pair_index": 68
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "2933b73d7a86f0016e12332fb3306bbe",
+      "family_ordinal": 23,
+      "pair_index": 69
+    },
+    {
+      "arm": "text",
+      "doc_id": "2933b73d7a86f0016e12332fb3306bbe",
+      "family_ordinal": 23,
+      "pair_index": 69
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "ef6519916d2d5932d8d98186130c7df5",
+      "family_ordinal": 23,
+      "pair_index": 70
+    },
+    {
+      "arm": "text",
+      "doc_id": "ef6519916d2d5932d8d98186130c7df5",
+      "family_ordinal": 23,
+      "pair_index": 70
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "cf4d6bef8eb6b2cfcf958d026c09bf84",
+      "family_ordinal": 23,
+      "pair_index": 71
+    },
+    {
+      "arm": "text",
+      "doc_id": "cf4d6bef8eb6b2cfcf958d026c09bf84",
+      "family_ordinal": 23,
+      "pair_index": 71
+    },
+    {
+      "arm": "text",
+      "doc_id": "83f03d8d8b0a1ab8cc9dfbdc90003b25",
+      "family_ordinal": 24,
+      "pair_index": 72
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "83f03d8d8b0a1ab8cc9dfbdc90003b25",
+      "family_ordinal": 24,
+      "pair_index": 72
+    },
+    {
+      "arm": "text",
+      "doc_id": "0b197294885da2706a6ba26bf893a3ea",
+      "family_ordinal": 24,
+      "pair_index": 73
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "0b197294885da2706a6ba26bf893a3ea",
+      "family_ordinal": 24,
+      "pair_index": 73
+    },
+    {
+      "arm": "text",
+      "doc_id": "1de123cf5f5867d44aab31c8ac6dd057",
+      "family_ordinal": 24,
+      "pair_index": 74
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "1de123cf5f5867d44aab31c8ac6dd057",
+      "family_ordinal": 24,
+      "pair_index": 74
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "f43704d4f4a045e469e1dab3c3fc54a4",
+      "family_ordinal": 25,
+      "pair_index": 75
+    },
+    {
+      "arm": "text",
+      "doc_id": "f43704d4f4a045e469e1dab3c3fc54a4",
+      "family_ordinal": 25,
+      "pair_index": 75
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "77a6d373714a19c3b037064a2fb2f844",
+      "family_ordinal": 25,
+      "pair_index": 76
+    },
+    {
+      "arm": "text",
+      "doc_id": "77a6d373714a19c3b037064a2fb2f844",
+      "family_ordinal": 25,
+      "pair_index": 76
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "a81167a9b1999c198d681069987287c2",
+      "family_ordinal": 25,
+      "pair_index": 77
+    },
+    {
+      "arm": "text",
+      "doc_id": "a81167a9b1999c198d681069987287c2",
+      "family_ordinal": 25,
+      "pair_index": 77
+    },
+    {
+      "arm": "text",
+      "doc_id": "e7103d4c56ae73f5efee811cb3e09e77",
+      "family_ordinal": 26,
+      "pair_index": 78
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "e7103d4c56ae73f5efee811cb3e09e77",
+      "family_ordinal": 26,
+      "pair_index": 78
+    },
+    {
+      "arm": "text",
+      "doc_id": "3e12fabdfd190ab3efeba4cfaaa78cc7",
+      "family_ordinal": 26,
+      "pair_index": 79
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "3e12fabdfd190ab3efeba4cfaaa78cc7",
+      "family_ordinal": 26,
+      "pair_index": 79
+    },
+    {
+      "arm": "text",
+      "doc_id": "7b694d4d198785b6d3c10294ecdbe0fe",
+      "family_ordinal": 26,
+      "pair_index": 80
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "7b694d4d198785b6d3c10294ecdbe0fe",
+      "family_ordinal": 26,
+      "pair_index": 80
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "ff199c40a8522d4bdfadf80e79551e0d",
+      "family_ordinal": 27,
+      "pair_index": 81
+    },
+    {
+      "arm": "text",
+      "doc_id": "ff199c40a8522d4bdfadf80e79551e0d",
+      "family_ordinal": 27,
+      "pair_index": 81
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "f60df93758f77e923cbd1d755b9e7129",
+      "family_ordinal": 27,
+      "pair_index": 82
+    },
+    {
+      "arm": "text",
+      "doc_id": "f60df93758f77e923cbd1d755b9e7129",
+      "family_ordinal": 27,
+      "pair_index": 82
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "f67e26f48ab705cab9ccdae3f10676fd",
+      "family_ordinal": 27,
+      "pair_index": 83
+    },
+    {
+      "arm": "text",
+      "doc_id": "f67e26f48ab705cab9ccdae3f10676fd",
+      "family_ordinal": 27,
+      "pair_index": 83
+    },
+    {
+      "arm": "text",
+      "doc_id": "c1c8cdd74c5c0301b70a5cc7a54fbea8",
+      "family_ordinal": 28,
+      "pair_index": 84
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "c1c8cdd74c5c0301b70a5cc7a54fbea8",
+      "family_ordinal": 28,
+      "pair_index": 84
+    },
+    {
+      "arm": "text",
+      "doc_id": "b57755ca870602dd1a5b61041b252c2d",
+      "family_ordinal": 28,
+      "pair_index": 85
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "b57755ca870602dd1a5b61041b252c2d",
+      "family_ordinal": 28,
+      "pair_index": 85
+    },
+    {
+      "arm": "text",
+      "doc_id": "f73d6135c2c2a6430048c7c487deba94",
+      "family_ordinal": 28,
+      "pair_index": 86
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "f73d6135c2c2a6430048c7c487deba94",
+      "family_ordinal": 28,
+      "pair_index": 86
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "1d3ecc0dd3c09efed13080790789e47d",
+      "family_ordinal": 29,
+      "pair_index": 87
+    },
+    {
+      "arm": "text",
+      "doc_id": "1d3ecc0dd3c09efed13080790789e47d",
+      "family_ordinal": 29,
+      "pair_index": 87
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "2523102f7359fdfd342561010ca373fb",
+      "family_ordinal": 29,
+      "pair_index": 88
+    },
+    {
+      "arm": "text",
+      "doc_id": "2523102f7359fdfd342561010ca373fb",
+      "family_ordinal": 29,
+      "pair_index": 88
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "5ef84b064ddcc2a0b001b1c2f1af89c5",
+      "family_ordinal": 29,
+      "pair_index": 89
+    },
+    {
+      "arm": "text",
+      "doc_id": "5ef84b064ddcc2a0b001b1c2f1af89c5",
+      "family_ordinal": 29,
+      "pair_index": 89
+    },
+    {
+      "arm": "text",
+      "doc_id": "dbd72ae90f9b8598f5e7cb90526617d1",
+      "family_ordinal": 30,
+      "pair_index": 90
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "dbd72ae90f9b8598f5e7cb90526617d1",
+      "family_ordinal": 30,
+      "pair_index": 90
+    },
+    {
+      "arm": "text",
+      "doc_id": "3549e0f2e21918de67569997c1b09013",
+      "family_ordinal": 30,
+      "pair_index": 91
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "3549e0f2e21918de67569997c1b09013",
+      "family_ordinal": 30,
+      "pair_index": 91
+    },
+    {
+      "arm": "text",
+      "doc_id": "0298a9bb29e5b90d9f04d8b2e4aa7911",
+      "family_ordinal": 30,
+      "pair_index": 92
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "0298a9bb29e5b90d9f04d8b2e4aa7911",
+      "family_ordinal": 30,
+      "pair_index": 92
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "6daff36ac038927009cb478c519517e3",
+      "family_ordinal": 31,
+      "pair_index": 93
+    },
+    {
+      "arm": "text",
+      "doc_id": "6daff36ac038927009cb478c519517e3",
+      "family_ordinal": 31,
+      "pair_index": 93
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "d01da936c68763e2f048c5fb4eb0fef9",
+      "family_ordinal": 31,
+      "pair_index": 94
+    },
+    {
+      "arm": "text",
+      "doc_id": "d01da936c68763e2f048c5fb4eb0fef9",
+      "family_ordinal": 31,
+      "pair_index": 94
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "17fe9c3c028d502a11adcdb1138137f8",
+      "family_ordinal": 31,
+      "pair_index": 95
+    },
+    {
+      "arm": "text",
+      "doc_id": "17fe9c3c028d502a11adcdb1138137f8",
+      "family_ordinal": 31,
+      "pair_index": 95
+    },
+    {
+      "arm": "text",
+      "doc_id": "ff9c8556ba9547ade8b209f884ea8669",
+      "family_ordinal": 32,
+      "pair_index": 96
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "ff9c8556ba9547ade8b209f884ea8669",
+      "family_ordinal": 32,
+      "pair_index": 96
+    },
+    {
+      "arm": "text",
+      "doc_id": "2fb8247cc9b7055b544efb4488da4e62",
+      "family_ordinal": 32,
+      "pair_index": 97
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "2fb8247cc9b7055b544efb4488da4e62",
+      "family_ordinal": 32,
+      "pair_index": 97
+    },
+    {
+      "arm": "text",
+      "doc_id": "15aca4b70da664d1ca9d2a9990f876bf",
+      "family_ordinal": 32,
+      "pair_index": 98
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "15aca4b70da664d1ca9d2a9990f876bf",
+      "family_ordinal": 32,
+      "pair_index": 98
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "846f1e276515cb47990dac4c206700e8",
+      "family_ordinal": 33,
+      "pair_index": 99
+    },
+    {
+      "arm": "text",
+      "doc_id": "846f1e276515cb47990dac4c206700e8",
+      "family_ordinal": 33,
+      "pair_index": 99
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "c71f54b21f68da763ececa3d6604ecc5",
+      "family_ordinal": 33,
+      "pair_index": 100
+    },
+    {
+      "arm": "text",
+      "doc_id": "c71f54b21f68da763ececa3d6604ecc5",
+      "family_ordinal": 33,
+      "pair_index": 100
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "70435a2b59f9e892933621677cd83335",
+      "family_ordinal": 33,
+      "pair_index": 101
+    },
+    {
+      "arm": "text",
+      "doc_id": "70435a2b59f9e892933621677cd83335",
+      "family_ordinal": 33,
+      "pair_index": 101
+    },
+    {
+      "arm": "text",
+      "doc_id": "a641f41ac2a7604fce641865807d065f",
+      "family_ordinal": 34,
+      "pair_index": 102
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "a641f41ac2a7604fce641865807d065f",
+      "family_ordinal": 34,
+      "pair_index": 102
+    },
+    {
+      "arm": "text",
+      "doc_id": "022af0872e38f26b43651c8e5e580969",
+      "family_ordinal": 34,
+      "pair_index": 103
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "022af0872e38f26b43651c8e5e580969",
+      "family_ordinal": 34,
+      "pair_index": 103
+    },
+    {
+      "arm": "text",
+      "doc_id": "231fbde7a14cb4eab04cdc0d73610f6a",
+      "family_ordinal": 34,
+      "pair_index": 104
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "231fbde7a14cb4eab04cdc0d73610f6a",
+      "family_ordinal": 34,
+      "pair_index": 104
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "a204f92f1a0ce91fdc29dedd2017a563",
+      "family_ordinal": 35,
+      "pair_index": 105
+    },
+    {
+      "arm": "text",
+      "doc_id": "a204f92f1a0ce91fdc29dedd2017a563",
+      "family_ordinal": 35,
+      "pair_index": 105
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "bb920e181e82ba24575c36a956f00859",
+      "family_ordinal": 35,
+      "pair_index": 106
+    },
+    {
+      "arm": "text",
+      "doc_id": "bb920e181e82ba24575c36a956f00859",
+      "family_ordinal": 35,
+      "pair_index": 106
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "f148aff0029318bf524acb6e906ccb5d",
+      "family_ordinal": 35,
+      "pair_index": 107
+    },
+    {
+      "arm": "text",
+      "doc_id": "f148aff0029318bf524acb6e906ccb5d",
+      "family_ordinal": 35,
+      "pair_index": 107
+    },
+    {
+      "arm": "text",
+      "doc_id": "2535355bbc61866805685680e96521d7",
+      "family_ordinal": 36,
+      "pair_index": 108
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "2535355bbc61866805685680e96521d7",
+      "family_ordinal": 36,
+      "pair_index": 108
+    },
+    {
+      "arm": "text",
+      "doc_id": "f6594dc16320dc7e104d60d81770e105",
+      "family_ordinal": 36,
+      "pair_index": 109
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "f6594dc16320dc7e104d60d81770e105",
+      "family_ordinal": 36,
+      "pair_index": 109
+    },
+    {
+      "arm": "text",
+      "doc_id": "79a027a9530adecd9b509b0616a0df2c",
+      "family_ordinal": 36,
+      "pair_index": 110
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "79a027a9530adecd9b509b0616a0df2c",
+      "family_ordinal": 36,
+      "pair_index": 110
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "427b89533e5afd0d260d6ca219817d28",
+      "family_ordinal": 37,
+      "pair_index": 111
+    },
+    {
+      "arm": "text",
+      "doc_id": "427b89533e5afd0d260d6ca219817d28",
+      "family_ordinal": 37,
+      "pair_index": 111
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "f5ec184868c5bc8aa36bfdcae86f835b",
+      "family_ordinal": 37,
+      "pair_index": 112
+    },
+    {
+      "arm": "text",
+      "doc_id": "f5ec184868c5bc8aa36bfdcae86f835b",
+      "family_ordinal": 37,
+      "pair_index": 112
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "0faa9db7b4787c481bb1519466329ad5",
+      "family_ordinal": 37,
+      "pair_index": 113
+    },
+    {
+      "arm": "text",
+      "doc_id": "0faa9db7b4787c481bb1519466329ad5",
+      "family_ordinal": 37,
+      "pair_index": 113
+    },
+    {
+      "arm": "text",
+      "doc_id": "8dea3b021ea0e4bbae3dd9353e82e96b",
+      "family_ordinal": 38,
+      "pair_index": 114
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "8dea3b021ea0e4bbae3dd9353e82e96b",
+      "family_ordinal": 38,
+      "pair_index": 114
+    },
+    {
+      "arm": "text",
+      "doc_id": "1a8ba5ce6d4d7f780bc645a5ef4fb6ce",
+      "family_ordinal": 38,
+      "pair_index": 115
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "1a8ba5ce6d4d7f780bc645a5ef4fb6ce",
+      "family_ordinal": 38,
+      "pair_index": 115
+    },
+    {
+      "arm": "text",
+      "doc_id": "ffd5563493e92fe83f2e4f4e20d167fd",
+      "family_ordinal": 38,
+      "pair_index": 116
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "ffd5563493e92fe83f2e4f4e20d167fd",
+      "family_ordinal": 38,
+      "pair_index": 116
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "b46a40a875f5af487aee029ee3ab6569",
+      "family_ordinal": 39,
+      "pair_index": 117
+    },
+    {
+      "arm": "text",
+      "doc_id": "b46a40a875f5af487aee029ee3ab6569",
+      "family_ordinal": 39,
+      "pair_index": 117
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "d5f318e2c8f1cf6451320c6afc437b59",
+      "family_ordinal": 39,
+      "pair_index": 118
+    },
+    {
+      "arm": "text",
+      "doc_id": "d5f318e2c8f1cf6451320c6afc437b59",
+      "family_ordinal": 39,
+      "pair_index": 118
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "e5f095e0f4b06944725d9ac27509855b",
+      "family_ordinal": 39,
+      "pair_index": 119
+    },
+    {
+      "arm": "text",
+      "doc_id": "e5f095e0f4b06944725d9ac27509855b",
+      "family_ordinal": 39,
+      "pair_index": 119
+    },
+    {
+      "arm": "text",
+      "doc_id": "a2005f50333802901095ce1d849d351b",
+      "family_ordinal": 40,
+      "pair_index": 120
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "a2005f50333802901095ce1d849d351b",
+      "family_ordinal": 40,
+      "pair_index": 120
+    },
+    {
+      "arm": "text",
+      "doc_id": "489795f7ad312b41fac0e65ed1e40d95",
+      "family_ordinal": 40,
+      "pair_index": 121
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "489795f7ad312b41fac0e65ed1e40d95",
+      "family_ordinal": 40,
+      "pair_index": 121
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "2586b19fc93bdde9333a9e6a44f802da",
+      "family_ordinal": 41,
+      "pair_index": 122
+    },
+    {
+      "arm": "text",
+      "doc_id": "2586b19fc93bdde9333a9e6a44f802da",
+      "family_ordinal": 41,
+      "pair_index": 122
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "3c3d43966508714cbe3efe1c50b1c898",
+      "family_ordinal": 41,
+      "pair_index": 123
+    },
+    {
+      "arm": "text",
+      "doc_id": "3c3d43966508714cbe3efe1c50b1c898",
+      "family_ordinal": 41,
+      "pair_index": 123
+    },
+    {
+      "arm": "text",
+      "doc_id": "1e1aaec328dc1c8d21fe5e22ac618b43",
+      "family_ordinal": 42,
+      "pair_index": 124
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "1e1aaec328dc1c8d21fe5e22ac618b43",
+      "family_ordinal": 42,
+      "pair_index": 124
+    },
+    {
+      "arm": "text",
+      "doc_id": "ea6f3fbd4d605f3cef7e7029d922f24c",
+      "family_ordinal": 42,
+      "pair_index": 125
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "ea6f3fbd4d605f3cef7e7029d922f24c",
+      "family_ordinal": 42,
+      "pair_index": 125
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "1cb593f6812e45af4ddd98823da62f28",
+      "family_ordinal": 43,
+      "pair_index": 126
+    },
+    {
+      "arm": "text",
+      "doc_id": "1cb593f6812e45af4ddd98823da62f28",
+      "family_ordinal": 43,
+      "pair_index": 126
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "a29aacdf6fa34a862042760d5ec22985",
+      "family_ordinal": 43,
+      "pair_index": 127
+    },
+    {
+      "arm": "text",
+      "doc_id": "a29aacdf6fa34a862042760d5ec22985",
+      "family_ordinal": 43,
+      "pair_index": 127
+    },
+    {
+      "arm": "text",
+      "doc_id": "d30e0c40cd08ca2935206c1f29c92adf",
+      "family_ordinal": 44,
+      "pair_index": 128
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "d30e0c40cd08ca2935206c1f29c92adf",
+      "family_ordinal": 44,
+      "pair_index": 128
+    },
+    {
+      "arm": "text",
+      "doc_id": "1db66f9f8af96c11394c0b59a24348d8",
+      "family_ordinal": 44,
+      "pair_index": 129
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "1db66f9f8af96c11394c0b59a24348d8",
+      "family_ordinal": 44,
+      "pair_index": 129
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "afda1fe4c75ebfa3dbb0de214eceda1f",
+      "family_ordinal": 45,
+      "pair_index": 130
+    },
+    {
+      "arm": "text",
+      "doc_id": "afda1fe4c75ebfa3dbb0de214eceda1f",
+      "family_ordinal": 45,
+      "pair_index": 130
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "a150a936505e3d502aa685168f00a787",
+      "family_ordinal": 45,
+      "pair_index": 131
+    },
+    {
+      "arm": "text",
+      "doc_id": "a150a936505e3d502aa685168f00a787",
+      "family_ordinal": 45,
+      "pair_index": 131
+    },
+    {
+      "arm": "text",
+      "doc_id": "14c0bb0c663e7b0ae6d55b7a2321fcd7",
+      "family_ordinal": 46,
+      "pair_index": 132
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "14c0bb0c663e7b0ae6d55b7a2321fcd7",
+      "family_ordinal": 46,
+      "pair_index": 132
+    },
+    {
+      "arm": "text",
+      "doc_id": "1ce7ddfb9c6118fcd2b86858808a6dc7",
+      "family_ordinal": 46,
+      "pair_index": 133
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "1ce7ddfb9c6118fcd2b86858808a6dc7",
+      "family_ordinal": 46,
+      "pair_index": 133
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "8d8efc6f239ce3ee032f0230a5ac1067",
+      "family_ordinal": 47,
+      "pair_index": 134
+    },
+    {
+      "arm": "text",
+      "doc_id": "8d8efc6f239ce3ee032f0230a5ac1067",
+      "family_ordinal": 47,
+      "pair_index": 134
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "c5a7018c9b66aa78a5ac37b294e8d468",
+      "family_ordinal": 47,
+      "pair_index": 135
+    },
+    {
+      "arm": "text",
+      "doc_id": "c5a7018c9b66aa78a5ac37b294e8d468",
+      "family_ordinal": 47,
+      "pair_index": 135
+    },
+    {
+      "arm": "text",
+      "doc_id": "7a53bba45b023efc85ffc9bf59bebd71",
+      "family_ordinal": 48,
+      "pair_index": 136
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "7a53bba45b023efc85ffc9bf59bebd71",
+      "family_ordinal": 48,
+      "pair_index": 136
+    },
+    {
+      "arm": "text",
+      "doc_id": "6a3916b4a60923816989529b9821841d",
+      "family_ordinal": 48,
+      "pair_index": 137
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "6a3916b4a60923816989529b9821841d",
+      "family_ordinal": 48,
+      "pair_index": 137
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "59a908944c8e551a46684d910a26c247",
+      "family_ordinal": 49,
+      "pair_index": 138
+    },
+    {
+      "arm": "text",
+      "doc_id": "59a908944c8e551a46684d910a26c247",
+      "family_ordinal": 49,
+      "pair_index": 138
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "50ad55705d287f2ee1665b37cd8a144f",
+      "family_ordinal": 49,
+      "pair_index": 139
+    },
+    {
+      "arm": "text",
+      "doc_id": "50ad55705d287f2ee1665b37cd8a144f",
+      "family_ordinal": 49,
+      "pair_index": 139
+    },
+    {
+      "arm": "text",
+      "doc_id": "8dcab6c9eb4484a4da52cd081710535c",
+      "family_ordinal": 50,
+      "pair_index": 140
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "8dcab6c9eb4484a4da52cd081710535c",
+      "family_ordinal": 50,
+      "pair_index": 140
+    },
+    {
+      "arm": "text",
+      "doc_id": "c67b86f0644aa4e5261d8e44792c26c9",
+      "family_ordinal": 50,
+      "pair_index": 141
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "c67b86f0644aa4e5261d8e44792c26c9",
+      "family_ordinal": 50,
+      "pair_index": 141
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "08be0cd04ed9efb59e42c1ee931ad486",
+      "family_ordinal": 51,
+      "pair_index": 142
+    },
+    {
+      "arm": "text",
+      "doc_id": "08be0cd04ed9efb59e42c1ee931ad486",
+      "family_ordinal": 51,
+      "pair_index": 142
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "9ad59e51407dc793613cab54f66d0e35",
+      "family_ordinal": 51,
+      "pair_index": 143
+    },
+    {
+      "arm": "text",
+      "doc_id": "9ad59e51407dc793613cab54f66d0e35",
+      "family_ordinal": 51,
+      "pair_index": 143
+    },
+    {
+      "arm": "text",
+      "doc_id": "2b73a2dab18b4f3e96e643ef12627b11",
+      "family_ordinal": 52,
+      "pair_index": 144
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "2b73a2dab18b4f3e96e643ef12627b11",
+      "family_ordinal": 52,
+      "pair_index": 144
+    },
+    {
+      "arm": "text",
+      "doc_id": "5078a2632c130f811e6c61b1ee625d34",
+      "family_ordinal": 52,
+      "pair_index": 145
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "5078a2632c130f811e6c61b1ee625d34",
+      "family_ordinal": 52,
+      "pair_index": 145
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "9629ba346a2e9fe3ca8ea525bd5212d6",
+      "family_ordinal": 53,
+      "pair_index": 146
+    },
+    {
+      "arm": "text",
+      "doc_id": "9629ba346a2e9fe3ca8ea525bd5212d6",
+      "family_ordinal": 53,
+      "pair_index": 146
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "07d72119a8fd874291214d7a61675207",
+      "family_ordinal": 53,
+      "pair_index": 147
+    },
+    {
+      "arm": "text",
+      "doc_id": "07d72119a8fd874291214d7a61675207",
+      "family_ordinal": 53,
+      "pair_index": 147
+    },
+    {
+      "arm": "text",
+      "doc_id": "65cf2203b050569098e3584993e3a1ae",
+      "family_ordinal": 54,
+      "pair_index": 148
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "65cf2203b050569098e3584993e3a1ae",
+      "family_ordinal": 54,
+      "pair_index": 148
+    },
+    {
+      "arm": "text",
+      "doc_id": "b4d7bf0ae3ed53b58a41e47365a5dd86",
+      "family_ordinal": 54,
+      "pair_index": 149
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "b4d7bf0ae3ed53b58a41e47365a5dd86",
+      "family_ordinal": 54,
+      "pair_index": 149
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "49b45421f0443176ab1d20913ff83283",
+      "family_ordinal": 55,
+      "pair_index": 150
+    },
+    {
+      "arm": "text",
+      "doc_id": "49b45421f0443176ab1d20913ff83283",
+      "family_ordinal": 55,
+      "pair_index": 150
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "2f3e0b8dd868160e44c5b331bddd5eb9",
+      "family_ordinal": 55,
+      "pair_index": 151
+    },
+    {
+      "arm": "text",
+      "doc_id": "2f3e0b8dd868160e44c5b331bddd5eb9",
+      "family_ordinal": 55,
+      "pair_index": 151
+    },
+    {
+      "arm": "text",
+      "doc_id": "203ddbf897f332e2d06d2257edabb6e8",
+      "family_ordinal": 56,
+      "pair_index": 152
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "203ddbf897f332e2d06d2257edabb6e8",
+      "family_ordinal": 56,
+      "pair_index": 152
+    },
+    {
+      "arm": "text",
+      "doc_id": "29c1c8f517c6cd9fadb69f5aad252a35",
+      "family_ordinal": 56,
+      "pair_index": 153
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "29c1c8f517c6cd9fadb69f5aad252a35",
+      "family_ordinal": 56,
+      "pair_index": 153
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "78fb006d11f96e0bb95a52feced9fda1",
+      "family_ordinal": 57,
+      "pair_index": 154
+    },
+    {
+      "arm": "text",
+      "doc_id": "78fb006d11f96e0bb95a52feced9fda1",
+      "family_ordinal": 57,
+      "pair_index": 154
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "de41afd8ce5444068ace99409e0d499e",
+      "family_ordinal": 57,
+      "pair_index": 155
+    },
+    {
+      "arm": "text",
+      "doc_id": "de41afd8ce5444068ace99409e0d499e",
+      "family_ordinal": 57,
+      "pair_index": 155
+    },
+    {
+      "arm": "text",
+      "doc_id": "6ddd71f9b0aeb33d5c099bab1cb64c3d",
+      "family_ordinal": 58,
+      "pair_index": 156
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "6ddd71f9b0aeb33d5c099bab1cb64c3d",
+      "family_ordinal": 58,
+      "pair_index": 156
+    },
+    {
+      "arm": "text",
+      "doc_id": "5079695ad1edd07dc65ecbb0bd8ac0ce",
+      "family_ordinal": 58,
+      "pair_index": 157
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "5079695ad1edd07dc65ecbb0bd8ac0ce",
+      "family_ordinal": 58,
+      "pair_index": 157
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "dd12fa1815daf5425e0925cbad19c986",
+      "family_ordinal": 59,
+      "pair_index": 158
+    },
+    {
+      "arm": "text",
+      "doc_id": "dd12fa1815daf5425e0925cbad19c986",
+      "family_ordinal": 59,
+      "pair_index": 158
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "16ba876e2aea0e952bc416c6ca72c9a2",
+      "family_ordinal": 59,
+      "pair_index": 159
+    },
+    {
+      "arm": "text",
+      "doc_id": "16ba876e2aea0e952bc416c6ca72c9a2",
+      "family_ordinal": 59,
+      "pair_index": 159
+    },
+    {
+      "arm": "text",
+      "doc_id": "62cdc55c8c3a4de4dfd129a215a4bab0",
+      "family_ordinal": 60,
+      "pair_index": 160
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "62cdc55c8c3a4de4dfd129a215a4bab0",
+      "family_ordinal": 60,
+      "pair_index": 160
+    },
+    {
+      "arm": "text",
+      "doc_id": "e8344c4c29e6e5422b0e02b09416aca3",
+      "family_ordinal": 60,
+      "pair_index": 161
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "e8344c4c29e6e5422b0e02b09416aca3",
+      "family_ordinal": 60,
+      "pair_index": 161
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "1ae0050f9db1f1cc77b14f5b4d7b534e",
+      "family_ordinal": 61,
+      "pair_index": 162
+    },
+    {
+      "arm": "text",
+      "doc_id": "1ae0050f9db1f1cc77b14f5b4d7b534e",
+      "family_ordinal": 61,
+      "pair_index": 162
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "0c5a73d4dd3b89aa2f82b1ff8d478550",
+      "family_ordinal": 61,
+      "pair_index": 163
+    },
+    {
+      "arm": "text",
+      "doc_id": "0c5a73d4dd3b89aa2f82b1ff8d478550",
+      "family_ordinal": 61,
+      "pair_index": 163
+    },
+    {
+      "arm": "text",
+      "doc_id": "41c0bf0db7bfbd5319503c84e6c88ec7",
+      "family_ordinal": 62,
+      "pair_index": 164
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "41c0bf0db7bfbd5319503c84e6c88ec7",
+      "family_ordinal": 62,
+      "pair_index": 164
+    },
+    {
+      "arm": "text",
+      "doc_id": "e0210b8046e7fd558c76e169e3c87752",
+      "family_ordinal": 62,
+      "pair_index": 165
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "e0210b8046e7fd558c76e169e3c87752",
+      "family_ordinal": 62,
+      "pair_index": 165
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "aa39b5b56bf70c6431b8f1fb53f72516",
+      "family_ordinal": 63,
+      "pair_index": 166
+    },
+    {
+      "arm": "text",
+      "doc_id": "aa39b5b56bf70c6431b8f1fb53f72516",
+      "family_ordinal": 63,
+      "pair_index": 166
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "812c672502ed75a42132173438ffd1ac",
+      "family_ordinal": 63,
+      "pair_index": 167
+    },
+    {
+      "arm": "text",
+      "doc_id": "812c672502ed75a42132173438ffd1ac",
+      "family_ordinal": 63,
+      "pair_index": 167
+    },
+    {
+      "arm": "text",
+      "doc_id": "1a6039f60b7d6a2be7832bb566336ae4",
+      "family_ordinal": 64,
+      "pair_index": 168
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "1a6039f60b7d6a2be7832bb566336ae4",
+      "family_ordinal": 64,
+      "pair_index": 168
+    },
+    {
+      "arm": "text",
+      "doc_id": "b7fce01d9ffdf121c108d80a05053a0f",
+      "family_ordinal": 64,
+      "pair_index": 169
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "b7fce01d9ffdf121c108d80a05053a0f",
+      "family_ordinal": 64,
+      "pair_index": 169
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "6a646c05beb3dd7221e670ef35c3da35",
+      "family_ordinal": 65,
+      "pair_index": 170
+    },
+    {
+      "arm": "text",
+      "doc_id": "6a646c05beb3dd7221e670ef35c3da35",
+      "family_ordinal": 65,
+      "pair_index": 170
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "93df97286c75c0e6aea9773350f524d1",
+      "family_ordinal": 65,
+      "pair_index": 171
+    },
+    {
+      "arm": "text",
+      "doc_id": "93df97286c75c0e6aea9773350f524d1",
+      "family_ordinal": 65,
+      "pair_index": 171
+    },
+    {
+      "arm": "text",
+      "doc_id": "0ec552f30e9d76c2394e5959a2c38c47",
+      "family_ordinal": 66,
+      "pair_index": 172
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "0ec552f30e9d76c2394e5959a2c38c47",
+      "family_ordinal": 66,
+      "pair_index": 172
+    },
+    {
+      "arm": "text",
+      "doc_id": "ad1fe6eb006a1cf20ed2b89b648a9261",
+      "family_ordinal": 66,
+      "pair_index": 173
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "ad1fe6eb006a1cf20ed2b89b648a9261",
+      "family_ordinal": 66,
+      "pair_index": 173
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "a2664c2c977f1544697b347dc62efa34",
+      "family_ordinal": 67,
+      "pair_index": 174
+    },
+    {
+      "arm": "text",
+      "doc_id": "a2664c2c977f1544697b347dc62efa34",
+      "family_ordinal": 67,
+      "pair_index": 174
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "4fe052b5991216fd43c7528a1703a76b",
+      "family_ordinal": 67,
+      "pair_index": 175
+    },
+    {
+      "arm": "text",
+      "doc_id": "4fe052b5991216fd43c7528a1703a76b",
+      "family_ordinal": 67,
+      "pair_index": 175
+    },
+    {
+      "arm": "text",
+      "doc_id": "cdb6cec60da0bd367f0614a3e197a695",
+      "family_ordinal": 68,
+      "pair_index": 176
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "cdb6cec60da0bd367f0614a3e197a695",
+      "family_ordinal": 68,
+      "pair_index": 176
+    },
+    {
+      "arm": "text",
+      "doc_id": "707096adb749f388633c3d8c0fab37de",
+      "family_ordinal": 68,
+      "pair_index": 177
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "707096adb749f388633c3d8c0fab37de",
+      "family_ordinal": 68,
+      "pair_index": 177
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "50d38ea8b88b3501de0a86c83a53ed18",
+      "family_ordinal": 69,
+      "pair_index": 178
+    },
+    {
+      "arm": "text",
+      "doc_id": "50d38ea8b88b3501de0a86c83a53ed18",
+      "family_ordinal": 69,
+      "pair_index": 178
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "1b7eacd0946adc0a3ae30a1645c15987",
+      "family_ordinal": 69,
+      "pair_index": 179
+    },
+    {
+      "arm": "text",
+      "doc_id": "1b7eacd0946adc0a3ae30a1645c15987",
+      "family_ordinal": 69,
+      "pair_index": 179
+    },
+    {
+      "arm": "text",
+      "doc_id": "eb11ff5e706bb92b98cdbbe812d34597",
+      "family_ordinal": 70,
+      "pair_index": 180
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "eb11ff5e706bb92b98cdbbe812d34597",
+      "family_ordinal": 70,
+      "pair_index": 180
+    },
+    {
+      "arm": "text",
+      "doc_id": "eca90adc0aef4186a6230a89deabbefc",
+      "family_ordinal": 70,
+      "pair_index": 181
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "eca90adc0aef4186a6230a89deabbefc",
+      "family_ordinal": 70,
+      "pair_index": 181
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "3a4cd5ef33c6c8133bc09c90cbec97b6",
+      "family_ordinal": 71,
+      "pair_index": 182
+    },
+    {
+      "arm": "text",
+      "doc_id": "3a4cd5ef33c6c8133bc09c90cbec97b6",
+      "family_ordinal": 71,
+      "pair_index": 182
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "cc644492f76c5060ff0a51ce95aaff87",
+      "family_ordinal": 71,
+      "pair_index": 183
+    },
+    {
+      "arm": "text",
+      "doc_id": "cc644492f76c5060ff0a51ce95aaff87",
+      "family_ordinal": 71,
+      "pair_index": 183
+    },
+    {
+      "arm": "text",
+      "doc_id": "f62a0c31debf8d1af25c02f838c6e261",
+      "family_ordinal": 72,
+      "pair_index": 184
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "f62a0c31debf8d1af25c02f838c6e261",
+      "family_ordinal": 72,
+      "pair_index": 184
+    },
+    {
+      "arm": "text",
+      "doc_id": "c71549edfd99b77283c4135465f0ed4c",
+      "family_ordinal": 72,
+      "pair_index": 185
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "c71549edfd99b77283c4135465f0ed4c",
+      "family_ordinal": 72,
+      "pair_index": 185
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "8b79c7a4bb00025ca5239ca279d5daca",
+      "family_ordinal": 73,
+      "pair_index": 186
+    },
+    {
+      "arm": "text",
+      "doc_id": "8b79c7a4bb00025ca5239ca279d5daca",
+      "family_ordinal": 73,
+      "pair_index": 186
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "3b9ebde1a5525713962ef2ef107d6c69",
+      "family_ordinal": 73,
+      "pair_index": 187
+    },
+    {
+      "arm": "text",
+      "doc_id": "3b9ebde1a5525713962ef2ef107d6c69",
+      "family_ordinal": 73,
+      "pair_index": 187
+    },
+    {
+      "arm": "text",
+      "doc_id": "e1cc836b07aae935934baff9d9d7d300",
+      "family_ordinal": 74,
+      "pair_index": 188
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "e1cc836b07aae935934baff9d9d7d300",
+      "family_ordinal": 74,
+      "pair_index": 188
+    },
+    {
+      "arm": "text",
+      "doc_id": "0465756793510d790632d7875b63a232",
+      "family_ordinal": 74,
+      "pair_index": 189
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "0465756793510d790632d7875b63a232",
+      "family_ordinal": 74,
+      "pair_index": 189
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "f22fb633460937dcee1d0f6adaaa9c6e",
+      "family_ordinal": 75,
+      "pair_index": 190
+    },
+    {
+      "arm": "text",
+      "doc_id": "f22fb633460937dcee1d0f6adaaa9c6e",
+      "family_ordinal": 75,
+      "pair_index": 190
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "1b30692aae43f9ec228c7ac5ecdba13c",
+      "family_ordinal": 75,
+      "pair_index": 191
+    },
+    {
+      "arm": "text",
+      "doc_id": "1b30692aae43f9ec228c7ac5ecdba13c",
+      "family_ordinal": 75,
+      "pair_index": 191
+    },
+    {
+      "arm": "text",
+      "doc_id": "8f3b4ced1ba64e38a1ed71b4f5a1dbad",
+      "family_ordinal": 76,
+      "pair_index": 192
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "8f3b4ced1ba64e38a1ed71b4f5a1dbad",
+      "family_ordinal": 76,
+      "pair_index": 192
+    },
+    {
+      "arm": "text",
+      "doc_id": "26e27cfc8eafb365792816f4b191ca1d",
+      "family_ordinal": 76,
+      "pair_index": 193
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "26e27cfc8eafb365792816f4b191ca1d",
+      "family_ordinal": 76,
+      "pair_index": 193
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "8e3862a03aaab94624c492c23518060a",
+      "family_ordinal": 77,
+      "pair_index": 194
+    },
+    {
+      "arm": "text",
+      "doc_id": "8e3862a03aaab94624c492c23518060a",
+      "family_ordinal": 77,
+      "pair_index": 194
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "18f46c50acd93db7be93685538b99085",
+      "family_ordinal": 77,
+      "pair_index": 195
+    },
+    {
+      "arm": "text",
+      "doc_id": "18f46c50acd93db7be93685538b99085",
+      "family_ordinal": 77,
+      "pair_index": 195
+    },
+    {
+      "arm": "text",
+      "doc_id": "9f43fdaafb4fcb1a46fda8b822bf5722",
+      "family_ordinal": 78,
+      "pair_index": 196
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "9f43fdaafb4fcb1a46fda8b822bf5722",
+      "family_ordinal": 78,
+      "pair_index": 196
+    },
+    {
+      "arm": "text",
+      "doc_id": "4aa738a2f868cfedd9e33828e2a2d3ae",
+      "family_ordinal": 78,
+      "pair_index": 197
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "4aa738a2f868cfedd9e33828e2a2d3ae",
+      "family_ordinal": 78,
+      "pair_index": 197
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "f1a93d2316e145c9572917d5addbc273",
+      "family_ordinal": 79,
+      "pair_index": 198
+    },
+    {
+      "arm": "text",
+      "doc_id": "f1a93d2316e145c9572917d5addbc273",
+      "family_ordinal": 79,
+      "pair_index": 198
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "1b10248d0ccbfa0dcac898806357e72f",
+      "family_ordinal": 79,
+      "pair_index": 199
+    },
+    {
+      "arm": "text",
+      "doc_id": "1b10248d0ccbfa0dcac898806357e72f",
+      "family_ordinal": 79,
+      "pair_index": 199
+    },
+    {
+      "arm": "text",
+      "doc_id": "cbfb2fb0f31d07b74c400965a1e3eba8",
+      "family_ordinal": 80,
+      "pair_index": 200
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "cbfb2fb0f31d07b74c400965a1e3eba8",
+      "family_ordinal": 80,
+      "pair_index": 200
+    },
+    {
+      "arm": "text",
+      "doc_id": "d74e1cb74e66a80f31d3a1b0815e661d",
+      "family_ordinal": 80,
+      "pair_index": 201
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "d74e1cb74e66a80f31d3a1b0815e661d",
+      "family_ordinal": 80,
+      "pair_index": 201
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "bb324517364a779d93882dcb0fd99b87",
+      "family_ordinal": 81,
+      "pair_index": 202
+    },
+    {
+      "arm": "text",
+      "doc_id": "bb324517364a779d93882dcb0fd99b87",
+      "family_ordinal": 81,
+      "pair_index": 202
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "6c21221417e670a65584ac8d2141a6d1",
+      "family_ordinal": 81,
+      "pair_index": 203
+    },
+    {
+      "arm": "text",
+      "doc_id": "6c21221417e670a65584ac8d2141a6d1",
+      "family_ordinal": 81,
+      "pair_index": 203
+    },
+    {
+      "arm": "text",
+      "doc_id": "77ae6402f934c439630eee5a5041201a",
+      "family_ordinal": 82,
+      "pair_index": 204
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "77ae6402f934c439630eee5a5041201a",
+      "family_ordinal": 82,
+      "pair_index": 204
+    },
+    {
+      "arm": "text",
+      "doc_id": "31decba9b9c5c068f55bd74334eea2b0",
+      "family_ordinal": 82,
+      "pair_index": 205
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "31decba9b9c5c068f55bd74334eea2b0",
+      "family_ordinal": 82,
+      "pair_index": 205
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "1c8df019a2aa60cb629492c12f03cdda",
+      "family_ordinal": 83,
+      "pair_index": 206
+    },
+    {
+      "arm": "text",
+      "doc_id": "1c8df019a2aa60cb629492c12f03cdda",
+      "family_ordinal": 83,
+      "pair_index": 206
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "67487b52fc4c264a4c711cb6f90d46f0",
+      "family_ordinal": 83,
+      "pair_index": 207
+    },
+    {
+      "arm": "text",
+      "doc_id": "67487b52fc4c264a4c711cb6f90d46f0",
+      "family_ordinal": 83,
+      "pair_index": 207
+    },
+    {
+      "arm": "text",
+      "doc_id": "08474af6ad4da80e760f8d4a9969bda4",
+      "family_ordinal": 84,
+      "pair_index": 208
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "08474af6ad4da80e760f8d4a9969bda4",
+      "family_ordinal": 84,
+      "pair_index": 208
+    },
+    {
+      "arm": "text",
+      "doc_id": "18d6c92b86c74fddf1bdaa2dd9bb1996",
+      "family_ordinal": 84,
+      "pair_index": 209
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "18d6c92b86c74fddf1bdaa2dd9bb1996",
+      "family_ordinal": 84,
+      "pair_index": 209
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "d9a631267448553690ce00bc8faf2852",
+      "family_ordinal": 85,
+      "pair_index": 210
+    },
+    {
+      "arm": "text",
+      "doc_id": "d9a631267448553690ce00bc8faf2852",
+      "family_ordinal": 85,
+      "pair_index": 210
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "728f910a6694eea934e787e5676deb9d",
+      "family_ordinal": 85,
+      "pair_index": 211
+    },
+    {
+      "arm": "text",
+      "doc_id": "728f910a6694eea934e787e5676deb9d",
+      "family_ordinal": 85,
+      "pair_index": 211
+    },
+    {
+      "arm": "text",
+      "doc_id": "afb09137037c4768cc177d93e7a40957",
+      "family_ordinal": 86,
+      "pair_index": 212
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "afb09137037c4768cc177d93e7a40957",
+      "family_ordinal": 86,
+      "pair_index": 212
+    },
+    {
+      "arm": "text",
+      "doc_id": "cc886af731bdf9a004399f9f3606560a",
+      "family_ordinal": 86,
+      "pair_index": 213
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "cc886af731bdf9a004399f9f3606560a",
+      "family_ordinal": 86,
+      "pair_index": 213
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "ccbd86609bef971d4b98ceb95de1a4a9",
+      "family_ordinal": 87,
+      "pair_index": 214
+    },
+    {
+      "arm": "text",
+      "doc_id": "ccbd86609bef971d4b98ceb95de1a4a9",
+      "family_ordinal": 87,
+      "pair_index": 214
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "0ae9a3c1e94a61784930b636bdce73d9",
+      "family_ordinal": 87,
+      "pair_index": 215
+    },
+    {
+      "arm": "text",
+      "doc_id": "0ae9a3c1e94a61784930b636bdce73d9",
+      "family_ordinal": 87,
+      "pair_index": 215
+    },
+    {
+      "arm": "text",
+      "doc_id": "8c46ac36c87461446c092a2df7538e49",
+      "family_ordinal": 88,
+      "pair_index": 216
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "8c46ac36c87461446c092a2df7538e49",
+      "family_ordinal": 88,
+      "pair_index": 216
+    },
+    {
+      "arm": "text",
+      "doc_id": "fbfff565945611518d4d594336d66842",
+      "family_ordinal": 88,
+      "pair_index": 217
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "fbfff565945611518d4d594336d66842",
+      "family_ordinal": 88,
+      "pair_index": 217
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "8fbb9ab2bfed1446150c922e75d683d2",
+      "family_ordinal": 89,
+      "pair_index": 218
+    },
+    {
+      "arm": "text",
+      "doc_id": "8fbb9ab2bfed1446150c922e75d683d2",
+      "family_ordinal": 89,
+      "pair_index": 218
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "db13b64f104cc68b117123ceeafa76d1",
+      "family_ordinal": 89,
+      "pair_index": 219
+    },
+    {
+      "arm": "text",
+      "doc_id": "db13b64f104cc68b117123ceeafa76d1",
+      "family_ordinal": 89,
+      "pair_index": 219
+    },
+    {
+      "arm": "text",
+      "doc_id": "64a3c04f23f52b58dddb7b260eeeeb07",
+      "family_ordinal": 90,
+      "pair_index": 220
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "64a3c04f23f52b58dddb7b260eeeeb07",
+      "family_ordinal": 90,
+      "pair_index": 220
+    },
+    {
+      "arm": "text",
+      "doc_id": "ee00362d1630fc13d6d76a9993b91ae3",
+      "family_ordinal": 90,
+      "pair_index": 221
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "ee00362d1630fc13d6d76a9993b91ae3",
+      "family_ordinal": 90,
+      "pair_index": 221
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "edcf413b01b46bda4efd2d111d11f119",
+      "family_ordinal": 91,
+      "pair_index": 222
+    },
+    {
+      "arm": "text",
+      "doc_id": "edcf413b01b46bda4efd2d111d11f119",
+      "family_ordinal": 91,
+      "pair_index": 222
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "15399d59139f89454cd01aac024b89f2",
+      "family_ordinal": 91,
+      "pair_index": 223
+    },
+    {
+      "arm": "text",
+      "doc_id": "15399d59139f89454cd01aac024b89f2",
+      "family_ordinal": 91,
+      "pair_index": 223
+    },
+    {
+      "arm": "text",
+      "doc_id": "3b7277c9668bf4c3976493475ca501c4",
+      "family_ordinal": 92,
+      "pair_index": 224
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "3b7277c9668bf4c3976493475ca501c4",
+      "family_ordinal": 92,
+      "pair_index": 224
+    },
+    {
+      "arm": "text",
+      "doc_id": "8dde86c5fdfc65ee12014079cf22058b",
+      "family_ordinal": 92,
+      "pair_index": 225
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "8dde86c5fdfc65ee12014079cf22058b",
+      "family_ordinal": 92,
+      "pair_index": 225
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "fe00cc2b9ba135c00d92b3948abe5f31",
+      "family_ordinal": 93,
+      "pair_index": 226
+    },
+    {
+      "arm": "text",
+      "doc_id": "fe00cc2b9ba135c00d92b3948abe5f31",
+      "family_ordinal": 93,
+      "pair_index": 226
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "f0d9376e78e436cece09e01f4fc0aa6b",
+      "family_ordinal": 93,
+      "pair_index": 227
+    },
+    {
+      "arm": "text",
+      "doc_id": "f0d9376e78e436cece09e01f4fc0aa6b",
+      "family_ordinal": 93,
+      "pair_index": 227
+    },
+    {
+      "arm": "text",
+      "doc_id": "794dd05d1b2aa5c2d5543d4ce544f1c6",
+      "family_ordinal": 94,
+      "pair_index": 228
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "794dd05d1b2aa5c2d5543d4ce544f1c6",
+      "family_ordinal": 94,
+      "pair_index": 228
+    },
+    {
+      "arm": "text",
+      "doc_id": "5f3cb09b06d6ebdf54b2517d886f7fab",
+      "family_ordinal": 94,
+      "pair_index": 229
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "5f3cb09b06d6ebdf54b2517d886f7fab",
+      "family_ordinal": 94,
+      "pair_index": 229
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "fd94e943ef7b774355c78e720b836367",
+      "family_ordinal": 95,
+      "pair_index": 230
+    },
+    {
+      "arm": "text",
+      "doc_id": "fd94e943ef7b774355c78e720b836367",
+      "family_ordinal": 95,
+      "pair_index": 230
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "7ec9adeb2c5193104ccde5de0e8fde33",
+      "family_ordinal": 95,
+      "pair_index": 231
+    },
+    {
+      "arm": "text",
+      "doc_id": "7ec9adeb2c5193104ccde5de0e8fde33",
+      "family_ordinal": 95,
+      "pair_index": 231
+    },
+    {
+      "arm": "text",
+      "doc_id": "1004d9e7c5eb8829e1f79693cb7fd7f9",
+      "family_ordinal": 96,
+      "pair_index": 232
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "1004d9e7c5eb8829e1f79693cb7fd7f9",
+      "family_ordinal": 96,
+      "pair_index": 232
+    },
+    {
+      "arm": "text",
+      "doc_id": "502c6c1ee0e7998461f7f51fb817744b",
+      "family_ordinal": 96,
+      "pair_index": 233
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "502c6c1ee0e7998461f7f51fb817744b",
+      "family_ordinal": 96,
+      "pair_index": 233
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "66619ab484497422e40fad683113c2ed",
+      "family_ordinal": 97,
+      "pair_index": 234
+    },
+    {
+      "arm": "text",
+      "doc_id": "66619ab484497422e40fad683113c2ed",
+      "family_ordinal": 97,
+      "pair_index": 234
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "498bbdc746cb2f3d4814b9f1a3113411",
+      "family_ordinal": 97,
+      "pair_index": 235
+    },
+    {
+      "arm": "text",
+      "doc_id": "498bbdc746cb2f3d4814b9f1a3113411",
+      "family_ordinal": 97,
+      "pair_index": 235
+    },
+    {
+      "arm": "text",
+      "doc_id": "5e938b211949cf176ac12cf965b37135",
+      "family_ordinal": 98,
+      "pair_index": 236
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "5e938b211949cf176ac12cf965b37135",
+      "family_ordinal": 98,
+      "pair_index": 236
+    },
+    {
+      "arm": "text",
+      "doc_id": "49ff3fe920ead04371e5e21d24ee93fc",
+      "family_ordinal": 98,
+      "pair_index": 237
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "49ff3fe920ead04371e5e21d24ee93fc",
+      "family_ordinal": 98,
+      "pair_index": 237
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "3c2824bd76f8b7fd621e5fbc5c086150",
+      "family_ordinal": 99,
+      "pair_index": 238
+    },
+    {
+      "arm": "text",
+      "doc_id": "3c2824bd76f8b7fd621e5fbc5c086150",
+      "family_ordinal": 99,
+      "pair_index": 238
+    },
+    {
+      "arm": "candidate",
+      "doc_id": "6de2a10fcf1aa63ca5d08acaa9ed1f10",
+      "family_ordinal": 99,
+      "pair_index": 239
+    },
+    {
+      "arm": "text",
+      "doc_id": "6de2a10fcf1aa63ca5d08acaa9ed1f10",
+      "family_ordinal": 99,
+      "pair_index": 239
+    }
+  ],
+  "arm_max_calls": 960,
+  "global_max_calls": 1920,
+  "cached_ocr_allowed": false,
+  "fresh_original_intake_and_ocr_per_arm": true,
+  "sources": [
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "470baa7da632018b1dc5348590d541ca",
+      "family": "registration-form",
+      "source_sha256": "780903eac24284efdc5559be15e5cf05d87dff7d0969c76c90e7d076823e1b31",
+      "source_size_bytes": 59963,
+      "file_name": "19660601_Netherlands Board of Tourism and Conventions (NBTC)_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "7d80ba5258bf81c3c020294a1d2a9ce2",
+      "family": "registration-form",
+      "source_sha256": "e4e5f6cdf9729d932b74d7c37ab75b03d4546830c73b354126142bdafd35113a",
+      "source_size_bytes": 62843,
+      "file_name": "19930801_International Registries, Inc._Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "10f700ea975fa6980b5c3a0e34b49d36",
+      "family": "registration-form",
+      "source_sha256": "2ceb8cb0fb85870a5cf0f8b77692e2754776f56c7d4cb16d386a1dbfed1e9df0",
+      "source_size_bytes": 154251,
+      "file_name": "20180326_Sorini, Samet _ Associates, LLC_Samet, Andrew_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "b452324cff3d1219dd93b882e5e30297",
+      "family": "registration-form",
+      "source_sha256": "1edec6ffbb9d7ff355f7fa5cbf82030502411384c6edb9955df2ded5b4a7d127",
+      "source_size_bytes": 204910,
+      "file_name": "20160810_West Wing Writers, LLC_Farber, Annie_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "a54e8d2254bae62f722f47db48dc257d",
+      "family": "registration-form",
+      "source_sha256": "879dd993bed8f4234729526bb8fd0c32c499b6122b95a0cd92d87cc282caafad",
+      "source_size_bytes": 56888,
+      "file_name": "19920201_JETRO, Los Angeles_Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "c23bd733d96c320beb2c287fae580060",
+      "family": "registration-form",
+      "source_sha256": "9a2b8338664967b5ce9da58543d2bebf7d32709e23033d9d06576a1f7cf269fe",
+      "source_size_bytes": 121058,
+      "file_name": "20150126_Pillsbury Winthrop Shaw Pittman, LLP_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "bacea7e3270512cf69a991ba29986b1b",
+      "family": "registration-form",
+      "source_sha256": "7cc176ec37dcdded9373dd678692adae7b0de0bf552fc5a4d15ee6637bec7b13",
+      "source_size_bytes": 84411,
+      "file_name": "19950522_Quebec Government Office_Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "6f76e4ed4de26ba4c7348fa50bcf0de3",
+      "family": "registration-form",
+      "source_sha256": "44f486fff710b7e373be4062f4e68b7486816d869d22bb5af40ccbdfe0c86eb0",
+      "source_size_bytes": 81547,
+      "file_name": "19950629_JETRO, Houston_Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "3165c0762fab81b99160d71260e88a50",
+      "family": "registration-form",
+      "source_sha256": "edfd105ab982bd03d5f4946a53daf4dca5922d2809e9f2f3e199b0e175bf40fe",
+      "source_size_bytes": 482434,
+      "file_name": "20131107_United Lao Council for Peace, Freedom and Reconstruction (ULCPFR)_Vang, Chong_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "f4c38567a35c4a503daf39ffd2db475b",
+      "family": "registration-form",
+      "source_sha256": "de34dceffe223e5f12d4ae1c38054a8040002b6d9c89e559098626be46a6e853",
+      "source_size_bytes": 58022,
+      "file_name": "20140224_MSLGROUP Americas, Inc._Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "d3d98dfb30b81a6b44f6ab8922356aba",
+      "family": "registration-form",
+      "source_sha256": "c0144453c55251353a064cd190a787244c452d1a8573b64bc20c882a24fa0b9b",
+      "source_size_bytes": 109398,
+      "file_name": "20180703_Mercury Public Affairs, LLC_Randolph, Lindsay_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "cb299952e01e34e4df6a9807ba678b74",
+      "family": "registration-form",
+      "source_sha256": "51f531a0c450291e1eca5b28b67ddc92c3f9e2c9b9110ec49924905193684191",
+      "source_size_bytes": 98727,
+      "file_name": "19910501_Destination New South Wales_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "acda56361744c525a5c0913695b21376",
+      "family": "registration-form",
+      "source_sha256": "d051ab138e0e1932f108717853df680cf45d4873e46ef360eccaf61f550f3207",
+      "source_size_bytes": 84545,
+      "file_name": "19930501_CMGRP, Inc._Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "3ef97f6d1be18803e3921ad4d011cab1",
+      "family": "registration-form",
+      "source_sha256": "9cc81bd0944020ace3c1dd4006e9659bf48adad92dcb4553ce2126b36c81c8a1",
+      "source_size_bytes": 123544,
+      "file_name": "20180625_Aramco Affiliated Services Company (AASC)_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "0fe4de6ebc5beda6824697b4cb6213d1",
+      "family": "registration-form",
+      "source_sha256": "7832b2e02cb27479a30d0ff2d0c66bc959f2b32bc9b56e2ff9e33b258c1b4d86",
+      "source_size_bytes": 68474,
+      "file_name": "19660309_German National Tourist Office_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "337f00f141c9eaffab9ee3bac4ed798e",
+      "family": "registration-form",
+      "source_sha256": "5bf732a9e81ae34dae87e70cc01674dc18bc4358b42d1982b374912d3a081d60",
+      "source_size_bytes": 99223,
+      "file_name": "20040107_Alston _ Bird, LLP_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "a5847be0ebe8e26920200ea624c38482",
+      "family": "registration-form",
+      "source_sha256": "2dcb965a7238bd6f69ccf846fdf63d40297756225be9025d7ae5a47a7cb29311",
+      "source_size_bytes": 75778,
+      "file_name": "19960118_Far East Trade Services, Inc._Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "65cd45cebd9c0ac819adb24522f61a3a",
+      "family": "registration-form",
+      "source_sha256": "cb9bee2252e3955d1ff7f2296f96412fb8033d5aa4a9fcf04927502586071453",
+      "source_size_bytes": 114144,
+      "file_name": "20180516_Dickens _ Madson Canada Inc._Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "509dd9dbefc47f4d57478c8856cdb87d",
+      "family": "registration-form",
+      "source_sha256": "fb0f1c3b1655f9bbe289609f185fc39d8cfb8e761f6be148fa369163eed1fd1b",
+      "source_size_bytes": 120651,
+      "file_name": "20100120_Squire Patton Boggs, LLP_Deschauer, John J._Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "af63920b42c46989626151f4bd5b6745",
+      "family": "registration-form",
+      "source_sha256": "f47bd95cb90aa43b47c0959410353b978fbbe349fb1aa09721367c9f97303afa",
+      "source_size_bytes": 82671,
+      "file_name": "19950629_Kobe Trade Information Office_Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "7cb9db5655a311af45afc1db11495ec9",
+      "family": "registration-form",
+      "source_sha256": "6c858288675c3949e504d611a6dfba91a9eba9d75820bfd2dad04e1225277bdc",
+      "source_size_bytes": 76792,
+      "file_name": "19941230_Malaysian Industrial Development Authority_Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "5a060da05936542fcb8371c6564ed640",
+      "family": "registration-form",
+      "source_sha256": "d9c8556dff825685c77abf00d1e4c90a0da2b42e627e9f2751676d611dc7e1f7",
+      "source_size_bytes": 109420,
+      "file_name": "20180307_Dentons Canada LLP_Doer, Gary_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "3a00a2c2794e1cd4e81b5ddb39a2d255",
+      "family": "registration-form",
+      "source_sha256": "b1ea35cab3059700045411bb25885e84cc343a86eed85ee0c32825bdc0e31e48",
+      "source_size_bytes": 132227,
+      "file_name": "20120926_Commonwealth of Dominica Maritime Registry, Inc._Phatak, Vasant_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "2933b73d7a86f0016e12332fb3306bbe",
+      "family": "registration-form",
+      "source_sha256": "061646ae44b5ea1ce0a85a1c7f50f83419d5b8d84f7ae147bbf53a3addc2a437",
+      "source_size_bytes": 205960,
+      "file_name": "20150831_Ketchum Inc. NY_Brandon, Emily Keiko_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "83f03d8d8b0a1ab8cc9dfbdc90003b25",
+      "family": "registration-form",
+      "source_sha256": "8a10d73df8d27d94562ae727333ced4152b6c5576124dc7c78537d559aa66932",
+      "source_size_bytes": 90030,
+      "file_name": "20090410_DLA Piper US LLP_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "f43704d4f4a045e469e1dab3c3fc54a4",
+      "family": "registration-form",
+      "source_sha256": "247256ec66959002288d9b42fd62cb8cf02cfbb3437b2d4fe42d4677b5056a9b",
+      "source_size_bytes": 146203,
+      "file_name": "20150123_Ketchum Inc. NY_Winer, Rachel_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "e7103d4c56ae73f5efee811cb3e09e77",
+      "family": "registration-form",
+      "source_sha256": "feefd78b04284f314a13f17305091b0221f2b5a1a80ae351c74fec00be402e52",
+      "source_size_bytes": 141236,
+      "file_name": "20170130_Burson-Marsteller, LLC (Washington, DC)_Pruitt, David_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "ff199c40a8522d4bdfadf80e79551e0d",
+      "family": "registration-form",
+      "source_sha256": "212cabbd1a2297ae6808ff9c6548be56ba313642c9a1d218f69891d903049065",
+      "source_size_bytes": 62443,
+      "file_name": "19920501_International Registries, Inc._Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "c1c8cdd74c5c0301b70a5cc7a54fbea8",
+      "family": "registration-form",
+      "source_sha256": "2d0ce2eab590c84f855ef9e1a5f8cc4803733d8f62d9070cfc8996b441566e32",
+      "source_size_bytes": 65246,
+      "file_name": "20120907_Korea National Tourism Organization, New Jersey_Hong, Junghee_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "1d3ecc0dd3c09efed13080790789e47d",
+      "family": "registration-form",
+      "source_sha256": "ba5a9b7d67ee84b8747fab00996c36f83c46843114d4fc4cede319f6c50fadd1",
+      "source_size_bytes": 53639,
+      "file_name": "19920501_JETRO, Los Angeles_Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "dbd72ae90f9b8598f5e7cb90526617d1",
+      "family": "registration-form",
+      "source_sha256": "58d27cb994014edf257444eadef1bc8cb5693814efee56db3f0259e2d3cfd259",
+      "source_size_bytes": 246942,
+      "file_name": "20140306_VisitBritain_Harrison, Kelly_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "6daff36ac038927009cb478c519517e3",
+      "family": "registration-form",
+      "source_sha256": "8e8b861ab623ed46fbcf410c1ec0c9e1f6bc679b9ecc002fb641874c16dc2e12",
+      "source_size_bytes": 84253,
+      "file_name": "19930101_Far East Trade Services, Inc._Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "ff9c8556ba9547ade8b209f884ea8669",
+      "family": "registration-form",
+      "source_sha256": "72f3b4eb4b5caa7c756369753e8dad0177786488d1a0fd6823c85378522db459",
+      "source_size_bytes": 111387,
+      "file_name": "20121129_Commonwealth of Dominica Maritime Registry, Inc._Gamal, Islam_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "846f1e276515cb47990dac4c206700e8",
+      "family": "registration-form",
+      "source_sha256": "a3569bae0ed71f338efc99f835e35a88083a257a6e4c3f9a045e4f4fd5d34dcc",
+      "source_size_bytes": 120628,
+      "file_name": "20100309_Akin, Gump, Strauss, Hauer _ Feld, LLP_Cowman, Jordan Wade_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "a641f41ac2a7604fce641865807d065f",
+      "family": "registration-form",
+      "source_sha256": "6836571e6401c09ec28b9b8380d0b53928395ac43d32cb695f363f80e6b6cedb",
+      "source_size_bytes": 96223,
+      "file_name": "19921201_Oromo Liberation Front, North America Office_Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "a204f92f1a0ce91fdc29dedd2017a563",
+      "family": "registration-form",
+      "source_sha256": "978db56f075e100b302ffea8ded00181ddd9ee32cf3b2b3d48bd0057c2846ed0",
+      "source_size_bytes": 126254,
+      "file_name": "20120924_Podesta Group, Inc._Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "2535355bbc61866805685680e96521d7",
+      "family": "registration-form",
+      "source_sha256": "4e4f1ecdd197e7b7d673b9577e27bcbcd5fd9078956b4d8be0a62d39caa81ee5",
+      "source_size_bytes": 92860,
+      "file_name": "20100818_LeClairRyan, A Professional Corporation_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "427b89533e5afd0d260d6ca219817d28",
+      "family": "registration-form",
+      "source_sha256": "abdc145d9e06bae894fcce5675fb145a016fbf10d5b30af29d31aaed0d3b706e",
+      "source_size_bytes": 158117,
+      "file_name": "20170307_S.G.R. LLC Government Relations and Lobbying_Miller, James G._Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "8dea3b021ea0e4bbae3dd9353e82e96b",
+      "family": "registration-form",
+      "source_sha256": "482aa76558c295fe228965ee8d2788e50d79f9523ac0de33255b53be540d87d2",
+      "source_size_bytes": 121317,
+      "file_name": "20150721_Glover Park Group, LLC_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "b46a40a875f5af487aee029ee3ab6569",
+      "family": "registration-form",
+      "source_sha256": "0ae069fa522a77f338c587c78e8a39f853d6d349f0ab112e407c61d0c629d083",
+      "source_size_bytes": 49239,
+      "file_name": "19911201_Scottish Enterprise_Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "a2005f50333802901095ce1d849d351b",
+      "family": "registration-form",
+      "source_sha256": "dfe648cf1a2be2457c0b3e12ed5366d89ccdd237a3637baa0e6a3c1f15bd30f1",
+      "source_size_bytes": 87777,
+      "file_name": "20090330_Hogan Lovells US LLP_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "2586b19fc93bdde9333a9e6a44f802da",
+      "family": "registration-form",
+      "source_sha256": "de13be1393ee270c7da7be07dc1a1c80482302dfef5436e09fffeb0ff7373395",
+      "source_size_bytes": 118354,
+      "file_name": "20141001_Squire Patton Boggs, LLP_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "1e1aaec328dc1c8d21fe5e22ac618b43",
+      "family": "registration-form",
+      "source_sha256": "77bb947a119cf535cef06fc49a24665ca7e65c08b66b862d0e9f21ad09e97a88",
+      "source_size_bytes": 147365,
+      "file_name": "20090317_DLA Piper US LLP_Phillips, Steven R._Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "1cb593f6812e45af4ddd98823da62f28",
+      "family": "registration-form",
+      "source_sha256": "8262a7ba3d2158b6c1b18bb7c0dd70f784cae1d53049964611ac995edd1c33a5",
+      "source_size_bytes": 50178,
+      "file_name": "19910701_Representative of the Turkish Republic of Northern Cyprus_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "d30e0c40cd08ca2935206c1f29c92adf",
+      "family": "registration-form",
+      "source_sha256": "2277f7a3ac5dd584079f1b7757b489d64ee89bf9b4da29e4ef36e2352d44dce7",
+      "source_size_bytes": 119672,
+      "file_name": "20110506_Ketchum Inc. NY_Hart, Brian Christopher_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "afda1fe4c75ebfa3dbb0de214eceda1f",
+      "family": "registration-form",
+      "source_sha256": "b11fdc1b86d35f47dea2c6a2ccdc684ba4c1eaeefba3d127e0258be50747e73a",
+      "source_size_bytes": 217012,
+      "file_name": "20180523_Greenberg Traurig, LLP_Wynn, Albert R._Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "14c0bb0c663e7b0ae6d55b7a2321fcd7",
+      "family": "registration-form",
+      "source_sha256": "976429f6a60bb0417e5c53f4e5d7040d2609f422aa62446ad43eddbe36dca1a5",
+      "source_size_bytes": 113083,
+      "file_name": "20110311_MSLGROUP Americas, Inc._Silverman, Nicole_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "8d8efc6f239ce3ee032f0230a5ac1067",
+      "family": "registration-form",
+      "source_sha256": "243fd5e5aa922a386f8bbd88eceb0c577f91d96d8ee7fda64e064cb905384875",
+      "source_size_bytes": 80159,
+      "file_name": "19930801_Scottish Enterprise_Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "7a53bba45b023efc85ffc9bf59bebd71",
+      "family": "registration-form",
+      "source_sha256": "dd6a2a476589a91f235431306185e4c1e82ad395a2c66d4ea2fccb4be8446b46",
+      "source_size_bytes": 54678,
+      "file_name": "20040319_Arnold _ Porter Kaye Scholer, LLP_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "59a908944c8e551a46684d910a26c247",
+      "family": "registration-form",
+      "source_sha256": "38bffabd048a63c49320e14003761165a4babb57acaf21c5deff511e3b253b8a",
+      "source_size_bytes": 117129,
+      "file_name": "20080630_Hill and Knowlton Strategies, LLC_Gunst, Jennifer_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "8dcab6c9eb4484a4da52cd081710535c",
+      "family": "registration-form",
+      "source_sha256": "59b36cd14e07cfdd6b12deab7bb2eb7897690dd06933d223ed464e4d74ff8ec2",
+      "source_size_bytes": 40845,
+      "file_name": "19840301_Representative of the Turkish Republic of Northern Cyprus_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "08be0cd04ed9efb59e42c1ee931ad486",
+      "family": "registration-form",
+      "source_sha256": "ded235efee6ee9f0924a5099a619d6580c80fc136af3527aa6b26c685c23153a",
+      "source_size_bytes": 100258,
+      "file_name": "20100601_KOTRA_Yun, Wonsok_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "2b73a2dab18b4f3e96e643ef12627b11",
+      "family": "registration-form",
+      "source_sha256": "5fdeac0797f210b317821ca7d4fbfcf6b045bb2fb9cc89646ef863012107b439",
+      "source_size_bytes": 78967,
+      "file_name": "20050729_Akin, Gump, Strauss, Hauer _ Feld, LLP_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "9629ba346a2e9fe3ca8ea525bd5212d6",
+      "family": "registration-form",
+      "source_sha256": "4708c94108fb10dbdc2aebf1798b6b77701d1c74cfa30c42ba2ac9fc48c6ef68",
+      "source_size_bytes": 122157,
+      "file_name": "20160405_Venable, LLP_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "65cf2203b050569098e3584993e3a1ae",
+      "family": "registration-form",
+      "source_sha256": "926663ebab0f28ad2c4955a3388debf3f58ae5083dc27be4806928a2cf414376",
+      "source_size_bytes": 117237,
+      "file_name": "20171030_JETRO, San Francisco_Nakazawa, Norio_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "49b45421f0443176ab1d20913ff83283",
+      "family": "registration-form",
+      "source_sha256": "0d5aa425b539332657a3740546048750afe9e387ba7bb8fb11ac6b123ee54726",
+      "source_size_bytes": 40389,
+      "file_name": "19670428_Austrian Tourist Office, Inc._Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "203ddbf897f332e2d06d2257edabb6e8",
+      "family": "registration-form",
+      "source_sha256": "352ef76918d078066e980d5910f418ff24073d33419d68d598db0c31cc222128",
+      "source_size_bytes": 213800,
+      "file_name": "20150707_Korea Economic Institute_Gibson, Jenna R._Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "78fb006d11f96e0bb95a52feced9fda1",
+      "family": "registration-form",
+      "source_sha256": "1f7298ddafdaee25121ffc0e265bf98c7b71a37bcf055185820f145105ef7fe5",
+      "source_size_bytes": 84790,
+      "file_name": "19921001_JETRO, Atlanta_Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "6ddd71f9b0aeb33d5c099bab1cb64c3d",
+      "family": "registration-form",
+      "source_sha256": "9356e00837669aab16f96c5568149dfb580677cefc70c1883e8e7b49cde2f82f",
+      "source_size_bytes": 100874,
+      "file_name": "20170729_StrateVarious LLC_Portale, Elizabeth M._Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "dd12fa1815daf5425e0925cbad19c986",
+      "family": "registration-form",
+      "source_sha256": "609b871bb53c1c64601b0b6bbf6eb0223c78d927ede4cb76616214cf6cf67ea5",
+      "source_size_bytes": 48516,
+      "file_name": "19820801_St. Lucia Tourist Board_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "62cdc55c8c3a4de4dfd129a215a4bab0",
+      "family": "registration-form",
+      "source_sha256": "c1f444da7d9b9f248d6c101aa6701213ecb213cf8c27436af1de2d1f9012fe43",
+      "source_size_bytes": 175432,
+      "file_name": "20180307_BerlinRosen Ltd._Ermanni, Kayla_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "1ae0050f9db1f1cc77b14f5b4d7b534e",
+      "family": "registration-form",
+      "source_sha256": "e4ea53ecdd234252a6c98841f140b8496d5fd4c5743c2d2b27c070bb1fbce5f1",
+      "source_size_bytes": 82996,
+      "file_name": "19910601_Quebec Government Office_Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "41c0bf0db7bfbd5319503c84e6c88ec7",
+      "family": "registration-form",
+      "source_sha256": "5cf5f4e23588ce09da62df56ef9b3f931df885e0900b7675b9b309655f8b3133",
+      "source_size_bytes": 103965,
+      "file_name": "20180629_MMGY Global, LLC_McDonough, Leslie_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "aa39b5b56bf70c6431b8f1fb53f72516",
+      "family": "registration-form",
+      "source_sha256": "112c20d314379e2565e1e5738c93918cdf1a8b8efd5631974debbd6ad5f2e506",
+      "source_size_bytes": 50812,
+      "file_name": "19920301_International Registries, Inc._Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "1a6039f60b7d6a2be7832bb566336ae4",
+      "family": "registration-form",
+      "source_sha256": "06ca6d85c03cfc4c4fec121054f73dbad7a940d502c613b41577d57d2a97ac33",
+      "source_size_bytes": 32133,
+      "file_name": "19910901_JETRO, Atlanta_Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "6a646c05beb3dd7221e670ef35c3da35",
+      "family": "registration-form",
+      "source_sha256": "ac7e7255c37c5571efff67fdfaa80218bfeeb1daefcfe5a600ec50d5fd5776e4",
+      "source_size_bytes": 117458,
+      "file_name": "20161116_Squire Patton Boggs, LLP_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "0ec552f30e9d76c2394e5959a2c38c47",
+      "family": "registration-form",
+      "source_sha256": "ad19f05563fa0a66b1598efd5bafc7d98be984eb6eaf250db38ca9c40364ec9b",
+      "source_size_bytes": 69394,
+      "file_name": "19940901_Hogan Lovells US LLP_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "a2664c2c977f1544697b347dc62efa34",
+      "family": "registration-form",
+      "source_sha256": "cadc89d720abfba7b270e273dcade00a6464906e899cbb18119fc39949d1c374",
+      "source_size_bytes": 100103,
+      "file_name": "19990211_Squire Patton Boggs, LLP_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "cdb6cec60da0bd367f0614a3e197a695",
+      "family": "registration-form",
+      "source_sha256": "9dc94cf1bb53d35c73e3d9ae2ba597f7a2f4e5264eac551ecf20cf76a35436ea",
+      "source_size_bytes": 55691,
+      "file_name": "20010126_Bermuda Tourism Authority_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "50d38ea8b88b3501de0a86c83a53ed18",
+      "family": "registration-form",
+      "source_sha256": "2fc895b45439edb0a999d6923ea5de485725da7cdafc3fc1379c3614d3b0c3ae",
+      "source_size_bytes": 135865,
+      "file_name": "20160706_Podesta Group, Inc._Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "eb11ff5e706bb92b98cdbbe812d34597",
+      "family": "registration-form",
+      "source_sha256": "85d3979f9cc3644a415954c28f7b75bc69daa804b37859523ba537cbf92b603b",
+      "source_size_bytes": 120103,
+      "file_name": "20090115_Korea National Tourism Organization, Los Angeles_Lee, Jae Kyong_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "3a4cd5ef33c6c8133bc09c90cbec97b6",
+      "family": "registration-form",
+      "source_sha256": "265a1229e2b81f6dbb3d568662d3ad1efb044fe6df9ef55772e2ffc2ce40302a",
+      "source_size_bytes": 90893,
+      "file_name": "19920701_International Registries, Inc._Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "f62a0c31debf8d1af25c02f838c6e261",
+      "family": "registration-form",
+      "source_sha256": "cfd0ca23bf20b85b287dea2076a3b6e781bb73c48b9a2afd65c12e2f97d33473",
+      "source_size_bytes": 124794,
+      "file_name": "20180524_Sonoran Policy Group, LLC_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "8b79c7a4bb00025ca5239ca279d5daca",
+      "family": "registration-form",
+      "source_sha256": "4cb06a032340c73c9b1f58f2aa46ec74125c011c83d7987855f8edcc59c7eeaf",
+      "source_size_bytes": 100241,
+      "file_name": "19930401_Ethiopian People_s Revolutionary Party_Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "e1cc836b07aae935934baff9d9d7d300",
+      "family": "registration-form",
+      "source_sha256": "0de7a4412013240761a7240a40e694c6ed93a65cad6ccdefaca4ad3f4a320d13",
+      "source_size_bytes": 364186,
+      "file_name": "20170112_Podesta Group, Inc._Thompson, Dana_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "f22fb633460937dcee1d0f6adaaa9c6e",
+      "family": "registration-form",
+      "source_sha256": "51d3bac64638900a8bb99979c5986aa7e1d5fe5b0702f98d72c523ff8064e8fb",
+      "source_size_bytes": 88865,
+      "file_name": "20180302_Fratelli Group_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "8f3b4ced1ba64e38a1ed71b4f5a1dbad",
+      "family": "registration-form",
+      "source_sha256": "48cb59e7a34dc7c5536f2e0f95d358ad1ac001c8860e328be8d780ceff7d9e99",
+      "source_size_bytes": 92912,
+      "file_name": "19930501_Arnold _ Porter Kaye Scholer, LLP_Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "8e3862a03aaab94624c492c23518060a",
+      "family": "registration-form",
+      "source_sha256": "fd67cd018ed57133c9234813bf6728e09195d195ff5f3c28f4b2fdc0aa437d66",
+      "source_size_bytes": 201220,
+      "file_name": "20151030_JETRO, San Francisco_Hunter, Naoco_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "9f43fdaafb4fcb1a46fda8b822bf5722",
+      "family": "registration-form",
+      "source_sha256": "b392689f0011088b8a12c4e7a903b4393bda0e0c06437ef1ba54719bb8949bf5",
+      "source_size_bytes": 89817,
+      "file_name": "19930401_Far East Trade Services, Inc._Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "f1a93d2316e145c9572917d5addbc273",
+      "family": "registration-form",
+      "source_sha256": "ec0725fc6daebbf2e52071b1d60939e0a037281af70a31b8d1e1e80c6fd6e459",
+      "source_size_bytes": 63177,
+      "file_name": "20121129_Fleishman-Hillard, Inc._Struthers, Jonathan_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "cbfb2fb0f31d07b74c400965a1e3eba8",
+      "family": "registration-form",
+      "source_sha256": "4d0fc9ce1d1b852c6342072ae4743d69662252d2e89d9168aa65493da16d6e42",
+      "source_size_bytes": 84555,
+      "file_name": "20111104_Franklin Partnership_Nashashibi, Omar_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "bb324517364a779d93882dcb0fd99b87",
+      "family": "registration-form",
+      "source_sha256": "a99ff26d248cbe458df223f5c803966f5ae403ab95d1c1afa1ccccd76fd71616",
+      "source_size_bytes": 90145,
+      "file_name": "19931110_Quebec Government Office_Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "77ae6402f934c439630eee5a5041201a",
+      "family": "registration-form",
+      "source_sha256": "0ad72b8e96d904ec36b50f8b054c01e77d4734b97ce086f71341d1781bd72959",
+      "source_size_bytes": 53734,
+      "file_name": "19791101_Hong Kong Trade Development Council, Inc._Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "1c8df019a2aa60cb629492c12f03cdda",
+      "family": "registration-form",
+      "source_sha256": "e82b3a59944f67574d6eccfccd161a30d8cb61f9398821c2e1af3c8d5230f47e",
+      "source_size_bytes": 50883,
+      "file_name": "19950613_JETRO, Atlanta_Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "08474af6ad4da80e760f8d4a9969bda4",
+      "family": "registration-form",
+      "source_sha256": "79b1ee6f27f8413b1043953b7e07337559eff1eba6205f6e6a84535f8d78775e",
+      "source_size_bytes": 134330,
+      "file_name": "20180510_Forbes Tate Partners LLC_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "d9a631267448553690ce00bc8faf2852",
+      "family": "registration-form",
+      "source_sha256": "e44ad39841cf036c6ae0763e9933485fcb5acb40f98670204448e655d4dba567",
+      "source_size_bytes": 103181,
+      "file_name": "20180215_Hamilton Place Strategies, LLC_Allen, Sophie Elizabeth_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "afb09137037c4768cc177d93e7a40957",
+      "family": "registration-form",
+      "source_sha256": "7dda4c98fa85cc6b9c2a5f74eb0ddbc82050ea4d63f416b8f0271d3e67e03b7f",
+      "source_size_bytes": 48791,
+      "file_name": "19930601_JETRO, Atlanta_Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "ccbd86609bef971d4b98ceb95de1a4a9",
+      "family": "registration-form",
+      "source_sha256": "41f394aeaa3cbae388eb2288ed8f6a1021e80bb4ee9b3180fda5f04644cf9213",
+      "source_size_bytes": 86294,
+      "file_name": "19900901_British Virgin Islands Tourist Board_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "8c46ac36c87461446c092a2df7538e49",
+      "family": "registration-form",
+      "source_sha256": "249218cbc2a1cccb53f6622b6544aeef15e705245843ee371376ba5377a7a871",
+      "source_size_bytes": 132990,
+      "file_name": "20171004_Sonoran Policy Group, LLC_Meyers, Jessica_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "8fbb9ab2bfed1446150c922e75d683d2",
+      "family": "registration-form",
+      "source_sha256": "6f0a6c5452af1f652a1a87dd6878c0b86d2eed83216d53f2cc33fb7dae0a88a9",
+      "source_size_bytes": 120219,
+      "file_name": "20100709_NHK Cosmomedia America, Inc._Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "64a3c04f23f52b58dddb7b260eeeeb07",
+      "family": "registration-form",
+      "source_sha256": "79738dc25a26c25e63ad219f052e8e5e023aac3a51166a2dcb1ea022da54194f",
+      "source_size_bytes": 71808,
+      "file_name": "19840401_Garvey, Schubert _ Barer_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "edcf413b01b46bda4efd2d111d11f119",
+      "family": "registration-form",
+      "source_sha256": "141f5152e6947bd535368ca7356974783e11e86696782137711e092f42c7daa0",
+      "source_size_bytes": 81490,
+      "file_name": "19960613_Hogan Lovells US LLP_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "3b7277c9668bf4c3976493475ca501c4",
+      "family": "registration-form",
+      "source_sha256": "bfffe309c6af8c6cf951ba5c42650cd272e94a85582e13162003b5aea14bf044",
+      "source_size_bytes": 103964,
+      "file_name": "20170522_Nelson Mullins Riley _ Scarborough, LLP_Cox, Christy_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "fe00cc2b9ba135c00d92b3948abe5f31",
+      "family": "registration-form",
+      "source_sha256": "ad258c66932819b428d3351ac05a12189b8b68a2bffcd3dbb41ecf5382e05e1d",
+      "source_size_bytes": 61082,
+      "file_name": "20120521_General Delegation of the PLO to the US_Farsakh, Nizar H._Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "794dd05d1b2aa5c2d5543d4ce544f1c6",
+      "family": "registration-form",
+      "source_sha256": "313d54ed6abab8d7541c7bc65ca72dcf723fc948cc86b4f1ed2d2beb9547236b",
+      "source_size_bytes": 68049,
+      "file_name": "19931201_Hill and Knowlton Strategies, LLC_Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "fd94e943ef7b774355c78e720b836367",
+      "family": "registration-form",
+      "source_sha256": "4e4c371c40aba7699e40baf7867506654693e7bac9c4bbf8f7141cbffe6c4057",
+      "source_size_bytes": 147506,
+      "file_name": "20180323_MSLGROUP Americas, Inc._Shapiro, Jared_Short-Form.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "1004d9e7c5eb8829e1f79693cb7fd7f9",
+      "family": "registration-form",
+      "source_sha256": "745a5d6b09b7dc7c2626c54809dc38de9d945ae0790c8834d0b019a6d0373a86",
+      "source_size_bytes": 77203,
+      "file_name": "20070613_Pillsbury Winthrop Shaw Pittman, LLP_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "66619ab484497422e40fad683113c2ed",
+      "family": "registration-form",
+      "source_sha256": "0c2ff524d055b66b248a80290e8205754031db2bed43f8284b1752e0f993dbd9",
+      "source_size_bytes": 109720,
+      "file_name": "20151130_Sidley Austin, LLP_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "5e938b211949cf176ac12cf965b37135",
+      "family": "registration-form",
+      "source_sha256": "1627f27efda684b5846fe8628e93ca9bc6149971d466a037bb6c5ae4faacbaed",
+      "source_size_bytes": 84918,
+      "file_name": "20180108_West Wing Writers, LLC_Amendment_Amendment.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "3c2824bd76f8b7fd621e5fbc5c086150",
+      "family": "registration-form",
+      "source_sha256": "cae1fa46645e917642ac17a76b1553cdd2d0730fd8e045003ba92d33bbd19dc2",
+      "source_size_bytes": 84090,
+      "file_name": "19940920_Quebec Government Office_Dissemination Report_Dissemination Report.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "c40dec036bf66a533de1702c2d4a5840",
+      "family": "ad-buy-form",
+      "source_sha256": "4fd4b4cac7c57c8bd7b33d2a61fbcb9d745c3bee71306234145a48f8a5184312",
+      "source_size_bytes": 244981,
+      "file_name": "d06fd8db-a373-bbf7-88e3-a7ba4ecbb1d3.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "dcc74bfa9b910516ab69410017544c49",
+      "family": "ad-buy-form",
+      "source_sha256": "031b8cb04a235ddd924df502870835f19cf14c96a9da4064a3e14f103f645f0f",
+      "source_size_bytes": 33483,
+      "file_name": "788b4d81-2755-f2a2-dc63-c989e1a623ce.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "95e2e71234aea020f66d61467b1fddf3",
+      "family": "ad-buy-form",
+      "source_sha256": "334bd896a563556615ec94e6afc52f533162ceda74619db26804d0b181a34235",
+      "source_size_bytes": 40896,
+      "file_name": "99b2e286-4203-5c21-135b-d559c6826ac6.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "e1a4399a8da4442dfac7414ad0ee7718",
+      "family": "ad-buy-form",
+      "source_sha256": "95df1591fe67bdda718ad6145b2d6edd9925934367c43975b7f99c2d18740a2b",
+      "source_size_bytes": 297283,
+      "file_name": "14a2e049-7baa-8dbb-eea2-3a97eee4ee42.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "79896d0ce03acfa016c6e2ed86ba7236",
+      "family": "ad-buy-form",
+      "source_sha256": "7a9260ca8dd769611d008a99b5f79f5f8264a1893b72f9dec1797a9178550017",
+      "source_size_bytes": 41836,
+      "file_name": "9cbcd641-a427-be4c-4d6e-1eb7c39ad2c1.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "a5c32146499914ba298c6c4dd52a2bb2",
+      "family": "ad-buy-form",
+      "source_sha256": "f99ee1f869f1420340eb62e818d3ebaa0e4133de040081abc80c688ee2548168",
+      "source_size_bytes": 257697,
+      "file_name": "e6c5461c-344e-527a-e368-12f676b16734.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "d3dda8a65a6051f57b5f579c6ff0241f",
+      "family": "ad-buy-form",
+      "source_sha256": "18504387c55749f4ef16f97938d46bcdc6022abe37c2ebfddee5344a22339574",
+      "source_size_bytes": 178378,
+      "file_name": "738d52f6-4cf4-3ec1-6990-1c675e100eb0.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "df0c7a741be1001a932b5bafd8dfcba0",
+      "family": "ad-buy-form",
+      "source_sha256": "8bec79821d223fb19b0ca54e3628d4afac0b13836939725f68b136294d4ecf4c",
+      "source_size_bytes": 41393,
+      "file_name": "6c195cac-5318-ff53-9699-5da7026ba63e.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "8625904d6e719dea9ec37a8a0c9d51e3",
+      "family": "ad-buy-form",
+      "source_sha256": "19c95e8a99525eddea7cc820ecbe5d2fc715d34358a0070af42d60bc4d48652a",
+      "source_size_bytes": 19004,
+      "file_name": "15c06d79-8d29-0a6f-3edc-f57d54da3ea7.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "e6312308ccf7404d039e61fd46a69d76",
+      "family": "ad-buy-form",
+      "source_sha256": "624c33eaf57f1a2897dbf1839f5e9fd992efac3ba8edb64708cd130beb0e015f",
+      "source_size_bytes": 43049,
+      "file_name": "5d07d57b-d53f-2fd4-e8f7-a465403340fe.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "1523c6e8d7635fca3fe2e5f0540f2e63",
+      "family": "ad-buy-form",
+      "source_sha256": "cf59184ec02c675ec324546e23fb0142041b9b6e60dd81a4597d4a0947b8280a",
+      "source_size_bytes": 77414,
+      "file_name": "692a4f5d-b5eb-f29e-a042-4fde3d0b66e4.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "4c9166ae63a8c8e8cea2c260108a7345",
+      "family": "ad-buy-form",
+      "source_sha256": "629fdbfaea915a439bb968fed5d12461f8bd45560bb3481df6b24cf8888548bd",
+      "source_size_bytes": 166144,
+      "file_name": "5420ade8-87df-819f-d97b-c162d54acda6.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "9cea252d8549e8e00ca20c0c51699a46",
+      "family": "ad-buy-form",
+      "source_sha256": "8406362a80bff81118bbc4346a025c2819d171c7dd1e90a473c28a2cae669831",
+      "source_size_bytes": 1255278,
+      "file_name": "416277-collect-files-72145-political-file-2012-federal.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "e1df0fc07969c3149c66cb538e069bac",
+      "family": "ad-buy-form",
+      "source_sha256": "0af92ec2f28a565a77f5803a37855062765bb9c186229ac367fa8a286deae72e",
+      "source_size_bytes": 157717,
+      "file_name": "463146-allen-west-1011124-13499874180374-_-pdf.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "53acf583bf9ae31746b7a9170cb88511",
+      "family": "ad-buy-form",
+      "source_sha256": "35d88934bf0a723f37bf9e1c198e168a83ecad3de3839343bd4ecb8d3a460bae",
+      "source_size_bytes": 35108,
+      "file_name": "703ebcab-f247-46bf-2e5d-b2c454296007.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "72532e4f203bbbdfa9f7614d8bf276b8",
+      "family": "ad-buy-form",
+      "source_sha256": "02088e22debef81ae2acf3b8742b84573322d08acf053ad3075cc8ef35c338f2",
+      "source_size_bytes": 25782,
+      "file_name": "43480fcb-62a2-5762-8762-73c037d4f38d.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "372052c057bd3be7ade19ca4cb09b1ee",
+      "family": "ad-buy-form",
+      "source_sha256": "c23a32f95bc5ef9d840f1d0bae371172f60be9856cf5bb4d88c0a4c90be2f1c5",
+      "source_size_bytes": 117553,
+      "file_name": "33416d7a-b757-6eed-468e-7a8336c4d42a.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "dd61117e8cd8bca7e376c4b840e27452",
+      "family": "ad-buy-form",
+      "source_sha256": "7603691575603636f7b44b33263bba9d8e51f4bb3f4b290de63a01be0b1852a0",
+      "source_size_bytes": 24474,
+      "file_name": "414817-collect-files-53928-political-file-2012-non.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "161bd151ffc696a153179c0bca9fa2bd",
+      "family": "ad-buy-form",
+      "source_sha256": "0086d571ffa6d1ccf6a65b7a4954b9ed4267871705a7a8013f8e2496430c1ed6",
+      "source_size_bytes": 258671,
+      "file_name": "0be55a7b-c4b9-7956-d523-30f79a4ebc1a.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "5455bea3725f5d7842ce0171cd3fc4f3",
+      "family": "ad-buy-form",
+      "source_sha256": "c647dcfb6d18cd195308f90c9aaa0e23adf1da00edc925877969b6658572f0e9",
+      "source_size_bytes": 36954,
+      "file_name": "ac82f3eb-16ea-76db-34da-da4f0c170d4c.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "dab7be728a8c8f94b5647bd8d24801d3",
+      "family": "ad-buy-form",
+      "source_sha256": "ff1f48ff5fcb32a0b219351d2f50b89537a94d43b00bd8c8fea5946610149d0b",
+      "source_size_bytes": 32184,
+      "file_name": "a5b12494-83b6-c5c0-1e0f-0826f37899f0.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "1f97cea8eaca20022a33b6b9872f72d8",
+      "family": "ad-buy-form",
+      "source_sha256": "a325cc0a11e3df3475acf7ebcf918580708c7ae8796362a7cb843a6870bcf968",
+      "source_size_bytes": 27048,
+      "file_name": "2093ee21-d0ee-3641-03b4-3025ae441836.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "b4f9eeae4c6c32add409bdb0045d44f1",
+      "family": "ad-buy-form",
+      "source_sha256": "3d1e7fee8e67c34c09ace08ce4d50f9f03596dc65fe5b45533e83a4deb057db0",
+      "source_size_bytes": 48471,
+      "file_name": "c0aae421-020d-0251-6d9f-772823594e3d.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "ef6519916d2d5932d8d98186130c7df5",
+      "family": "ad-buy-form",
+      "source_sha256": "95ce40a3f9299a3c7a1d79fa91c5cd1463baff9a65ad1e0c397e2d44171121a5",
+      "source_size_bytes": 129843,
+      "file_name": "37d58dcd-aab1-4d83-8a0c-035cf3b3925b.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "0b197294885da2706a6ba26bf893a3ea",
+      "family": "ad-buy-form",
+      "source_sha256": "364d5cabc5a10c0b7958c3e734754388e2ec5234459d7d8fab9ddf541f4b72fa",
+      "source_size_bytes": 76791,
+      "file_name": "bc21c8e3-8a42-5d9e-b5a4-28e79aae6c68.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "77a6d373714a19c3b037064a2fb2f844",
+      "family": "ad-buy-form",
+      "source_sha256": "48d20bddd3d971a21b226c950848905c3aea3d30e7a01c5cf138123edf661793",
+      "source_size_bytes": 77326,
+      "file_name": "c2c114a6-1d0e-9dc5-e76b-ed1ce7a9aab0.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "3e12fabdfd190ab3efeba4cfaaa78cc7",
+      "family": "ad-buy-form",
+      "source_sha256": "8c6bbe0aa58c6c7598860261e4c7f1e5466bdda4019017fa03c299940d4126f9",
+      "source_size_bytes": 1257937,
+      "file_name": "34e3acdc-2c6b-1d50-ebc1-973d2ff6ca09.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "f60df93758f77e923cbd1d755b9e7129",
+      "family": "ad-buy-form",
+      "source_sha256": "efa779f5f1277a2cb5b648f496d0fa46f401d3f30ed52b81fc7ed2911515d96e",
+      "source_size_bytes": 18722,
+      "file_name": "ea861ce4-6609-3462-cd20-ac48121b5add.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "b57755ca870602dd1a5b61041b252c2d",
+      "family": "ad-buy-form",
+      "source_sha256": "1059a975d1b583dc4ffc30de6002ae8263d4f9f48ad82b7abc86697b058eeeb6",
+      "source_size_bytes": 37754,
+      "file_name": "56d9d55a-c358-ea43-7dba-921f271f351a.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "2523102f7359fdfd342561010ca373fb",
+      "family": "ad-buy-form",
+      "source_sha256": "c123a63302b9aa21022cba5810e9db35a66c8e67a532ee45a4a1129843fd6c28",
+      "source_size_bytes": 47410,
+      "file_name": "63a2294e-b599-5603-bf67-f811fbf96ece.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "3549e0f2e21918de67569997c1b09013",
+      "family": "ad-buy-form",
+      "source_sha256": "0942b2d7387adc49a8814c98aa0f71df1516231d01d21045298b4c27dcb0c0e8",
+      "source_size_bytes": 31146,
+      "file_name": "7b9c8208-d2be-2a81-8a15-215a9a5a26e8.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "d01da936c68763e2f048c5fb4eb0fef9",
+      "family": "ad-buy-form",
+      "source_sha256": "6d4c2415aee41fc5d0e5b58a0fbf8f6ea517d3b267b901153864cb8d317dde1c",
+      "source_size_bytes": 26738,
+      "file_name": "089d0582-2342-ae46-bd66-14406b51608c.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "2fb8247cc9b7055b544efb4488da4e62",
+      "family": "ad-buy-form",
+      "source_sha256": "13660950bc89246d55f7259faa9e0e0fcdfaea3eb6bbd977517775742fb83b31",
+      "source_size_bytes": 18015,
+      "file_name": "df5c19e6-546e-311f-2e5a-c4af68838b66.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "c71f54b21f68da763ececa3d6604ecc5",
+      "family": "ad-buy-form",
+      "source_sha256": "b1605077d00c11a5d3092324eaaed0853bcbcd51620a9c202db0c9fd604fd888",
+      "source_size_bytes": 54669,
+      "file_name": "87f56bd1-1525-94a4-9260-20eca3b9eaed.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "022af0872e38f26b43651c8e5e580969",
+      "family": "ad-buy-form",
+      "source_sha256": "ae0dbe949bcaa71eed6356258d3e7166de878a1d685bd9c5a7c9c2a3a64d8127",
+      "source_size_bytes": 52805,
+      "file_name": "e46e25b4-e2c7-83dd-cc00-c8df361039c8.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "bb920e181e82ba24575c36a956f00859",
+      "family": "ad-buy-form",
+      "source_sha256": "2424d61eef6a481562a849dd0f202ce538d1b0bcd2bf5cd74c9309171575e622",
+      "source_size_bytes": 744668,
+      "file_name": "106bbf1c-68c1-b235-ad60-966d96c7e6bd.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "f6594dc16320dc7e104d60d81770e105",
+      "family": "ad-buy-form",
+      "source_sha256": "2c6f8f1806a7a98afc6c0dddae8f5ec7e12122366397506cade0d8ac1a226ea6",
+      "source_size_bytes": 40062,
+      "file_name": "e8d41204-64eb-9f4b-608e-5593933aca41.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "f5ec184868c5bc8aa36bfdcae86f835b",
+      "family": "ad-buy-form",
+      "source_sha256": "546035f75dcf7fe9fdac33890730bb441ead26b7ec1bee7a0f26526715462495",
+      "source_size_bytes": 63722,
+      "file_name": "414560-wcpo-tv-collect-files-59438-political-file-2012.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "1a8ba5ce6d4d7f780bc645a5ef4fb6ce",
+      "family": "ad-buy-form",
+      "source_sha256": "53fcefde013c5e495b68030490e45f0d3a93fd3d428e9200b8cc58cdca6731f7",
+      "source_size_bytes": 29245,
+      "file_name": "e8afd93c-9910-0551-6596-b6b8567dd01b.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "d5f318e2c8f1cf6451320c6afc437b59",
+      "family": "ad-buy-form",
+      "source_sha256": "be5d7dd68457f3e423e02783fc5f63653783dce9fd5015e0bb63e118f0835919",
+      "source_size_bytes": 2155191,
+      "file_name": "cb941cbf-a2a4-ff00-bd2c-0a306d64f131.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "489795f7ad312b41fac0e65ed1e40d95",
+      "family": "ad-buy-form",
+      "source_sha256": "2ba56c49aa2396b08ac6f97501f58458bcaf10a54e1f29fd4ba08f28621f46b9",
+      "source_size_bytes": 607669,
+      "file_name": "01e83baf-38b7-15c0-9490-0fd25e483f72.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "3c3d43966508714cbe3efe1c50b1c898",
+      "family": "ad-buy-form",
+      "source_sha256": "74f9f6dc7d3bae043df43cf8cfd89daf010f1a8bb0f92529754ad13b3fd1ad43",
+      "source_size_bytes": 521703,
+      "file_name": "31d901d6-b4d4-0c95-744d-a8ad65b66f1c.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "ea6f3fbd4d605f3cef7e7029d922f24c",
+      "family": "ad-buy-form",
+      "source_sha256": "6d5c2cd07b65a496ef2140cfbbf1a66b813232fa72acb383e4cd3821be9513a6",
+      "source_size_bytes": 319326,
+      "file_name": "713434cf-40e6-ffc7-3b99-0b547b7c5cce.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "a29aacdf6fa34a862042760d5ec22985",
+      "family": "ad-buy-form",
+      "source_sha256": "92cfbda9733106c76676c721565a8533d2852492a9b2c82ca463685aa881df29",
+      "source_size_bytes": 15486,
+      "file_name": "6c10638e-5287-d5d6-b99a-2341ddd35bd9.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "1db66f9f8af96c11394c0b59a24348d8",
+      "family": "ad-buy-form",
+      "source_sha256": "93cfafe87419194c38960a0b173edd0c901762e02524f62f733e4baa2f501be2",
+      "source_size_bytes": 86925,
+      "file_name": "174fedd7-d99d-ccb2-97f4-ecaf788e2659.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "a150a936505e3d502aa685168f00a787",
+      "family": "ad-buy-form",
+      "source_sha256": "8c3343b02c4cf5b81b034ed206c2a7be82ef7bfe92157a49986fb7cc96356dc4",
+      "source_size_bytes": 25577,
+      "file_name": "ef7a6fa4-1dec-6c74-7683-b7cd529b9f31.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "1ce7ddfb9c6118fcd2b86858808a6dc7",
+      "family": "ad-buy-form",
+      "source_sha256": "31223285d3b640123102b8a189486911b30c152d2d1e952fd276e40231b3ae85",
+      "source_size_bytes": 2283076,
+      "file_name": "7a8b6973-be56-db5c-6adb-918a45f5813a.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "c5a7018c9b66aa78a5ac37b294e8d468",
+      "family": "ad-buy-form",
+      "source_sha256": "10c7b35fd7dacd8fa1e297a0daf70fa4f4e21b67bc09da93e8319338aeeb7d79",
+      "source_size_bytes": 138759,
+      "file_name": "ee234d1a-3dcb-094c-ae17-582e68fa9b1d.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "6a3916b4a60923816989529b9821841d",
+      "family": "ad-buy-form",
+      "source_sha256": "ccde1b365391fc69454de07bd4eaaac23e64ec0579be8593f955c80297fa27fa",
+      "source_size_bytes": 14908,
+      "file_name": "42d9bc09-e82c-c5e9-c59e-117a9618b38e.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "50ad55705d287f2ee1665b37cd8a144f",
+      "family": "ad-buy-form",
+      "source_sha256": "df87a047128bbe35a0f780e659b37af22f329b12c3e5299994bd82b2aafc36c0",
+      "source_size_bytes": 87973,
+      "file_name": "15262fcf-40c4-1ee6-6719-6ae834d12a4e.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "c67b86f0644aa4e5261d8e44792c26c9",
+      "family": "ad-buy-form",
+      "source_sha256": "2eee42664194304d3ebab38162057c9b859928e32b0d602581fd9379b3df2557",
+      "source_size_bytes": 487203,
+      "file_name": "b3636fdf-0c05-3b31-2a6e-4a6761ffc814.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "9ad59e51407dc793613cab54f66d0e35",
+      "family": "ad-buy-form",
+      "source_sha256": "e094bdd79ad4de797399a21ddfc2eb8f53ded684ddb6653549d299ef7ad24ae1",
+      "source_size_bytes": 76593,
+      "file_name": "2494cd9e-1a19-9839-7db4-9391fe1e4d45.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "5078a2632c130f811e6c61b1ee625d34",
+      "family": "ad-buy-form",
+      "source_sha256": "fd470f9cd92bbaa89e9eeb8f86bb0202f6bf72d485b768232f42d5d7281427e4",
+      "source_size_bytes": 299852,
+      "file_name": "62e6d540-ee87-021d-f1d5-ffa2f8012038.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "07d72119a8fd874291214d7a61675207",
+      "family": "ad-buy-form",
+      "source_sha256": "66504b403c85564f3e6e87ddb0ea67c03cdde7b3dd0dcdee49e3a2310e89405b",
+      "source_size_bytes": 46088,
+      "file_name": "f8e64ce9-21d4-d3cb-8dfd-d8d0d0ecc4b2.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "b4d7bf0ae3ed53b58a41e47365a5dd86",
+      "family": "ad-buy-form",
+      "source_sha256": "7571e780b6dab7f4819ffad09b52d68f5507d171c811fd0ba696a285494f108b",
+      "source_size_bytes": 472757,
+      "file_name": "75db2e9d-ef60-3fdd-7429-98febee31f2d.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "2f3e0b8dd868160e44c5b331bddd5eb9",
+      "family": "ad-buy-form",
+      "source_sha256": "cf951d7b36249363c412358e8098024d20ce69c03c8dbad6bf09eba8e5129600",
+      "source_size_bytes": 241347,
+      "file_name": "d79b874c-c486-7884-e17c-b297e5e77471.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "29c1c8f517c6cd9fadb69f5aad252a35",
+      "family": "ad-buy-form",
+      "source_sha256": "16f377bbccf401dbb4b9e3486a6d59f068e2a3abd08e0e943543c8e889d39482",
+      "source_size_bytes": 65624,
+      "file_name": "eddc696e-b2f7-0a4c-d144-3078a646a5b3.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "de41afd8ce5444068ace99409e0d499e",
+      "family": "ad-buy-form",
+      "source_sha256": "f0e386e527e210230e2a6070c646cd984c97acfbdc555c36677901dd796f410e",
+      "source_size_bytes": 121103,
+      "file_name": "23332425-0a85-720b-fb9d-70187e49ac4d.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "5079695ad1edd07dc65ecbb0bd8ac0ce",
+      "family": "ad-buy-form",
+      "source_sha256": "1b82aa166e935b06c35cfebe3af8f28a30b9e58ff5ca45f4be6a6db38195285e",
+      "source_size_bytes": 173123,
+      "file_name": "6d885030-9db6-64c0-1601-3e0ce1525b6c.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "16ba876e2aea0e952bc416c6ca72c9a2",
+      "family": "ad-buy-form",
+      "source_sha256": "9124f27faf319fdaefa4011e7516da2916f3ecc4e2ffc20f82a9ec60a4893261",
+      "source_size_bytes": 283884,
+      "file_name": "c8098958-d8af-d994-f5f7-68f3352a367a.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "e8344c4c29e6e5422b0e02b09416aca3",
+      "family": "ad-buy-form",
+      "source_sha256": "53eca7fb7b9a3ee8d9330ef49eea11f69711d60e4efadb801029fbe29d2ff637",
+      "source_size_bytes": 24106,
+      "file_name": "4e9780de-e5d8-dde3-74a9-26ae50ee1bd5.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "0c5a73d4dd3b89aa2f82b1ff8d478550",
+      "family": "ad-buy-form",
+      "source_sha256": "3a8c96ab46ccfd5e6b9f6ceba538a1a51a3db4265237adf53d0be346bd2116ca",
+      "source_size_bytes": 25136,
+      "file_name": "145ad2fb-8a59-b4e6-9f6d-96c2278171aa.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "e0210b8046e7fd558c76e169e3c87752",
+      "family": "ad-buy-form",
+      "source_sha256": "3747a01ac557a9f140d271eeb8a40f1441039b6f043d78d1d79fb6012da68ae2",
+      "source_size_bytes": 54194,
+      "file_name": "f93c922a-7435-fd8f-7b85-a943e5cd0f84.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "812c672502ed75a42132173438ffd1ac",
+      "family": "ad-buy-form",
+      "source_sha256": "a20f87fb4f92a255d748ab74d32479a1ae9cad876040c309302c4c54daa173f7",
+      "source_size_bytes": 288530,
+      "file_name": "8b36b016-beb2-1f95-96b1-6cdd736e9c2a.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "b7fce01d9ffdf121c108d80a05053a0f",
+      "family": "ad-buy-form",
+      "source_sha256": "a7295ab4ff3e710b734ddb6aafc5e97558459a3102ed5649a6055168461583bb",
+      "source_size_bytes": 61361,
+      "file_name": "883fd7e6-688e-02cf-e1ab-81ffd3742bde.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "93df97286c75c0e6aea9773350f524d1",
+      "family": "ad-buy-form",
+      "source_sha256": "463e010b4bbe238392c95ac5b6eba937240565993b792e8cb34b3e2d633c01ab",
+      "source_size_bytes": 23455,
+      "file_name": "9950ce63-cb01-a079-d9b7-639e92161bb3.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "ad1fe6eb006a1cf20ed2b89b648a9261",
+      "family": "ad-buy-form",
+      "source_sha256": "954bd9621877e425d7d6d31b3b7ffcc953754d3c4ff25c6a9be54a7d6482ac3b",
+      "source_size_bytes": 271705,
+      "file_name": "8fec900f-0137-df69-2f94-ee6b8d5dc53f.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "4fe052b5991216fd43c7528a1703a76b",
+      "family": "ad-buy-form",
+      "source_sha256": "df6438a6d9f635c7060a74a3fffb0c25a340a504ee693e3b9aa5e8651e9c122c",
+      "source_size_bytes": 34617,
+      "file_name": "b21925d7-2f5a-2d7f-46b9-e90023d0bc1e.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "707096adb749f388633c3d8c0fab37de",
+      "family": "ad-buy-form",
+      "source_sha256": "b6293e52087f13393e88812ce2595fb4019928d76afa41a7d29f657e9daf3da9",
+      "source_size_bytes": 313774,
+      "file_name": "12c8b293-f2c5-31ad-f600-b5992a7ed3b9.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "1b7eacd0946adc0a3ae30a1645c15987",
+      "family": "ad-buy-form",
+      "source_sha256": "a7f13de7abed6e497fa7516cadba6e7c48ff5991b32448f85124ad16406d9330",
+      "source_size_bytes": 34488,
+      "file_name": "439866-collect-files-8616-political-file-2012-federal.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "eca90adc0aef4186a6230a89deabbefc",
+      "family": "ad-buy-form",
+      "source_sha256": "56ff0581632b55d7349e1061049fc7bd76fef95e0a0c59122e0b519fce737743",
+      "source_size_bytes": 71672,
+      "file_name": "482663-bera-963706-1-oct-16-21-inv-13510363868925-_-pdf.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "cc644492f76c5060ff0a51ce95aaff87",
+      "family": "ad-buy-form",
+      "source_sha256": "6ee88ed60502a5a969bb18a709e5915e63738ca9829eda3137a63bfa7a904732",
+      "source_size_bytes": 163343,
+      "file_name": "c706768b-8d21-846c-2e58-307afbd74b24.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "c71549edfd99b77283c4135465f0ed4c",
+      "family": "ad-buy-form",
+      "source_sha256": "1811f149c9ef84d65872ef491610a9ffb65fa9406c2894a40524d1834a4475d4",
+      "source_size_bytes": 278246,
+      "file_name": "ee8ee4da-fac4-8f7f-a53f-966c3514e0f4.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "3b9ebde1a5525713962ef2ef107d6c69",
+      "family": "ad-buy-form",
+      "source_sha256": "3a608d38aaef7103b660c24c3283e3255b8dd1990024ebc48279948968e12917",
+      "source_size_bytes": 103969,
+      "file_name": "03b940c2-0a0a-d558-d634-03a8ac7fa8bc.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "0465756793510d790632d7875b63a232",
+      "family": "ad-buy-form",
+      "source_sha256": "854a761ee68cd7aba3713fde08a1f5e667cfd4ba2a45f03847e20cbf4d06564a",
+      "source_size_bytes": 241426,
+      "file_name": "b47d90c5-41d3-67dd-12c3-553fcbb24166.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "1b30692aae43f9ec228c7ac5ecdba13c",
+      "family": "ad-buy-form",
+      "source_sha256": "449c702d5408cea744f38b52e3035f5eee008cb78f5822a9d9356cfd4f89dc17",
+      "source_size_bytes": 20042,
+      "file_name": "2accece9-dd1c-4f6d-275e-973a5c81647f.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "26e27cfc8eafb365792816f4b191ca1d",
+      "family": "ad-buy-form",
+      "source_sha256": "9e27f276041eeb11a1db951be82d81ec20d3bafbe30e8786ccd7422f64b5317d",
+      "source_size_bytes": 2170576,
+      "file_name": "6281efe9-51c3-f0a2-dc5d-a017fdd6e01c.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "18f46c50acd93db7be93685538b99085",
+      "family": "ad-buy-form",
+      "source_sha256": "e4edb78a1686f825af4cd1331a214d07a1be99d97149ae8ec8fdabe71189d9d1",
+      "source_size_bytes": 479919,
+      "file_name": "c93904e4-8553-f071-a509-355d08605169.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "4aa738a2f868cfedd9e33828e2a2d3ae",
+      "family": "ad-buy-form",
+      "source_sha256": "941a72b4e816f10d01cbf3f90536450335f83f824fbe2b517827bf3c08367539",
+      "source_size_bytes": 85989,
+      "file_name": "a5a37afc-bbf5-db26-bd19-a71fee1ae67a.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "1b10248d0ccbfa0dcac898806357e72f",
+      "family": "ad-buy-form",
+      "source_sha256": "bce04d06378e1d993c5cb76699d7059bce4a74344be7600cf0ace591a76a6fb1",
+      "source_size_bytes": 218073,
+      "file_name": "47e3fb74-ad40-15ce-f945-2ea74b567166.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "d74e1cb74e66a80f31d3a1b0815e661d",
+      "family": "ad-buy-form",
+      "source_sha256": "33bffce53ecdec09b9360decf4173ecc07b3f94d78f78e101b190f017d19d739",
+      "source_size_bytes": 43976,
+      "file_name": "462236-romney-for-president-8-27-9-18-invoice-117698-1.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "6c21221417e670a65584ac8d2141a6d1",
+      "family": "ad-buy-form",
+      "source_sha256": "b2cd9c69b4bf2ab23e68dbe398b2720b311e702380fa57e058cfd08a0c9defec",
+      "source_size_bytes": 465810,
+      "file_name": "af8ddfc1-25bc-fa2f-ebea-f98d3f46d84e.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "31decba9b9c5c068f55bd74334eea2b0",
+      "family": "ad-buy-form",
+      "source_sha256": "c0e8c4bc8313c1a718e51d7f8e1ed66858851f2b3010224a9c744b51705c8f2c",
+      "source_size_bytes": 19878,
+      "file_name": "b6c73ddb-95c5-efd6-0f53-f34db2d5cffa.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "67487b52fc4c264a4c711cb6f90d46f0",
+      "family": "ad-buy-form",
+      "source_sha256": "386885cea2a35b1585781a4bc78070375fc137f39cf8c1bee0f2af516044db8c",
+      "source_size_bytes": 258098,
+      "file_name": "be9e50f7-45af-e6d8-ebbe-3cb0cba57009.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "18d6c92b86c74fddf1bdaa2dd9bb1996",
+      "family": "ad-buy-form",
+      "source_sha256": "59847f233b87507581d7dd3aebdac582cad0c44b828e12187b695cf229aac876",
+      "source_size_bytes": 255893,
+      "file_name": "7775f9b1-1d3a-51a0-903c-974dc3c2473d.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "728f910a6694eea934e787e5676deb9d",
+      "family": "ad-buy-form",
+      "source_sha256": "1ed23baec858b15786ef4b03d368be87e6b638b03cb3600f8fad120447e092c8",
+      "source_size_bytes": 9893,
+      "file_name": "9755883d-9e48-313d-d4d1-f36e1a0583ed.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "cc886af731bdf9a004399f9f3606560a",
+      "family": "ad-buy-form",
+      "source_sha256": "4410184878005b8659437b03bd36fa1ce42c5e19341b15a8b43fc5ad2b4cebb1",
+      "source_size_bytes": 79484,
+      "file_name": "717f24ba-51d7-3daa-89bc-d811e5be1f3a.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "0ae9a3c1e94a61784930b636bdce73d9",
+      "family": "ad-buy-form",
+      "source_sha256": "be75b690db11277f3a40bfac54f70ec0f659e55ec96f7838d48bd6156933b1dd",
+      "source_size_bytes": 1588534,
+      "file_name": "466005-kcpq-house-maj-pac-9-17-to-10-1-pdf-9-18-12.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "fbfff565945611518d4d594336d66842",
+      "family": "ad-buy-form",
+      "source_sha256": "2a664116a6c1cda3aa39ba856d536c4957bb5eca1c771421499af92ea4b2d3f4",
+      "source_size_bytes": 443223,
+      "file_name": "aba15a10-e978-222a-a949-c1b6b3647b18.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "db13b64f104cc68b117123ceeafa76d1",
+      "family": "ad-buy-form",
+      "source_sha256": "8662155c2c8eea4da70ef04f9fe839c28047987f5d7fb43a3d7c3769d03dd1ca",
+      "source_size_bytes": 105502,
+      "file_name": "348812cb-8af7-56bc-8a19-c3c4f6682392.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "ee00362d1630fc13d6d76a9993b91ae3",
+      "family": "ad-buy-form",
+      "source_sha256": "6cc142f02f2831ea8ed0f18d85dbbb01cba51143ed77bf01a666c92bf53aea8f",
+      "source_size_bytes": 45241,
+      "file_name": "f7635eed-5555-27b6-780f-8386863b25ca.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "15399d59139f89454cd01aac024b89f2",
+      "family": "ad-buy-form",
+      "source_sha256": "093c736a76221eb21c7905d82983abe0c13ec2c97a507788d7c055073fcd69b0",
+      "source_size_bytes": 286540,
+      "file_name": "4e5d0ed1-ead2-15ad-c44b-e0105bee7439.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "8dde86c5fdfc65ee12014079cf22058b",
+      "family": "ad-buy-form",
+      "source_sha256": "94dcc2c1fcf0a934c41d8cd6b67de512e7cb1893861c5b047c1ddf5853333410",
+      "source_size_bytes": 40346,
+      "file_name": "81f10125-b31b-0dc0-366f-1058891ac4e8.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "f0d9376e78e436cece09e01f4fc0aa6b",
+      "family": "ad-buy-form",
+      "source_sha256": "942f0a67d7836a71a8fdf35c9288438eb5374d26e9b1abf4536163d1ccc73faf",
+      "source_size_bytes": 17474,
+      "file_name": "ee19ec76-3531-254f-c21f-869b6cf0916c.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "5f3cb09b06d6ebdf54b2517d886f7fab",
+      "family": "ad-buy-form",
+      "source_sha256": "4ba711551babf682e13e46a33e37512240a05238a6d25924767c797f7b8f2aa0",
+      "source_size_bytes": 1247591,
+      "file_name": "9c2e297b-3c02-755e-b2f8-3a34809644c9.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "7ec9adeb2c5193104ccde5de0e8fde33",
+      "family": "ad-buy-form",
+      "source_sha256": "b8884cbe5be0bf0a0409d2ef5e4aa179f9f2b76e1760a681490c5748dfea2bb3",
+      "source_size_bytes": 14557,
+      "file_name": "2eb5eaa6-3f56-cb68-b3c8-76abab26dc0c.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "502c6c1ee0e7998461f7f51fb817744b",
+      "family": "ad-buy-form",
+      "source_sha256": "4eb89a98883b0bd9c0f9a714e56f066e469cf3eeda2634805b20a6d8486aae60",
+      "source_size_bytes": 47374,
+      "file_name": "754084fc-3d10-7106-aa4b-fcac89a5d3a1.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "498bbdc746cb2f3d4814b9f1a3113411",
+      "family": "ad-buy-form",
+      "source_sha256": "a1abcfbec24809692de9223edbd6659f6c4f55e04545e23dc636b0bc8d5d5ebd",
+      "source_size_bytes": 42568,
+      "file_name": "23a5de85-3f4d-e735-92c2-a029e4121878.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "49ff3fe920ead04371e5e21d24ee93fc",
+      "family": "ad-buy-form",
+      "source_sha256": "c44e2e471bb9f45bb8496f7cda1ad3e42a128de4fd54066054e892a53a963935",
+      "source_size_bytes": 392911,
+      "file_name": "1ecc29f7-3929-b19e-1ac9-fc5be0688708.pdf"
+    },
+    {
+      "dataset_id": "vrdu",
+      "doc_id": "6de2a10fcf1aa63ca5d08acaa9ed1f10",
+      "family": "ad-buy-form",
+      "source_sha256": "33aa914abf05f9da395a5e1a9c476ba0dd84a9e3078ddb20ae3523540af0ebaa",
+      "source_size_bytes": 60515,
+      "file_name": "76628c20-279b-6022-818c-11bd703df9da.pdf"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "5e1d2f3a95f63552508a18a4c13df9db",
+      "family": "receipt",
+      "source_sha256": "5852cbe48df03646524e717e987eb3d0ac329a52fd192070b5fda1222a053789",
+      "source_size_bytes": 734233,
+      "file_name": "cord_test_0001.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "e0a548598413f94d36aa317183c13fce",
+      "family": "receipt",
+      "source_sha256": "571ac6af26e75de8c06747a8c536c778f19a4562879090813571eddc74603d34",
+      "source_size_bytes": 1387299,
+      "file_name": "cord_test_0002.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "785f38ec0af3bc3cfe544098e71808c0",
+      "family": "receipt",
+      "source_sha256": "8f73f0c4803ea8815040a50e3389d4f3fa15e8c28cb6d50ea9854f6f6c22bd63",
+      "source_size_bytes": 1278906,
+      "file_name": "cord_test_0003.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "ca1c2f6407b307875b12ae2f0453bb05",
+      "family": "receipt",
+      "source_sha256": "810d3545f4105b19757c4b8b35934a477cde8cd1875302d9092315d2f960ef93",
+      "source_size_bytes": 987476,
+      "file_name": "cord_test_0007.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "2b48ca9d45b8faf53118ed3da7347763",
+      "family": "receipt",
+      "source_sha256": "58716693a6c0733358e66e64d7064a5a845424280bb55f9b5fa137b1af8c92fe",
+      "source_size_bytes": 1853544,
+      "file_name": "cord_test_0008.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "bf30754e71e31920f677e83fbb40de2a",
+      "family": "receipt",
+      "source_sha256": "d92479ab212713e7a65e56aacc5e68c0713597476608cbc394d997971043010b",
+      "source_size_bytes": 1019196,
+      "file_name": "cord_test_0011.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "ea7fc0856c3c62b186b203f8c2962e48",
+      "family": "receipt",
+      "source_sha256": "f1cd67a7d67d04ba8d5b685553b1b5addbf2039d5954ab08c92139c0ad88a796",
+      "source_size_bytes": 857077,
+      "file_name": "cord_test_0015.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "fee0c3a5a1b5223ad18f366fa21af171",
+      "family": "receipt",
+      "source_sha256": "eef326565b3945217a69afd84c893afdffd03a2f487943661c2423e6d6ec0d7d",
+      "source_size_bytes": 1732233,
+      "file_name": "cord_test_0016.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "ac96cd8707f26f62fd5e890f654cbbad",
+      "family": "receipt",
+      "source_sha256": "f4ec833b7b577f39211046770ae40e89f24c2486fe425898a06849384dea5c0f",
+      "source_size_bytes": 1480803,
+      "file_name": "cord_test_0021.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "c9f11cd3105f6154f011a06c64d8a8f8",
+      "family": "receipt",
+      "source_sha256": "fd95d923b0bbed4f81238a7932b1088b4f12335689d333d455704404577c4490",
+      "source_size_bytes": 1458530,
+      "file_name": "cord_test_0023.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "3ec674c193377db497bcd3066a8ac6b2",
+      "family": "receipt",
+      "source_sha256": "abad751ddbbe3188195a9f502110df589cd39ae49bdf394596bab6f69ff8d81c",
+      "source_size_bytes": 1766261,
+      "file_name": "cord_test_0025.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "a2a45d0317eb70d7b6dd10c809f0068f",
+      "family": "receipt",
+      "source_sha256": "1f065c268473d727282005e57441c55c3249afe0da54f3bc08823d0cbe730610",
+      "source_size_bytes": 1390407,
+      "file_name": "cord_test_0029.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "500074d6eb0dc7b9b0b3ad8345a64b22",
+      "family": "receipt",
+      "source_sha256": "52879816c28ebc3a7bc777c31685fb71f36bc4d1f7d7dc9c0b743fc5aced84de",
+      "source_size_bytes": 1665792,
+      "file_name": "cord_test_0030.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "97b34f02c25c6d4ec3da25ba09a12dbb",
+      "family": "receipt",
+      "source_sha256": "0052502fe9b8b69cb503076cce7b866101b6047ddbf9074660fb49954f90882c",
+      "source_size_bytes": 10720477,
+      "file_name": "cord_test_0031.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "fa87783560d3d99b4687be406aeec354",
+      "family": "receipt",
+      "source_sha256": "09ad2a1a4d2275e69ba57b605ca2139679523303595f313f28a86566931a0b8b",
+      "source_size_bytes": 219204,
+      "file_name": "cord_test_0034.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "ec6b315866965d0467034fde850f65af",
+      "family": "receipt",
+      "source_sha256": "885a3bc80bdaff2a5a8440ab61679c65a4249e89cf5c6b0ec714b62c512983bb",
+      "source_size_bytes": 778213,
+      "file_name": "cord_test_0037.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "c9627500adfd0671bf908ca0bed94c60",
+      "family": "receipt",
+      "source_sha256": "50fb8ed728fa474bfb50292d6754b4e9bbe7c73fe0b07fe071c540a672f625fc",
+      "source_size_bytes": 1385021,
+      "file_name": "cord_test_0039.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "1b8f08a97aedccfd85b310be4d930fe4",
+      "family": "receipt",
+      "source_sha256": "58a6ddce5023e3ce90f9b2fd094ff9db3c31a89f9524bd57374f86610227a7f5",
+      "source_size_bytes": 247778,
+      "file_name": "cord_test_0040.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "d00ca5c23730c5f005b64ab042619596",
+      "family": "receipt",
+      "source_sha256": "6918a74b515e404d304d33266638698b9054d531eef63689c5ab5f754ce8c94a",
+      "source_size_bytes": 5189664,
+      "file_name": "cord_test_0042.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "cae3d20bc146d4e2c096dd0baf166053",
+      "family": "receipt",
+      "source_sha256": "67503d672ef23dc9805f78218172feece7f6138716651bf2a5cb3100cec5fe54",
+      "source_size_bytes": 1613720,
+      "file_name": "cord_test_0045.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "651ae026471d0ff24c32b55de58c2b73",
+      "family": "receipt",
+      "source_sha256": "1e237ed0ae2f24fe952a86558cf1742c67527de3d2b249e0a2a13452017fcb2e",
+      "source_size_bytes": 1750806,
+      "file_name": "cord_test_0046.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "0a468efbccbd560b9756a86440adbf53",
+      "family": "receipt",
+      "source_sha256": "586d99b4bbdaed4f0aa9f9514eaa1bb0d306d270490eed8ddace08e6cdf804ac",
+      "source_size_bytes": 950217,
+      "file_name": "cord_test_0049.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "814f6f105d9141aca8dbc97883804b61",
+      "family": "receipt",
+      "source_sha256": "d7bb9ae6973048a5fccafd2559315523040d6450e6bf678c42c42f58508b9d88",
+      "source_size_bytes": 1417737,
+      "file_name": "cord_test_0051.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "cf4d6bef8eb6b2cfcf958d026c09bf84",
+      "family": "receipt",
+      "source_sha256": "37e9b779d3316249de7c622d77a46abf9ddc684f2cf55cd33bcecc311ee1cef7",
+      "source_size_bytes": 1874814,
+      "file_name": "cord_test_0052.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "1de123cf5f5867d44aab31c8ac6dd057",
+      "family": "receipt",
+      "source_sha256": "def32b0764325a94ef34f733308bbc477d15bda95928eec41bcf541fef346c5d",
+      "source_size_bytes": 1417027,
+      "file_name": "cord_test_0053.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "a81167a9b1999c198d681069987287c2",
+      "family": "receipt",
+      "source_sha256": "5247f1a4f69149e499d849654335da75cb4a534539cd375b8606f96d2c8a983d",
+      "source_size_bytes": 673411,
+      "file_name": "cord_test_0057.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "7b694d4d198785b6d3c10294ecdbe0fe",
+      "family": "receipt",
+      "source_sha256": "e0dde2c7e46f02fedae4671b4908b84f097f7b047b6d50bee9beb6f59e06f088",
+      "source_size_bytes": 17240894,
+      "file_name": "cord_test_0059.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "f67e26f48ab705cab9ccdae3f10676fd",
+      "family": "receipt",
+      "source_sha256": "ab257a9dfc56f9c33a30274351a42cfc82700f81ff1b80aef07e511b15570cc0",
+      "source_size_bytes": 2436148,
+      "file_name": "cord_test_0064.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "f73d6135c2c2a6430048c7c487deba94",
+      "family": "receipt",
+      "source_sha256": "973f21ee745adfd47d11fdcc1574afa54612f6f57dfbcda09c58aa32c1d5225a",
+      "source_size_bytes": 447714,
+      "file_name": "cord_test_0067.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "5ef84b064ddcc2a0b001b1c2f1af89c5",
+      "family": "receipt",
+      "source_sha256": "c9a3e92bfd1cfd408bee1695517066e5cbd4bb100d43a10fd1cb4462c30e5fb1",
+      "source_size_bytes": 6776478,
+      "file_name": "cord_test_0069.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "0298a9bb29e5b90d9f04d8b2e4aa7911",
+      "family": "receipt",
+      "source_sha256": "06f9f2830f735ba3395ceeae8c4069cbc8542b3f7f828293f5c43522077389cb",
+      "source_size_bytes": 10852662,
+      "file_name": "cord_test_0074.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "17fe9c3c028d502a11adcdb1138137f8",
+      "family": "receipt",
+      "source_sha256": "88b51b28d0f0f0ac44a3562cd32c5e7fc197f759249bc24b83734fea0ae5fbe4",
+      "source_size_bytes": 6277559,
+      "file_name": "cord_test_0077.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "15aca4b70da664d1ca9d2a9990f876bf",
+      "family": "receipt",
+      "source_sha256": "5c3cce99134902f5a5c39900bc96856ca711d85debc1d1804095660e5c13581f",
+      "source_size_bytes": 6570844,
+      "file_name": "cord_test_0078.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "70435a2b59f9e892933621677cd83335",
+      "family": "receipt",
+      "source_sha256": "5f93bc30f680281efbdf8f6fdc173df91130d18129cda84de83bef34a15c3a6b",
+      "source_size_bytes": 1859770,
+      "file_name": "cord_test_0082.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "231fbde7a14cb4eab04cdc0d73610f6a",
+      "family": "receipt",
+      "source_sha256": "a4116bc24ae37dffbc8d2dff00b671651f39ce63f624247f84af886c3070ebe1",
+      "source_size_bytes": 720079,
+      "file_name": "cord_test_0084.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "f148aff0029318bf524acb6e906ccb5d",
+      "family": "receipt",
+      "source_sha256": "6fab317555c829586943f96fbfda8ec2021f4c2fcd60db666ca7ffac4521aaea",
+      "source_size_bytes": 1600018,
+      "file_name": "cord_test_0087.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "79a027a9530adecd9b509b0616a0df2c",
+      "family": "receipt",
+      "source_sha256": "6b4557206c3f9ad821bbdcb5c18aa5a7467de1b8a00673d584735e169a0fbb87",
+      "source_size_bytes": 1569977,
+      "file_name": "cord_test_0089.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "0faa9db7b4787c481bb1519466329ad5",
+      "family": "receipt",
+      "source_sha256": "fa9b5f2a3fd62199e328487d1b7408d6f57846083b2efb082492fc9113321af4",
+      "source_size_bytes": 1461494,
+      "file_name": "cord_test_0093.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "ffd5563493e92fe83f2e4f4e20d167fd",
+      "family": "receipt",
+      "source_sha256": "428dff4d7fe1b8a2a89258d341229d313681aac84718885d3f225a0a8b0261a9",
+      "source_size_bytes": 1510994,
+      "file_name": "cord_test_0094.png"
+    },
+    {
+      "dataset_id": "cord_v2_test",
+      "doc_id": "e5f095e0f4b06944725d9ac27509855b",
+      "family": "receipt",
+      "source_sha256": "250d56fd7a00f4eab720a28d1a5a20b741803b791d865d0bdc66511c0fa07b4a",
+      "source_size_bytes": 1730615,
+      "file_name": "cord_test_0099.png"
+    }
+  ]
+}

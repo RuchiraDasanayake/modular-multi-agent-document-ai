@@ -1,0 +1,59 @@
+{
+  "contract_version": 1,
+  "brief_id": "brief_59c50b774f725c9e83b385acafca386b",
+  "revision": 2,
+  "audit_event_id": "59c50b774f725c9e83b385acafca386b",
+  "state": "confirmed",
+  "owner_user_id": "038857d0-e47b-57dc-8995-c4b64028ebb4",
+  "job_id": "59c50b774f725c9e83b385acafca386b",
+  "intent": "Extract only the defined fields using exact source text. Preserve source formatting. Use null for absent or ambiguous scalar values; do not arbitrarily choose among multiple values. For repeated columns preserve each complete source row relation and exact supporting quotes.",
+  "fields": [
+    {
+      "field_id": "file_date",
+      "type": "string",
+      "description": "Date explicitly identified as filing or receipt of the registration. Do not substitute a signature date unless it is also explicitly the filing date.",
+      "example_values": []
+    },
+    {
+      "field_id": "foreign_principle_name",
+      "type": "string",
+      "description": "Name of the foreign principal represented by the registrant; this field ID preserves the published task spelling. Do not substitute the registered agent or signer.",
+      "example_values": []
+    },
+    {
+      "field_id": "registrant_name",
+      "type": "string",
+      "description": "Name of the registered organization or person identified as registrant. Do not substitute the foreign principal, signatory or preparer.",
+      "example_values": []
+    },
+    {
+      "field_id": "registration_num",
+      "type": "string",
+      "description": "Registration identifier assigned to the registrant, preserving letters and leading zeros; not an exhibit, page or filing number.",
+      "example_values": []
+    },
+    {
+      "field_id": "signer_name",
+      "type": "string",
+      "description": "Name of the person who signs the registration or declaration, when explicitly readable in source text.",
+      "example_values": []
+    },
+    {
+      "field_id": "signer_title",
+      "type": "string",
+      "description": "Stated position or title of the signatory who signs the registration or declaration.",
+      "example_values": []
+    }
+  ],
+  "sample_sources": [
+    {
+      "file_id": "1a9efac5c954664cf9992d1ab452fb5b",
+      "source_sha256": "008a35460c861cc80105e4b795cc774ad6766670894108e3cfb0900e99eaba03"
+    },
+    {
+      "file_id": "1a3330dba507d1eadd5c2c027af46c4d",
+      "source_sha256": "00942d7dd9affb784d4d4c1f407263dff4aa4b3ae4ca65ffee5d3110ad2273eb"
+    }
+  ],
+  "payload_sha256": "f38589eb7de27d9a2fde5a2d3bfc7383d6d40178d8f2a4dd6f996f9d80e9f49a"
+}

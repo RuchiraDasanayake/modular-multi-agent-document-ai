@@ -1,0 +1,179 @@
+{
+  "version": 1,
+  "status": "reviewed_for_publication",
+  "publication_date": "2026-10-14",
+  "public_main_url": "https://github.com/RuchiraDasanayake/modular-multi-agent-document-ai/tree/main/docs/evaluations/quality240_20261014",
+  "publication_revision_policy": "The Git commit containing these files identifies this publication. No self-referential commit or manifest hash is embedded.",
+  "execution_coordinator_revision": "1d1d55a501b007f6d815f4880517c3ec980b1607",
+  "analysis_revision": "f2a8ef93b92757845c67fe86aeec5c3a4e14754c",
+  "protocol_sha256": "3cf41aac59be90d610a4479d1d9876bbf77894e9d55162983a8713b510594075",
+  "prediction_seal_sha256": "baed791acffbaa44171525cb51810f808db691615eebbc83b99890a75d3229cd",
+  "original_artifact_sha256": {
+    "reporting_projection": "120b88e363fadafbce46a0820cecad115b80d551d27834e49efa8c81560757a5",
+    "independent_prelabel_verification": "3d7cfc983a5cf9d04eff67e21b3bc26c3b2bfe9682f53ae0544bddf82010347e",
+    "scoring_receipt": "ac97bdd7dfc29b9e612ffcf6e623c74e757971009b45d9495d17f95e87388809",
+    "timing_report": "d9531b68ff439d104d1908919502d9f94c1a7e4aa611b8db6e4e55562b58b3d3"
+  },
+  "original_to_public": [
+    {
+      "original_artifact": "approved_aggregate",
+      "original_sha256": "a5efcc8ffb08f141fd167707781b7425b517cfa507f2a682816bc480ab7c5ee3",
+      "public_file": "aggregate-results.json",
+      "public_sha256": "4790ed93d0766a61785ab4317fe31c7913214afe1dc0e8b3fc50595660192148",
+      "transformations": {
+        "removed_keys": [
+          "/timing/arms/text/overall/source_reason_counts",
+          "/timing/arms/text/families/ad-buy-form/source_reason_counts",
+          "/timing/arms/text/families/receipt/source_reason_counts",
+          "/timing/arms/text/families/registration-form/source_reason_counts",
+          "/timing/arms/candidate/overall/source_reason_counts",
+          "/timing/arms/candidate/families/ad-buy-form/source_reason_counts",
+          "/timing/arms/candidate/families/receipt/source_reason_counts",
+          "/timing/arms/candidate/families/registration-form/source_reason_counts"
+        ],
+        "technical_status": {
+          "from": "aggregate_publication_candidate_requires_review",
+          "to": "aggregate_publication_reviewed"
+        },
+        "public_location": {
+          "from": "Location/version to be verified when published",
+          "to": "https://github.com/RuchiraDasanayake/modular-multi-agent-document-ai/tree/main/docs/evaluations/quality240_20261014"
+        },
+        "all_other_values_preserved": true,
+        "retained_numeric_leaves": 565
+      }
+    },
+    {
+      "original_artifact": "quality_results",
+      "original_sha256": "61a3ba744005d607dcb7be931988bd8058395af2749bfb90ff514ddb96b75f45",
+      "public_file": "secondary-diagnostics.json",
+      "public_sha256": "a3f2d64ec98333df8a5ecbd898fa17b48cce73d9dae1bad3b1094d0d15f135d1",
+      "transformations": [
+        "Retain exact scalar_strings, historical_ordered_lists and ordinal_proposed_cells uncertainty nodes.",
+        "Project family mismatch counts and valid-full-coverage family summaries.",
+        "Omit per-document entries, source identifiers, raw values and reference contents; add metric-scope text."
+      ]
+    },
+    {
+      "original_artifact": "sealed_incident_accounting",
+      "original_sha256": "8dc0c3728a1cd6107f3ff4dff96dfb9ead1e022716f99da2a8e33ff436173fcb",
+      "public_file": "incident-accounting.json",
+      "public_sha256": "7721772ddd85a7b857a86a10692c716df9a7bf63f5662488c3ca82930f667cd0",
+      "transformations": [
+        "Keep aggregate error, attempt, uncertainty, control-chain and transport counts and amendment pins.",
+        "Remove each source_reason_counts dictionary and the individual metadata-file/hash map, file paths, script hash and alternate checkpoint-span field.",
+        "Retain no individual source identifiers or reply bodies; add the original receipt pin and helper-scope text."
+      ]
+    },
+    {
+      "original_artifact": "verified_source_union",
+      "original_sha256": "b69438a7555fc191c230eeef7bd9220950d92e092c9ae424cb1eeefb0a83b9f2",
+      "public_file": "source-union.json",
+      "public_sha256": "f1a8ffacd2a4f51edb2f95b6a96b91cdf28b65c7f01171b55d84b478c4fe78fc",
+      "transformations": [
+        "Retain stage, family and study totals, intersections, profile/input hashes, limitations and scoped helper-access flags.",
+        "Remove originals and execution/inference-profile objects; no individual source identities or host paths are published in this aggregate.",
+        "Add the original report pin and publication-scope explanation."
+      ]
+    },
+    {
+      "original_artifact": "independent_numeric_audit",
+      "original_sha256": "731cbe90e26c3d3442e349a2e37882921fe44862f81413f141a6311574bf2f7e",
+      "public_file": "numeric-audit-summary.json",
+      "public_sha256": "e14b82f9c05c98413c3e8844ece7c7d760c2789856a4918ce1fcf297b2868808",
+      "transformations": [
+        "Retain passed status, all 231 check labels, bootstrap reconciliation, runtime versions, access flags, scope and limitations.",
+        "Replace input path-and-hash objects with logical input names and hashes only.",
+        "Omit duplicated numeric/detail sections; add the original audit pin.",
+        "Repair missing whitespace in the copied usage limitation; its numeric content is unchanged."
+      ]
+    },
+    {
+      "original_artifact": "portable_reconstruction_readme",
+      "original_sha256": "114643a00233ee3553d6c6d818d1db44e8e38f05fecf0a79cbe9eef57e8a45c3",
+      "public_file": "README.md",
+      "public_sha256": "722560fb746f020ac6af2147575ab95529cea1bde85e1f12b9ca9eb8c875e390",
+      "transformations": [
+        "Remove the private-pending-publication sentence and link the completed result reports and public aggregates.",
+        "Pin published analysis revision f2a8ef93b92757845c67fe86aeec5c3a4e14754c.",
+        "Explain intentional public source identities in reconstruction metadata and their exclusion from metric/incident/union aggregates."
+      ]
+    },
+    {
+      "original_artifact": "portable_reconstruction-manifest.json",
+      "original_sha256": "d1ad99128791518b20573258fa8b0fba16c38cf80d8bfabc1b0c08afe09c5535",
+      "public_file": "reconstruction-manifest.json",
+      "public_sha256": "d1ad99128791518b20573258fa8b0fba16c38cf80d8bfabc1b0c08afe09c5535",
+      "transformations": [
+        "Byte-for-byte copy; no content or line-ending changes."
+      ]
+    },
+    {
+      "original_artifact": "portable_schemas/registration-form.json",
+      "original_sha256": "36c53ff90a098d05e1c2b8d2a7d35ebb3c29e6915f354658a03671d8d9a9dcfd",
+      "public_file": "schemas/registration-form.json",
+      "public_sha256": "36c53ff90a098d05e1c2b8d2a7d35ebb3c29e6915f354658a03671d8d9a9dcfd",
+      "transformations": [
+        "Byte-for-byte copy; no content or line-ending changes."
+      ]
+    },
+    {
+      "original_artifact": "portable_schemas/ad-buy-form.json",
+      "original_sha256": "3fd04649edb13e920915d5e326522587a57af4abfd8499f8ae0d8f501dc73675",
+      "public_file": "schemas/ad-buy-form.json",
+      "public_sha256": "3fd04649edb13e920915d5e326522587a57af4abfd8499f8ae0d8f501dc73675",
+      "transformations": [
+        "Byte-for-byte copy; no content or line-ending changes."
+      ]
+    },
+    {
+      "original_artifact": "portable_schemas/receipt.json",
+      "original_sha256": "0ebeb253954b8726d9e46a3b24fbedfb30cb5b5f9957cde98580deee948f80b7",
+      "public_file": "schemas/receipt.json",
+      "public_sha256": "0ebeb253954b8726d9e46a3b24fbedfb30cb5b5f9957cde98580deee948f80b7",
+      "transformations": [
+        "Byte-for-byte copy; no content or line-ending changes."
+      ]
+    }
+  ],
+  "public_files_sha256_excluding_this_manifest": {
+    "docs/evaluations/quality240_20261014/aggregate-results.json": "4790ed93d0766a61785ab4317fe31c7913214afe1dc0e8b3fc50595660192148",
+    "docs/evaluations/quality240_20261014/incident-accounting.json": "7721772ddd85a7b857a86a10692c716df9a7bf63f5662488c3ca82930f667cd0",
+    "docs/evaluations/quality240_20261014/numeric-audit-summary.json": "e14b82f9c05c98413c3e8844ece7c7d760c2789856a4918ce1fcf297b2868808",
+    "docs/evaluations/quality240_20261014/README.md": "722560fb746f020ac6af2147575ab95529cea1bde85e1f12b9ca9eb8c875e390",
+    "docs/evaluations/quality240_20261014/reconstruction-manifest.json": "d1ad99128791518b20573258fa8b0fba16c38cf80d8bfabc1b0c08afe09c5535",
+    "docs/evaluations/quality240_20261014/schemas/ad-buy-form.json": "3fd04649edb13e920915d5e326522587a57af4abfd8499f8ae0d8f501dc73675",
+    "docs/evaluations/quality240_20261014/schemas/receipt.json": "0ebeb253954b8726d9e46a3b24fbedfb30cb5b5f9957cde98580deee948f80b7",
+    "docs/evaluations/quality240_20261014/schemas/registration-form.json": "36c53ff90a098d05e1c2b8d2a7d35ebb3c29e6915f354658a03671d8d9a9dcfd",
+    "docs/evaluations/quality240_20261014/secondary-diagnostics.json": "a3f2d64ec98333df8a5ecbd898fa17b48cce73d9dae1bad3b1094d0d15f135d1",
+    "docs/evaluations/quality240_20261014/source-union.json": "f1a8ffacd2a4f51edb2f95b6a96b91cdf28b65c7f01171b55d84b478c4fe78fc",
+    "docs/evaluations/QUALITY240_RESULTS_20261014.md": "46c4ad52b7933766e4ac747dccdb18da23695ea99843898e852240bd0f87420c",
+    "docs/evaluations/VERIFIED_SOURCE_UNION_RESULT_20261014.md": "5c5e89a772d096179ecfb0744bd16cbfe4bbbffd218d2e550db8c3c79fc753d4"
+  },
+  "reconstruction_identity_policy": "The independently reviewed reconstruction manifest intentionally retains 240 public corpus identifiers, filenames, byte hashes and their 480-slot schedule. All metric, incident and union aggregates omit individual identities and raw values.",
+  "public_content_exclusions": [
+    "Original documents",
+    "Reference labels and raw prediction values",
+    "Raw requests/responses",
+    "Credentials",
+    "Private host paths"
+  ],
+  "private_retention": {
+    "same_drive_only": true,
+    "disaster_recovery_copy": false,
+    "archive_sha256": "0e139a39513f252e291c5fd9e27f33917cbd91bb4d34520299d903eb58490708",
+    "archive_receipt_sha256": "d87fe4729f4a8b14f713f1d8e7f43a9a8509f6bede766729d918b952b5f7ffab",
+    "archive_member_count": 7238
+  },
+  "validation": {
+    "approved_aggregate_equality_except_documented_transformations": true,
+    "schema_and_reconstruction_bytes_verified": true
+  },
+  "limitations": [
+    "Public summaries are traceable projections, not independent semantic reference adjudication.",
+    "The primary scalar denominator retains 54 historical ordered-list incompatibilities per arm.",
+    "Both macro difference intervals include zero; tokens do not establish USD cost.",
+    "The source union excludes the text baseline and does not change the failed operational2000 gate.",
+    "The same provider alias does not establish immutable or equivalent remote weights."
+  ]
+}
