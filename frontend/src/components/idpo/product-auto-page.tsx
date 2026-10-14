@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { IdpoCard } from "@/components/idpo/card";
 import { ProductFileUpload } from "@/components/idpo/product-file-upload";
 import { productAutoReviewReadiness } from "@/components/idpo/product-auto-review-readiness";
+import { ProductAutoRunRefresh } from "@/components/idpo/product-auto-run-refresh";
 import { api } from "@/lib/api";
 import { idpoApi } from "@/lib/idpo-api";
 import { clearPendingProductAutoRunRequest, pendingProductAutoRunRequest,
@@ -53,14 +54,14 @@ export function ProductAutoPage() {
   const [pendingRunChecked, setPendingRunChecked] = useState(false);
   const [reviewRefreshing, setReviewRefreshing] = useState(false);
   const [reviewRefreshError, setReviewRefreshError] = useState("");
-  const reviewRefreshInFlight = useRef(false);
-  const reviewRefreshGeneration = useRef(0);
+  const runRefresh = useRef(new ProductAutoRunRefresh(setRuns, setReviewRefreshing));
 
   useEffect(() => {
-    reviewRefreshGeneration.current += 1;
-    reviewRefreshInFlight.current = false;
+    const refresh = runRefresh.current;
+    refresh.invalidate();
     setReviewRefreshing(false);
     setReviewRefreshError("");
+    return () => refresh.invalidate();
   }, [jobId]);
 
   useEffect(() => {
@@ -117,25 +118,11 @@ export function ProductAutoPage() {
         .map((file) => file.fileId)])));
   }
   const refreshRunStatuses = useCallback(async () => {
-    if (reviewRefreshInFlight.current) return;
-    reviewRefreshInFlight.current = true;
-    const generation = reviewRefreshGeneration.current;
-    setReviewRefreshing(true);
     try {
-      const data = await idpoApi.listProductAutoRuns(jobId);
-      if (reviewRefreshGeneration.current === generation) {
-        setRuns(data.runs);
-        setReviewRefreshError("");
-      }
+      await runRefresh.current.refresh(async () => (await idpoApi.listProductAutoRuns(jobId)).runs,
+        () => setReviewRefreshError(""));
     } catch (cause) {
-      if (reviewRefreshGeneration.current === generation) {
-        setReviewRefreshError(cause instanceof Error ? cause.message : "Could not refresh review status.");
-      }
-    } finally {
-      if (reviewRefreshGeneration.current === generation) {
-        reviewRefreshInFlight.current = false;
-        setReviewRefreshing(false);
-      }
+      setReviewRefreshError(cause instanceof Error ? cause.message : "Could not refresh review status.");
     }
   }, [jobId]);
 
@@ -154,12 +141,10 @@ export function ProductAutoPage() {
   useEffect(() => {
     if (!running) return undefined;
     const timer = window.setInterval(() => {
-      void idpoApi.listProductAutoRuns(jobId).then((data) => setRuns(data.runs)).catch((cause) => {
-        setError(cause instanceof Error ? cause.message : "Failed to refresh run status.");
-      });
+      void refreshRunStatuses();
     }, 2500);
     return () => window.clearInterval(timer);
-  }, [jobId, running]);
+  }, [refreshRunStatuses, running]);
 
   const activeRun = useMemo(() => runs.find((run) => run.runId === activeRunId) ?? runs[0] ?? null, [runs, activeRunId]);
   const { reviewedCount, batchReady } = productAutoReviewReadiness(activeRun);
@@ -262,38 +247,43 @@ export function ProductAutoPage() {
   }
 
   async function startWithRequestReceipt(payload: ProductAutoRunPayload): Promise<ProductAutoRun> {
-    let stored: PendingProductAutoRunRequest;
+    const finishAdmission = runRefresh.current.beginAdmission();
     try {
-      stored = reserveProductAutoRunRequest(window.sessionStorage, jobId, payload);
-    } catch (cause) {
-      if (cause instanceof Error) throw cause;
-      throw new Error("Browser session storage is required to safely start extraction.");
+      let stored: PendingProductAutoRunRequest;
+      try {
+        stored = reserveProductAutoRunRequest(window.sessionStorage, jobId, payload);
+      } catch (cause) {
+        if (cause instanceof Error) throw cause;
+        throw new Error("Browser session storage is required to safely start extraction.");
+      }
+      setPendingRunRequest(stored);
+      setPendingRunChecked(false);
+      const run = await idpoApi.startProductAutoRun(jobId, payload.selectedFileIds,
+        payload.approvedRecipe, payload.confirmedBrief, stored.key);
+      clearPendingProductAutoRunRequest(window.sessionStorage, jobId, stored.key);
+      setPendingRunRequest(null);
+      return run;
+    } finally {
+      finishAdmission();
     }
-    setPendingRunRequest(stored);
-    setPendingRunChecked(false);
-    const run = await idpoApi.startProductAutoRun(jobId, payload.selectedFileIds,
-      payload.approvedRecipe, payload.confirmedBrief, stored.key);
-    clearPendingProductAutoRunRequest(window.sessionStorage, jobId, stored.key);
-    setPendingRunRequest(null);
-    return run;
   }
 
   async function checkPendingRunRequest() {
     if (!pendingRunRequest) return;
     setError("");
     try {
-      const data = await idpoApi.listProductAutoRuns(jobId);
-      setRuns(data.runs);
-      const matched = data.runs.find((run) => run.idempotencyKey === pendingRunRequest.key);
-      if (matched) {
-        clearPendingProductAutoRunRequest(window.sessionStorage, jobId, pendingRunRequest.key);
-        setPendingRunRequest(null);
-        setPendingRunChecked(false);
-        setActiveRunId(matched.runId);
-      } else {
-        setPendingRunChecked(true);
-        setError("No accepted run is listed for the prior request yet. Retrying the same request keeps its key; a separate attempt may incur another model call.");
-      }
+      await runRefresh.current.refresh(async () => (await idpoApi.listProductAutoRuns(jobId)).runs, (runs) => {
+        const matched = runs.find((run) => run.idempotencyKey === pendingRunRequest.key);
+        if (matched) {
+          clearPendingProductAutoRunRequest(window.sessionStorage, jobId, pendingRunRequest.key);
+          setPendingRunRequest(null);
+          setPendingRunChecked(false);
+          setActiveRunId(matched.runId);
+        } else {
+          setPendingRunChecked(true);
+          setError("No accepted run is listed for the prior request yet. Retrying the same request keeps its key; a separate attempt may incur another model call.");
+        }
+      });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not check extraction runs.");
     }
@@ -335,7 +325,7 @@ export function ProductAutoPage() {
       setExportMessage({ runId, text: "Download requested. If your browser blocks the file, use Copy reviewed JSONL." });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not download the reviewed batch.");
-      void idpoApi.listProductAutoRuns(jobId).then((data) => setRuns(data.runs)).catch(() => undefined);
+      void refreshRunStatuses();
     } finally { setDownloadingRunId(null); }
   }
 

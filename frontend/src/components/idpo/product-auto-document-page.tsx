@@ -188,7 +188,7 @@ export function ProductAutoDocumentPage() {
   }
 
   async function save() {
-    if (!detail) return;
+    if (!detail || saving) return;
     const fields: ProductAutoReviewField[] = detail.candidate.proposed_schema.flatMap((field) => {
       const row = draft[field.field_id];
       if (!row?.decision) return [];
@@ -290,7 +290,7 @@ export function ProductAutoDocumentPage() {
       {message ? <div role="status" className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-700 dark:border-emerald-700/40 dark:bg-emerald-900/20 dark:text-emerald-300">{message}</div> : null}
 
       <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
-      <IdpoCard className="lg:sticky lg:top-6">
+      <IdpoCard className="min-w-0 lg:sticky lg:top-6">
         <h2 id="original-source" className="text-lg font-semibold text-slate-900 dark:text-white">{plainText ? "Source text" : "Original document"}</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{sourceTextCopy.introduction}</p>
         {selectedPageUrl ? <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">Showing PDF page {sourcePage}. <a className="text-cyan-700 underline dark:text-cyan-300" href={selectedPageUrl} target="_blank" rel="noopener noreferrer">Open this page in a new tab</a></p> : null}
@@ -323,7 +323,8 @@ export function ProductAutoDocumentPage() {
         <p role="alert" className="mt-3 text-sm font-medium text-rose-700 dark:text-rose-300">{outcome.cause}</p>
         <p className="mt-3 text-sm text-slate-700 dark:text-slate-200">{outcome.action}</p>
         <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">{outcome.sourceNote}</p>
-      </IdpoCard> : <IdpoCard>
+      </IdpoCard> : <IdpoCard className="min-w-0">
+        <fieldset disabled={saving} aria-busy={saving} aria-label="Review proposed fields" className="min-w-0">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Proposed schema and values</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Text matched means the value occurs in the extracted text. Image-derived proposals have page hints, not verified pixel locations. Check the original document and field meaning before approving either.</p>
         {detail.visualRoute === "visual" ? <p className="mt-2 text-sm font-medium text-amber-700 dark:text-amber-300">
@@ -606,6 +607,7 @@ export function ProductAutoDocumentPage() {
             className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950" />
           <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">Count only your active work since the previous save. Exclude breaks; leave blank if unknown.</span>
         </label>
+        </fieldset>
       </IdpoCard>}
       </div>
 

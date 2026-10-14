@@ -14,6 +14,10 @@ local raster preview (`core`, `keep`), operator instructions (`supporting`, `kee
   export gates as downloads. Clipboard failures have visible instructions.
 - A repeated batch selection warns that another run can incur another model
   charge. A normal in-flight start no longer displays the lost-response warning.
+- Review inputs are locked while their save is pending, so new edits cannot be
+  silently replaced by the saved snapshot. Source navigation remains available.
+- Run-list reads are invalidated around admission. Older focus/poll responses
+  cannot hide a newly queued run or reconcile an obsolete request receipt.
 
 The renderer reuses installed PDFium/Pillow. It accepts only owner/admin-accessible
 uploaded bytes and has no provider credentials, arbitrary path or URL input.
@@ -37,6 +41,7 @@ independent human-effort measurement is inferred from these saves.
 | AI schema suggestion | Natural-language intent saved in UI; Luna 6 proposed `invoice_number` and `final_amount_due` with meanings/examples. 619 input and 176 output tokens were reported. |
 | Confirmation and preview | Suggested fields adopted, saved and confirmed as revision 3 in UI. Preview returned `DEMO-2026-014` and `125.75`. |
 | Source preview | Both PDF pages visibly rendered. Next/previous page controls and end-page bounds worked; desktop source/field columns and the narrow layout were inspected. |
+| Narrow-screen zoom | At a 314-pixel viewport, the zoomed 1,224-pixel page scrolls inside a 234-pixel preview pane; the document remains 314 pixels wide. Fit width restores the page. |
 | PDF review and copy | Both fields checked against rendered page 1, review saved, and copied JSON contained the expected values and review provenance. |
 
 Read-only authenticated verification also checked each export, its one recorded
@@ -58,6 +63,9 @@ from the frozen operational and paired-quality campaigns.
   actual local PNG/PDF rendering, ownership, bad pages/files, credential exclusion,
   timeout termination and capacity retention after failed termination.
 - 19 focused review, confirmed-preview, batch-export and source-guidance tests passed.
+- Five delayed-response regressions cover admission/refresh ordering, shared reads,
+  stale errors, busy state, and navigation invalidation. They passed together with
+  nine existing readiness, visual-review and request-idempotency checks.
 - TypeScript and targeted ESLint passed with one existing internal-navigation
   warning in `idpo-api.ts`; no lint errors. Production builds completed.
 - The embedded browser blocked direct document navigation and did not expose a
