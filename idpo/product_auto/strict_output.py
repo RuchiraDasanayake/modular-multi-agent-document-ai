@@ -7,15 +7,20 @@ here before the existing source-grounding parser sees it.
 from __future__ import annotations
 
 import json
-import math
 import unicodedata
 from collections.abc import Mapping, Sequence
 
-from idpo.product_auto.logic import MAX_FIELDS, MAX_LINKED_ROWS_PER_FIELD, parse_values_reply
+from idpo.product_auto.logic import (
+    MAX_FIELDS,
+    MAX_LINKED_ROWS_PER_FIELD,
+    MAX_MODEL_REPLY_BYTES,
+    decode_model_json,
+    parse_values_reply,
+)
 
 PROFILE = "strict_confirmed_values_v1"
 PROFILE_V2 = "strict_confirmed_values_v2"
-MAX_REPLY_BYTES = 1_000_000
+MAX_REPLY_BYTES = MAX_MODEL_REPLY_BYTES
 _FIELD_TYPES = {"string", "integer", "decimal", "boolean", "date", "array[object]"}
 
 
@@ -101,26 +106,6 @@ def compile_confirmed_values_response_format_v2(
     }}
 
 
-def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError("Duplicate JSON property")
-        result[key] = value
-    return result
-
-
-def _finite_float(value: str) -> float:
-    number = float(value)
-    if not math.isfinite(number):
-        raise ValueError("Nonfinite JSON number")
-    return number
-
-
-def _reject_constant(_: str) -> None:
-    raise ValueError("Nonfinite JSON number")
-
-
 def _scalar_type_valid(field_type: str, value: object) -> bool:
     if value is None:
         return True
@@ -153,15 +138,7 @@ def project_confirmed_values_v2_reply(
     The returned string is transient internal input, never provider provenance.
     """
     field_types = _field_types(fields)
-    if not isinstance(text, str):
-        return None
-    try:
-        if len(text.encode("utf-8")) > MAX_REPLY_BYTES:
-            return None
-        payload = json.loads(text, object_pairs_hook=_unique_object,
-                             parse_float=_finite_float, parse_constant=_reject_constant)
-    except (TypeError, ValueError, UnicodeError, RecursionError):
-        return None
+    payload = decode_model_json(text)
     if not isinstance(payload, dict) or set(payload) != {"values"} or \
             not isinstance(payload["values"], dict) or set(payload["values"]) != set(field_types):
         return None
@@ -212,15 +189,7 @@ def _decode_confirmed_values(
 ) -> dict[str, object] | None:
     """Shared closed-envelope validation; visual callers opt into unquoted cells."""
     field_types = _field_types(fields)
-    if not isinstance(text, str):
-        return None
-    try:
-        if len(text.encode("utf-8")) > MAX_REPLY_BYTES:
-            return None
-        payload = json.loads(text, object_pairs_hook=_unique_object,
-                             parse_float=_finite_float, parse_constant=_reject_constant)
-    except (TypeError, ValueError, UnicodeError, RecursionError):
-        return None
+    payload = decode_model_json(text)
     if not isinstance(payload, dict) or set(payload) != {"values"} or not isinstance(payload["values"], list) or \
             len(payload["values"]) != len(field_types):
         return None

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from idpo.product_auto.logic import parse_values_reply
+from idpo.product_auto.logic import coerce_value, parse_values_reply
 from idpo.product_auto.strict_output import (
     _decode_confirmed_values,
     compile_confirmed_values_response_format,
@@ -66,6 +66,13 @@ def parse_visual_values_reply(
     result = parse_values_reply(text, [dict(field) for field in fields], pages)
     if result is None:
         return None
+    field_types = {field["field_id"]: field["type"] for field in fields}
+    for field_id, projected in result.items():
+        field_type = field_types[field_id]
+        if field_type != "array[object]" and not coerce_value(projected["value"], field_type)[1]:
+            # Review-only metadata does not make an invalid typed scalar
+            # consumable by the UI. Reject the reply before claiming coverage.
+            return None
     for item in payload["values"]:
         projected = result[item["field_id"]]
         if projected["value"] is None:

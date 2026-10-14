@@ -62,7 +62,7 @@ def test_nonfinite_or_nested_model_values_reject_reply() -> None:
         assert parse_values_reply(reply, fields, pages) is None
 
 
-def test_invalid_model_number_produces_reviewable_valid_json(tmp_path: Path) -> None:
+def test_invalid_model_number_fails_with_valid_json_artifact(tmp_path: Path) -> None:
     class Model:
         def __init__(self) -> None:
             self.replies = [
@@ -79,7 +79,7 @@ def test_invalid_model_number_produces_reviewable_valid_json(tmp_path: Path) -> 
     run_dir = Path(run["run_dir"])
     candidate = next(iter(load_jsonl(run_dir / "candidates.jsonl", kind="candidate").values()))
     sidecar = json.loads((run_dir / "docs" / candidate["doc_id"] / "result.json").read_text(encoding="utf-8"))
-    assert candidate["document_status"] == "needs_review"
+    assert candidate["document_status"] == "failed"
     assert candidate["extracted_values"] == [
         {"field_id": "amount", "value": None, "status": "missing", "review_state": "pending"}
     ]
