@@ -3,6 +3,12 @@
 Status: frozen before inference and reference access, 13 October 2026.
 Surface: `research_evidence`; action: `keep`.
 
+14 October continuation: a project-scoped replacement key requires a separate
+ICORE endpoint. The [explicit transport amendment](ICORE_PROJECT_ENDPOINT_20261014.md)
+preserves this original protocol and prior outcomes while recording the endpoint
+used by previously unstarted source-arm slots. This change must be disclosed;
+it does not establish provider weight equivalence or alter the primary analysis.
+
 The [source audit](QUALITY240_SOURCE_AUDIT_20261013.md) preceded a complete
 rehash of all 240 originals. No OCR, model call or reference-label access was
 performed during that freeze. Both arm ledgers contained 240 unstarted sources

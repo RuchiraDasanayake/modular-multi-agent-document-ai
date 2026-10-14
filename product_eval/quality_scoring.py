@@ -207,9 +207,10 @@ def assemble_scores(bundle: dict, gold: dict) -> dict:
             "interpretation": "Creator-derived agreement on a source-only split; comparative research validation, not release certification"}
 
 
-def run_analysis(run: Path, seal_sha256: str, output: Path, *, vrdu_root: Path, cord_gold: Path) -> dict:
+def run_analysis(run: Path, seal_sha256: str, output: Path, *, vrdu_root: Path, cord_gold: Path,
+                 transport_amendment_sha256: str | None = None) -> dict:
     verification.require(not output.exists() and not output.resolve().is_relative_to(run.resolve()), "New external analysis directory required")
-    bundle = verification.verify_campaign(run, seal_sha256)
+    bundle = verification.verify_campaign(run, seal_sha256, transport_amendment_sha256=transport_amendment_sha256)
     output.mkdir(parents=True, exist_ok=False)
     write_new(output / "verified-before-labels.json", bundle["receipt"])
     gold, reference_receipt = load_references(bundle["sources"], vrdu_root, cord_gold, output)
@@ -235,8 +236,10 @@ def main() -> None:
     for name in ("run", "output", "vrdu-root", "cord-gold"):
         parser.add_argument(f"--{name}", required=True, type=Path)
     parser.add_argument("--prediction-seal-sha256", required=True)
+    parser.add_argument("--transport-amendment-sha256")
     args = parser.parse_args()
-    result = run_analysis(args.run, args.prediction_seal_sha256, args.output, vrdu_root=args.vrdu_root, cord_gold=args.cord_gold)
+    result = run_analysis(args.run, args.prediction_seal_sha256, args.output, vrdu_root=args.vrdu_root, cord_gold=args.cord_gold,
+                          transport_amendment_sha256=args.transport_amendment_sha256)
     print(json.dumps(result, indent=2))
 
 

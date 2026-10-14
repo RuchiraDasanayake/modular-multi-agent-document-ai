@@ -168,7 +168,7 @@ def _attempts(directory: Path, rows: list[dict], schema, profile: dict, sidecar:
     return replies, requests, valid
 
 
-def verify_campaign(root: Path, seal_sha256: str) -> dict:
+def verify_campaign(root: Path, seal_sha256: str, *, transport_amendment_sha256: str | None = None) -> dict:
     """Complete all source/artifact checks before returning anything usable for scoring."""
     root = root.resolve()
     seal = verify_files(root, seal_sha256)
@@ -189,6 +189,12 @@ def verify_campaign(root: Path, seal_sha256: str) -> dict:
             "Family schemas differ")
     module_hashes = verify_frozen_modules(protocol)
     quality.verify_sources(protocol["sources"])
+    transport = None
+    if (root / "transport-amendment").exists() or transport_amendment_sha256 is not None:
+        from product_eval.quality_transport import verify_amendment
+
+        require(transport_amendment_sha256 is not None, "Explicit endpoint amendment SHA required")
+        transport = verify_amendment(root, protocol, transport_amendment_sha256, sealed=True)
     sources = {row["doc_id"]: row for row in protocol["sources"]}
     arms, product_receipts, attempts_total = {}, 0, 0
     for arm in quality.ARMS:
@@ -255,7 +261,9 @@ def verify_campaign(root: Path, seal_sha256: str) -> dict:
         arms[arm] = results
     require(attempts_total <= quality.GLOBAL_MAX_CALLS, "Global call budget exceeded")
     return {"protocol": protocol, "analysis_plan": plan, "sources": sources, "arms": arms,
+            "transport_amendment": transport,
             "receipt": {"prediction_seal_sha256": seal_sha256, "protocol_sha256": PROTOCOL_SHA256,
+                        "transport_amendment": transport,
                         "analysis_plan_sha256": ANALYSIS_SHA256, "preregistration_sha256": PREREGISTRATION_SHA256,
                         "verified_sealed_files": len(seal["files"]), "verified_originals": len(sources),
                         "verified_product_results": product_receipts, "verified_request_attempts": attempts_total,

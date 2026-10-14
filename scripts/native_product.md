@@ -52,6 +52,19 @@ The generated config has this shape (the sample below is documentation only):
 
 `gatewayPythonPath` defaults to `pythonPath`; `nodePath` defaults to `node.exe` on PATH; `adminUsername` defaults to `admin`. The launcher sets `IDPO_PRODUCT_PYTHON` from `pythonPath`, overriding only the product extractor executable so its environment can live on a separate drive. Give the JSON file a private ACL because it contains credentials. The launcher never writes those secrets to its process receipt or console output.
 
+For ICORE project keys, set `autoApiBaseUrl` to
+`https://icore.innobothealth.us/innobot-project-api/v1`, `autoModel` to an approved
+model such as `innobot-luna-6`, and `icoreApiKey` to the private project key.
+Personal API keys use the separate `/innobot-api/v1` route. A project key sent
+to that personal route can return `401 invalid_api_key`; do not treat it as a
+credit or rate-limit error. Check authenticated `GET /models` and
+`GET /capabilities` on the matching base URL. The live response determines
+availability; the administration page can show models this key cannot use.
+Wait for active and queued extraction attempts to finish, stop the stack,
+update the private config, and restart so the frontend and worker use the same
+connection. No frontend rebuild is required for a credential/base-URL rotation.
+See the [verified project cutover](../docs/evaluations/ICORE_PROJECT_ENDPOINT_20261014.md).
+
 Use Python 3.13 and install `idpo/product_auto/requirements-worker.txt` in a dedicated product environment.
 The historical repository environment may lack PDF, image, OCR or Office dependencies even if text extraction works.
 Verify `python -m pip check` and run the mixed-format parser checks before advertising those formats.
