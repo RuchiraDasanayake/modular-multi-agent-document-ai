@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { IdpoCard } from "@/components/idpo/card";
+import { ProductFileUpload } from "@/components/idpo/product-file-upload";
 import { productAutoReviewReadiness } from "@/components/idpo/product-auto-review-readiness";
 import { api } from "@/lib/api";
 import { idpoApi } from "@/lib/idpo-api";
@@ -107,6 +108,13 @@ export function ProductAutoPage() {
 
   const running = runs.some((run) => run.status === "running" || (run.status as string) === "queued");
   const modelActionBlocked = modelConfigured && !isAdmin;
+  async function refreshFiles() {
+    const data = await idpoApi.listProductAutoRuns(jobId);
+    setDocuments(data.sourceFiles);
+    setSelected((current) => Array.from(new Set([...current,
+      ...data.sourceFiles.filter((file) => file.selected && !documents.some((old) => old.fileId === file.fileId))
+        .map((file) => file.fileId)])));
+  }
   const refreshRunStatuses = useCallback(async () => {
     if (reviewRefreshInFlight.current) return;
     reviewRefreshInFlight.current = true;
@@ -320,10 +328,10 @@ export function ProductAutoPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <div>
-        <Link href={`/dashboard/idpo/jobs/${encodeURIComponent(jobId)}`} className="text-sm font-medium text-cyan-700 dark:text-cyan-300">← Back to job</Link>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">Automatic schema extraction</h1>
+        <Link href="/dashboard/idpo/jobs" className="text-sm font-medium text-cyan-700 dark:text-cyan-300">← All jobs</Link>
+        <h1 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">Extract documents</h1>
         <p className="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-300">
-          Discover fields from each document or explicitly select an approved schema. Verify source evidence and review every proposed value.
+          Upload files, describe the information you need, and confirm the field meanings. Preview a sample before processing the batch, then review and export.
         </p>
         {modelActionBlocked ? <p role="status" className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
           This deployment allows only administrators to request paid model suggestions and extraction. You can save a draft, but an administrator must run its preview and batch.
@@ -331,6 +339,11 @@ export function ProductAutoPage() {
       </div>
 
       {error ? <div role="alert" className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-700/40 dark:bg-rose-900/20 dark:text-rose-300">{error}</div> : null}
+      <IdpoCard>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Files</h2>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{documents.length} {documents.length === 1 ? "file" : "files"} in this job. Uploading does not start extraction.</p>
+        <ProductFileUpload key={jobId} jobId={jobId} disabled={starting || running || briefBusy || suggesting} onUploaded={refreshFiles} />
+      </IdpoCard>
       {pendingRunRequest ? <IdpoCard>
         <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">An extraction start may already have been accepted.</p>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Check runs or retry the same selection and schema. The saved request key prevents a repeated paid attempt after a lost response.</p>
@@ -410,7 +423,7 @@ export function ProductAutoPage() {
         <div className="mt-5">
           <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Sample files</h3>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Choose 1–5 files that show the values you want. These files are previewed first.</p>
-          {documents.length === 0 ? <p className="mt-2 text-sm text-slate-500">Upload files on the job page to continue.</p> : (
+          {documents.length === 0 ? <p className="mt-2 text-sm text-slate-500">Upload files above to choose a sample.</p> : (
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {documents.map((document) => <label key={document.fileId} className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 p-2 text-sm dark:border-slate-700">
                 <input type="checkbox" checked={sampleFileIds.includes(document.fileId)}
@@ -542,7 +555,7 @@ export function ProductAutoPage() {
             {selectedRecipeId ? <span className="mt-1 block font-normal text-slate-500">This choice is explicit for the selected files. Results still require review.</span> : null}
           </label>
         ) : null}
-        {documents.length === 0 ? <p className="mt-4 text-sm text-slate-500">Upload documents on the job page first.</p> : (
+        {documents.length === 0 ? <p className="mt-4 text-sm text-slate-500">Upload files above to get started.</p> : (
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             {documents.map((document) => (
               <label key={document.fileId} className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 p-2 text-sm dark:border-slate-700">
@@ -608,6 +621,10 @@ export function ProductAutoPage() {
           </div>
         ) : null}
       </IdpoCard>
+      <details className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+        <summary className="cursor-pointer text-sm font-medium text-slate-600 dark:text-slate-300">Advanced job settings</summary>
+        <Link href={`/dashboard/idpo/jobs/${encodeURIComponent(jobId)}`} className="mt-3 inline-block text-sm text-cyan-700 hover:underline dark:text-cyan-300">Rename job and open research pipeline</Link>
+      </details>
     </div>
   );
 }

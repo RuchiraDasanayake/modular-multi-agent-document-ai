@@ -4,16 +4,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IdpoCard } from "@/components/idpo/card";
-import { StatusBadge } from "@/components/idpo/status-badge";
 import { Icon } from "@/components/icons";
 import { idpoApi } from "@/lib/idpo-api";
 import type { JobStatus } from "@/types/idpo";
-
-const MODE_LABELS: Record<string, string> = {
-  adaptive: "Adaptive",
-  strict: "Strict",
-  both: "Both",
-};
 
 function formatDate(value: string | undefined): string {
   if (!value) {
@@ -32,10 +25,7 @@ function documentSummary(job: JobStatus): string {
   if (total === 0) {
     return "No documents yet";
   }
-  const parts = [`${counts?.processedCount ?? 0} of ${total} processed`];
-  if (counts?.processingCount) parts.push(`${counts.processingCount} processing`);
-  if (counts?.failedCount) parts.push(`${counts.failedCount} failed`);
-  return parts.join(" · ");
+  return `${total} ${total === 1 ? "file" : "files"}`;
 }
 
 export function JobsListPage() {
@@ -76,7 +66,7 @@ export function JobsListPage() {
     try {
       setCreating(true);
       const job = await idpoApi.createJob();
-      router.push(`/dashboard/idpo/jobs/${encodeURIComponent(job.jobId)}`);
+      router.push(`/dashboard/idpo/jobs/${encodeURIComponent(job.jobId)}/auto`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create a job.");
       setCreating(false);
@@ -102,8 +92,7 @@ export function JobsListPage() {
           <div>
             <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Document jobs</h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-300">
-              A job holds a batch of documents. Create one, upload the files and process them; open it later to check
-              results or retry failures.
+              Upload a batch, describe what you need, confirm the fields, then review and export the results.
             </p>
           </div>
           {newJobButton}
@@ -121,7 +110,7 @@ export function JobsListPage() {
 
       <IdpoCard>
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Recent jobs</h2>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Newest first.</p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Newest first. Open a job to see extraction runs and review progress.</p>
 
         {loading ? (
           <div className="mt-4 space-y-2" aria-hidden="true">
@@ -139,14 +128,12 @@ export function JobsListPage() {
           </div>
         ) : (
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[480px] text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
                   <th className="px-2 py-2 font-medium">Job</th>
                   <th className="px-2 py-2 font-medium">Created</th>
-                  <th className="px-2 py-2 font-medium">Mode</th>
-                  <th className="px-2 py-2 font-medium">Status</th>
-                  <th className="px-2 py-2 font-medium">Documents</th>
+                  <th className="px-2 py-2 font-medium">Files</th>
                   <th className="px-2 py-2 font-medium">
                     <span className="sr-only">Open</span>
                   </th>
@@ -154,7 +141,7 @@ export function JobsListPage() {
               </thead>
               <tbody>
                 {jobs.map((job) => {
-                  const href = `/dashboard/idpo/jobs/${encodeURIComponent(job.jobId)}`;
+                  const href = `/dashboard/idpo/jobs/${encodeURIComponent(job.jobId)}/auto`;
                   return (
                     <tr
                       key={job.jobId}
@@ -169,12 +156,6 @@ export function JobsListPage() {
                         </p>
                       </td>
                       <td className="px-2 py-2.5 text-slate-600 dark:text-slate-300">{formatDate(job.createdAt)}</td>
-                      <td className="px-2 py-2.5 text-slate-600 dark:text-slate-300">
-                        {MODE_LABELS[job.mode ?? "adaptive"] ?? job.mode}
-                      </td>
-                      <td className="px-2 py-2.5">
-                        <StatusBadge value={job.status} />
-                      </td>
                       <td className="px-2 py-2.5 text-slate-600 dark:text-slate-300">{documentSummary(job)}</td>
                       <td className="px-2 py-2.5 text-right">
                         <Link href={href} className="whitespace-nowrap text-xs font-medium text-cyan-700 hover:underline dark:text-cyan-300">
