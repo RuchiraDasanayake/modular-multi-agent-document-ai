@@ -28,3 +28,39 @@ test("missing and failed results never become a ready preview or reviewed batch"
   assert.deepEqual(productAutoReviewReadiness(failed),
     { reviewedCount: 1, batchReady: false, previewReady: false });
 });
+
+test("one JSON original can complete review and export for all of its logical results", () => {
+  const json = run(["completed", "completed"], 1);
+  json.documents = json.documents.map((document) => ({ ...document, fileId: "json-original", fileName: "two.json" }));
+  assert.deepEqual(productAutoReviewReadiness(json),
+    { reviewedCount: 2, batchReady: true, previewReady: true });
+  json.documents[1].reviewStatus = "unreviewed";
+  assert.deepEqual(productAutoReviewReadiness(json),
+    { reviewedCount: 1, batchReady: false, previewReady: false });
+});
+
+test("logical results require distinct IDs and complete selected-original coverage", () => {
+  const missingOriginal = run(["completed", "completed"], 2);
+  missingOriginal.documents[1].fileId = missingOriginal.documents[0].fileId;
+  assert.deepEqual(productAutoReviewReadiness(missingOriginal),
+    { reviewedCount: 2, batchReady: false, previewReady: false });
+
+  const extraOriginal = run(["completed", "completed"], 1);
+  assert.deepEqual(productAutoReviewReadiness(extraOriginal),
+    { reviewedCount: 2, batchReady: false, previewReady: false });
+
+  const duplicatedResult = run(["completed", "completed"], 2);
+  duplicatedResult.documents[1].docId = duplicatedResult.documents[0].docId;
+  assert.deepEqual(productAutoReviewReadiness(duplicatedResult),
+    { reviewedCount: 2, batchReady: false, previewReady: false });
+  // Exact membership and completeness within each original are verified by the
+  // server manifest; the public UI snapshot exposes only the selected file count.
+});
+
+test("failed logical rows prevent a ready batch even when their original is covered", () => {
+  const json = run(["completed", "completed"], 1);
+  json.documents[1].fileId = json.documents[0].fileId;
+  json.documents[1].status = "failed";
+  assert.deepEqual(productAutoReviewReadiness(json),
+    { reviewedCount: 1, batchReady: false, previewReady: false });
+});

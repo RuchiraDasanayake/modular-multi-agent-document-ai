@@ -100,11 +100,14 @@ def test_multi_frame_container_and_unknown_engine_fail_explicitly(tmp_path, monk
     source = tmp_path / "two.tiff"
     image = Image.new("RGB", (80, 80), "white")
     image.save(source, save_all=True, append_images=[image])
+    monkeypatch.setattr(OcrAgent, "run", lambda *_a, **_k: pytest.fail("Reject multiple frames before OCR"))
     monkeypatch.setattr(rapid_ocr, "recognize_image", lambda *_a, **_k: pytest.fail("Cannot drop another frame"))
     run = process_auto(source, ocr_engine="rapidocr", output_root=tmp_path / "runs")
     result = _sidecar(run)
-    assert result["reason"] == "rapidocr_multiframe_requires_split"
-    assert result["candidate"]["document_status"] == "failed"
+    assert result["reason"] == "multi_frame_image_unsupported"
+    assert result["candidate"]["document_status"] == "unsupported"
+    assert result["pages"] == [] and result["model_calls"] == []
+    assert verify_run(run["run_dir"])["distinct_sources"] == 1
     with pytest.raises(ValueError, match="Unsupported product OCR engine"):
         process_auto(source, ocr_engine="typo", output_root=tmp_path / "runs")
 

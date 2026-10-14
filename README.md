@@ -40,6 +40,9 @@ Its usable workflow and bounded research evidence are documented separately from
 > measure structural coverage across separate studies, not semantic correctness or human release quality.
 > The [14 October release verification](docs/evaluations/RELEASE_VERIFICATION_20261014.md) records the tested
 > model-failure safeguards, native build/export checks and remaining conference sign-off gates.
+> The [15 October native verification](docs/evaluations/RELEASE_VERIFICATION_20261015.md) closes eight reproduced
+> setup, reply, JSON-budget and reviewed-export defects: 414 Python and 235 frontend tests passed; three fresh
+> Luna 6 calls verified the authored multi-document JSON/Unicode preview, review and batch-export workflow.
 > The [productization plan](docs/PRODUCTIZATION_PLAN.md) retains the earlier failed baselines and release gates;
 > [`paper/FINAL_EVIDENCE.md`](paper/FINAL_EVIDENCE.md) preserves the separate historical research results.
 > The [technical conference handoff](docs/CONFERENCE_HANDOFF_20261014.md) contains the verified five-page paper,

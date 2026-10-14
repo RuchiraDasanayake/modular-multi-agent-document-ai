@@ -12,6 +12,9 @@ import { POST as createRecipeDraftRoute } from "@/app/api/jobs/[jobId]/auto/reci
 import type { ProductAutoAuditEvent, ProductAutoReview } from "@/types/product-auto";
 import { resetConfigCacheForTests } from "./config";
 import { addDocumentsToJob, createWorkspaceJob } from "./jobs";
+import { getProductAutoRun, recoverProductAutoRuns, startProductAutoRun } from "./product-auto";
+import { confirmProductAutoBrief, saveProductAutoBrief } from "./product-auto-brief";
+import type { ProductExecutionQueue } from "./product-execution-queue";
 
 const sha256 = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 
@@ -55,20 +58,26 @@ async function withStorage(run: (dataDir: string) => Promise<void>): Promise<voi
 }
 
 async function fixture(dataDir: string, status: "processed" | "needs_review" | "failed" | "unsupported" = "processed",
-  runStatus: "success" | "running" = "success", reason?: string) {
+  runStatus: "success" | "running" = "success", reason?: string, multiEntryJson = false) {
   const job = createWorkspaceJob({ ownerUserId: "alice-id" });
   const texts = ["Invoice number: INV-1\nTotal: 10", "Invoice number: INV-2\nTotal: 20"];
-  const updated = await addDocumentsToJob(job.jobId, texts.map((text, index) =>
-    new File([text], `invoice-${index + 1}.txt`, { type: "text/plain" })));
+  if (multiEntryJson) texts.push("Invoice number: INV-3\nTotal: 30");
+  const files = multiEntryJson
+    ? [new File([JSON.stringify(texts.slice(0, 2).map((text, index) => ({ doc_id: `entry${index}`, pages: [{ text }] })))],
+      "invoices.json", { type: "application/json" }), new File([texts[2]], "invoice-3.txt")]
+    : texts.map((text, index) => new File([text], `invoice-${index + 1}.txt`, { type: "text/plain" }));
+  const updated = await addDocumentsToJob(job.jobId, files);
   const sources = updated.documents!;
   const runId = `auto_${"d".repeat(32)}`;
   const runDir = path.join(dataDir, "product_runs", runId);
   fs.mkdirSync(runDir, { recursive: true });
   const receipts = [];
   const documents = [];
-  const selectedFiles = [];
-  for (let index = 0; index < sources.length; index += 1) {
-    const source = sources[index];
+  const selectedFiles = sources.map((source) => ({ fileId: source.fileId, fileName: source.fileName,
+    storedName: source.storedName,
+    sha256: sha256(fs.readFileSync(path.join(updated.uploadsPath!, source.storedName))) }));
+  for (let index = 0; index < texts.length; index += 1) {
+    const source = sources[multiEntryJson ? Math.max(0, index - 1) : index];
     const docId = `doc${index + 1}`;
     const sourceHash = sha256(fs.readFileSync(path.join(updated.uploadsPath!, source.storedName)));
     const quote = `INV-${index + 1}`;
@@ -91,10 +100,9 @@ async function fixture(dataDir: string, status: "processed" | "needs_review" | "
     documents.push({ docId, fileId: source.fileId, fileName: source.fileName, status,
       fieldCount: 1, acceptedCount: status === "processed" ? 1 : 0,
       reviewStatus: "unreviewed", machineResultSha256: resultHash });
-    selectedFiles.push({ fileId: source.fileId, fileName: source.fileName,
-      storedName: source.storedName, sha256: sourceHash });
   }
-  fs.writeFileSync(path.join(runDir, "run.json"), JSON.stringify({ contract_version: 1, run_id: runId, doc_count: 2 }));
+  fs.writeFileSync(path.join(runDir, "run.json"), JSON.stringify({ contract_version: 1, run_id: runId,
+    doc_count: documents.length }));
   fs.writeFileSync(path.join(runDir, "manifest.jsonl"), receipts.map((receipt) => JSON.stringify(receipt)).join("\n") + "\n");
   const record = { runId, jobId: job.jobId, status: runStatus, createdAt: new Date().toISOString(),
     serverInstanceId: "fixture", selectedFiles: [...selectedFiles].reverse(),
@@ -275,4 +283,172 @@ test("reviewed JSONL batch refuses changed sources and incomplete run receipts",
     const missing = await exportBatchRoute(request(setup.batchUrl, "alice"), setup.batchParams);
     assert.equal(missing.status, 409);
     assert.match((await missing.json()).error, /2 selected, 2 unverifiable run artifacts/);
+  }));
+
+test("reviewed JSONL batch exports every logical JSON document in selected-original order", async () =>
+  withStorage(async (dataDir) => {
+    const setup = await fixture(dataDir, "processed", "success", undefined, true);
+    assert.equal((await exportBatchRoute(request(setup.batchUrl, "bob"), setup.batchParams)).status, 404);
+    assert.equal((await setup.review("doc1")).status, 200);
+    assert.equal((await setup.review("doc3")).status, 200);
+    const partial = await exportBatchRoute(request(setup.batchUrl, "alice"), setup.batchParams);
+    assert.equal(partial.status, 409);
+    assert.match((await partial.json()).error, /2 selected, 2 reviewed, 1 unreviewed/);
+    assert.equal((await setup.review("doc2")).status, 200);
+    const response = await exportBatchRoute(request(setup.batchUrl, "alice"), setup.batchParams);
+    assert.equal(response.status, 200);
+    const text = await response.text();
+    const lines = text.trimEnd().split("\n").map((line) => JSON.parse(line));
+    assert.deepEqual(lines.map((line) => line.document.doc_id), ["doc3", "doc1", "doc2"]);
+    assert.deepEqual(lines.map((line) => line.document.file_id),
+      [setup.sources[1].fileId, setup.sources[0].fileId, setup.sources[0].fileId]);
+    assert.deepEqual(lines.map((line) => line.result.fields[0].value), ["INV-3", "INV-1", "INV-2"]);
+    assert.ok(lines.every((line) => line.contract_version === 1 && line.result.review_status === "completed"));
+    assert.equal(text.includes(dataDir), false);
+  }));
+
+for (const mutation of ["missing_original", "missing_document", "duplicate_manifest_id",
+  "unselected_source", "duplicate_sealed_id", "extra_sealed_document", "changed_result"] as const) {
+  test(`multi-document JSON export refuses ${mutation} receipts`, async () => withStorage(async (dataDir) => {
+    const setup = await fixture(dataDir, "processed", "success", undefined, true);
+    for (const document of setup.documents) assert.equal((await setup.review(document.docId)).status, 200);
+    const manifestPath = path.join(setup.runDir, "manifest.jsonl");
+    let receipts = fs.readFileSync(manifestPath, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+    const recordFiles = [".json", ".terminal.json"].map((suffix) => path.join(setup.recordDir, setup.runId + suffix));
+    for (const file of recordFiles) {
+      const record = JSON.parse(fs.readFileSync(file, "utf8"));
+      if (mutation === "missing_original") record.documents = record.documents.filter((item: { docId: string }) => item.docId !== "doc3");
+      if (mutation === "duplicate_sealed_id") record.documents[1] = record.documents[0];
+      if (mutation === "extra_sealed_document") record.documents.push({ ...record.documents[0], docId: "extra" });
+      fs.writeFileSync(file, JSON.stringify(record));
+    }
+    if (mutation === "missing_original") receipts = receipts.filter((receipt) => receipt.doc_id !== "doc3");
+    if (mutation === "missing_document") receipts = receipts.filter((receipt) => receipt.doc_id !== "doc2");
+    if (mutation === "duplicate_manifest_id") receipts.push(receipts[0]);
+    if (mutation === "unselected_source") receipts[1].source_file = "unselected.json";
+    if (mutation === "changed_result") {
+      const resultPath = path.join(setup.runDir, "docs", "doc2", "result.json");
+      fs.appendFileSync(resultPath, " ");
+      receipts[1].result_sha256 = sha256(fs.readFileSync(resultPath));
+    }
+    fs.writeFileSync(manifestPath, receipts.map((receipt) => JSON.stringify(receipt)).join("\n") + "\n");
+    fs.writeFileSync(path.join(setup.runDir, "run.json"), JSON.stringify({ contract_version: 1,
+      run_id: setup.runId, doc_count: receipts.length }));
+    const response = await exportBatchRoute(request(setup.batchUrl, "alice"), setup.batchParams);
+    assert.equal(response.status, 409);
+    assert.match((await response.json()).error, /unverifiable run artifacts|missing or inconsistent run receipts/);
+  }));
+}
+
+test("reviewed JSONL batch bounds logical documents rather than only uploaded originals", async () =>
+  withStorage(async (dataDir) => {
+    const setup = await fixture(dataDir, "processed", "success", undefined, true);
+    const file = path.join(setup.recordDir, `${setup.runId}.terminal.json`);
+    const record = JSON.parse(fs.readFileSync(file, "utf8"));
+    record.documents = Array.from({ length: 5001 }, (_, index) => ({ ...record.documents[0], docId: `doc${index}` }));
+    fs.writeFileSync(file, JSON.stringify(record));
+    const response = await exportBatchRoute(request(setup.batchUrl, "alice"), setup.batchParams);
+    assert.equal(response.status, 413);
+    assert.match((await response.json()).error, /5000 documents/);
+  }));
+
+test("reviewed JSONL batch retains its cumulative byte limit with several documents per original", async () =>
+  withStorage(async (dataDir) => {
+    const setup = await fixture(dataDir, "processed", "success", undefined, true);
+    for (const document of setup.documents) assert.equal((await setup.review(document.docId)).status, 200);
+    const stringify = JSON.stringify;
+    let serializedDocuments = 0;
+    try {
+      // Valid trailing JSON whitespace makes two large lines without large source or result fixtures.
+      JSON.stringify = ((value: unknown) => {
+        const text = stringify(value);
+        if (value && typeof value === "object" && "document" in value && "result" in value) {
+          serializedDocuments += 1;
+          return text.padEnd(33 * 1024 * 1024, " ");
+        }
+        return text;
+      }) as typeof JSON.stringify;
+      const response = await exportBatchRoute(request(setup.batchUrl, "alice"), setup.batchParams);
+      assert.equal(response.status, 413);
+      assert.match((await response.json()).error, /64 MiB/);
+      assert.equal(serializedDocuments, 2);
+    } finally { JSON.stringify = stringify; }
+  }));
+
+test("recovery cannot seal a self-consistent manifest that omits a selected original", async () =>
+  withStorage(async (dataDir) => {
+    const setup = await fixture(dataDir, "processed", "running", undefined, true);
+    const manifestPath = path.join(setup.runDir, "manifest.jsonl");
+    const receipts = fs.readFileSync(manifestPath, "utf8").trim().split("\n")
+      .map((line) => JSON.parse(line)).filter((receipt) => receipt.doc_id !== "doc3");
+    fs.writeFileSync(manifestPath, receipts.map((receipt) => JSON.stringify(receipt)).join("\n") + "\n");
+    fs.writeFileSync(path.join(setup.runDir, "run.json"), JSON.stringify({ contract_version: 1,
+      run_id: setup.runId, doc_count: receipts.length }));
+    const recordPath = path.join(setup.recordDir, `${setup.runId}.json`);
+    const record = JSON.parse(fs.readFileSync(recordPath, "utf8"));
+    record.createdAt = "2000-01-01T00:00:00Z";
+    fs.writeFileSync(recordPath, JSON.stringify(record));
+    assert.equal(recoverProductAutoRuns(setup.job.jobId).recovered, 1);
+    assert.equal(getProductAutoRun(setup.job.jobId, setup.runId).status, "failed");
+  }));
+
+test("confirmed batch admission requires review of every logical document in a JSON sample", async () =>
+  withStorage(async (dataDir) => {
+    const setup = await fixture(dataDir, "needs_review", "success", undefined, true);
+    const draft = saveProductAutoBrief(setup.job.jobId, "alice-id", { expectedRevision: 0,
+      intent: "Extract invoice numbers", sampleFileIds: [setup.sources[0].fileId],
+      fields: [{ field_id: "invoice_number", type: "string", description: "Printed invoice identifier" }] });
+    const brief = confirmProductAutoBrief(setup.job.jobId, "alice-id", {
+      expectedRevision: draft.revision, expectedPayloadSha256: draft.payload_sha256 });
+    const schema = { brief_id: brief.brief_id, revision: brief.revision, audit_event_id: brief.audit_event_id,
+      payload_sha256: brief.payload_sha256, snapshot_sha256: "f".repeat(64) };
+    const manifestPath = path.join(setup.runDir, "manifest.jsonl");
+    const receipts = fs.readFileSync(manifestPath, "utf8").trim().split("\n").map((line) => JSON.parse(line)).slice(0, 2);
+    for (const receipt of receipts) {
+      const resultPath = path.join(setup.runDir, "docs", receipt.doc_id, "result.json");
+      const result = JSON.parse(fs.readFileSync(resultPath, "utf8"));
+      result.confirmed_schema = schema;
+      fs.writeFileSync(resultPath, JSON.stringify(result));
+      receipt.confirmed_schema = schema;
+      receipt.result_sha256 = sha256(fs.readFileSync(resultPath));
+    }
+    fs.writeFileSync(manifestPath, receipts.map((receipt) => JSON.stringify(receipt)).join("\n") + "\n");
+    fs.writeFileSync(path.join(setup.runDir, "run.json"), JSON.stringify({ contract_version: 1,
+      run_id: setup.runId, doc_count: 2, confirmed_schema: schema }));
+    for (const suffix of [".json", ".terminal.json"]) {
+      const file = path.join(setup.recordDir, setup.runId + suffix);
+      const record = JSON.parse(fs.readFileSync(file, "utf8"));
+      record.selectedFiles = [setup.selectedFiles[0]];
+      record.documents = record.documents.slice(0, 2).map((document: { docId: string }) => ({ ...document,
+        machineResultSha256: receipts.find((receipt) => receipt.doc_id === document.docId).result_sha256 }));
+      record.confirmedBrief = { briefId: brief.brief_id, revision: brief.revision, auditEventId: brief.audit_event_id,
+        ownerUserId: "alice-id", jobId: setup.job.jobId, payloadSha256: brief.payload_sha256,
+        snapshotSha256: schema.snapshot_sha256, phase: "preview" };
+      fs.writeFileSync(file, JSON.stringify(record));
+    }
+    const environment = { IDPO_AUTO_MODEL: "fixture-model", IDPO_AUTO_API_BASE_URL: "http://127.0.0.1:1/v1",
+      PRODUCT_EXECUTION_MODE: "postgres", PRODUCT_QUEUE_DATABASE_URL: "postgresql://127.0.0.1:1/unused_test_database" };
+    const previous = Object.fromEntries(Object.keys(environment).map((key) => [key, process.env[key]]));
+    const holder = globalThis as typeof globalThis & { __productQueue?: ProductExecutionQueue };
+    const oldQueue = holder.__productQueue;
+    let admissions = 0;
+    holder.__productQueue = { enqueue: async () => { admissions += 1; return "fixture-broker-id"; } } as unknown as ProductExecutionQueue;
+    Object.assign(process.env, environment);
+    const selection = { expectedRevision: brief.revision, payloadSha256: brief.payload_sha256,
+      phase: "batch" as const, previewRunId: setup.runId };
+    try {
+      assert.equal((await setup.review("doc1")).status, 200);
+      await assert.rejects(startProductAutoRun(setup.job.jobId, [setup.sources[1].fileId], true,
+        undefined, selection), /every preview document/);
+      assert.equal(admissions, 0);
+      assert.equal((await setup.review("doc2")).status, 200);
+      const batch = await startProductAutoRun(setup.job.jobId, [setup.sources[1].fileId], true, undefined, selection);
+      assert.equal(batch.status, "queued");
+      assert.equal(admissions, 1);
+    } finally {
+      if (oldQueue === undefined) delete holder.__productQueue; else holder.__productQueue = oldQueue;
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key]; else process.env[key] = value;
+      }
+    }
   }));

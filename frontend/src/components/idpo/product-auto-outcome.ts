@@ -13,6 +13,10 @@ const KNOWN_OUTCOMES: Record<ProductAutoOutcomeReason, { cause: string; action: 
     cause: "This file has more pages than one extraction run accepts.",
     action: "Split it into smaller files, then upload and run each part.",
   },
+  json_document_limit_exceeded: {
+    cause: "This JSON file contains more than 5,000 logical documents, the limit for one extraction run.",
+    action: "Split the JSON into batches of at most 5,000 logical documents, then upload and extract each batch in a separate run.",
+  },
   native_limit_exceeded: {
     cause: "This document exceeds a native parser limit.",
     action: "Split or simplify the document, then upload and run the parts again.",

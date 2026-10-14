@@ -14,10 +14,54 @@ from idpo.core.types import Document
 
 MAX_FIELDS = 24
 MAX_LINKED_ROWS_PER_FIELD = 128
+MAX_MODEL_REPLY_BYTES = 1_000_000
 MAX_EXACT_JSON_INTEGER = 2**53 - 1
 SUPPORTED_TYPES = {"string", "integer", "decimal", "boolean", "date", "array[object]"}
 _NUMBER_RE = re.compile(r"[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?")
 _MISSING_MARKERS = {"n/a", "na", "none", "null", "not available", "unknown", "-", "—"}
+
+
+def decode_model_json(text: str) -> dict[str, object] | None:
+    """Bound untrusted replies and reject ambiguous or non-UTF-8 JSON data."""
+    if not isinstance(text, str):
+        return None
+
+    def unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Duplicate JSON property")
+            result[key] = value
+        return result
+
+    def finite_float(value: str) -> float:
+        number = float(value)
+        if not math.isfinite(number):
+            raise ValueError("Nonfinite JSON number")
+        return number
+
+    try:
+        if len(text.encode("utf-8")) > MAX_MODEL_REPLY_BYTES:
+            return None
+        payload = json.loads(text, object_pairs_hook=unique_object,
+                             parse_float=finite_float, parse_constant=_reject_nonfinite_json)
+        if not isinstance(payload, dict):
+            return None
+        # JSON escapes can decode to lone surrogates even when the wire text is
+        # valid UTF-8. Check strings before they can reach artifact encoding.
+        pending: list[object] = [payload]
+        while pending:
+            value = pending.pop()
+            if isinstance(value, str):
+                value.encode("utf-8")
+            elif isinstance(value, dict):
+                pending.extend(value.keys())
+                pending.extend(value.values())
+            elif isinstance(value, list):
+                pending.extend(value)
+        return payload
+    except (TypeError, ValueError, UnicodeError, RecursionError):
+        return None
 
 
 def normalize_field_id(raw: str) -> str:
@@ -104,8 +148,10 @@ def value_matches_quote(value: object, field_type: str, quote: str, field_id: st
         return False
     if field_type in {"string", "date"}:
         if field_type == "string" and _is_identifier(field_id):
-            return quote.strip().casefold() == str(value).strip().casefold()
-        return re.search(r"(?<!\w)" + re.escape(str(value).casefold()) + r"(?!\w)", quote.casefold()) is not None
+            return quote.strip().lower() == str(value).strip().lower()
+        # Match the frontend's lowercase comparison. Case folding can expand
+        # source characters (for example ß -> ss) that its validator rejects.
+        return re.search(r"(?<!\w)" + re.escape(str(value).lower()) + r"(?!\w)", quote.lower()) is not None
     if field_type == "boolean":
         tokens = set(re.findall(r"\b(?:true|false|yes|no)\b", quote.casefold()))
         if type(value) is not bool:
@@ -195,10 +241,7 @@ def baseline_proposals(doc: Document) -> tuple[list[dict[str, object]], list[dic
 
 
 def parse_schema_reply(text: str) -> list[dict[str, object]] | None:
-    try:
-        payload = json.loads(text, parse_constant=_reject_nonfinite_json)
-    except (TypeError, ValueError):
-        return None
+    payload = decode_model_json(text)
     items = payload.get("fields") if isinstance(payload, dict) else None
     if not isinstance(items, list) or not 0 < len(items) <= MAX_FIELDS:
         return None
@@ -231,10 +274,7 @@ def parse_values_reply(
     fields: list[dict[str, object]],
     pages: list[dict[str, object]],
 ) -> dict[str, dict[str, object]] | None:
-    try:
-        payload = json.loads(text, parse_constant=_reject_nonfinite_json)
-    except (TypeError, ValueError):
-        return None
+    payload = decode_model_json(text)
     items = payload.get("values") if isinstance(payload, dict) else None
     if not isinstance(items, list) or len(items) > len(fields):
         return None
@@ -246,7 +286,9 @@ def parse_values_reply(
         raw_id = item.get("field_id")
         if not isinstance(raw_id, str):
             return None
-        field_id = normalize_field_id(raw_id)
+        # Confirmed IDs are immutable schema identity, including Unicode IDs.
+        # Retain legacy alias normalization only when there is no exact ID.
+        field_id = raw_id if raw_id in field_types else normalize_field_id(raw_id)
         if field_id not in field_types or field_id in results:
             return None
         raw_value = item["value"]

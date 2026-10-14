@@ -147,7 +147,7 @@ test("valid multipart commits exactly two files in request order", async () => {
     form.append("files", new File(["alpha"], "first.txt"));
     form.append("files", new File(["beta"], "second.txt"));
     const result = await post(job.jobId, request(job.jobId, "owner", form, {}));
-    assert.equal(result.status, 201);
+    assert.equal(result.status, 201, result.status === 201 ? undefined : await result.text());
     const updated = getJob(job.jobId);
     assert.deepEqual(updated?.documents?.map((item) => item.fileName), ["first.txt", "second.txt"]);
     assert.equal(fs.readdirSync(job.uploadsPath!).length, 2);
