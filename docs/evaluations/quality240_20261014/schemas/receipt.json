@@ -1,0 +1,74 @@
+{
+  "contract_version": 1,
+  "brief_id": "brief_0df9e2ef56f45ec183f9812c78c9d222",
+  "revision": 2,
+  "audit_event_id": "0df9e2ef56f45ec183f9812c78c9d222",
+  "state": "confirmed",
+  "owner_user_id": "038857d0-e47b-57dc-8995-c4b64028ebb4",
+  "job_id": "0df9e2ef56f45ec183f9812c78c9d222",
+  "intent": "Extract only the defined fields using exact source text. Preserve source formatting. Use null for absent or ambiguous scalar values; do not arbitrarily choose among multiple values. For repeated columns preserve each complete source row relation and exact supporting quotes.",
+  "fields": [
+    {
+      "field_id": "total_amount",
+      "type": "string",
+      "description": "Final total price due for the receipt, preserving the printed amount and separators.",
+      "example_values": []
+    },
+    {
+      "field_id": "cash_amount",
+      "type": "string",
+      "description": "Cash tendered or cash paid on the receipt, when explicitly printed.",
+      "example_values": []
+    },
+    {
+      "field_id": "change_amount",
+      "type": "string",
+      "description": "Change returned to the customer, when explicitly printed.",
+      "example_values": []
+    },
+    {
+      "field_id": "subtotal_amount",
+      "type": "string",
+      "description": "Receipt subtotal before tax or other separately stated final charges.",
+      "example_values": []
+    },
+    {
+      "field_id": "tax_amount",
+      "type": "string",
+      "description": "Separately printed tax amount for the receipt; not a percentage or service charge.",
+      "example_values": []
+    },
+    {
+      "field_id": "item_name",
+      "type": "array[object]",
+      "description": "Name or description of each purchased menu item on its own receipt line.",
+      "example_values": [],
+      "group": "line_items"
+    },
+    {
+      "field_id": "item_quantity",
+      "type": "array[object]",
+      "description": "Quantity purchased for each menu item. Keep its row aligned with the item name and line total.",
+      "example_values": [],
+      "group": "line_items"
+    },
+    {
+      "field_id": "item_price",
+      "type": "array[object]",
+      "description": "Total price for each menu item line (CORD menu.price), not unit price (menu.unitprice). Keep it aligned with the same item's name and quantity.",
+      "example_values": [],
+      "group": "line_items"
+    }
+  ],
+  "sample_sources": [
+    {
+      "file_id": "eb053d7caa8fe79a8c410269eca5ca23",
+      "source_sha256": "28a8c9e154f9971aaae01212e395618460e610da9eca8f82d05b9b5277eb8c7c"
+    },
+    {
+      "file_id": "10bb0bc78b323e60ce130c26de192848",
+      "source_sha256": "4322ab5ec4f0b1365e08af0c31288e65e8cbd2c8eb5241adfb329244acbbb30b"
+    }
+  ],
+  "payload_sha256": "44d4e50ece7a650073a2b02257f3f14b0d9543fa346eb1440baccc7f54216777"
+}

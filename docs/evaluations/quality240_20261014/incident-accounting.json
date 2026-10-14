@@ -1,0 +1,129 @@
+{
+  "contract_version": 1,
+  "prediction_seal_sha256": "baed791acffbaa44171525cb51810f808db691615eebbc83b99890a75d3229cd",
+  "all_480_source_arm_slots_terminal": true,
+  "combined_saved_error_reply_type_counts": {
+    "http_504": 3,
+    "http_502": 11,
+    "http_503": 10,
+    "APIConnectionError": 1,
+    "APITimeoutError": 2,
+    "http_429": 1,
+    "http_408": 1
+  },
+  "combined_error_category_counts": {
+    "provider_server": 24,
+    "transport_connect": 1,
+    "transport_timeout": 2,
+    "rate_limit": 1,
+    "request_rejected": 1
+  },
+  "combined_source_uncertainty": 28,
+  "controls": {
+    "count": 61,
+    "event_counts": {
+      "start": 1,
+      "stop": 30,
+      "acknowledge_stop": 30
+    },
+    "last_sha256": "2afc8c502893f7342bc84e9edd1a6ee213ec1c40dc6cfa2578a1d5e36ada54d4",
+    "chain_verified": true
+  },
+  "transport_amendment_sha256": "49a36a2dd5fd190e76e582ceab073322b39b15d65d15f4261e3064db8bead36b",
+  "transport_counts": {
+    "text": {
+      "source_arm_cohort_assignment": {
+        "personal": 47,
+        "project": 193
+      },
+      "attempts_by_transport": {
+        "personal": 46,
+        "project": 193
+      }
+    },
+    "candidate": {
+      "source_arm_cohort_assignment": {
+        "personal": 48,
+        "project": 192
+      },
+      "attempts_by_transport": {
+        "personal": 48,
+        "project": 199
+      }
+    }
+  },
+  "http408_resolution_sha256": [
+    "c82620c2432953f3d7b4463935987826d6740d369e3431076bc4ad501a052595"
+  ],
+  "notes": [
+    "HTTP status/error categories do not disclose whether the underlying service failure was capacity, quota or another cause.",
+    "The original HTTP408 classification and immutable outcomes remain preserved; the resolution only permitted untouched-slot continuation.",
+    "Unknown usage is not zero cost. Request markers and SDK counters do not establish billing.",
+    "Source uncertainty and uncertain-attempt totals differ and must not be substituted.",
+    "This metadata accounting is not the independent whole-campaign verifier and does not authorize reference access."
+  ],
+  "source_receipt_sha256": "8dc0c3728a1cd6107f3ff4dff96dfb9ead1e022716f99da2a8e33ff436173fcb",
+  "arms": {
+    "text": {
+      "source_states": {
+        "sealed": 226,
+        "uncertain": 14
+      },
+      "terminal_source_arm_slots": 240,
+      "source_uncertainty": 14,
+      "attempt_rows": 239,
+      "attempt_states": {
+        "replied": 226,
+        "uncertain": 13
+      },
+      "error_category_counts": {
+        "provider_server": 11,
+        "transport_connect": 1,
+        "transport_timeout": 1
+      },
+      "saved_error_reply_type_counts": {
+        "http_504": 2,
+        "http_502": 5,
+        "http_503": 4,
+        "APIConnectionError": 1,
+        "APITimeoutError": 1
+      },
+      "attempts_missing_usage": 13,
+      "known_sdk_attempts": 239,
+      "attempts_missing_sdk_count": 0,
+      "sum_recorded_provider_seconds": 4309.222220800017
+    },
+    "candidate": {
+      "source_states": {
+        "sealed": 226,
+        "uncertain": 14
+      },
+      "terminal_source_arm_slots": 240,
+      "source_uncertainty": 14,
+      "attempt_rows": 247,
+      "attempt_states": {
+        "replied": 233,
+        "uncertain": 14
+      },
+      "error_category_counts": {
+        "provider_server": 13,
+        "transport_timeout": 1,
+        "rate_limit": 1,
+        "request_rejected": 1
+      },
+      "saved_error_reply_type_counts": {
+        "http_504": 1,
+        "APITimeoutError": 1,
+        "http_429": 1,
+        "http_408": 1,
+        "http_502": 6,
+        "http_503": 6
+      },
+      "attempts_missing_usage": 16,
+      "known_sdk_attempts": 247,
+      "attempts_missing_sdk_count": 0,
+      "sum_recorded_provider_seconds": 4932.661167500033
+    }
+  },
+  "scope": "Aggregate sealed execution metadata only. This helper did not open predictions or references; root verification and scoring were separate completed steps."
+}

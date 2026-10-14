@@ -1,0 +1,112 @@
+{
+  "contract_version": 1,
+  "brief_id": "brief_41df07849bd0505d8dd7e3694dfadbf6",
+  "revision": 2,
+  "audit_event_id": "41df07849bd0505d8dd7e3694dfadbf6",
+  "state": "confirmed",
+  "owner_user_id": "038857d0-e47b-57dc-8995-c4b64028ebb4",
+  "job_id": "41df07849bd0505d8dd7e3694dfadbf6",
+  "intent": "Extract only the defined fields using exact source text. Preserve source formatting. Use null for absent or ambiguous scalar values; do not arbitrarily choose among multiple values. For repeated columns preserve each complete source row relation and exact supporting quotes.",
+  "fields": [
+    {
+      "field_id": "advertiser",
+      "type": "string",
+      "description": "Name of the advertiser or advertising client on the order; distinguish it from the agency and broadcaster.",
+      "example_values": []
+    },
+    {
+      "field_id": "agency",
+      "type": "string",
+      "description": "Name of the advertising agency placing the order, if separately stated.",
+      "example_values": []
+    },
+    {
+      "field_id": "contract_num",
+      "type": "string",
+      "description": "Advertising order or contract identifier, preserving the exact source spelling and leading zeros.",
+      "example_values": []
+    },
+    {
+      "field_id": "flight_from",
+      "type": "string",
+      "description": "Start date of the overall advertising flight or order period.",
+      "example_values": []
+    },
+    {
+      "field_id": "flight_to",
+      "type": "string",
+      "description": "End date of the overall advertising flight or order period.",
+      "example_values": []
+    },
+    {
+      "field_id": "gross_amount",
+      "type": "string",
+      "description": "Gross amount for the entire advertising order, not a line amount, net amount or commission.",
+      "example_values": []
+    },
+    {
+      "field_id": "product",
+      "type": "string",
+      "description": "Advertised product or campaign description explicitly named in the order.",
+      "example_values": []
+    },
+    {
+      "field_id": "tv_address",
+      "type": "string",
+      "description": "Postal address of the television station or broadcaster, not the advertiser or agency address.",
+      "example_values": []
+    },
+    {
+      "field_id": "property",
+      "type": "string",
+      "description": "Broadcast property or television station name explicitly associated with the advertising order.",
+      "example_values": []
+    },
+    {
+      "field_id": "channel",
+      "type": "array[object]",
+      "description": "Channel or station identifier on each advertising line. Keep it aligned with the other values from that same source line.",
+      "example_values": [],
+      "group": "line_items"
+    },
+    {
+      "field_id": "program_desc",
+      "type": "array[object]",
+      "description": "Program or advertising spot description on each ordered line, aligned with its own dates and amount.",
+      "example_values": [],
+      "group": "line_items"
+    },
+    {
+      "field_id": "program_start_date",
+      "type": "array[object]",
+      "description": "Start date explicitly associated with each advertising line, not an unrelated overall order date.",
+      "example_values": [],
+      "group": "line_items"
+    },
+    {
+      "field_id": "program_end_date",
+      "type": "array[object]",
+      "description": "End date explicitly associated with each advertising line, not an unrelated overall order date.",
+      "example_values": [],
+      "group": "line_items"
+    },
+    {
+      "field_id": "sub_amount",
+      "type": "array[object]",
+      "description": "Amount charged for each advertising line or program schedule line, not the order total or unit rate.",
+      "example_values": [],
+      "group": "line_items"
+    }
+  ],
+  "sample_sources": [
+    {
+      "file_id": "1bf0c61dbd517c9d5c1d2684c2788497",
+      "source_sha256": "0112d54415d968cd438207ddbd423fb64b636354f29c72f0c6defe3cef14729a"
+    },
+    {
+      "file_id": "b83458ce56e8dad30aed9999f769f52d",
+      "source_sha256": "0141622de02458269027bb180986f0db2382762b5b5beb2bd06b4329e30ba27b"
+    }
+  ],
+  "payload_sha256": "a6ac392eb679cc27801e9a8b4731121c44f439392d56d1996b68ed13577dcaa4"
+}

@@ -11,6 +11,16 @@ They remain here as historical records and must not populate the camera-ready re
 [verified 2,000-original operational study](../docs/evaluations/MODEL2000_VERIFIED_OPERATIONAL_20261013.md)
 reports attempt accounting and a failed operational gate; it does not validate the historical document scores.
 
+**Current document evidence, 14 October 2026:** the separate
+[240-original paired study](../docs/evaluations/QUALITY240_RESULTS_20261014.md) completed on 13–14 October UTC,
+with all 480 outcomes sealed and independently verified before reference access. Its scalar macro recall was
+64.77% text / 65.09% selective vision and whole-row macro recall 34.13% / 41.74%; both macro difference intervals
+include zero. Receipt rows improved and ad-buy rows declined; known candidate token volume was higher and USD
+cost remains unknown. The [verified source union](../docs/evaluations/VERIFIED_SOURCE_UNION_RESULT_20261014.md)
+accounts for 2,240 selected, 2,225 model-attempted, 2,147 valid complete and 2,146 non-null complete originals across
+separate studies, excluding the text baseline. It measures structural coverage, not semantic correctness. These new
+results do not change the historical tables below. Final paper/slide rendering and author sign-off remain open.
+
 **Verification note, 13 October 2026:** the eight named October raw run bundles
 were not found in the completed local audit. The tables below are preserved
 historical records, not independently regenerated results. Aggregate arithmetic

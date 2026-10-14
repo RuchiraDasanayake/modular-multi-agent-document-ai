@@ -1,0 +1,1020 @@
+{
+  "version": 1,
+  "status": "aggregate_publication_reviewed",
+  "protocol_sha256": "3cf41aac59be90d610a4479d1d9876bbf77894e9d55162983a8713b510594075",
+  "prediction_seal_sha256": "baed791acffbaa44171525cb51810f808db691615eebbc83b99890a75d3229cd",
+  "evidence_sha256": {
+    "quality_results": "61a3ba744005d607dcb7be931988bd8058395af2749bfb90ff514ddb96b75f45",
+    "scoring_receipt": "ac97bdd7dfc29b9e612ffcf6e623c74e757971009b45d9495d17f95e87388809",
+    "verification_receipt": "3d7cfc983a5cf9d04eff67e21b3bc26c3b2bfe9682f53ae0544bddf82010347e",
+    "execution_summary": "7dc238b940dcf273c869d3a250a3eca3a940c70a5727cca07c1cb894b47ca7cb",
+    "timing_report": "d9531b68ff439d104d1908919502d9f94c1a7e4aa611b8db6e4e55562b58b3d3"
+  },
+  "selected_originals": 240,
+  "assigned_source_arm_outcomes": 480,
+  "family_documents": {
+    "registration-form": 100,
+    "ad-buy-form": 100,
+    "receipt": 40
+  },
+  "table_headers": [
+    "Outcome",
+    "Text (%)",
+    "Selective (%)",
+    "Delta pp [95% interval]"
+  ],
+  "table_rows": [
+    [
+      "Registration scalar",
+      "54.78",
+      "54.78",
+      "+0.00 [-4.22, +4.23]"
+    ],
+    [
+      "Ad-buy scalar",
+      "61.59",
+      "59.38",
+      "-2.21 [-8.46, +3.99]"
+    ],
+    [
+      "Receipt scalar",
+      "77.95",
+      "81.10",
+      "+3.15 [-7.38, +13.28]"
+    ],
+    [
+      "Scalar macro",
+      "64.77",
+      "65.09",
+      "+0.31 [-3.93, +4.58]"
+    ],
+    [
+      "Ad-buy whole row",
+      "26.69",
+      "18.31",
+      "-8.37 [-19.53, +3.08]"
+    ],
+    [
+      "Receipt whole row",
+      "41.57",
+      "65.17",
+      "+23.60 [+9.62, +40.23]"
+    ],
+    [
+      "Whole-row macro",
+      "34.13",
+      "41.74",
+      "+7.61 [-1.34, +17.76]"
+    ]
+  ],
+  "reference_counts": [
+    {
+      "outcome": "Registration scalar",
+      "reference": 460,
+      "text_matched": 252,
+      "candidate_matched": 252
+    },
+    {
+      "outcome": "Ad-buy scalar",
+      "reference": 768,
+      "text_matched": 473,
+      "candidate_matched": 456
+    },
+    {
+      "outcome": "Receipt scalar",
+      "reference": 127,
+      "text_matched": 99,
+      "candidate_matched": 103
+    },
+    {
+      "outcome": "Ad-buy whole row",
+      "reference": 1409,
+      "text_matched": 376,
+      "candidate_matched": 258
+    },
+    {
+      "outcome": "Receipt whole row",
+      "reference": 89,
+      "text_matched": 37,
+      "candidate_matched": 58
+    }
+  ],
+  "bootstrap_estimable": [
+    {
+      "outcome": "Registration scalar",
+      "text_estimable": 10000,
+      "candidate_estimable": 10000,
+      "difference_estimable": 10000
+    },
+    {
+      "outcome": "Ad-buy scalar",
+      "text_estimable": 10000,
+      "candidate_estimable": 10000,
+      "difference_estimable": 10000
+    },
+    {
+      "outcome": "Receipt scalar",
+      "text_estimable": 10000,
+      "candidate_estimable": 10000,
+      "difference_estimable": 10000
+    },
+    {
+      "outcome": "Scalar macro",
+      "text_estimable": 10000,
+      "candidate_estimable": 10000,
+      "difference_estimable": 10000
+    },
+    {
+      "outcome": "Ad-buy whole row",
+      "text_estimable": 10000,
+      "candidate_estimable": 10000,
+      "difference_estimable": 10000
+    },
+    {
+      "outcome": "Receipt whole row",
+      "text_estimable": 10000,
+      "candidate_estimable": 10000,
+      "difference_estimable": 10000
+    },
+    {
+      "outcome": "Whole-row macro",
+      "text_estimable": 10000,
+      "candidate_estimable": 10000,
+      "difference_estimable": 10000
+    }
+  ],
+  "primary_metric_uncertainty": {
+    "proposed_scalar_positive": {
+      "replicates": 10000,
+      "seed": 20261013,
+      "confidence_level": 0.95,
+      "macro_families": [
+        "registration-form",
+        "ad-buy-form",
+        "receipt"
+      ],
+      "macro_weight_per_family": 0.3333333333333333,
+      "units": "Unrounded arm recalls and their intervals are fractions in [0,1]; candidate-minus-text differences and their intervals are fractional differences in [-1,1]. Multiply by 100 for percent or percentage points.",
+      "families": {
+        "registration-form": {
+          "documents": 100,
+          "reference": 460,
+          "text_matched": 252,
+          "candidate_matched": 252,
+          "text": {
+            "estimate": 0.5478260869565217,
+            "percentile_95_interval": [
+              0.5010220125786163,
+              0.5918815396113603
+            ],
+            "estimable_replicates": 10000
+          },
+          "candidate": {
+            "estimate": 0.5478260869565217,
+            "percentile_95_interval": [
+              0.503253444713577,
+              0.5897463002114165
+            ],
+            "estimable_replicates": 10000
+          },
+          "candidate_minus_text": {
+            "estimate": 0.0,
+            "percentile_95_interval": [
+              -0.04222457312546404,
+              0.04231625835189312
+            ],
+            "estimable_replicates": 10000
+          }
+        },
+        "ad-buy-form": {
+          "documents": 100,
+          "reference": 768,
+          "text_matched": 473,
+          "candidate_matched": 456,
+          "text": {
+            "estimate": 0.6158854166666666,
+            "percentile_95_interval": [
+              0.5574188199473338,
+              0.671875510620915
+            ],
+            "estimable_replicates": 10000
+          },
+          "candidate": {
+            "estimate": 0.59375,
+            "percentile_95_interval": [
+              0.5322144243765404,
+              0.6521797256451988
+            ],
+            "estimable_replicates": 10000
+          },
+          "candidate_minus_text": {
+            "estimate": -0.02213541666666663,
+            "percentile_95_interval": [
+              -0.08463541666666663,
+              0.039949742268041294
+            ],
+            "estimable_replicates": 10000
+          }
+        },
+        "receipt": {
+          "documents": 40,
+          "reference": 127,
+          "text_matched": 99,
+          "candidate_matched": 103,
+          "text": {
+            "estimate": 0.7795275590551181,
+            "percentile_95_interval": [
+              0.675,
+              0.872
+            ],
+            "estimable_replicates": 10000
+          },
+          "candidate": {
+            "estimate": 0.8110236220472441,
+            "percentile_95_interval": [
+              0.6976744186046512,
+              0.9083969465648855
+            ],
+            "estimable_replicates": 10000
+          },
+          "candidate_minus_text": {
+            "estimate": 0.03149606299212604,
+            "percentile_95_interval": [
+              -0.07377049180327866,
+              0.1328125
+            ],
+            "estimable_replicates": 10000
+          }
+        }
+      },
+      "macro": {
+        "text": {
+          "estimate": 0.647746354226102,
+          "percentile_95_interval": [
+            0.6044294884945551,
+            0.6877654371185431
+          ],
+          "estimable_replicates": 10000
+        },
+        "candidate": {
+          "estimate": 0.6508665696679219,
+          "percentile_95_interval": [
+            0.6056881894108802,
+            0.6923734489308719
+          ],
+          "estimable_replicates": 10000
+        },
+        "candidate_minus_text": {
+          "estimate": 0.0031202154418198402,
+          "percentile_95_interval": [
+            -0.039298619603667886,
+            0.04578329343541352
+          ],
+          "estimable_replicates": 10000
+        }
+      }
+    },
+    "proposed_annotated_rows": {
+      "replicates": 10000,
+      "seed": 20261013,
+      "confidence_level": 0.95,
+      "macro_families": [
+        "ad-buy-form",
+        "receipt"
+      ],
+      "macro_weight_per_family": 0.5,
+      "units": "Unrounded arm recalls and their intervals are fractions in [0,1]; candidate-minus-text differences and their intervals are fractional differences in [-1,1]. Multiply by 100 for percent or percentage points.",
+      "families": {
+        "registration-form": {
+          "documents": 100,
+          "reference": 0,
+          "text_matched": 0,
+          "candidate_matched": 0,
+          "text": {
+            "estimate": null,
+            "percentile_95_interval": null,
+            "estimable_replicates": 0
+          },
+          "candidate": {
+            "estimate": null,
+            "percentile_95_interval": null,
+            "estimable_replicates": 0
+          },
+          "candidate_minus_text": {
+            "estimate": null,
+            "percentile_95_interval": null,
+            "estimable_replicates": 0
+          }
+        },
+        "ad-buy-form": {
+          "documents": 100,
+          "reference": 1409,
+          "text_matched": 376,
+          "candidate_matched": 258,
+          "text": {
+            "estimate": 0.2668559261887864,
+            "percentile_95_interval": [
+              0.1761111294522555,
+              0.365343301856552
+            ],
+            "estimable_replicates": 10000
+          },
+          "candidate": {
+            "estimate": 0.18310858765081617,
+            "percentile_95_interval": [
+              0.10615278710543989,
+              0.2749625576036866
+            ],
+            "estimable_replicates": 10000
+          },
+          "candidate_minus_text": {
+            "estimate": -0.08374733853797023,
+            "percentile_95_interval": [
+              -0.19529694606330855,
+              0.030839968931762475
+            ],
+            "estimable_replicates": 10000
+          }
+        },
+        "receipt": {
+          "documents": 40,
+          "reference": 89,
+          "text_matched": 37,
+          "candidate_matched": 58,
+          "text": {
+            "estimate": 0.4157303370786517,
+            "percentile_95_interval": [
+              0.25,
+              0.5952380952380952
+            ],
+            "estimable_replicates": 10000
+          },
+          "candidate": {
+            "estimate": 0.651685393258427,
+            "percentile_95_interval": [
+              0.4659090909090909,
+              0.8255813953488372
+            ],
+            "estimable_replicates": 10000
+          },
+          "candidate_minus_text": {
+            "estimate": 0.2359550561797753,
+            "percentile_95_interval": [
+              0.09615384615384615,
+              0.40229885057471265
+            ],
+            "estimable_replicates": 10000
+          }
+        }
+      },
+      "macro": {
+        "text": {
+          "estimate": 0.34129313163371905,
+          "percentile_95_interval": [
+            0.24520415997104808,
+            0.44129534004671583
+          ],
+          "estimable_replicates": 10000
+        },
+        "candidate": {
+          "estimate": 0.4173969904546216,
+          "percentile_95_interval": [
+            0.3171256205501555,
+            0.5149352883490186
+          ],
+          "estimable_replicates": 10000
+        },
+        "candidate_minus_text": {
+          "estimate": 0.07610385882090254,
+          "percentile_95_interval": [
+            -0.013353871999899122,
+            0.17763619372578943
+          ],
+          "estimable_replicates": 10000
+        }
+      }
+    }
+  },
+  "transport_counts": {
+    "source_arm_cohorts": {
+      "candidate": {
+        "project": 192,
+        "personal": 48
+      },
+      "text": {
+        "project": 193,
+        "personal": 47
+      }
+    },
+    "request_begun_attempts": {
+      "candidate": {
+        "personal": 48,
+        "project": 199
+      },
+      "text": {
+        "personal": 46,
+        "project": 193
+      }
+    },
+    "amendment_sha256": "49a36a2dd5fd190e76e582ceab073322b39b15d65d15f4261e3064db8bead36b"
+  },
+  "arm_usage": {
+    "text": {
+      "request_begun_attempts": 239,
+      "originals_with_attempts": 238,
+      "uncertain_attempts": 13,
+      "known_prompt_tokens": 507706,
+      "known_completion_tokens": 370741,
+      "attempts_with_unknown_prompt_tokens": 13,
+      "attempts_with_unknown_completion_tokens": 13,
+      "known_latency_ms": 4309222.220800017,
+      "attempts_with_unknown_latency_ms": 0,
+      "actual_source_route_counts": {
+        "text": 238,
+        "unexecuted": 2
+      },
+      "request_kind_counts": {
+        "text": 239
+      },
+      "ordered_list_schema_incompatibilities": 54,
+      "historical_ordered_lists": {
+        "matched": 0,
+        "reference": 54
+      },
+      "selected_originals": 240,
+      "valid_full_coverage": 222,
+      "source_states": {
+        "sealed": 226,
+        "uncertain": 14
+      }
+    },
+    "candidate": {
+      "request_begun_attempts": 247,
+      "originals_with_attempts": 238,
+      "uncertain_attempts": 14,
+      "known_prompt_tokens": 1224006,
+      "known_completion_tokens": 373174,
+      "attempts_with_unknown_prompt_tokens": 16,
+      "attempts_with_unknown_completion_tokens": 16,
+      "known_latency_ms": 4932661.167500033,
+      "attempts_with_unknown_latency_ms": 0,
+      "actual_source_route_counts": {
+        "text": 176,
+        "unexecuted": 2,
+        "visual": 62
+      },
+      "request_kind_counts": {
+        "text": 176,
+        "visual": 71
+      },
+      "ordered_list_schema_incompatibilities": 54,
+      "historical_ordered_lists": {
+        "matched": 0,
+        "reference": 54
+      },
+      "selected_originals": 240,
+      "valid_full_coverage": 217,
+      "source_states": {
+        "sealed": 226,
+        "uncertain": 14
+      }
+    }
+  },
+  "timing": {
+    "arms": {
+      "text": {
+        "overall": {
+          "attempt_state_counts": {
+            "replied": 226,
+            "uncertain": 13
+          },
+          "attempts_with_any_unknown_tokens": 13,
+          "attempts_with_unknown_completion_tokens": 13,
+          "attempts_with_unknown_prompt_tokens": 13,
+          "attempts_with_unknown_sdk_attempts": 0,
+          "complete_usage_attempts": 226,
+          "complete_usage_token_total": 878447,
+          "error_category_counts": {
+            "none": 226,
+            "provider_server": 11,
+            "transport_connect": 1,
+            "transport_timeout": 1
+          },
+          "known_completion_tokens": 370741,
+          "known_prompt_plus_completion_components": 878447,
+          "known_prompt_tokens": 507706,
+          "known_sdk_attempts": 239,
+          "model_attempted_source_duration_ms": {
+            "known_sum_ms": 6552873.665,
+            "measured_count": 238,
+            "missing_duration_model_attempted_sources": 0,
+            "originals_with_attempts": 238,
+            "p50_ms": 23481.964500000002,
+            "p95_ms": 59985.7305
+          },
+          "originals_with_attempts": 238,
+          "request_begun_attempts": 239,
+          "request_latency_ms": {
+            "attempted_requests": 239,
+            "known_sum_ms": 4309222.220800017,
+            "measured_attempt_states": {
+              "replied": 226,
+              "uncertain": 13
+            },
+            "measured_count": 239,
+            "missing_latency_requests": 0,
+            "p50_ms": 11184.494799999811,
+            "p95_ms": 47359.28563000488
+          },
+          "selected_sources": 240,
+          "source_execution_duration_ms": {
+            "known_sum_ms": 6553581.48,
+            "measured_count": 239,
+            "measured_source_states": {
+              "sealed": 226,
+              "uncertain": 13
+            },
+            "missing_duration_started_sources": 1,
+            "p50_ms": 23476.841,
+            "p95_ms": 59982.866,
+            "started_sources": 240
+          },
+          "source_states": {
+            "sealed": 226,
+            "uncertain": 14
+          },
+          "started_sources": 240,
+          "uncertain_attempts": 13,
+          "usd_cost": null
+        },
+        "families": {
+          "ad-buy-form": {
+            "attempt_state_counts": {
+              "replied": 93,
+              "uncertain": 8
+            },
+            "attempts_with_any_unknown_tokens": 8,
+            "attempts_with_unknown_completion_tokens": 8,
+            "attempts_with_unknown_prompt_tokens": 8,
+            "attempts_with_unknown_sdk_attempts": 0,
+            "complete_usage_attempts": 93,
+            "complete_usage_token_total": 604054,
+            "error_category_counts": {
+              "none": 93,
+              "provider_server": 6,
+              "transport_connect": 1,
+              "transport_timeout": 1
+            },
+            "known_completion_tokens": 300180,
+            "known_prompt_plus_completion_components": 604054,
+            "known_prompt_tokens": 303874,
+            "known_sdk_attempts": 101,
+            "model_attempted_source_duration_ms": {
+              "known_sum_ms": 3746781.449,
+              "measured_count": 100,
+              "missing_duration_model_attempted_sources": 0,
+              "originals_with_attempts": 100,
+              "p50_ms": 31844.7405,
+              "p95_ms": 66659.07344999998
+            },
+            "originals_with_attempts": 100,
+            "request_begun_attempts": 101,
+            "request_latency_ms": {
+              "attempted_requests": 101,
+              "known_sum_ms": 3096784.547000025,
+              "measured_attempt_states": {
+                "replied": 93,
+                "uncertain": 8
+              },
+              "measured_count": 101,
+              "missing_latency_requests": 0,
+              "p50_ms": 28162.8896000002,
+              "p95_ms": 55638.75659999758
+            },
+            "selected_sources": 100,
+            "source_execution_duration_ms": {
+              "known_sum_ms": 3746781.449,
+              "measured_count": 100,
+              "measured_source_states": {
+                "sealed": 92,
+                "uncertain": 8
+              },
+              "missing_duration_started_sources": 0,
+              "p50_ms": 31844.7405,
+              "p95_ms": 66659.07344999998,
+              "started_sources": 100
+            },
+            "source_states": {
+              "sealed": 92,
+              "uncertain": 8
+            },
+            "started_sources": 100,
+            "uncertain_attempts": 8,
+            "usd_cost": null
+          },
+          "receipt": {
+            "attempt_state_counts": {
+              "replied": 38,
+              "uncertain": 1
+            },
+            "attempts_with_any_unknown_tokens": 1,
+            "attempts_with_unknown_completion_tokens": 1,
+            "attempts_with_unknown_prompt_tokens": 1,
+            "attempts_with_unknown_sdk_attempts": 0,
+            "complete_usage_attempts": 38,
+            "complete_usage_token_total": 63557,
+            "error_category_counts": {
+              "none": 38,
+              "provider_server": 1
+            },
+            "known_completion_tokens": 32075,
+            "known_prompt_plus_completion_components": 63557,
+            "known_prompt_tokens": 31482,
+            "known_sdk_attempts": 39,
+            "model_attempted_source_duration_ms": {
+              "known_sum_ms": 581588.116,
+              "measured_count": 39,
+              "missing_duration_model_attempted_sources": 0,
+              "originals_with_attempts": 39,
+              "p50_ms": 13597.655,
+              "p95_ms": 25954.5396
+            },
+            "originals_with_attempts": 39,
+            "request_begun_attempts": 39,
+            "request_latency_ms": {
+              "attempted_requests": 39,
+              "known_sum_ms": 406423.93920002726,
+              "measured_attempt_states": {
+                "replied": 38,
+                "uncertain": 1
+              },
+              "measured_count": 39,
+              "missing_latency_requests": 0,
+              "p50_ms": 8056.776899997203,
+              "p95_ms": 17212.476330005313
+            },
+            "selected_sources": 40,
+            "source_execution_duration_ms": {
+              "known_sum_ms": 582295.931,
+              "measured_count": 40,
+              "measured_source_states": {
+                "sealed": 39,
+                "uncertain": 1
+              },
+              "missing_duration_started_sources": 0,
+              "p50_ms": 13522.2435,
+              "p95_ms": 25854.016299999992,
+              "started_sources": 40
+            },
+            "source_states": {
+              "sealed": 39,
+              "uncertain": 1
+            },
+            "started_sources": 40,
+            "uncertain_attempts": 1,
+            "usd_cost": null
+          },
+          "registration-form": {
+            "attempt_state_counts": {
+              "replied": 95,
+              "uncertain": 4
+            },
+            "attempts_with_any_unknown_tokens": 4,
+            "attempts_with_unknown_completion_tokens": 4,
+            "attempts_with_unknown_prompt_tokens": 4,
+            "attempts_with_unknown_sdk_attempts": 0,
+            "complete_usage_attempts": 95,
+            "complete_usage_token_total": 210836,
+            "error_category_counts": {
+              "none": 95,
+              "provider_server": 4
+            },
+            "known_completion_tokens": 38486,
+            "known_prompt_plus_completion_components": 210836,
+            "known_prompt_tokens": 172350,
+            "known_sdk_attempts": 99,
+            "model_attempted_source_duration_ms": {
+              "known_sum_ms": 2224504.1,
+              "measured_count": 99,
+              "missing_duration_model_attempted_sources": 0,
+              "originals_with_attempts": 99,
+              "p50_ms": 22040.1,
+              "p95_ms": 37109.878399999965
+            },
+            "originals_with_attempts": 99,
+            "request_begun_attempts": 99,
+            "request_latency_ms": {
+              "attempted_requests": 99,
+              "known_sum_ms": 806013.7345999647,
+              "measured_attempt_states": {
+                "replied": 95,
+                "uncertain": 4
+              },
+              "measured_count": 99,
+              "missing_latency_requests": 0,
+              "p50_ms": 6622.189800000342,
+              "p95_ms": 16276.738180002552
+            },
+            "selected_sources": 100,
+            "source_execution_duration_ms": {
+              "known_sum_ms": 2224504.1,
+              "measured_count": 99,
+              "measured_source_states": {
+                "sealed": 95,
+                "uncertain": 4
+              },
+              "missing_duration_started_sources": 1,
+              "p50_ms": 22040.1,
+              "p95_ms": 37109.878399999965,
+              "started_sources": 100
+            },
+            "source_states": {
+              "sealed": 95,
+              "uncertain": 5
+            },
+            "started_sources": 100,
+            "uncertain_attempts": 4,
+            "usd_cost": null
+          }
+        }
+      },
+      "candidate": {
+        "overall": {
+          "attempt_state_counts": {
+            "replied": 233,
+            "uncertain": 14
+          },
+          "attempts_with_any_unknown_tokens": 16,
+          "attempts_with_unknown_completion_tokens": 16,
+          "attempts_with_unknown_prompt_tokens": 16,
+          "attempts_with_unknown_sdk_attempts": 0,
+          "complete_usage_attempts": 231,
+          "complete_usage_token_total": 1597180,
+          "error_category_counts": {
+            "none": 231,
+            "provider_server": 13,
+            "rate_limit": 1,
+            "request_rejected": 1,
+            "transport_timeout": 1
+          },
+          "known_completion_tokens": 373174,
+          "known_prompt_plus_completion_components": 1597180,
+          "known_prompt_tokens": 1224006,
+          "known_sdk_attempts": 247,
+          "model_attempted_source_duration_ms": {
+            "known_sum_ms": 7289715.487,
+            "measured_count": 238,
+            "missing_duration_model_attempted_sources": 0,
+            "originals_with_attempts": 238,
+            "p50_ms": 24412.8545,
+            "p95_ms": 68218.94905
+          },
+          "originals_with_attempts": 238,
+          "request_begun_attempts": 247,
+          "request_latency_ms": {
+            "attempted_requests": 247,
+            "known_sum_ms": 4932661.167500033,
+            "measured_attempt_states": {
+              "replied": 233,
+              "uncertain": 14
+            },
+            "measured_count": 247,
+            "missing_latency_requests": 0,
+            "p50_ms": 14515.345799998613,
+            "p95_ms": 51878.1796000032
+          },
+          "selected_sources": 240,
+          "source_execution_duration_ms": {
+            "known_sum_ms": 7343169.792,
+            "measured_count": 240,
+            "measured_source_states": {
+              "sealed": 226,
+              "uncertain": 14
+            },
+            "missing_duration_started_sources": 0,
+            "p50_ms": 24412.8545,
+            "p95_ms": 68191.60035000001,
+            "started_sources": 240
+          },
+          "source_states": {
+            "sealed": 226,
+            "uncertain": 14
+          },
+          "started_sources": 240,
+          "uncertain_attempts": 14,
+          "usd_cost": null
+        },
+        "families": {
+          "ad-buy-form": {
+            "attempt_state_counts": {
+              "replied": 99,
+              "uncertain": 9
+            },
+            "attempts_with_any_unknown_tokens": 9,
+            "attempts_with_unknown_completion_tokens": 9,
+            "attempts_with_unknown_prompt_tokens": 9,
+            "attempts_with_unknown_sdk_attempts": 0,
+            "complete_usage_attempts": 99,
+            "complete_usage_token_total": 1240991,
+            "error_category_counts": {
+              "none": 99,
+              "provider_server": 8,
+              "transport_timeout": 1
+            },
+            "known_completion_tokens": 299005,
+            "known_prompt_plus_completion_components": 1240991,
+            "known_prompt_tokens": 941986,
+            "known_sdk_attempts": 108,
+            "model_attempted_source_duration_ms": {
+              "known_sum_ms": 4106148.989,
+              "measured_count": 99,
+              "missing_duration_model_attempted_sources": 0,
+              "originals_with_attempts": 99,
+              "p50_ms": 32977.918,
+              "p95_ms": 101403.94709999999
+            },
+            "originals_with_attempts": 99,
+            "request_begun_attempts": 108,
+            "request_latency_ms": {
+              "attempted_requests": 108,
+              "known_sum_ms": 3486430.735800017,
+              "measured_attempt_states": {
+                "replied": 99,
+                "uncertain": 9
+              },
+              "measured_count": 108,
+              "missing_latency_requests": 0,
+              "p50_ms": 28012.994849994357,
+              "p95_ms": 56904.61977999985
+            },
+            "selected_sources": 100,
+            "source_execution_duration_ms": {
+              "known_sum_ms": 4158967.725,
+              "measured_count": 100,
+              "measured_source_states": {
+                "sealed": 91,
+                "uncertain": 9
+              },
+              "missing_duration_started_sources": 0,
+              "p50_ms": 33234.801999999996,
+              "p95_ms": 101290.37305,
+              "started_sources": 100
+            },
+            "source_states": {
+              "sealed": 91,
+              "uncertain": 9
+            },
+            "started_sources": 100,
+            "uncertain_attempts": 9,
+            "usd_cost": null
+          },
+          "receipt": {
+            "attempt_state_counts": {
+              "replied": 39
+            },
+            "attempts_with_any_unknown_tokens": 2,
+            "attempts_with_unknown_completion_tokens": 2,
+            "attempts_with_unknown_prompt_tokens": 2,
+            "attempts_with_unknown_sdk_attempts": 0,
+            "complete_usage_attempts": 37,
+            "complete_usage_token_total": 146366,
+            "error_category_counts": {
+              "none": 37,
+              "rate_limit": 1,
+              "request_rejected": 1
+            },
+            "known_completion_tokens": 35203,
+            "known_prompt_plus_completion_components": 146366,
+            "known_prompt_tokens": 111163,
+            "known_sdk_attempts": 39,
+            "model_attempted_source_duration_ms": {
+              "known_sum_ms": 804752.888,
+              "measured_count": 39,
+              "missing_duration_model_attempted_sources": 0,
+              "originals_with_attempts": 39,
+              "p50_ms": 19085.763,
+              "p95_ms": 32733.9578
+            },
+            "originals_with_attempts": 39,
+            "request_begun_attempts": 39,
+            "request_latency_ms": {
+              "attempted_requests": 39,
+              "known_sum_ms": 597198.5328999981,
+              "measured_attempt_states": {
+                "replied": 39
+              },
+              "measured_count": 39,
+              "missing_latency_requests": 0,
+              "p50_ms": 13538.676600001054,
+              "p95_ms": 28440.0248700018
+            },
+            "selected_sources": 40,
+            "source_execution_duration_ms": {
+              "known_sum_ms": 805388.4569999999,
+              "measured_count": 40,
+              "measured_source_states": {
+                "sealed": 40
+              },
+              "missing_duration_started_sources": 0,
+              "p50_ms": 18952.8955,
+              "p95_ms": 32667.200399999994,
+              "started_sources": 40
+            },
+            "source_states": {
+              "sealed": 40
+            },
+            "started_sources": 40,
+            "uncertain_attempts": 0,
+            "usd_cost": null
+          },
+          "registration-form": {
+            "attempt_state_counts": {
+              "replied": 95,
+              "uncertain": 5
+            },
+            "attempts_with_any_unknown_tokens": 5,
+            "attempts_with_unknown_completion_tokens": 5,
+            "attempts_with_unknown_prompt_tokens": 5,
+            "attempts_with_unknown_sdk_attempts": 0,
+            "complete_usage_attempts": 95,
+            "complete_usage_token_total": 209823,
+            "error_category_counts": {
+              "none": 95,
+              "provider_server": 5
+            },
+            "known_completion_tokens": 38966,
+            "known_prompt_plus_completion_components": 209823,
+            "known_prompt_tokens": 170857,
+            "known_sdk_attempts": 100,
+            "model_attempted_source_duration_ms": {
+              "known_sum_ms": 2378813.61,
+              "measured_count": 100,
+              "missing_duration_model_attempted_sources": 0,
+              "originals_with_attempts": 100,
+              "p50_ms": 22566.3125,
+              "p95_ms": 34909.34139999999
+            },
+            "originals_with_attempts": 100,
+            "request_begun_attempts": 100,
+            "request_latency_ms": {
+              "attempted_requests": 100,
+              "known_sum_ms": 849031.8988000181,
+              "measured_attempt_states": {
+                "replied": 95,
+                "uncertain": 5
+              },
+              "measured_count": 100,
+              "missing_latency_requests": 0,
+              "p50_ms": 6559.254499996314,
+              "p95_ms": 17540.21254500367
+            },
+            "selected_sources": 100,
+            "source_execution_duration_ms": {
+              "known_sum_ms": 2378813.61,
+              "measured_count": 100,
+              "measured_source_states": {
+                "sealed": 95,
+                "uncertain": 5
+              },
+              "missing_duration_started_sources": 0,
+              "p50_ms": 22566.3125,
+              "p95_ms": 34909.34139999999,
+              "started_sources": 100
+            },
+            "source_states": {
+              "sealed": 95,
+              "uncertain": 5
+            },
+            "started_sources": 100,
+            "uncertain_attempts": 5,
+            "usd_cost": null
+          }
+        }
+      }
+    },
+    "campaign_execution_span": {
+      "control_event_counts": {
+        "acknowledge_stop": 30,
+        "start": 1,
+        "stop": 30
+      },
+      "elapsed_ms": 77117874.23419952,
+      "excludes_sealing_and_analysis": true,
+      "includes_provider_and_operator_pauses": true,
+      "last_source_close_utc": "2026-10-14T16:21:28.895967+00:00",
+      "process_active_campaign_duration_ms": null,
+      "start_event_time_ns": 1791917771021733400,
+      "start_utc": "2026-10-13T18:56:11.021733+00:00",
+      "started_source_arm_slots": 480,
+      "unstarted_source_arm_slots": 0
+    }
+  },
+  "metric_units": "Formatted table: recall percentages; paired differences and interval endpoints in percentage points. Structured primary_metric_uncertainty: unrounded arm recall fractions in [0,1] and fractional paired differences in [-1,1], with intervals in the same fractional units.",
+  "comparison_scope": "Complete execution paths differ in prompts, response contracts and admitted modalities. This comparison does not isolate the causal effect of image input alone.",
+  "limitations": "Three selected document families, fixed schemas and partial positive references. Automatic schema quality, human release quality, dollar cost and real-document RABI/DAAF benefit remain unmeasured.",
+  "api_cost_usd": null,
+  "human_review_time_measured": false,
+  "public_code_and_aggregate_report": "https://github.com/RuchiraDasanayake/modular-multi-agent-document-ai/tree/main/docs/evaluations/quality240_20261014",
+  "raw_request_response_and_run_bundles": "Privately retained; not included in this aggregate",
+  "source_values_or_document_identifiers_included": false
+}

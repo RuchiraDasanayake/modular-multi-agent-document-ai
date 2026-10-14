@@ -1,6 +1,6 @@
 # Productization Plan
 
-Status: target architecture and release gates, updated 2026-10-13. This is not, by itself, a description of implemented behavior.
+Status: target architecture and release gates, updated 2026-10-14. This is not, by itself, a description of implemented behavior.
 `docs/SYSTEM_CONTRACT.md` records the current runtime; `paper/FINAL_EVIDENCE.md` records the frozen October internal
 study. The author-provided May PDF appears to be the reported accepted paper, pending verification against the exact
 CMT-uploaded manuscript. Neither study is the future product benchmark.
@@ -32,15 +32,34 @@ evidence in the final paper unless their raw inputs and outputs are recovered an
 [corrected simulation](AHMN_CORRECTED_SIMULATION_RESULT_20261013.md) preserves a new, fully recorded synthetic
 experiment; it does not establish actual document-extraction benefit.
 
-### October 13 decision update
+### October 14 decision update
 
 Current execution: the [frozen Luna 6 campaign](evaluations/MODEL2000_VERIFIED_OPERATIONAL_20261013.md)
 completed and was independently verified: 1,930 of 2,000 distinct originals produced structurally valid complete
 outputs, including one all-null output. The all-original operational gate did not pass; this study has no reference-label
-accuracy measurement. A [source-disjoint 240-original paired comparison](evaluations/QUALITY240_PREREGISTRATION_20261013.md)
-is running with its preregistered settings. These use confirmed schemas. Native schema suggestion is being tested
-separately through the real intent-first API. Neither an unfinished run nor a synthetic workflow smoke establishes
-general-purpose accuracy. Later evidence below is retained in chronological context rather than overwritten.
+accuracy measurement. The [source-disjoint 240-original paired comparison](evaluations/QUALITY240_RESULTS_20261014.md)
+completed on 13–14 October UTC. All 480 source-arm outcomes were terminal and independently verified before
+reference access and offline scoring. Scalar macro recall was 64.77% for text and 65.09% for selective vision
+(difference +0.31 percentage points, 95% interval −3.93 to +4.58); whole-row macro recall was 34.13% and 41.74%
+(+7.61 points, −1.34 to +17.76). Both macro intervals include zero. Receipt whole-row recall improved from 37/89
+to 58/89 while ad-buy rows declined from 376/1,409 to 258/1,409. The frozen scalar definition retains all 54
+historical ordered-list/schema mismatches per arm in the ad-buy denominator.
+
+Text produced 222/240 valid complete outcomes and the candidate 217/240; both retained 14 uncertain sources.
+Known token components were 878,447 and 1,597,180, with unknown usage on 13 and 16 attempts, respectively.
+This evidence supports no overall established macro gain or lower USD cost. These are confirmed-schema paths;
+automatic schema discovery, human release accuracy and review-time savings remain unmeasured.
+
+The [verified source union](evaluations/VERIFIED_SOURCE_UNION_RESULT_20261014.md) accounts for 2,240 distinct
+selected originals across the operational study and source-disjoint candidate arm: 2,225 with model requests begun,
+2,147 valid complete outputs and 2,146 non-null complete outputs. The text baseline adds no originals. These are
+separate studies and structural criteria; they neither erase the failed 2,000-source all-original gate nor certify
+semantic correctness, arbitrary-family accuracy or a homogeneous 2,000-document quality pass. Later evidence below
+is retained in chronological context rather than overwritten.
+
+The native confirmed-schema workflow is usable for a configured extraction/review demonstration. Final paper and
+slide generation/rendering, author approval/signatures and ordinary-browser file selection/saved-download checks
+remain separate completion items. High availability and priced cost per correctly released document remain open.
 
 The native intent-first workflow now has confirmed field meanings, bounded AI suggestions, pinned preview and
 reviewed-preview batch admission, plus a PostgreSQL queue. The
@@ -125,7 +144,7 @@ memory layer requires a measured quality, cost or reliability gain.
 
 ## Current Starting Point And Boundaries
 
-- The opt-in `idpo.cli process-auto` path and owner-scoped review UI now exist as a pilot. They propose scalar fields,
+- The separate `idpo.cli process-auto` path and owner-scoped review UI support the native confirmed-schema workflow. They propose scalar fields,
   and a configured model can propose bounded repeated columns with row ordinals; the review UI can inspect cells,
   add missed linked columns with per-cell exact OCR quotes, and save typed row corrections. Optional self-reported
   active reviewer seconds are stored per save; measured total reviewer cost is still unavailable. They verify exact
@@ -133,8 +152,8 @@ memory layer requires a measured quality, cost or reliability gain.
   owner-scoped registry now stores review-derived schema drafts, explicit `approved_shadow` revisions, and disable
   events; an operator can explicitly select one current approved revision for a model-backed run,
   skipping schema induction while keeping every value in review. Automatic recipe matching and
-  release remain unimplemented. The native product now has a durable PostgreSQL queue; visual table
-  structure, a priced cost meter, and demonstrated arbitrary-family accuracy remain missing. The first
+  release remain unimplemented. The native product now has a durable PostgreSQL queue; independently validated
+  visual grounding, a priced cost meter, and demonstrated arbitrary-family accuracy remain missing. The first
   2,000-document no-model development baseline failed the quality gate; see
   [the measured v1 report](evaluations/VRDU_2000_NO_MODEL_V1.md). The [v2 safety run](evaluations/VRDU_2000_NO_MODEL_V2.md)
   verified 2,000 distinct sources and eliminated automatic release of unapproved schemas, while strict schema F1
@@ -216,8 +235,8 @@ service boundary needs a concrete availability, scaling or ownership reason; it 
 | Boundary | Target contract | First implementation decision |
 | --- | --- | --- |
 | Intake and identity | Authenticated owner, content hash, verified file type, limits, immutable input, job and schema versions; auto mode accepts a document without selecting a template | Preserve the job UI; make all reads and writes owner-scoped and test indirect artifact routes. Unsupported or illegible files get an explicit outcome, never a fabricated schema. |
-| Job execution | Durable status, idempotency key, bounded attempts, cancellation, stage timings, replayable artifacts | Native pg-boss admission and worker claim are implemented. Interrupted paid calls are not retried automatically. Shared filesystem artifacts, per-document resume, multi-host deployment and restore drills still need work. The older private Docker worker admits one active run. |
-| Parsing | Native PDF text when reliable; OCR/layout for scans; page, box, reading order and table-cell evidence | Keep PDFium-first rendering plus bounded Tesseract as the measured product baseline. The frozen [Docling/pdfplumber comparison](evaluations/VRDU_ADBUY12_TABLE_PARSER_COMPARISON_20261012.md) recovered at most 4/219 permissive parser rows. [MinerU 4.0.9 Basic](evaluations/MINERU_4_BASIC_ADBUY12_RESULT_20261012.md) reached 6/219. The [PaddleOCR-VL 1.6 full pipeline](evaluations/PADDLEOCR_VL16_ADBUY12_RESULT_20261012.md) reached 14/219 but zero strict exact rows and no cell-level boxes, so do not promote it. The prepared full PP-StructureV3 CPU profile fails the current free-RAM guard. |
+| Job execution | Durable status, idempotency key, bounded attempts, cancellation, stage timings, replayable artifacts | Native pg-boss admission and worker claim are implemented. Interrupted paid calls are not retried automatically. The [same-host cold/passive recovery drill](evaluations/NATIVE_COLD_RECOVERY_20261014.md) passed within its stated limits; extraction failover, per-document resume, multi-host operation and recovery time/point objectives remain unmeasured. The older private Docker worker admits one active run. |
+| Parsing | Native PDF text when reliable; OCR/layout for scans; page, box, reading order and table-cell evidence | The model-backed studies and current configured native demo use RapidOCR with PDFium-first PDF intake. Earlier bounded Tesseract/PDFium runs remain historical baselines. The frozen [Docling/pdfplumber comparison](evaluations/VRDU_ADBUY12_TABLE_PARSER_COMPARISON_20261012.md) recovered at most 4/219 permissive parser rows. [MinerU 4.0.9 Basic](evaluations/MINERU_4_BASIC_ADBUY12_RESULT_20261012.md) reached 6/219. The [PaddleOCR-VL 1.6 full pipeline](evaluations/PADDLEOCR_VL16_ADBUY12_RESULT_20261012.md) reached 14/219 but zero strict exact rows and no cell-level boxes, so do not promote it. The prepared full PP-StructureV3 CPU profile fails the current free-RAM guard. |
 | Schema discovery | Infer document family, candidate fields, types, groups and table relationships, each with source evidence; propose a versioned reusable recipe | Run on first or unfamiliar documents with no manual template setup. Mark ambiguous candidates and let an authorized reviewer approve or amend a recipe. Never silently rewrite an approved schema. |
 | Extraction | Provider-neutral extraction against a versioned proposed or approved schema; bounded prompt/context; typed output; recorded provider/model/version | Compare a simple extractor on local CPU, local GPU and approved cloud APIs against the same holdout. Cloud use is opt-in per data policy, with redaction where required and hard spend caps. |
 | Verification | Schema and deterministic format/business rules, source-span or image-region grounding, explicit missing values | Reject unsupported values and route uncertain fields to review; do not use model self-confidence as truth. |

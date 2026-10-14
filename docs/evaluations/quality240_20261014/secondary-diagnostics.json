@@ -1,0 +1,583 @@
+{
+  "version": 1,
+  "scope": "Secondary diagnostics; they do not replace the registered primary scalar-target and one-to-one whole-row metrics.",
+  "quality_results_sha256": "61a3ba744005d607dcb7be931988bd8058395af2749bfb90ff514ddb96b75f45",
+  "scalar_strings": {
+    "confidence_level": 0.95,
+    "families": {
+      "ad-buy-form": {
+        "candidate": {
+          "estimable_replicates": 10000,
+          "estimate": 0.6386554621848739,
+          "percentile_95_interval": [
+            0.5738396624472574,
+            0.7005651741051916
+          ]
+        },
+        "candidate_matched": 456,
+        "candidate_minus_text": {
+          "estimable_replicates": 10000,
+          "estimate": -0.023809523809523836,
+          "percentile_95_interval": [
+            -0.09104175201174215,
+            0.04311543810848406
+          ]
+        },
+        "documents": 100,
+        "reference": 714,
+        "text": {
+          "estimable_replicates": 10000,
+          "estimate": 0.6624649859943977,
+          "percentile_95_interval": [
+            0.6016710202383292,
+            0.7191489361702128
+          ]
+        },
+        "text_matched": 473
+      },
+      "receipt": {
+        "candidate": {
+          "estimable_replicates": 10000,
+          "estimate": 0.8110236220472441,
+          "percentile_95_interval": [
+            0.6976744186046512,
+            0.9083969465648855
+          ]
+        },
+        "candidate_matched": 103,
+        "candidate_minus_text": {
+          "estimable_replicates": 10000,
+          "estimate": 0.03149606299212604,
+          "percentile_95_interval": [
+            -0.07377049180327866,
+            0.1328125
+          ]
+        },
+        "documents": 40,
+        "reference": 127,
+        "text": {
+          "estimable_replicates": 10000,
+          "estimate": 0.7795275590551181,
+          "percentile_95_interval": [
+            0.675,
+            0.872
+          ]
+        },
+        "text_matched": 99
+      },
+      "registration-form": {
+        "candidate": {
+          "estimable_replicates": 10000,
+          "estimate": 0.5478260869565217,
+          "percentile_95_interval": [
+            0.503253444713577,
+            0.5897463002114165
+          ]
+        },
+        "candidate_matched": 252,
+        "candidate_minus_text": {
+          "estimable_replicates": 10000,
+          "estimate": 0.0,
+          "percentile_95_interval": [
+            -0.04222457312546404,
+            0.04231625835189312
+          ]
+        },
+        "documents": 100,
+        "reference": 460,
+        "text": {
+          "estimable_replicates": 10000,
+          "estimate": 0.5478260869565217,
+          "percentile_95_interval": [
+            0.5010220125786163,
+            0.5918815396113603
+          ]
+        },
+        "text_matched": 252
+      }
+    },
+    "family_order": [
+      "ad-buy-form",
+      "receipt",
+      "registration-form"
+    ],
+    "macro": {
+      "candidate": {
+        "estimable_replicates": 10000,
+        "estimate": 0.6658350570628798,
+        "percentile_95_interval": [
+          0.6200667341422904,
+          0.7075787316101342
+        ]
+      },
+      "candidate_minus_text": {
+        "estimable_replicates": 10000,
+        "estimate": 0.0025621797275340308,
+        "percentile_95_interval": [
+          -0.04051816286787194,
+          0.04623168565725743
+        ]
+      },
+      "families": [
+        "registration-form",
+        "ad-buy-form",
+        "receipt"
+      ],
+      "text": {
+        "estimable_replicates": 10000,
+        "estimate": 0.6632728773353458,
+        "percentile_95_interval": [
+          0.6194824222337401,
+          0.7033882669287566
+        ]
+      },
+      "weight_per_family": 0.3333333333333333
+    },
+    "method": "paired source-level family-stratified percentile bootstrap",
+    "micro": {
+      "candidate": {
+        "estimable_replicates": 10000,
+        "estimate": 0.6233666410453498,
+        "percentile_95_interval": [
+          0.5829491284625314,
+          0.661219270238649
+        ]
+      },
+      "candidate_matched": 811,
+      "candidate_minus_text": {
+        "estimable_replicates": 10000,
+        "estimate": -0.009992313604919256,
+        "percentile_95_interval": [
+          -0.05042864643330128,
+          0.03198127925117
+        ]
+      },
+      "documents": 240,
+      "reference": 1301,
+      "text": {
+        "estimable_replicates": 10000,
+        "estimate": 0.633358954650269,
+        "percentile_95_interval": [
+          0.5942012211486849,
+          0.6697474075080379
+        ]
+      },
+      "text_matched": 824
+    },
+    "numpy_version": "2.4.6",
+    "python_version": "3.13.8",
+    "replicates": 10000,
+    "seed": 20261013,
+    "source_order": "doc_id ascending within family"
+  },
+  "historical_ordered_lists": {
+    "confidence_level": 0.95,
+    "families": {
+      "ad-buy-form": {
+        "candidate": {
+          "estimable_replicates": 10000,
+          "estimate": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ]
+        },
+        "candidate_matched": 0,
+        "candidate_minus_text": {
+          "estimable_replicates": 10000,
+          "estimate": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ]
+        },
+        "documents": 100,
+        "reference": 54,
+        "text": {
+          "estimable_replicates": 10000,
+          "estimate": 0.0,
+          "percentile_95_interval": [
+            0.0,
+            0.0
+          ]
+        },
+        "text_matched": 0
+      },
+      "receipt": {
+        "candidate": {
+          "estimable_replicates": 0,
+          "estimate": null,
+          "percentile_95_interval": null
+        },
+        "candidate_matched": 0,
+        "candidate_minus_text": {
+          "estimable_replicates": 0,
+          "estimate": null,
+          "percentile_95_interval": null
+        },
+        "documents": 40,
+        "reference": 0,
+        "text": {
+          "estimable_replicates": 0,
+          "estimate": null,
+          "percentile_95_interval": null
+        },
+        "text_matched": 0
+      },
+      "registration-form": {
+        "candidate": {
+          "estimable_replicates": 0,
+          "estimate": null,
+          "percentile_95_interval": null
+        },
+        "candidate_matched": 0,
+        "candidate_minus_text": {
+          "estimable_replicates": 0,
+          "estimate": null,
+          "percentile_95_interval": null
+        },
+        "documents": 100,
+        "reference": 0,
+        "text": {
+          "estimable_replicates": 0,
+          "estimate": null,
+          "percentile_95_interval": null
+        },
+        "text_matched": 0
+      }
+    },
+    "family_order": [
+      "ad-buy-form",
+      "receipt",
+      "registration-form"
+    ],
+    "macro": {
+      "candidate": {
+        "estimable_replicates": 0,
+        "estimate": null,
+        "percentile_95_interval": null
+      },
+      "candidate_minus_text": {
+        "estimable_replicates": 0,
+        "estimate": null,
+        "percentile_95_interval": null
+      },
+      "families": [
+        "registration-form",
+        "ad-buy-form",
+        "receipt"
+      ],
+      "text": {
+        "estimable_replicates": 0,
+        "estimate": null,
+        "percentile_95_interval": null
+      },
+      "weight_per_family": 0.3333333333333333
+    },
+    "method": "paired source-level family-stratified percentile bootstrap",
+    "micro": {
+      "candidate": {
+        "estimable_replicates": 10000,
+        "estimate": 0.0,
+        "percentile_95_interval": [
+          0.0,
+          0.0
+        ]
+      },
+      "candidate_matched": 0,
+      "candidate_minus_text": {
+        "estimable_replicates": 10000,
+        "estimate": 0.0,
+        "percentile_95_interval": [
+          0.0,
+          0.0
+        ]
+      },
+      "documents": 240,
+      "reference": 54,
+      "text": {
+        "estimable_replicates": 10000,
+        "estimate": 0.0,
+        "percentile_95_interval": [
+          0.0,
+          0.0
+        ]
+      },
+      "text_matched": 0
+    },
+    "numpy_version": "2.4.6",
+    "python_version": "3.13.8",
+    "replicates": 10000,
+    "seed": 20261013,
+    "source_order": "doc_id ascending within family"
+  },
+  "ordinal_proposed_cells": {
+    "confidence_level": 0.95,
+    "families": {
+      "ad-buy-form": {
+        "candidate": {
+          "estimable_replicates": 10000,
+          "estimate": 0.45536626916524703,
+          "percentile_95_interval": [
+            0.3655422793643453,
+            0.5519557600731374
+          ]
+        },
+        "candidate_matched": 2673,
+        "candidate_minus_text": {
+          "estimable_replicates": 10000,
+          "estimate": 0.002385008517887588,
+          "percentile_95_interval": [
+            -0.11043829128267547,
+            0.1219760564247928
+          ]
+        },
+        "documents": 100,
+        "reference": 5870,
+        "text": {
+          "estimable_replicates": 10000,
+          "estimate": 0.45298126064735944,
+          "percentile_95_interval": [
+            0.36516925533150496,
+            0.5456332183920374
+          ]
+        },
+        "text_matched": 2659
+      },
+      "receipt": {
+        "candidate": {
+          "estimable_replicates": 10000,
+          "estimate": 0.7104247104247104,
+          "percentile_95_interval": [
+            0.5374581754525914,
+            0.8804810608313016
+          ]
+        },
+        "candidate_matched": 184,
+        "candidate_minus_text": {
+          "estimable_replicates": 10000,
+          "estimate": 0.084942084942085,
+          "percentile_95_interval": [
+            -0.015061093430325148,
+            0.18431653809064608
+          ]
+        },
+        "documents": 40,
+        "reference": 259,
+        "text": {
+          "estimable_replicates": 10000,
+          "estimate": 0.6254826254826255,
+          "percentile_95_interval": [
+            0.4723104415490409,
+            0.767175572519084
+          ]
+        },
+        "text_matched": 162
+      },
+      "registration-form": {
+        "candidate": {
+          "estimable_replicates": 0,
+          "estimate": null,
+          "percentile_95_interval": null
+        },
+        "candidate_matched": 0,
+        "candidate_minus_text": {
+          "estimable_replicates": 0,
+          "estimate": null,
+          "percentile_95_interval": null
+        },
+        "documents": 100,
+        "reference": 0,
+        "text": {
+          "estimable_replicates": 0,
+          "estimate": null,
+          "percentile_95_interval": null
+        },
+        "text_matched": 0
+      }
+    },
+    "family_order": [
+      "ad-buy-form",
+      "receipt",
+      "registration-form"
+    ],
+    "macro": {
+      "candidate": {
+        "estimable_replicates": 10000,
+        "estimate": 0.5828954897949787,
+        "percentile_95_interval": [
+          0.48480618225380484,
+          0.6808220542279232
+        ]
+      },
+      "candidate_minus_text": {
+        "estimable_replicates": 10000,
+        "estimate": 0.04366354672998629,
+        "percentile_95_interval": [
+          -0.030563640652468995,
+          0.12165620450071976
+        ]
+      },
+      "families": [
+        "ad-buy-form",
+        "receipt"
+      ],
+      "text": {
+        "estimable_replicates": 10000,
+        "estimate": 0.5392319430649924,
+        "percentile_95_interval": [
+          0.45176287684389466,
+          0.6257607938634658
+        ]
+      },
+      "weight_per_family": 0.5
+    },
+    "method": "paired source-level family-stratified percentile bootstrap",
+    "micro": {
+      "candidate": {
+        "estimable_replicates": 10000,
+        "estimate": 0.46614455865557186,
+        "percentile_95_interval": [
+          0.37841821758328176,
+          0.5590226122707146
+        ]
+      },
+      "candidate_matched": 2857,
+      "candidate_minus_text": {
+        "estimable_replicates": 10000,
+        "estimate": 0.0058737151248164365,
+        "percentile_95_interval": [
+          -0.10218325026531233,
+          0.12063704250124183
+        ]
+      },
+      "documents": 240,
+      "reference": 6129,
+      "text": {
+        "estimable_replicates": 10000,
+        "estimate": 0.4602708435307554,
+        "percentile_95_interval": [
+          0.3755455366975562,
+          0.5491213342057353
+        ]
+      },
+      "text_matched": 2821
+    },
+    "numpy_version": "2.4.6",
+    "python_version": "3.13.8",
+    "replicates": 10000,
+    "seed": 20261013,
+    "source_order": "doc_id ascending within family"
+  },
+  "ordered_list_schema_incompatibilities": {
+    "candidate": {
+      "ad-buy-form": 54,
+      "receipt": 0,
+      "registration-form": 0
+    },
+    "text": {
+      "ad-buy-form": 54,
+      "receipt": 0,
+      "registration-form": 0
+    }
+  },
+  "valid_full_coverage_by_family": {
+    "ad-buy-form": {
+      "candidate": {
+        "estimable_replicates": 10000,
+        "estimate": 0.86,
+        "percentile_95_interval": [
+          0.79,
+          0.92
+        ]
+      },
+      "candidate_matched": 86,
+      "candidate_minus_text": {
+        "estimable_replicates": 10000,
+        "estimate": -0.030000000000000027,
+        "percentile_95_interval": [
+          -0.10999999999999999,
+          0.05999999999999994
+        ]
+      },
+      "documents": 100,
+      "reference": 100,
+      "text": {
+        "estimable_replicates": 10000,
+        "estimate": 0.89,
+        "percentile_95_interval": [
+          0.83,
+          0.95
+        ]
+      },
+      "text_matched": 89
+    },
+    "receipt": {
+      "candidate": {
+        "estimable_replicates": 10000,
+        "estimate": 0.9,
+        "percentile_95_interval": [
+          0.8,
+          0.975
+        ]
+      },
+      "candidate_matched": 36,
+      "candidate_minus_text": {
+        "estimable_replicates": 10000,
+        "estimate": -0.04999999999999993,
+        "percentile_95_interval": [
+          -0.15000000000000002,
+          0.04999999999999993
+        ]
+      },
+      "documents": 40,
+      "reference": 40,
+      "text": {
+        "estimable_replicates": 10000,
+        "estimate": 0.95,
+        "percentile_95_interval": [
+          0.875,
+          1.0
+        ]
+      },
+      "text_matched": 38
+    },
+    "registration-form": {
+      "candidate": {
+        "estimable_replicates": 10000,
+        "estimate": 0.95,
+        "percentile_95_interval": [
+          0.9,
+          0.99
+        ]
+      },
+      "candidate_matched": 95,
+      "candidate_minus_text": {
+        "estimable_replicates": 10000,
+        "estimate": 0.0,
+        "percentile_95_interval": [
+          -0.05999999999999994,
+          0.05999999999999994
+        ]
+      },
+      "documents": 100,
+      "reference": 100,
+      "text": {
+        "estimable_replicates": 10000,
+        "estimate": 0.95,
+        "percentile_95_interval": [
+          0.9,
+          0.99
+        ]
+      },
+      "text_matched": 95
+    }
+  },
+  "metric_units": "Recall estimates and intervals are fractions. Differences are fractional recall changes. Multiply by 100 for percentages/percentage points.",
+  "interpretation": [
+    "Historical ordered-list targets remain in the primary scalar denominator; all 54 are schema/list incompatible and unmatched in each arm.",
+    "Zero reference denominators remain undefined; they are not zero performance.",
+    "Ordinal cell matching depends on row position and does not establish one-to-one whole-row agreement."
+  ],
+  "source_values_or_document_identifiers_included": false
+}
