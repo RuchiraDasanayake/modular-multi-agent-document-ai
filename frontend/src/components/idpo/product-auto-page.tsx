@@ -373,6 +373,8 @@ export function ProductAutoPage() {
             {brief.state === "confirmed" ? `Confirmed revision ${brief.revision}` : `Draft revision ${brief.revision}`}
           </span> : null}
         </div>
+        <fieldset disabled={briefBusy || suggesting || starting || running}
+          aria-busy={briefBusy || suggesting || starting} aria-label="Extraction setup" className="min-w-0">
         <label className="mt-4 block text-sm font-medium text-slate-700 dark:text-slate-200">
           What should the result contain?
           <textarea value={briefIntent} onChange={(event) => setBriefIntent(event.target.value)} rows={3}
@@ -495,6 +497,7 @@ export function ProductAutoPage() {
           <p className="mt-3 text-xs text-slate-600 dark:text-slate-300">Source receipts: {suggestion.provenance.samples.map((sample) =>
             `${documents.find((document) => document.fileId === sample.file_id)?.fileName ?? sample.file_id} (${sample.parser_id}, ${sample.excerpt_chars} characters${sample.truncated ? ", truncated" : ""}, SHA ${sample.source_sha256.slice(0, 12)})`).join(" · ")}</p>
         </div> : null}
+        </fieldset>
       </IdpoCard>
 
       {brief ? <IdpoCard>

@@ -7,7 +7,7 @@ import type {
   BenchmarkRunSummary,
   BenchmarkEvidencePayload,
 } from "@/types/idpo";
-import type { ProductAutoAddedFieldInput, ProductAutoCorrectedResult, ProductAutoDocumentDetail, ProductAutoReview, ProductAutoReviewField, ProductAutoRun, ProductAutoSourceDocument } from "@/types/product-auto";
+import type { ProductAutoAddedFieldInput, ProductAutoDocumentDetail, ProductAutoReviewField, ProductAutoReviewSaveResult, ProductAutoRun, ProductAutoSourceDocument } from "@/types/product-auto";
 import type { ProductAutoRecipeRevision } from "@/types/product-auto-recipes";
 import type { ProductAutoBriefDetail, ProductAutoBriefField, ProductAutoBriefRevision, ProductAutoBriefSuggestion } from "@/types/product-auto-brief";
 import { uploadInBatches, type UploadProgress } from "./upload-batches";
@@ -131,7 +131,7 @@ export const idpoApi = {
     return { image: await response.blob(), pageCount };
   },
 
-  saveProductAutoReview(jobId: string, runId: string, docId: string, expectedRevision: number, fields: ProductAutoReviewField[], addedFields: ProductAutoAddedFieldInput[], reportedActiveMinutes = ""): Promise<{ review: ProductAutoReview; correctedResult: ProductAutoCorrectedResult }> {
+  saveProductAutoReview(jobId: string, runId: string, docId: string, expectedRevision: number, fields: ProductAutoReviewField[], addedFields: ProductAutoAddedFieldInput[], reportedActiveMinutes = ""): Promise<ProductAutoReviewSaveResult> {
     const reportedSeconds = parseReportedActiveMinutes(reportedActiveMinutes);
     return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(runId)}/docs/${encodeURIComponent(docId)}`, {
       method: "POST",

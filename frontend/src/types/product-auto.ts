@@ -266,3 +266,9 @@ export interface ProductAutoDocumentDetail {
   review: ProductAutoReview | null;
   auditTrail: ProductAutoAuditEvent[];
 }
+
+export interface ProductAutoReviewSaveResult {
+  review: ProductAutoReview;
+  correctedResult: ProductAutoCorrectedResult;
+  detail: ProductAutoDocumentDetail;
+}
