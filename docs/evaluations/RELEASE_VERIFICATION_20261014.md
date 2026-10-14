@@ -72,10 +72,16 @@ TypeScript, targeted ESLint and the production build passed. The first default-s
 while the system drive was full; it is not used as passing evidence. The npm cache was moved to the data drive with
 its original path preserved by a junction. No application source or document was removed for that move.
 
-Updated production build: `O6IILvVa2cvFdCVMLK23W`; source fingerprint
+Browser-tested production build: `O6IILvVa2cvFdCVMLK23W`; source fingerprint
 `7262aa4db0d37e87aaaa29a2cdee67214d39b2cc0848c73acda0f13f52641292`;
 build-receipt SHA-256 `bc2ab06c762a065177f12f0969f548bfbea01aa3fa504caae5f53a4422376c53`.
 The new export-check receipt has the same content hash as the earlier check above.
+
+The post-merge source fingerprint check required a new build after checkout. The final production build from
+application commit `d06f984286aa7b3e6cad5937cf193fdf53dbe384` is `GZmahZ4Wgx04zLAT6YkaF`, completed
+14 October at 07:46:29 UTC. Its source fingerprint is
+`0ad6c301788e6a59636d867718533c61b932ff7db109d624dcd82a725ebaf328`, and build-receipt SHA-256 is
+`c366bbba5dc12165477caa069c497c08e7c075be3ea80003035a1fded3f6946c`.
 
 ## Evidence and conference gates
 
