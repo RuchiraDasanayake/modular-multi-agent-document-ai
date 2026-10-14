@@ -43,19 +43,30 @@ it to the existing review representation. V1 profiles and default behavior are p
 not measure v2 quality. A required key prevents structural omission only when enforced; it does not prove that a
 null or proposed value is correct.
 
+Schema and value replies share a 1,000,000-byte UTF-8 JSON limit. The local decoder rejects duplicate properties,
+nonfinite numbers, invalid raw Unicode, escaped lone surrogates and nesting that raises its recursion error;
+there is no separately configured numerical depth limit. Invalid replies fail the affected document without
+aborting later originals. A visual scalar must also coerce to its confirmed type before complete coverage can
+be recorded; an invalid scalar fails the whole candidate without fallback or retry. Exact known confirmed field
+IDs retain their Unicode identity. String and linked-cell evidence comparisons use lowercase, matching the
+frontend in the tested cases; case-fold expansions alone cannot establish a text match. These are structural
+and contract guards, not new extraction-quality results. See
+[reply integrity](evaluations/PRODUCT_REPLY_INTEGRITY_20261015.md).
+
 An explicit `bounded_text_segments_v1` profile also seals long-document behavior. Confirmed schemas can process
-up to four lossless text segments, each limited to 24,000 characters. Every source page, including an empty page,
-must have verified coverage before model execution. Invalid or incomplete replies fail the whole candidate;
+up to four lossless text segments per logical document, each limited to 24,000 characters. Every source page,
+including an empty page, must have verified coverage before model execution. Invalid or incomplete replies fail the whole candidate;
 conflicting scalar values require review. Complete processing is distinct from correct extraction. Older dispatches
 retain their original behavior. See [long documents](PRODUCT_LONG_DOCUMENT_SEGMENTS.md).
 
 The opt-in `bounded_visual_v1` profile routes confirmed-schema images and PDFs requiring OCR to complete
 page images with OCR text/geometry aids. All-native PDFs and other supported native/text formats use strict
 text extraction. Image requests are prepared before sending any page and require complete coverage within
-four requests (at most 12 images and 4 MiB each). Invalid or incomplete visual replies fail the whole candidate;
-all visual values require review, including exact OCR matches. Queued profile version 3 seals this choice;
-older jobs do not acquire visual routing from later server configuration. This is an implemented candidate,
-not a validated accuracy claim. See [visual extraction](PRODUCT_VISUAL_BOUNDARY.md).
+four requests per logical document (at most 12 images and a complete 4 MiB body per request). Invalid or incomplete visual
+replies fail the whole candidate;
+all visual values require review, including exact OCR matches. Dispatch versions 3 and 4 seal this choice in an
+extraction profile whose version remains 3; older jobs do not acquire visual routing from later server configuration.
+This is an implemented candidate, not a validated accuracy claim. See [visual extraction](PRODUCT_VISUAL_BOUNDARY.md).
 
 The explicit `bounded_visual_selective_jpeg95_v1` candidate retains selective-v2 routing and uses full-page
 JPEG95 payloads within the same limits. Its lossy payload hash and codec are distinct from the original OCR
@@ -136,8 +147,9 @@ job without adding duplicates; reusing it for different bytes or after the origi
 the failed batch key when a response is lost. This guarantee is for one frontend process; a transactional metadata
 store is needed before running multiple frontend writers.
 
-On a single host, the runner executes `idpo.cli process-auto` directly. In Compose, the frontend invokes a Node
-bridge to a private Python worker over a Unix socket in the shared data volume. That Docker path has passed static
+The native frontend admits work to PostgreSQL, and an independently supervised extraction worker invokes
+`idpo.cli process-auto`. The historical direct subprocess mode remains available. In Compose, the frontend invokes
+a Node bridge to a private Python worker over a Unix socket in the shared data volume. That Docker path has passed static
 Compose checks, a frontend build and focused tests but has **not** completed a live container extraction smoke here.
 The default Compose profile starts PostgreSQL, Redis, gateway, product worker, and frontend. The four separate
 research services start only with `--profile research`; they are not used by this product path. The canonical
@@ -163,6 +175,24 @@ view covers Word top-level paragraphs/tables, worksheet cells with formulas unev
 HTML DOM text/tables without CSS rendering or network fetches, and one preferred non-attachment EML text body.
 Embedded images, presentation notes, email attachments, nested Word/HTML tables and grouped slide shapes are not
 extracted; the latter three structural cases explicitly abstain when encountered.
+
+Product JSON intake accepts one document object or a nonempty array within 20 MiB, with at most 5,000 logical
+documents per container and a nonempty list of at most 50 pages per document. It validates the entire container
+before allocating document or page objects. Document IDs must be nonblank strings; page text must be a string
+(empty when omitted), and `raw_text` must be a string or null. Explicit page IDs must be distinct positive integers no greater than
+`2^53 - 1`; omitted IDs use one-based positions, and valid explicit IDs are preserved. Duplicate JSON properties,
+nonfinite numbers, malformed shapes and invalid Unicode are rejected. Supplied image paths and metadata are
+stripped from executable objects, while canonical entry hashes still include the complete original entry.
+
+If any JSON entry is invalid or exceeds a limit, the whole container abstains rather than partially extracting
+earlier entries. It produces one original-file failure: `parse_failed` for malformed input,
+`json_document_limit_exceeded` for excessive entries, or `too_many_pages` for excessive pages; the latter two
+are unsupported outcomes. Other admitted originals continue. Python preflight counts each valid logical document
+and one unit per invalid original, rejecting more than 5,000 units before creating run artifacts or calling a model.
+It rechecks admitted source hashes before construction. JSON schema samples undergo the same complete validation
+before constructing at most the first two logical documents. Shared research intake is unchanged. See the
+[JSON input guard](evaluations/PRODUCT_JSON_INPUT_20261015.md).
+
 The research `process-inbox` intake retains its narrower format support. The product path uses local OCR/text extraction
 and either a deterministic label/value proposal or an optional
 OpenAI-compatible chat model for scalar or bounded repeated-column schema discovery followed by value extraction.
@@ -190,10 +220,25 @@ discovered schema is unapproved, so every document remains `needs_review` until 
 
 New model-backed product runs use a server-only output budget of 8,192 tokens and a 180-second per-call timeout by
 default. `IDPO_AUTO_MAX_OUTPUT_TOKENS` (1–16,384) and `IDPO_AUTO_TIMEOUT_S` (1–600) can lower or raise those limits;
-invalid settings reject admission. PostgreSQL queue dispatch version 2 seals the selected limits with its profile digest,
+invalid settings reject admission. PostgreSQL queue dispatch versions 2–4 seal the selected limits with their profile digest,
 so later environment changes do not alter a prepared run. Previously prepared version 1 dispatches retain their earlier
 CLI defaults of 1,200 tokens and 60 seconds. Direct CLI calls also retain those defaults unless flags are supplied.
 The separate draft-suggestion action keeps its own 1,800-token limit; the 24,000-character source cap is unchanged.
+
+New native dispatch envelopes use version 4, without changing extraction-profile version 3. Before queue admission
+or direct execution, the server counts immutable staged originals: a standard JSON array reserves its raw length,
+with at least one unit for an empty or malformed original; other formats reserve one unit. Selected sets over
+5,000 originals reject before copying, after existing idempotent requests have been reconciled. A planned total
+over 5,000 logical documents rejects with HTTP 413 before worker or provider execution. JSON reads are bounded
+to 20 MiB. Invalid array entries may later collapse to one Python failure, so this reservation is deliberately
+conservative rather than a count of valid documents or successful extractions.
+
+Dispatch v4 seals that logical-document budget in prepared bytes and run metadata, uses it for PostgreSQL queue
+admission, and verifies agreement with the queued request and recounted source bytes before starting Python.
+Previously prepared versions 1–3 retain selected-original counting and reject incompatible added budget fields;
+they are not reinterpreted as v4. Interrupted or uncertain paid attempts remain terminal. The text-segment and
+visual-request caps above apply per logical document, not per uploaded JSON container. Neither the logical budget
+nor those caps establishes an aggregate API-request or USD limit for a run.
 
 A separate owner-scoped registry can save a completed review as a draft schema and explicitly approve it as `approved_shadow`.
 The operator may select a current approved revision for one run. The frontend rechecks its source
@@ -230,10 +275,19 @@ after that document's review is complete. It rechecks the original source, OCR-p
 at download time. The export carries typed fields, per-field status and provenance, source and machine hashes, and the
 review revision; it omits the raw source and server file paths. A human-corrected value is still a reviewer assertion
 unless it has explicit evidence. The owner-scoped `GET /api/jobs/<job_id>/auto/<run_id>/export` route downloads
-reviewed JSONL in selected-file order. Every selected document must have complete, current, source-linked review;
-partial, failed, missing or stale results return a conflict instead of an incomplete download. The current batch
-export is bounded to 5,000 documents and 64 MiB. Shared sealed-run and source verification avoids rereading the
-entire run for every exported document.
+reviewed JSONL in selected-original order, retaining manifest order for logical documents within each original.
+One JSON original can produce multiple records. Every selected original must be represented, every logical
+document must have complete, current, source-linked review, and logical IDs and sealed result hashes must agree.
+Partial, failed, missing, duplicated, unselected or stale results return a conflict instead of an incomplete
+download. The current batch export is bounded to 5,000 logical documents and 64 MiB; the individual JSON export
+shape is unchanged. Shared sealed-run and source verification avoids rereading the entire run for every exported
+document.
+
+The browser's readiness check counts reviewed logical documents, permits more results than selected originals,
+and requires unique logical IDs and a represented-original count matching the selection. Failed and unsupported
+documents never count as completed reviews. The remaining-batch preview gate also requires every logical result
+to have a completed review of a `needs_review` proposal. These UI checks do not authorize export or batch admission;
+the server still verifies exact selected-source membership and the complete sealed manifest and review receipts.
 
 For failed or unsupported documents, the owner-scoped detail API may expose an allowlisted `outcomeReason` code from
 the sealed result sidecar. It never returns an arbitrary sidecar error string. The document page maps that code to
@@ -247,13 +301,17 @@ typed field meanings and examples, and 1–5 sample file IDs bound to source SHA
 IDs; `POST` requires the current revision and appends an immutable draft event. `PATCH` explicitly confirms the current
 revision and payload digest only when it has typed fields with descriptions and all sample bytes still match. Any subsequent edit appends
 a new draft; it does not inherit confirmation. Intent-only drafts cannot start this schema-guided route.
-The browser locks setup inputs while saving, requesting suggestions or admitting/running extraction, so an earlier
-response cannot replace edits made while its request is pending.
+The browser requires a successful brief read for the current job before enabling schema editing or model actions.
+A failed read shows an explicit retry and cannot be treated as an empty saved schema. Setup inputs also lock while
+saving, requesting suggestions or admitting/running extraction, so an earlier response cannot replace edits made
+while its request is pending. Example fields preserve line breaks while editing; saving trims lines, removes blank
+entries and rejects more than three nonblank examples instead of silently dropping them.
 
 The owner-scoped `POST /api/jobs/<job_id>/auto` route accepts an explicit `confirmedBrief` selection. The `preview`
 phase must select exactly the confirmed sample files. The `batch` phase excludes those files and requires the exact
-confirmed preview run, complete source-linked human review of all its documents, unchanged sample sources, and valid
-run, document, and review receipts. The frontend freezes a SHA-256-bound schema snapshot; the native worker validates
+confirmed preview run, complete source-linked human review of all its logical documents (including multiple entries
+from a JSON sample), unchanged sample sources, and valid run, document, and review receipts. The frontend freezes
+a SHA-256-bound schema snapshot; the native worker validates
 its bytes and fields before running. It skips schema discovery, sends field descriptions, examples, and intent with
 source text to the value model, and checks exact source evidence locally. Values remain pending review. The run,
 manifest, and document artifacts carry the same confirmed-schema receipt. This path requires a configured value model
@@ -545,9 +603,10 @@ It should not be:
 - a mix of demo logic and production-path logic in the same core files
 - dependent on giant multi-purpose files for basic reasoning
 
-The separate product pilot above may simplify or replace these service boundaries after measured quality, cost,
-security and operability checks. The target worker, structured visual evidence, approved recipes and scalable review
-requirements in `docs/PRODUCTIZATION_PLAN.md` remain future work.
+The separate product path above may simplify or replace these service boundaries after measured quality, cost,
+security and operability checks. Its native worker, bounded visual evidence, explicitly approved recipes and
+revisioned review are implemented under the limits above. The remaining quality, cost, security and deployment
+acceptance gates in `docs/PRODUCTIZATION_PLAN.md` are not established by those implementations.
 
 ## Change Protocol
 

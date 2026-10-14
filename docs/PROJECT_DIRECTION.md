@@ -221,16 +221,16 @@ Which code areas are most affected: frontend job API/runner, gateway access chec
 
 ## Current Next Step
 
-1. retain the completed [verified 2,000-source operational evidence](evaluations/MODEL2000_VERIFIED_OPERATIONAL_20261013.md),
-   including every failure and uncertain paid attempt; use the [release verification record](evaluations/RELEASE_VERIFICATION_20261014.md)
-   to close the remaining product and conference gates without opening another architecture workstream
-2. finish the [preregistered 240-source paired comparison](evaluations/QUALITY240_PREREGISTRATION_20261013.md) once
-   provider availability is restored, retaining the frozen candidate and all original outcomes;
-   seal both arms before opening references, and report exact scalar and whole-row recall with paired uncertainty;
-   these experiments use confirmed schemas and do not validate automatic schema discovery
-3. complete browser review/export verification; authenticated nine-format workflow and native cold recovery checks
-   have passed within their documented scope; PostgreSQL queueing and native startup are implemented, while multiple frontend
-   writers, priced total cost and measured human review time remain open
-4. use the separately preserved [corrected simulation](AHMN_CORRECTED_SIMULATION_RESULT_20261013.md) and new measured
-   product evidence to prepare the conference revision, keeping synthetic bandit behavior, actual document
-   extraction and the unverified historical summaries clearly attributed
+1. retain the completed [verified 2,000-source operational evidence](evaluations/MODEL2000_VERIFIED_OPERATIONAL_20261013.md)
+   and [240-source paired results](evaluations/QUALITY240_RESULTS_20261014.md), including every failure and uncertain
+   paid attempt; both macro difference intervals include zero, and lower USD cost is unestablished
+2. retain the completed [15 October implementation task list](IMPLEMENTATION_FINALIZATION_20261015.md) and
+   [native verification](evaluations/RELEASE_VERIFICATION_20261015.md): eight reproduced defects closed, 414 Python
+   and 235 frontend checks passed, rebuilt native deployment and fresh three-call ICORE integration verified;
+   these later engineering checks do not change the frozen studies
+3. maintain the verified native deployment; browser file delivery and native Office execution remain
+   open because Windows input was stopped; multiple frontend writers, priced total cost and measured human review time
+   remain separate product gates
+4. complete author details, approval, consent, signatures, presenter details and submission using the already verified
+   [conference technical package](CONFERENCE_HANDOFF_20261014.md); recheck layout after author edits, keeping corrected
+   synthetic, measured extraction and historical unverified evidence clearly attributed
