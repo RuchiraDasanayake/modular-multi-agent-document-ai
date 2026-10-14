@@ -8,7 +8,6 @@ import math
 import re
 import time
 import uuid
-from dataclasses import replace
 from pathlib import Path
 from typing import Protocol
 
@@ -24,6 +23,11 @@ from idpo.product_auto.confirmed_schema import ConfirmedSchema
 from idpo.product_auto.image_frames import (
     UnsupportedImageFrames,
     require_single_frame_image,
+)
+from idpo.product_auto.json_input import (
+    MAX_LOGICAL_DOCUMENTS,
+    load_product_json,
+    preflight_json_input,
 )
 from idpo.product_auto.logic import (
     MAX_FIELDS,
@@ -60,6 +64,8 @@ from idpo.product_auto.resource_telemetry import ResourceProbe, elapsed_cpu_ms
 from idpo.product_auto.segments import SegmentPlan, plan_segments
 from idpo.product_auto.strict_output import (
     PROFILE as STRICT_CONFIRMED_VALUES_PROFILE,
+)
+from idpo.product_auto.strict_output import (
     PROFILE_V2 as STRICT_CONFIRMED_VALUES_PROFILE_V2,
 )
 from idpo.product_auto.strict_output import (
@@ -70,6 +76,8 @@ from idpo.product_auto.strict_output import (
 )
 from idpo.product_auto.visual_output import (
     PROFILE as STRICT_VISUAL_PROFILE,
+)
+from idpo.product_auto.visual_output import (
     PROFILE_V2 as STRICT_VISUAL_PROFILE_V2,
 )
 from idpo.product_auto.visual_output import (
@@ -181,6 +189,18 @@ def process_auto(
         if strict_response_format is not None else None
     )
 
+    json_preflights = {}
+    logical_count = 0
+    for file_path in files:
+        if file_path.suffix.lower() == ".json":
+            preflight = preflight_json_input(file_path)
+            json_preflights[file_path] = preflight
+            logical_count += preflight.logical_count
+        else:
+            logical_count += 1
+        if logical_count > MAX_LOGICAL_DOCUMENTS:
+            raise ValueError("Product run exceeds 5000 logical documents")
+
     resolved_run_id = run_id or uuid.uuid4().hex
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", resolved_run_id):
         raise ValueError("run_id must be 1-64 letters, digits, underscores, or hyphens")
@@ -239,14 +259,23 @@ def process_auto(
                     with Image.open(file_path) as image:
                         require_single_frame_image(image)
                     documents = intake.ingest(str(file_path))
+                elif file_path.suffix.lower() == ".json":
+                    preflight = json_preflights[file_path]
+                    if preflight.reason:
+                        rows = [(_doc_id(file_path.name, container_hash, 0), None, preflight.reason,
+                                 0, container_hash, container_size, "raw_file")]
+                        documents = None
+                    else:
+                        if container_hash != preflight.source_sha256:
+                            raise ValueError("JSON source changed after admission")
+                        documents, sources = load_product_json(
+                            file_path, expected_source_sha256=container_hash,
+                        )
                 else:
                     documents = intake.ingest(str(file_path))
                 if documents is not None:
-                    if file_path.suffix.lower() == ".json":
-                        # Uploaded JSON supplies text pages, never paths to server-side files.
-                        for document in documents:
-                            document.pages = [replace(page, image_path=None, metadata={}) for page in document.pages]
-                    sources = _json_entry_sources(file_path) if file_path.suffix.lower() == ".json" else [(container_hash, container_size, "raw_file")] * len(documents)
+                    if file_path.suffix.lower() != ".json":
+                        sources = [(container_hash, container_size, "raw_file")] * len(documents)
                     if len(sources) != len(documents):
                         raise ValueError("JSON source entries and parsed documents differ")
                     rows = [
@@ -443,7 +472,7 @@ def _process_document(
     candidate: dict[str, object] = {
         "contract_version": CONTRACT_VERSION,
         "doc_id": doc_id,
-        "document_status": "unsupported" if initial_reason in {"unsupported_file_type", "file_too_large", "too_many_pages", "native_limit_exceeded", "multi_frame_image_unsupported"} else "failed" if initial_reason else "needs_review",
+        "document_status": "unsupported" if initial_reason in {"unsupported_file_type", "file_too_large", "too_many_pages", "native_limit_exceeded", "multi_frame_image_unsupported", "json_document_limit_exceeded"} else "failed" if initial_reason else "needs_review",
         "proposed_schema": [],
         "extracted_values": [],
     }
@@ -948,16 +977,6 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
-
-
-def _json_entry_sources(path: Path) -> list[tuple[str, int, str]]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    entries = payload if isinstance(payload, list) else [payload]
-    sources: list[tuple[str, int, str]] = []
-    for entry in entries:
-        encoded = json.dumps(entry, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
-        sources.append((hashlib.sha256(encoded).hexdigest(), len(encoded), "canonical_json_entry"))
-    return sources
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:

@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { loadRunnerConfig, resetConfigCacheForTests } from "./config";
+import { AccessError } from "./auth";
 import { addDocumentsToJob, createWorkspaceJob } from "./jobs";
 import { executePreparedProductAutoRun, getProductAutoRun,
   failQueuedProductAutoRun, recoverQueuedProductAutoAdmissions, startProductAutoRun } from "./product-auto";
@@ -12,10 +13,12 @@ import { confirmProductAutoBrief, saveProductAutoBrief } from "./product-auto-br
 import type { ProductDispatch, ProductExecutionQueue } from "./product-execution-queue";
 
 const digest = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
+const jsonDocuments = (count: number) => JSON.stringify(Array.from({ length: count }, (_, index) =>
+  ({ doc_id: `entry${index}`, pages: [{ text: "Total: 100" }] })));
 const holder = globalThis as typeof globalThis & { __productQueue?: ProductExecutionQueue };
 
 interface StoredRecord {
-  queueDispatch?: { ownerId: string; sha256: string };
+  queueDispatch?: { ownerId: string; sha256: string; logicalDocumentCount?: number };
   selectedFiles: Array<{ fileId: string; fileName: string; storedName: string; sha256: string }>;
   confirmedBrief?: { snapshotSha256: string };
   approvedRecipe?: Record<string, unknown>;
@@ -30,7 +33,8 @@ async function withQueuedRun(
   }) => Promise<void>,
   options: { schema?: boolean; admissionError?: boolean; holdChild?: boolean;
     maxOutputTokens?: string; timeoutSeconds?: string; rapidOcr?: boolean; strictFormat?: boolean;
-    visual?: boolean; longDocument?: boolean } = {},
+    visual?: boolean; longDocument?: boolean;
+    sourceFiles?: Array<{ name: string; content: string }> } = {},
 ): Promise<void> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "idpo-queue-dispatch-"));
   const dataDir = path.join(root, "data");
@@ -64,7 +68,9 @@ async function withQueuedRun(
   } as unknown as ProductExecutionQueue;
   try {
     const job = createWorkspaceJob({ ownerUserId: randomUUID() });
-    const uploaded = await addDocumentsToJob(job.jobId, [new File(["Invoice A\nTotal: 100"], "sample.txt")]);
+    const uploaded = await addDocumentsToJob(job.jobId,
+      (options.sourceFiles ?? [{ name: "sample.txt", content: "Invoice A\nTotal: 100" }])
+        .map((file) => new File([file.content], file.name)));
     const document = uploaded.documents![0];
     const command = loadRunnerConfig().commands.find((item) => item.id === "idpo_process_auto")!;
     const capturePath = path.join(root, "executed.json");
@@ -92,7 +98,8 @@ ${options.holdChild ? "setInterval(() => {}, 1000);" : "process.exit(1);"}`);
       });
       selection = { expectedRevision: confirmed.revision, payloadSha256: confirmed.payload_sha256, phase: "preview" };
     }
-    const started = await startProductAutoRun(job.jobId, [document.fileId], true, undefined, selection);
+    const started = await startProductAutoRun(job.jobId, uploaded.documents!.map((item) => item.fileId),
+      true, undefined, selection);
     assert.equal(started.status, "queued");
     assert.equal(admissions.length, 1);
     assert.equal(fs.existsSync(capturePath), false, "admission must not spawn extraction in the web process");
@@ -117,6 +124,100 @@ ${options.holdChild ? "setInterval(() => {}, 1000);" : "process.exit(1);"}`);
 const readRecord = (file: string) => JSON.parse(fs.readFileSync(file, "utf8")) as StoredRecord;
 
 test("queued execution validates admitted inputs before starting a subprocess", async (t) => {
+  await t.test("seals five logical JSON documents as five queue budget units", async () => withQueuedRun(async (f) => {
+    assert.equal(f.request.documentCount, 5);
+    const profile = JSON.parse(fs.readFileSync(f.recordPath.replace(/\.json$/, ".dispatch.json"), "utf8"));
+    assert.equal(profile.version, 4);
+    assert.equal(profile.logicalDocumentCount, 5);
+    assert.equal(readRecord(f.recordPath).queueDispatch?.logicalDocumentCount, 5);
+    await assert.rejects(executePreparedProductAutoRun(f.request, new AbortController().signal), /output not verified/i);
+    assert.equal(fs.existsSync(f.capturePath), true);
+  }, { sourceFiles: [{ name: "five.json", content: jsonDocuments(5) }] }));
+
+  for (const sourceFiles of [
+    [{ name: "too-many.json", content: jsonDocuments(5001) }],
+    [{ name: "first.json", content: jsonDocuments(3000) }, { name: "second.json", content: jsonDocuments(2001) }],
+  ]) {
+    await t.test(`rejects ${sourceFiles.length === 1 ? "one-container" : "aggregate"} logical overflow before queue admission`, async () => {
+      await assert.rejects(withQueuedRun(async () => {
+        assert.fail("An oversized logical run must not be admitted.");
+      }, { sourceFiles }), (error) => error instanceof AccessError && error.statusCode === 413);
+    });
+  }
+
+  await t.test("reserves one budget unit for an empty or malformed JSON source failure", async () => withQueuedRun(async (f) => {
+    assert.equal(f.request.documentCount, 2);
+    assert.equal(readRecord(f.recordPath).queueDispatch?.logicalDocumentCount, 2);
+  }, { sourceFiles: [{ name: "empty.json", content: "[]" }, { name: "malformed.json", content: "[{]" }] }));
+
+  await t.test("rejects over 5000 new originals before copying any source", async () => withQueuedRun(async (f) => {
+    const copy = fs.copyFileSync;
+    let copied = 0;
+    fs.copyFileSync = (() => { copied += 1; assert.fail("An impossible run budget must not copy sources."); }) as typeof fs.copyFileSync;
+    try {
+      await assert.rejects(startProductAutoRun(f.request.jobId,
+        Array.from({ length: 5001 }, (_, index) => index.toString(16).padStart(32, "0")), true),
+      (error) => error instanceof AccessError && error.statusCode === 413);
+      assert.equal(copied, 0);
+      assert.equal(f.admissions.length, 1, "Only the fixture's initial run may be admitted.");
+    } finally { fs.copyFileSync = copy; }
+  }));
+
+  await t.test("old version-three JSON dispatches retain original-upload budget counting", async () => withQueuedRun(async (f) => {
+    const file = f.recordPath.replace(/\.json$/, ".dispatch.json");
+    const profile = JSON.parse(fs.readFileSync(file, "utf8"));
+    profile.version = 3;
+    delete profile.logicalDocumentCount;
+    const bytes = JSON.stringify(profile);
+    fs.writeFileSync(file, bytes);
+    const record = readRecord(f.recordPath);
+    record.queueDispatch!.sha256 = digest(bytes);
+    delete record.queueDispatch!.logicalDocumentCount;
+    fs.writeFileSync(f.recordPath, JSON.stringify(record));
+    await assert.rejects(executePreparedProductAutoRun({ ...f.request, dispatchSha256: digest(bytes), documentCount: 1 },
+      new AbortController().signal), /output not verified/i);
+    assert.equal(fs.existsSync(f.capturePath), true);
+    assert.equal(profile.extractionProfile.version, 3);
+  }, { sourceFiles: [{ name: "five.json", content: jsonDocuments(5) }] }));
+
+  for (const changed of ["request", "record", "prepared"] as const) {
+    await t.test(`rejects a changed ${changed} logical budget before starting a child`, async () => withQueuedRun(async (f) => {
+      const request = { ...f.request };
+      if (changed === "request") request.documentCount = 4;
+      else {
+        const record = readRecord(f.recordPath);
+        record.queueDispatch!.logicalDocumentCount = 4;
+        if (changed === "prepared") {
+          const file = f.recordPath.replace(/\.json$/, ".dispatch.json");
+          const profile = JSON.parse(fs.readFileSync(file, "utf8"));
+          profile.logicalDocumentCount = 4;
+          const bytes = JSON.stringify(profile);
+          fs.writeFileSync(file, bytes);
+          record.queueDispatch!.sha256 = digest(bytes);
+          request.dispatchSha256 = digest(bytes);
+          request.documentCount = 4;
+        }
+        fs.writeFileSync(f.recordPath, JSON.stringify(record));
+      }
+      await assert.rejects(executePreparedProductAutoRun(request, new AbortController().signal), /logical document budget/i);
+      assert.equal(fs.existsSync(f.capturePath), false);
+    }, { sourceFiles: [{ name: "five.json", content: jsonDocuments(5) }] }));
+  }
+
+  await t.test("rejects a version-four dispatch without its sealed budget", async () => withQueuedRun(async (f) => {
+    const file = f.recordPath.replace(/\.json$/, ".dispatch.json");
+    const profile = JSON.parse(fs.readFileSync(file, "utf8"));
+    delete profile.logicalDocumentCount;
+    const bytes = JSON.stringify(profile);
+    fs.writeFileSync(file, bytes);
+    const record = readRecord(f.recordPath);
+    record.queueDispatch!.sha256 = digest(bytes);
+    fs.writeFileSync(f.recordPath, JSON.stringify(record));
+    await assert.rejects(executePreparedProductAutoRun({ ...f.request, dispatchSha256: digest(bytes) },
+      new AbortController().signal), /logical document budget/i);
+    assert.equal(fs.existsSync(f.capturePath), false);
+  }));
+
   await t.test("pins visual and long-document routing across later server changes", async () => withQueuedRun(async (f) => {
     const dispatch = JSON.parse(fs.readFileSync(f.recordPath.replace(/\.json$/, ".dispatch.json"), "utf8"));
     assert.equal(dispatch.extractionProfile.version, 3);
@@ -132,7 +233,7 @@ test("queued execution validates admitted inputs before starting a subprocess", 
 
   await t.test("pins a server model budget across an environment change", async () => withQueuedRun(async (f) => {
     const profile = JSON.parse(fs.readFileSync(f.recordPath.replace(/\.json$/, ".dispatch.json"), "utf8"));
-    assert.equal(profile.version, 3);
+    assert.equal(profile.version, 4);
     assert.deepEqual(profile.modelBudget, { maxOutputTokens: 4096, timeoutSeconds: 90 });
     process.env.IDPO_AUTO_MAX_OUTPUT_TOKENS = "128";
     process.env.IDPO_AUTO_TIMEOUT_S = "10";
@@ -144,7 +245,7 @@ test("queued execution validates admitted inputs before starting a subprocess", 
 
   await t.test("new model-backed runs get bounded defaults", async () => withQueuedRun(async (f) => {
     const profile = JSON.parse(fs.readFileSync(f.recordPath.replace(/\.json$/, ".dispatch.json"), "utf8"));
-    assert.equal(profile.version, 3);
+    assert.equal(profile.version, 4);
     assert.deepEqual(profile.modelBudget, { maxOutputTokens: 8192, timeoutSeconds: 180 });
   }, { schema: true }));
 
@@ -154,11 +255,13 @@ test("queued execution validates admitted inputs before starting a subprocess", 
     profile.version = 1;
     delete profile.modelBudget;
     delete profile.extractionProfile;
+    delete profile.logicalDocumentCount;
     const bytes = JSON.stringify(profile);
     fs.writeFileSync(file, bytes);
     const oldDigest = digest(bytes);
     const record = readRecord(f.recordPath);
     record.queueDispatch!.sha256 = oldDigest;
+    delete record.queueDispatch!.logicalDocumentCount;
     fs.writeFileSync(f.recordPath, JSON.stringify(record));
     await assert.rejects(executePreparedProductAutoRun({ ...f.request, dispatchSha256: oldDigest },
       new AbortController().signal), /output not verified/i);
@@ -185,10 +288,12 @@ test("queued execution validates admitted inputs before starting a subprocess", 
     const profile = JSON.parse(fs.readFileSync(file, "utf8"));
     profile.version = 2;
     delete profile.extractionProfile;
+    delete profile.logicalDocumentCount;
     const bytes = JSON.stringify(profile);
     fs.writeFileSync(file, bytes);
     const record = readRecord(f.recordPath);
     record.queueDispatch!.sha256 = digest(bytes);
+    delete record.queueDispatch!.logicalDocumentCount;
     fs.writeFileSync(f.recordPath, JSON.stringify(record));
     await assert.rejects(executePreparedProductAutoRun({ ...f.request, dispatchSha256: digest(bytes) },
       new AbortController().signal), /output not verified/i);

@@ -1,6 +1,6 @@
 export type ProductAutoDocumentStatus = "processed" | "needs_review" | "unsupported" | "failed";
 export const PRODUCT_AUTO_OUTCOME_REASONS = [
-  "unsupported_file_type", "file_too_large", "too_many_pages", "native_limit_exceeded",
+  "unsupported_file_type", "file_too_large", "too_many_pages", "json_document_limit_exceeded", "native_limit_exceeded",
   "multi_frame_image_unsupported", "native_parser_unavailable", "parse_failed", "ocr_failed",
   "schema_provider_error", "invalid_schema_model_response", "values_provider_error",
   "invalid_values_model_response", "invalid_strict_values_model_response",

@@ -9,6 +9,7 @@ import { requireCurrentProductAutoBrief } from "@/server/product-auto-brief";
 import { claimProductAutoRunRequestReceipt, readProductAutoRunRequestReceipt,
   validProductAutoRunRequestKey } from "@/server/product-auto-run-requests";
 import { productExecutionQueue, QueueAdmissionError, type ProductDispatch } from "@/server/product-execution-queue";
+import { MAX_PRODUCT_LOGICAL_DOCUMENTS, plannedProductLogicalDocuments } from "@/server/product-auto-budget";
 import { appendExtractionArguments, configuredExtractionProfile, extractionEnvironment,
   validExtractionProfile, type ExtractionProfile } from "@/server/product-auto-profile";
 import type { ProductAutoBriefRevision } from "@/types/product-auto-brief";
@@ -54,7 +55,7 @@ const DEFAULT_MODEL_MAX_OUTPUT_TOKENS = 8192;
 const MAX_MODEL_MAX_OUTPUT_TOKENS = 16384;
 const DEFAULT_MODEL_TIMEOUT_S = 180;
 const MAX_MODEL_TIMEOUT_S = 600;
-const MAX_REVIEWED_BATCH_DOCUMENTS = 5000;
+const MAX_REVIEWED_BATCH_DOCUMENTS = MAX_PRODUCT_LOGICAL_DOCUMENTS;
 const MAX_REVIEWED_BATCH_BYTES = 64 * 1024 * 1024;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const LEASE_TIMEOUT_MS = 5 * 60_000;
@@ -81,7 +82,7 @@ interface RunRecord {
   createdAt: string;
   endedAt?: string;
   serverInstanceId: string;
-  queueDispatch?: { ownerId: string; sha256: string };
+  queueDispatch?: { ownerId: string; sha256: string; logicalDocumentCount?: number };
   selectedFiles: SelectedFile[];
   approvedRecipe?: {
     recipeId: string; revision: number; auditEventId: string; ownerUserId: string;
@@ -154,12 +155,13 @@ interface ModelBudget {
 }
 
 interface PreparedDispatch {
-  version: 1 | 2 | 3;
+  version: 1 | 2 | 3 | 4;
   ownerId: string;
   jobId: string;
   runId: string;
   commandSha256: string;
   inputManifestSha256: string;
+  logicalDocumentCount?: number;
   model?: string;
   baseUrl?: string;
   modelBudget?: ModelBudget;
@@ -821,8 +823,13 @@ function validatedDocuments(record: RunRecord, targetDocId?: string): RunRecord[
   const receipts = parseJsonLines(path.join(runDir, "manifest.jsonl"));
   if (receipts.length !== marker.doc_count) throw new Error("Incomplete extraction manifest.");
   const byStoredName = new Map(record.selectedFiles.map((file) => [file.storedName, file]));
+  if (!record.selectedFiles.length || byStoredName.size !== record.selectedFiles.length ||
+    new Set(record.selectedFiles.map((file) => file.fileId)).size !== record.selectedFiles.length) {
+    throw new Error("Invalid selected source manifest.");
+  }
   const seen = new Set<string>();
-  return receipts.flatMap((receipt): RunRecord["documents"] => {
+  const coveredSources = new Set<string>();
+  const documents = receipts.flatMap((receipt): RunRecord["documents"] => {
     const docId = receipt.doc_id;
     const sourceFile = receipt.source_file;
     if (typeof docId !== "string" || typeof sourceFile !== "string") throw new Error("Invalid document receipt.");
@@ -832,6 +839,7 @@ function validatedDocuments(record: RunRecord, targetDocId?: string): RunRecord[
       throw new Error("Document receipt does not match the selected source.");
     }
     seen.add(docId);
+    coveredSources.add(sourceFile);
     if (typeof receipt.result_sha256 !== "string" || !/^[a-f0-9]{64}$/.test(receipt.result_sha256)) {
       throw new Error("Machine result receipt is missing or invalid.");
     }
@@ -864,6 +872,8 @@ function validatedDocuments(record: RunRecord, targetDocId?: string): RunRecord[
       machineResultSha256: machineResultHash,
     }];
   });
+  if (coveredSources.size !== byStoredName.size) throw new Error("Incomplete selected source coverage.");
+  return documents;
 }
 
 function finishRun(jobId: string, runId: string, exitCode: number | null, leaseExpiredFailure = false,
@@ -1146,6 +1156,9 @@ export async function startProductAutoRun(
       idempotency!.actorUserId, requestPayloadSha256, approvedRecipeSelection, confirmedBriefSelection);
     if (existing) return existing;
   }
+  if (selectedFileIds.length > MAX_PRODUCT_LOGICAL_DOCUMENTS) {
+    throw new AccessError(`An extraction run may contain at most ${MAX_PRODUCT_LOGICAL_DOCUMENTS} logical documents.`, 413);
+  }
   if (!productAutoAvailability().available) throw new AccessError("Automatic extraction is unavailable on this deployment.", 503);
   recoverProductAutoRuns(jobId);
   if (listProductAutoRuns(jobId).some((run) => ["queued", "running"].includes(run.status))) {
@@ -1283,10 +1296,13 @@ export async function startProductAutoRun(
       selectedFiles.push({ fileId: document.fileId, fileName: document.fileName,
         storedName: document.storedName, sha256: sha256File(staged) });
     }
+    const logicalDocumentCount = plannedProductLogicalDocuments(selectedFiles.map((file) => ({
+      name: file.fileName, path: path.join(inputDir, file.storedName),
+    })));
     let dispatch: PreparedDispatch | undefined;
     let dispatchHash: string | undefined;
     if (queued) {
-      dispatch = { version: 3, ownerId: job.ownerUserId!, jobId, runId, extractionProfile,
+      dispatch = { version: 4, ownerId: job.ownerUserId!, jobId, runId, extractionProfile, logicalDocumentCount,
         commandSha256: commandSha256(),
         inputManifestSha256: inputManifestSha256({ selectedFiles, approvedRecipe: recipeMeta, confirmedBrief: schemaMeta }),
         ...(model && baseUrl ? { model, baseUrl, modelBudget } : {}) };
@@ -1301,7 +1317,8 @@ export async function startProductAutoRun(
       runId, jobId, status: queued ? "queued" : "running", createdAt: new Date().toISOString(),
       ...(requestKey ? { idempotencyKey: requestKey } : {}),
       serverInstanceId: instanceId, selectedFiles, documents: [],
-      ...(dispatch && dispatchHash ? { queueDispatch: { ownerId: dispatch.ownerId, sha256: dispatchHash } } : {}),
+      ...(dispatch && dispatchHash ? { queueDispatch: { ownerId: dispatch.ownerId, sha256: dispatchHash,
+        logicalDocumentCount } } : {}),
       ...(recipeMeta ? { approvedRecipe: recipeMeta } : {}),
       ...(schemaMeta ? { confirmedBrief: schemaMeta } : {}),
     };
@@ -1352,14 +1369,14 @@ export async function startProductAutoRun(
 function dispatchRequest(record: RunRecord): ProductDispatch {
   if (!record.queueDispatch) throw new Error("Run has no queue dispatch.");
   return { ownerId: record.queueDispatch.ownerId, jobId: record.jobId, runId: record.runId,
-    dispatchSha256: record.queueDispatch.sha256, documentCount: record.selectedFiles.length };
+    dispatchSha256: record.queueDispatch.sha256,
+    documentCount: record.queueDispatch.logicalDocumentCount ?? record.selectedFiles.length };
 }
 
 function verifiedDispatch(request: ProductDispatch): { record: RunRecord; prepared: PreparedDispatch } {
   const record = readRunRecord(request.jobId, request.runId);
   if (!record.queueDispatch || record.queueDispatch.ownerId !== request.ownerId ||
     record.queueDispatch.sha256 !== request.dispatchSha256 ||
-    record.selectedFiles.length !== request.documentCount ||
     getJobOrThrow(request.jobId).ownerUserId !== request.ownerId) {
     throw new Error("Queued extraction ownership or identity changed.");
   }
@@ -1368,17 +1385,27 @@ function verifiedDispatch(request: ProductDispatch): { record: RunRecord; prepar
     throw new Error("Queued extraction profile changed.");
   }
   const prepared = parseJsonObject(file) as unknown as PreparedDispatch;
-  if (![1, 2, 3].includes(prepared.version) || prepared.ownerId !== request.ownerId ||
+  if (![1, 2, 3, 4].includes(prepared.version) || prepared.ownerId !== request.ownerId ||
     prepared.jobId !== request.jobId || prepared.runId !== request.runId ||
     prepared.inputManifestSha256 !== inputManifestSha256(record)) {
     throw new Error("Invalid queued extraction profile.");
+  }
+  if (prepared.version === 4 ?
+    (!Number.isSafeInteger(prepared.logicalDocumentCount) || typeof prepared.logicalDocumentCount !== "number" ||
+      prepared.logicalDocumentCount < record.selectedFiles.length || prepared.logicalDocumentCount < 1 ||
+      prepared.logicalDocumentCount > MAX_PRODUCT_LOGICAL_DOCUMENTS ||
+      record.queueDispatch.logicalDocumentCount !== prepared.logicalDocumentCount ||
+      request.documentCount !== prepared.logicalDocumentCount) :
+    (prepared.logicalDocumentCount !== undefined || record.queueDispatch.logicalDocumentCount !== undefined ||
+      request.documentCount !== record.selectedFiles.length)) {
+    throw new Error("Queued logical document budget changed.");
   }
   if (prepared.version === 1 ? prepared.modelBudget !== undefined :
     (prepared.version === 2 || prepared.model ?
       (!prepared.model || !prepared.baseUrl || !validModelBudget(prepared.modelBudget)) : prepared.modelBudget !== undefined)) {
     throw new Error("Invalid queued model budget.");
   }
-  if (prepared.version === 3 ? !validExtractionProfile(prepared.extractionProfile) : prepared.extractionProfile !== undefined) {
+  if (prepared.version >= 3 ? !validExtractionProfile(prepared.extractionProfile) : prepared.extractionProfile !== undefined) {
     throw new Error("Invalid queued extraction profile.");
   }
   if ((["strict_confirmed_values_v1", "strict_confirmed_values_v2"].includes(
@@ -1409,6 +1436,11 @@ export async function executePreparedProductAutoRun(request: ProductDispatch, si
     if (path.dirname(target) !== inputDir || !fs.lstatSync(target).isFile() || sha256File(target) !== file.sha256) {
       throw new Error("Queued source bytes changed.");
     }
+  }
+  if (prepared.version === 4 && plannedProductLogicalDocuments(record.selectedFiles.map((file) => ({
+    name: file.fileName, path: path.join(inputDir, file.storedName),
+  }))) !== prepared.logicalDocumentCount) {
+    throw new Error("Queued logical document budget does not match its sources.");
   }
   for (const [file, hash] of [
     [stagedRecipeFile(request.runId), record.approvedRecipe?.snapshotSha256],
@@ -1616,7 +1648,8 @@ export function getProductAutoReviewedBatchExport(jobId: string, runId: string):
   const record = readRunRecord(jobId, runId);
   if (record.status !== "success") throw new AccessError("Complete the run before exporting its reviewed batch.", 409);
   const selected = record.selectedFiles;
-  if (!selected.length || selected.length > MAX_REVIEWED_BATCH_DOCUMENTS) {
+  if (!selected.length || selected.length > MAX_REVIEWED_BATCH_DOCUMENTS ||
+    record.documents.length > MAX_REVIEWED_BATCH_DOCUMENTS) {
     throw new AccessError(`A reviewed batch must contain 1–${MAX_REVIEWED_BATCH_DOCUMENTS} documents.`, 413);
   }
   const runRecordPath = fs.existsSync(terminalFile(jobId, runId)) ? terminalFile(jobId, runId) : runFile(jobId, runId);
@@ -1630,14 +1663,23 @@ export function getProductAutoReviewedBatchExport(jobId: string, runId: string):
   } catch {
     throw new AccessError(`Reviewed batch blocked: ${selected.length} selected, ${selected.length} unverifiable run artifacts.`, 409);
   }
+  if (documents.length > MAX_REVIEWED_BATCH_DOCUMENTS) {
+    throw new AccessError(`A reviewed batch must contain 1–${MAX_REVIEWED_BATCH_DOCUMENTS} documents.`, 413);
+  }
 
   const selectedIds = new Set(selected.map((file) => file.fileId));
   const selectedStoredNames = new Set(selected.map((file) => file.storedName));
-  const byFileId = new Map(documents.map((document) => [document.fileId, document]));
+  const byDocId = new Map(documents.map((document) => [document.docId, document]));
+  const byFileId = new Map<string, RunRecord["documents"]>();
+  for (const document of documents) {
+    const group = byFileId.get(document.fileId) ?? [];
+    group.push(document);
+    byFileId.set(document.fileId, group);
+  }
   const sealedByDocId = new Map(record.documents.map((document) => [document.docId, document]));
   if (selectedIds.size !== selected.length || selectedStoredNames.size !== selected.length ||
-    byFileId.size !== documents.length || documents.length !== selected.length ||
-    sealedByDocId.size !== record.documents.length || record.documents.length !== selected.length ||
+    byDocId.size !== documents.length || byFileId.size !== selected.length ||
+    sealedByDocId.size !== record.documents.length || record.documents.length !== documents.length ||
     documents.some((document) => !selectedIds.has(document.fileId) ||
       sealedByDocId.get(document.docId)?.fileId !== document.fileId ||
       sealedByDocId.get(document.docId)?.machineResultSha256 !== document.machineResultSha256)) {
@@ -1650,9 +1692,12 @@ export function getProductAutoReviewedBatchExport(jobId: string, runId: string):
     machineResultSha256: string }> = [];
   const counts = { unreviewed: 0, failed: 0, missing: 0, stale: 0 };
   let byteCount = 0;
-  for (const file of selected) {
-    const document = byFileId.get(file.fileId);
-    if (!document) { counts.missing += 1; continue; }
+  // JSON containers can yield several logical documents. Keep original selection
+  // order and the worker's document order within each original without dropping entries.
+  const orderedDocuments = selected.flatMap((file) => byFileId.get(file.fileId) ?? []);
+  const selectedById = new Map(selected.map((file) => [file.fileId, file]));
+  for (const document of orderedDocuments) {
+    const file = selectedById.get(document.fileId)!;
     if (document.status === "failed" || document.status === "unsupported") { counts.failed += 1; continue; }
     if (document.reviewStatus !== "completed") { counts.unreviewed += 1; continue; }
     try {
@@ -1683,7 +1728,7 @@ export function getProductAutoReviewedBatchExport(jobId: string, runId: string):
       counts.stale += 1;
     }
   }
-  if (Object.values(counts).some((count) => count > 0) || lines.length !== selected.length) {
+  if (Object.values(counts).some((count) => count > 0) || lines.length !== documents.length) {
     throw new AccessError(`Reviewed batch blocked: ${selected.length} selected, ${lines.length} reviewed, ` +
       `${counts.unreviewed} unreviewed, ${counts.failed} failed or unsupported, ` +
       `${counts.missing} missing, ${counts.stale} stale or unverifiable.`, 409);

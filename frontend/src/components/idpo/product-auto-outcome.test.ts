@@ -9,6 +9,15 @@ test("multi-frame rejection gives a bounded split action without inviting correc
   assert.match(copy?.sourceNote ?? "", /nothing to review or correct/);
 });
 
+test("oversized JSON explains logical-document batching and keeps the result unavailable", () => {
+  const copy = productAutoOutcomeCopy("unsupported", "json_document_limit_exceeded", 0);
+  assert.match(copy?.cause ?? "", /JSON.*5,000 logical documents/);
+  assert.match(copy?.action ?? "", /at most 5,000 logical documents/);
+  assert.match(copy?.action ?? "", /each batch in a separate run/);
+  assert.match(copy?.sourceNote ?? "", /nothing to review or correct/);
+  assert.equal(productAutoOutcomeCopy("needs_review", "json_document_limit_exceeded", 1), null);
+});
+
 test("unknown backend failure text never becomes user-facing copy", () => {
   const secret = "provider exception with credentials";
   const copy = productAutoOutcomeCopy("failed", secret as never, 2);

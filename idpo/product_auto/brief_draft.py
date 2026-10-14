@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Protocol
 
 from idpo.product_auto.image_frames import require_single_frame_image
+from idpo.product_auto.json_input import load_product_json
 from idpo.product_auto.native_formats import NATIVE_EXTENSIONS, parse_native_document
 from idpo.product_auto.provider import ModelReply, OpenAICompatibleChat
 
@@ -166,10 +167,8 @@ def _sample_text(path: Path, source_hash: str) -> tuple[str, str]:
     if suffix == ".txt":
         return path.read_text(encoding="utf-8"), "utf8-text"
     if suffix == ".json":
-        from idpo.agents.intake import IntakeAgent
-
-        documents = IntakeAgent().ingest(str(path))[:2]
-        return "\n".join(str(page.text) for document in documents for page in document.pages[:2]), "json-pages"
+        documents, _ = load_product_json(path, expected_source_sha256=source_hash, document_limit=2)
+        return "\n".join(page.text for document in documents for page in document.pages[:2]), "json-pages"
     if suffix in {".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}:
         return _ocr_sample(path)
     raise ValueError("Unsupported sample file type")
