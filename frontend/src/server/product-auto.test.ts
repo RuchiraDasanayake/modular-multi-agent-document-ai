@@ -170,7 +170,14 @@ test("automatic extraction keeps source access private and rejects conflicting r
   assert.deepEqual([first.status, second.status].sort(), [200, 409]);
   const saved = first.status === 200 ? first : second;
   assert.equal(saved.status, 200);
-  assert.equal((await saved.json()).review.status, "completed");
+  const savedBody = await saved.json();
+  assert.equal(savedBody.review.status, "completed");
+  assert.ok(savedBody.detail, "A committed review must return its refreshed document without another request.");
+  assert.deepEqual(savedBody.detail.review, savedBody.review);
+  assert.deepEqual(savedBody.detail.correctedResult, savedBody.correctedResult);
+  assert.equal(savedBody.detail.auditTrail.length, 1);
+  assert.equal(savedBody.detail.auditTrail[0].revision, savedBody.review.revision);
+  assert.equal(JSON.stringify(savedBody.detail).includes(privatePath), false);
   const auditDir = path.join(dataDir, "frontend", "auto_reviews", job.jobId, runId, "events", docId);
   assert.equal(fs.readdirSync(auditDir).length, 1);
   const firstEvent = fs.readdirSync(auditDir)[0];
@@ -178,10 +185,12 @@ test("automatic extraction keeps source access private and rejects conflicting r
   assert.equal((await post("alice", 0, [{ field_id: "total", decision: "corrected", corrected_value: "999" }])).status, 409);
   const corrected = await post("alice", 1, [{ field_id: "total", decision: "corrected", corrected_value: "103" }], [], 125);
   assert.equal(corrected.status, 200);
+  const correctedBody = await corrected.json();
   assert.equal(fs.readdirSync(auditDir).length, 2);
   assert.deepEqual(fs.readFileSync(path.join(auditDir, firstEvent)), firstBytes);
   const reviewed = await getAutoDocRoute(request(docUrl, "alice"), detailParams);
   const reviewedBody = await reviewed.json();
+  assert.deepEqual(correctedBody.detail, reviewedBody, "The save response includes the same verified state as a fresh read.");
   assert.equal(reviewedBody.review.revision, 2);
   assert.equal(reviewedBody.auditTrail[1].machine_fields[0].value, "100");
   assert.equal(reviewedBody.auditTrail[1].review_fields[0].corrected_value, "103");

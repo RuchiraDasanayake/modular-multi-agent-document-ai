@@ -219,7 +219,9 @@ requires an exact source quote for a newly added scalar. It accepts a human row 
 The API derives a document-scoped `correctedResult` from the
 immutable machine candidate and latest review snapshot. Undecided machine values remain in review; human corrections
 are reviewer assertions; newly added scalar and linked-cell corrections carry checked OCR quotes, which prove source
-presence but not semantic correctness. Review changes append revisioned events and reject stale saves. A reviewer may
+presence but not semantic correctness. Review changes append revisioned events and reject stale saves. A successful
+review save returns the verified document, current review revision and audit trail in the same response, so a second
+browser read cannot turn a confirmed save into an apparent failure or leave its revision stale. A reviewer may
 record 1 to 14,400 seconds of self-reported active work for an individual save; the system does not infer this time
 and older events have no such field.
 
@@ -245,6 +247,8 @@ typed field meanings and examples, and 1–5 sample file IDs bound to source SHA
 IDs; `POST` requires the current revision and appends an immutable draft event. `PATCH` explicitly confirms the current
 revision and payload digest only when it has typed fields with descriptions and all sample bytes still match. Any subsequent edit appends
 a new draft; it does not inherit confirmation. Intent-only drafts cannot start this schema-guided route.
+The browser locks setup inputs while saving, requesting suggestions or admitting/running extraction, so an earlier
+response cannot replace edits made while its request is pending.
 
 The owner-scoped `POST /api/jobs/<job_id>/auto` route accepts an explicit `confirmedBrief` selection. The `preview`
 phase must select exactly the confirmed sample files. The `batch` phase excludes those files and requires the exact

@@ -209,7 +209,7 @@ export function ProductAutoDocumentPage() {
           note: field.note });
       const result = await idpoApi.saveProductAutoReview(jobId, runId, docId, detail.review?.revision ?? 0,
         fields, addedFields, reportedActiveMinutes);
-      const refreshed = await idpoApi.getProductAutoDocument(jobId, runId, docId);
+      const refreshed = result.detail;
       setDetail(refreshed);
       setAddedDraft(addedDrafts(refreshed));
       setReportedActiveMinutes("");

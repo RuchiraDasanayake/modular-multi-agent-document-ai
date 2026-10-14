@@ -41,7 +41,7 @@ export async function POST(request: Request, { params }: Params) {
     const review = saveProductAutoReview(jobId, runId, docId, user.id, expectedRevision, fields, addedFields,
       reportedActiveReviewSeconds);
     const detail = getProductAutoDocument(jobId, runId, docId);
-    return NextResponse.json({ review, correctedResult: detail.correctedResult }, { headers: noStore });
+    return NextResponse.json({ review, correctedResult: detail.correctedResult, detail }, { headers: noStore });
   } catch (error) {
     if (error instanceof AccessError) return apiError(error);
     if (error instanceof SyntaxError) return NextResponse.json({ error: "Invalid JSON request." }, { status: 400, headers: noStore });
