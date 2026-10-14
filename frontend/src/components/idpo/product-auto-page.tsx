@@ -17,6 +17,7 @@ import type { ProductAutoRecipeRevision } from "@/types/product-auto-recipes";
 import type { ProductAutoBriefField, ProductAutoBriefRevision, ProductAutoBriefSuggestion } from "@/types/product-auto-brief";
 
 const FIELD_TYPES = ["string", "integer", "decimal", "boolean", "date", "array[object]"] as const;
+type BriefLoadState = { jobId: string; status: "loading" | "ready" | "error"; error?: string };
 
 function statusClass(status: string): string {
   if (status === "processed" || status === "success" || status === "completed") return "text-emerald-700 dark:text-emerald-300";
@@ -36,7 +37,8 @@ export function ProductAutoPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [approvedRecipes, setApprovedRecipes] = useState<ProductAutoRecipeRevision[]>([]);
   const [brief, setBrief] = useState<ProductAutoBriefRevision | null>(null);
-  const [briefLoading, setBriefLoading] = useState(true);
+  const [briefLoad, setBriefLoad] = useState<BriefLoadState>({ jobId, status: "loading" });
+  const [briefLoadAttempt, setBriefLoadAttempt] = useState(0);
   const [briefIntent, setBriefIntent] = useState("");
   const [briefFields, setBriefFields] = useState<ProductAutoBriefField[]>([]);
   const [sampleFileIds, setSampleFileIds] = useState<string[]>([]);
@@ -55,6 +57,8 @@ export function ProductAutoPage() {
   const [reviewRefreshing, setReviewRefreshing] = useState(false);
   const [reviewRefreshError, setReviewRefreshError] = useState("");
   const runRefresh = useRef(new ProductAutoRunRefresh(setRuns, setReviewRefreshing));
+  const briefReady = briefLoad.jobId === jobId && briefLoad.status === "ready";
+  const briefLoading = briefLoad.jobId !== jobId || briefLoad.status === "loading";
 
   useEffect(() => {
     const refresh = runRefresh.current;
@@ -89,6 +93,12 @@ export function ProductAutoPage() {
     void api.me().then((user) => {
       if (current) setIsAdmin(user.role === "admin");
     }).catch(() => { if (current) setIsAdmin(false); });
+    return () => { current = false; };
+  }, [jobId]);
+
+  useEffect(() => {
+    let current = true;
+    setBriefLoad({ jobId, status: "loading" });
     void idpoApi.getProductAutoBrief(jobId).then((data) => {
       if (!current) return;
       setBrief(data.brief);
@@ -96,17 +106,19 @@ export function ProductAutoPage() {
       setBriefFields(data.brief?.fields ?? []);
       setSampleFileIds(data.brief?.sample_sources.map((source) => source.file_id) ?? []);
       setStaleSampleFileIds(data.staleSampleFileIds);
+      setBriefLoad({ jobId, status: "ready" });
     }).catch((cause) => {
-      if (current) setError(cause instanceof Error ? cause.message : "Failed to load extraction setup.");
-    }).finally(() => { if (current) setBriefLoading(false); });
+      if (current) setBriefLoad({ jobId, status: "error",
+        error: cause instanceof Error ? cause.message : "Failed to load extraction setup." });
+    });
     return () => { current = false; };
-  }, [jobId]);
+  }, [jobId, briefLoadAttempt]);
 
   useEffect(() => {
-    if (!briefLoading && !brief && sampleFileIds.length === 0 && documents.length > 0) {
+    if (briefReady && !brief && sampleFileIds.length === 0 && documents.length > 0) {
       setSampleFileIds([documents[0].fileId]);
     }
-  }, [briefLoading, brief, sampleFileIds.length, documents]);
+  }, [briefReady, brief, sampleFileIds.length, documents]);
 
   const running = runs.some((run) => run.status === "running" || (run.status as string) === "queued");
   const modelActionBlocked = modelConfigured && !isAdmin;
@@ -151,7 +163,7 @@ export function ProductAutoPage() {
   const formDirty = !brief || JSON.stringify({ intent: briefIntent, fields: briefFields, samples: sampleFileIds }) !==
     JSON.stringify({ intent: brief.intent, fields: brief.fields,
       samples: brief.sample_sources.map((source) => source.file_id) });
-  const confirmed = brief?.state === "confirmed" && !formDirty && staleSampleFileIds.length === 0;
+  const confirmed = briefReady && brief?.state === "confirmed" && !formDirty && staleSampleFileIds.length === 0;
   const matchingPreviews = confirmed ? runs.filter((run) => run.confirmedBrief?.phase === "preview" &&
     run.confirmedBrief.briefId === brief.brief_id && run.confirmedBrief.revision === brief.revision &&
     run.confirmedBrief.payloadSha256 === brief.payload_sha256) : [];
@@ -169,11 +181,17 @@ export function ProductAutoPage() {
   }
 
   async function saveDraft() {
+    if (!briefReady) return;
     setBriefBusy(true);
     setError("");
     try {
+      const fields = briefFields.map((field) => ({ ...field,
+        example_values: field.example_values.map((example) => example.trim()).filter(Boolean) }));
+      if (fields.some((field) => field.example_values.length > 3)) {
+        throw new Error("Each field may have at most three examples. Remove extra examples before saving.");
+      }
       const saved = await idpoApi.saveProductAutoBrief(jobId, brief?.revision ?? 0,
-        briefIntent, briefFields, sampleFileIds);
+        briefIntent, fields, sampleFileIds);
       setBrief(saved.brief);
       setBriefIntent(saved.brief.intent);
       setBriefFields(saved.brief.fields);
@@ -186,7 +204,7 @@ export function ProductAutoPage() {
   }
 
   async function suggestFields() {
-    if (!brief || brief.state !== "draft" || formDirty) return;
+    if (!briefReady || !brief || brief.state !== "draft" || formDirty) return;
     setSuggesting(true);
     setSuggestion(null);
     setError("");
@@ -199,7 +217,7 @@ export function ProductAutoPage() {
   }
 
   async function confirmSchema() {
-    if (!brief) return;
+    if (!briefReady || !brief) return;
     setBriefBusy(true);
     setError("");
     try {
@@ -230,7 +248,7 @@ export function ProductAutoPage() {
   }
 
   async function start() {
-    if (selected.length === 0) return;
+    if (!briefReady || selected.length === 0) return;
     setStarting(true);
     setError("");
     try {
@@ -247,6 +265,7 @@ export function ProductAutoPage() {
   }
 
   async function startWithRequestReceipt(payload: ProductAutoRunPayload): Promise<ProductAutoRun> {
+    if (!briefReady) throw new Error("Load extraction setup before starting extraction.");
     const finishAdmission = runRefresh.current.beginAdmission();
     try {
       let stored: PendingProductAutoRunRequest;
@@ -345,6 +364,14 @@ export function ProductAutoPage() {
       </div>
 
       {error ? <div role="alert" className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-700/40 dark:bg-rose-900/20 dark:text-rose-300">{error}</div> : null}
+      {briefLoad.status === "error" ? <IdpoCard>
+        <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">{briefLoad.error}</p>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Extraction setup could not be loaded. Load the saved schema before editing fields or starting extraction.</p>
+        <button type="button" onClick={() => setBriefLoadAttempt((attempt) => attempt + 1)}
+          className="mt-3 rounded-lg border border-cyan-600 px-3 py-2 text-sm font-medium text-cyan-700 dark:text-cyan-300">
+          Retry loading extraction setup
+        </button>
+      </IdpoCard> : null}
       <IdpoCard>
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Files</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{documents.length} {documents.length === 1 ? "file" : "files"} in this job. Uploading does not start extraction.</p>
@@ -373,7 +400,7 @@ export function ProductAutoPage() {
             {brief.state === "confirmed" ? `Confirmed revision ${brief.revision}` : `Draft revision ${brief.revision}`}
           </span> : null}
         </div>
-        <fieldset disabled={briefBusy || suggesting || starting || running}
+        <fieldset disabled={!briefReady || briefBusy || suggesting || starting || running}
           aria-busy={briefBusy || suggesting || starting} aria-label="Extraction setup" className="min-w-0">
         <label className="mt-4 block text-sm font-medium text-slate-700 dark:text-slate-200">
           What should the result contain?
@@ -421,7 +448,7 @@ export function ProductAutoPage() {
                 </label>
                 <label className="mt-3 block text-xs font-medium text-slate-600 dark:text-slate-300">Example values (one per line, up to three)
                   <textarea value={field.example_values.join("\n")} rows={2} onChange={(event) => updateField(index,
-                    { example_values: event.target.value.split(/\r?\n/).filter(Boolean) })}
+                    { example_values: event.target.value.split(/\r?\n/) })}
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
                 </label>
               </div>
@@ -447,19 +474,19 @@ export function ProductAutoPage() {
           </p> : null}
         </div>
         <div className="mt-5 flex flex-wrap items-center gap-3">
-          <button type="button" onClick={() => void saveDraft()} disabled={briefBusy || suggesting || starting || running ||
+          <button type="button" onClick={() => void saveDraft()} disabled={!briefReady || briefBusy || suggesting || starting || running ||
             (!formDirty && staleSampleFileIds.length === 0) || sampleFileIds.length === 0 ||
             (!briefIntent.trim() && briefFields.length === 0)}
             className="rounded-lg border border-cyan-600 px-4 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-50 disabled:opacity-50 dark:text-cyan-300">
             {briefBusy ? "Saving…" : brief?.state === "confirmed" ? "Save as new draft" : "Save draft"}
           </button>
-          <button type="button" onClick={() => void confirmSchema()} disabled={briefBusy || suggesting || starting || running ||
+          <button type="button" onClick={() => void confirmSchema()} disabled={!briefReady || briefBusy || suggesting || starting || running ||
             !brief || brief.state !== "draft" || formDirty || brief.fields.length === 0 ||
             brief.fields.some((field) => !field.description) || staleSampleFileIds.length > 0}
             className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50">
             Confirm field meanings
           </button>
-          <button type="button" onClick={() => void suggestFields()} disabled={briefBusy || suggesting || starting || running ||
+          <button type="button" onClick={() => void suggestFields()} disabled={!briefReady || briefBusy || suggesting || starting || running ||
             !brief || brief.state !== "draft" || formDirty || staleSampleFileIds.length > 0 || !modelConfigured || !isAdmin}
             className="rounded-lg border border-cyan-600 px-4 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-50 disabled:opacity-50 dark:text-cyan-300">
             {suggesting ? "Reading samples and suggesting…" : "Suggest fields with AI"}
@@ -480,7 +507,7 @@ export function ProductAutoPage() {
               </p>
             </div>
             <button type="button" onClick={() => setBriefFields(suggestion.fields)}
-              disabled={briefBusy || suggesting || formDirty || brief?.revision !== suggestion.provenance.brief_revision ||
+              disabled={!briefReady || briefBusy || suggesting || formDirty || brief?.revision !== suggestion.provenance.brief_revision ||
                 brief?.payload_sha256 !== suggestion.provenance.brief_payload_sha256}
               className="rounded-lg bg-cyan-600 px-3 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50">
               Use these fields in draft
@@ -537,7 +564,7 @@ export function ProductAutoPage() {
         </div> : null}
       </IdpoCard> : null}
 
-      {!brief ? <IdpoCard>
+      {briefReady && !brief ? <IdpoCard>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Run selected documents</h2>
@@ -620,7 +647,7 @@ export function ProductAutoPage() {
                 Copy reviewed JSONL
               </button>
               <p className="text-sm text-slate-600 dark:text-slate-300">
-                {reviewedCount} of {activeRun.selectedCount} reviewed. JSONL has one structured result per document.
+                {reviewedCount} of {activeRun.documents.length} results reviewed across {activeRun.selectedCount} selected {activeRun.selectedCount === 1 ? "file" : "files"}. JSONL has one structured result per document.
               </p>
             </div>
             {exportMessage?.runId === activeRun.runId ? <p role="status" className="mb-3 text-sm text-slate-600 dark:text-slate-300">{exportMessage.text}</p> : null}
