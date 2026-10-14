@@ -127,8 +127,11 @@ document-processing path:
 
 The native Windows product uses the gateway, frontend, a separate extraction worker, PostgreSQL and shared local
 file storage. It does not require Docker or Redis. Its current single-host storage and queue boundary is described
-in the [system contract](docs/SYSTEM_CONTRACT.md); the [recovery guide](scripts/native_recovery.md) describes its
-new cold-backup and passive-readback tooling. A live recovery drill is still pending.
+in the [system contract](docs/SYSTEM_CONTRACT.md). The
+[same-host cold backup and passive recovery drill](docs/evaluations/NATIVE_COLD_RECOVERY_20261014.md) completed a
+stopped-state copy, isolated restore and authenticated readback with zero extraction workers. The
+[recovery guide](scripts/native_recovery.md) defines its supported conditions. Extraction failover, recovery on a
+different host, transaction-loss windows and recovery time/point objectives remain unmeasured.
 
 The diagram below shows the separate research services available through the `research` Compose profile.
 Automatic extraction does not call AHMN, Guardrails, XAI-HITL, or the legacy IDPO HTTP service.
@@ -170,9 +173,11 @@ Automatic extraction does not call AHMN, Guardrails, XAI-HITL, or the legacy IDP
          ───────────────┘
 ```
 
-### Document Processing Path
+### Research Document Processing Path
 
-Documents are processed by one canonical runtime path (see [`docs/SYSTEM_CONTRACT.md`](docs/SYSTEM_CONTRACT.md)):
+The canonical research runtime follows the path below (see
+[`docs/SYSTEM_CONTRACT.md`](docs/SYSTEM_CONTRACT.md)). The extraction workspace uses the separate product worker
+described above.
 
 ```
   frontend /api/jobs ──► job runner ──► python -m idpo.cli process-inbox
@@ -224,14 +229,17 @@ AHMN routing runs in-process (`ahmn_core/direct_advisor.py`), so no AHMN server 
 
 ---
 
-## Quick Start
+## Optional Compose and Research Setup
 
-### Prerequisites
+For the native Windows extraction product, use the [native setup and launcher](scripts/native_product.md).
+The prerequisites below apply to these optional Compose and local research examples.
 
-- **Docker** & **Docker Compose** v2+ for the supporting services
-- Python 3.10 (for local development; the document pipeline is tested on 3.10.10 with PaddlePaddle 2.6.2)
+### Prerequisites for these examples
+
+- **Docker** & **Docker Compose** v2+ for the Compose deployment
+- Python 3.10 (for the local research pipeline, tested on 3.10.10 with PaddlePaddle 2.6.2)
 - Node.js 20.9+ (for frontend development)
-- [Ollama](https://ollama.com) with `qwen3.5:9b` and Tesseract 5 (for document extraction; see [docs/REPRODUCING_RESULTS.md](docs/REPRODUCING_RESULTS.md))
+- [Ollama](https://ollama.com) with `qwen3.5:9b` and Tesseract 5 (for the research document path; see [docs/REPRODUCING_RESULTS.md](docs/REPRODUCING_RESULTS.md))
 
 ### Start the supporting services with Docker
 
