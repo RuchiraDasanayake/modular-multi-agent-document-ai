@@ -97,3 +97,25 @@ application commit `d06f984286aa7b3e6cad5937cf193fdf53dbe384` is `GZmahZ4Wgx04zL
 
 Release work is limited to these gates and reproducible defects found while completing them. Additional agent loops,
 service migrations and unmeasured parser replacements are not prerequisites for this conference package.
+
+## Confirmed saves and schema editing
+
+The review UI previously issued a second document read after a successful save.
+If that read failed, the screen reported a failed save and retained the previous
+revision even though the server had committed the review. The save response now
+includes the verified document and audit history, which the screen applies
+directly. Existing response fields remain available. The regression checks the
+returned revision, audit event, corrected values and exclusion of private paths.
+
+Schema setup now uses a native disabled fieldset during draft saving, AI field
+suggestion, extraction admission and active extraction. This prevents edits made
+while a request is pending from being silently replaced by its earlier response.
+
+Validation after these changes: 194 frontend tests passed, five skipped; TypeScript
+and targeted ESLint passed with one existing navigation warning. The native
+production build passed. A read-only authenticated check confirmed the retained
+synthetic PDF export still has revision 2 and SHA-256
+`125909f9b053ab6f1458e58a59a4c35640c888c2eb47a6cf34b933c49e8e2e2b`.
+That check made zero model calls. Windows browser control stopped because it could
+not reliably identify the current URL, so it supplies no new browser-delivery
+evidence. The paired quality study continues with its original frozen code.

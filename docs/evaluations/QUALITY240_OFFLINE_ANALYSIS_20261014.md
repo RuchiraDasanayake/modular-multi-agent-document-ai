@@ -70,6 +70,21 @@ The scorer's request-duration sums are not campaign wall time. Preregistered
 latency percentiles and wall-time reporting still require the sealed timing
 records and must not be inferred from these sums. Unknown usage is not zero cost.
 
+After scoring, `scripts/quality240_timing_usage.py` requires the independently
+retained prediction-seal, verification-receipt and scoring-receipt hashes. It
+checks those bindings, all sealed artifact hashes and the scored usage totals
+before writing a new external report. It opens no reference files and makes no
+model calls. Twenty-three synthetic tests cover timing calculations, failure and
+missing-value retention, receipt tampering and denominator checks.
+
+Request p50/p95 use linear interpolation over measured request latencies,
+including failed and uncertain attempts. Every summary includes its measured
+count and missing observations. Source duration includes local processing and
+provider work. The recorded campaign span runs from the original start event to
+the last source closure, including provider and operator pauses and excluding
+later sealing and analysis. Exact process-active campaign duration was not
+recorded. All 240 sources per arm remain in the source denominator.
+
 ## Execution checkpoint, 14 October
 
 Preparation copied all 269 exact registered modules and the five analysis modules.
