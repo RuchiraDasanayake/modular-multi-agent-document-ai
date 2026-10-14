@@ -57,9 +57,10 @@ separate studies and structural criteria; they neither erase the failed 2,000-so
 semantic correctness, arbitrary-family accuracy or a homogeneous 2,000-document quality pass. Later evidence below
 is retained in chronological context rather than overwritten.
 
-The native confirmed-schema workflow is usable for a configured extraction/review demonstration. Final paper and
-slide generation/rendering, author approval/signatures and ordinary-browser file selection/saved-download checks
-remain separate completion items. High availability and priced cost per correctly released document remain open.
+The native confirmed-schema workflow is usable for a configured extraction/review demonstration. The
+[technical conference handoff](CONFERENCE_HANDOFF_20261014.md) has a visually checked five-page paper, two-page
+reviewer response and ten-slide deck. Author details/approval/signatures and ordinary-browser file selection/saved-download
+checks remain separate completion items. High availability and priced cost per correctly released document remain open.
 
 The native intent-first workflow now has confirmed field meanings, bounded AI suggestions, pinned preview and
 reviewed-preview batch admission, plus a PostgreSQL queue. The

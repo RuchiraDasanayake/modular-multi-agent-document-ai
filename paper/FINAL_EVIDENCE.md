@@ -19,7 +19,9 @@ include zero. Receipt rows improved and ad-buy rows declined; known candidate to
 cost remains unknown. The [verified source union](../docs/evaluations/VERIFIED_SOURCE_UNION_RESULT_20261014.md)
 accounts for 2,240 selected, 2,225 model-attempted, 2,147 valid complete and 2,146 non-null complete originals across
 separate studies, excluding the text baseline. It measures structural coverage, not semantic correctness. These new
-results do not change the historical tables below. Final paper/slide rendering and author sign-off remain open.
+results do not change the historical tables below. The [technical conference handoff](../docs/CONFERENCE_HANDOFF_20261014.md)
+records the completed five-page paper, two-page reviewer response and ten-slide deck with all pages/slides visually
+checked. Author details/approval/signatures and external submission remain open.
 
 **Verification note, 13 October 2026:** the eight named October raw run bundles
 were not found in the completed local audit. The tables below are preserved

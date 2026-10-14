@@ -4,7 +4,7 @@ Classification: `supporting`; action: `keep`.
 
 The completion target is a tested native extraction demo and a conference package
 whose empirical claims follow preserved, verified evidence. Author details and
-signatures are being completed separately by the authors.
+signatures remain with the authors.
 
 | Work | Owner | Acceptance check | State |
 | --- | --- | --- | --- |
@@ -14,9 +14,10 @@ signatures are being completed separately by the authors.
 | Score and reconcile measurements | Evaluation operator and analysis audit | Registered family metrics, paired intervals, failures, latency and known/unknown usage reconcile | Complete; independent count/bootstrap reconciliation passed 231 checks with exact interval endpoint agreement |
 | Reconcile distinct-source volume | Evaluation operator and analysis audit | Operational study plus candidate arm preserve both denominators and success criteria; text baseline excluded | Verified: 2,240 selected, 2,225 model-attempted, 2,147 valid complete and 2,146 non-null complete originals |
 | Fix concrete product defects | Implementation audit | Reproduced defects fixed with relevant regression checks | Review-save confirmation and schema edit locking fixed; 194 frontend tests passed, five skipped |
-| Update manuscript and reviewer response | Conference authoring | All retained numerical claims trace to verified evidence and official template renders cleanly within six pages | Verified result inputs available; final generation, rendering and visual inspection remain |
-| Update oral presentation | Conference authoring | Official template, actual result tables, clear limitations and visually checked slides | Verified shared reporting inputs available; final generation/rendering remain |
-| Verify native release | Release operator | Clean main, matching production build, healthy services and retained reviewed demo | Post-evaluation current-byte fingerprint, four verified service identities, three owned listening ports, worker health and retained export readback passed; final clean-main check follows publication merge |
+| Update manuscript and reviewer response | Conference authoring | All retained numerical claims trace to verified evidence and official template renders cleanly within six pages | Complete: five-page paper and two-page response, every page visually checked; author approval pending |
+| Update oral presentation | Conference authoring | Official template, actual result tables, clear limitations and visually checked slides | Complete: ten editable slides, all visually checked; private note paths removed and public evidence pins included |
+| Verify technical handoff | Conference authoring and independent audit | Deliver exact reviewed bytes, preserve author forms and provide portal-compatible presentation ZIP | Complete: 199 artifact checks and 24 independent focused consistency checks passed; six technical files copied and PPTX-only ZIP verified |
+| Verify native release | Release operator | Clean main, matching production build, healthy services and retained reviewed demo | Post-evaluation current-byte fingerprint, four verified service identities, three owned listening ports, worker health and retained export readback passed; final clean-main/current-build operator receipt is recorded privately after this documentation merge |
 | Verify ordinary browser file delivery | Release operator | File picker and saved download observed in Chrome or Edge | Windows control stopped because it could not identify the current URL; user cannot check yet |
 | Complete author declaration | Authors | Correct contacts, affiliations, consent, dates and signatures | Editable Word forms delivered |
 
@@ -54,3 +55,29 @@ the private verification receipt has SHA-256
 `5ac9779928ea70a6ec89bc5b5de2cab2c3baba33bf5a1c9bdc5bbf4ab79cd968`.
 This verifies the current application bytes while documentation/evidence edits
 are being prepared; clean-main verification follows their merge.
+
+## Completed conference package
+
+The [technical handoff](CONFERENCE_HANDOFF_20261014.md) records the exact paper,
+response and presentation hashes and their scope. All 565 retained public numeric
+leaves equal the final manuscript reporting aggregate. All 13 immutable published
+report/package files were independently downloaded and matched their raw hashes
+at evidence revision `525fe33377141f5e5c750ada76bfbbc1f683f3ea`.
+Private publication-verification receipt SHA-256:
+`94bd1e4967b42cd07ab96be1c89fbe680c3dcc4313e06fb61b8131001dfc8812`.
+
+All five paper pages, two response pages and ten slides were visually inspected.
+The independent final scientific consistency audit passed 24 focused checks,
+including both resolved denominator and note-privacy findings; receipt SHA-256:
+`dcbffe3171bc1b3e0bf116b76474de81183f762fa59fb8412d79f67e5ae80f71`.
+The verified handoff manifest has SHA-256
+`55918a21e3bed14133d002562e4a46a13641fd65f30f37b2315b1ae8d73e5984`.
+The requested local paper PDF was replaced with the same verified five-page PDF;
+the previous target was empty. Editable author forms were preserved as found.
+
+The human completion items are author details, all-author approval, consent,
+actual signatures/dates, presenter-form completion and conference submission.
+Recheck layout after entering author details. Native Microsoft Word/PowerPoint
+execution and Chrome/Edge file selection/saved-download delivery remain
+unverified. The rendering, API and engineering checks do not close those checks
+or certify general-purpose extraction accuracy and lower cost.

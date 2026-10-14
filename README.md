@@ -10,7 +10,8 @@ A native Windows extraction and review workspace: describe the information you n
 files, preview the results, process the remaining files, and review source evidence before exporting structured JSON.
 Its usable workflow and bounded research evidence are documented separately from the adaptive-policy research tools.
 
-> **Research results and how to reproduce them:** see [`docs/REPRODUCING_RESULTS.md`](docs/REPRODUCING_RESULTS.md).
+> **Current verified results and reconstruction:** see the [paired comparison](docs/evaluations/QUALITY240_RESULTS_20261014.md)
+> and [source-only reconstruction package](docs/evaluations/quality240_20261014/README.md).
 
 > **Release status — 14 October 2026:** The native workflow now has a persistent PostgreSQL queue,
 > confirmed schemas, sample preview, batch extraction, owner-scoped review and reviewed JSON export.
@@ -41,8 +42,10 @@ Its usable workflow and bounded research evidence are documented separately from
 > model-failure safeguards, native build/export checks and remaining conference sign-off gates.
 > The [productization plan](docs/PRODUCTIZATION_PLAN.md) retains the earlier failed baselines and release gates;
 > [`paper/FINAL_EVIDENCE.md`](paper/FINAL_EVIDENCE.md) preserves the separate historical research results.
-> Final paper/slide generation and visual checks, author approval/signatures and ordinary-browser file delivery
-> remain open. Arbitrary-document accuracy, cost per correct document and high availability are not certified.
+> The [technical conference handoff](docs/CONFERENCE_HANDOFF_20261014.md) contains the verified five-page paper,
+> two-page reviewer response and ten-slide oral deck; every page/slide was visually checked.
+> Author details, approval/signatures, submission and ordinary-browser file delivery remain open.
+> Arbitrary-document accuracy, cost per correct document and high availability are not certified.
 
 ## Product Workflow
 

@@ -1,7 +1,16 @@
 # Reproducing the Paper Results
 
-This guide rebuilds the benchmark packs, reruns the static vs `adaptive_safe` comparison, and regenerates every number in
-`paper/ieee/main.tex`. The frozen results and the run folders they came from are listed in `paper/FINAL_EVIDENCE.md`.
+**Historical guide.** These commands concern the earlier internal `paper/ieee/main.tex` draft.
+The eight original October run bundles were not recovered, so this guide does not establish that its historical
+results can currently be regenerated. See the [provenance audit](OCTOBER_EVIDENCE_PROVENANCE_AUDIT_20261013.md).
+For the completed 14 October camera-ready evidence, use the [paired results](evaluations/QUALITY240_RESULTS_20261014.md),
+[public reconstruction package](evaluations/quality240_20261014/README.md) and
+[corrected synthetic study](AHMN_CORRECTED_SIMULATION_RESULT_20261013.md). These retain their separate protocols
+and limitations; the source-only reconstruction metadata is not the original registered protocol.
+
+The historical procedure below describes benchmark-pack construction, the static vs `adaptive_safe` comparison and
+the original number-regeneration workflow for `paper/ieee/main.tex`. Its recorded results and run-folder names are
+preserved in `paper/FINAL_EVIDENCE.md`; the missing original bundles limit present verification.
 
 ## Reference platform
 
