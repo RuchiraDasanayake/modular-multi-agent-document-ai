@@ -1,0 +1,4 @@
+# Active research receipts pin these implementation bytes before inference.
+# Preserve their original line endings across checkouts and operating systems.
+product_eval/quality_transport.py text eol=crlf
+product_eval/quality_http408_resolution.py text eol=lf
