@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { IdpoCard } from "@/components/idpo/card";
+import { DocumentSourcePreview } from "./document-source-preview";
 import { idpoApi } from "@/lib/idpo-api";
 import { productAutoOutcomeCopy } from "./product-auto-outcome";
 import { isVisualProposal, machineProposalLabel, pdfSourcePageUrl, sourceTextPanelCopy, visualLinkedCellsReviewable } from "./product-auto-visual-review";
@@ -95,6 +96,9 @@ export function ProductAutoDocumentPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [sourcePage, setSourcePage] = useState<number | null>(null);
+  const [copyingExport, setCopyingExport] = useState(false);
+  const [exportMessage, setExportMessage] = useState("");
+  const [sourceCopyMessage, setSourceCopyMessage] = useState("");
 
   useEffect(() => {
     let current = true;
@@ -228,7 +232,8 @@ export function ProductAutoDocumentPage() {
   const atFieldLimit = candidate.proposed_schema.length - removedProposals + addedDraft.length >= 24;
   const originalUrl = `/api/jobs/${encodeURIComponent(jobId)}/docs/${encodeURIComponent(detail.fileId)}/content`;
   const exportUrl = `/api/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(runId)}/docs/${encodeURIComponent(docId)}/export`;
-  const previewable = /\.(pdf|png|jpe?g|txt|json)$/i.test(detail.fileName);
+  const previewable = /\.(pdf|png|jpe?g|tiff?|bmp)$/i.test(detail.fileName);
+  const plainText = /\.(txt|json)$/i.test(detail.fileName);
   const nativeFormat = /\.(docx|xlsx|pptx|html|eml)$/i.test(detail.fileName);
   const sourceTextCopy = sourceTextPanelCopy(detail.visualRoute, Boolean(detail.parsedDocument), detail.sourcePages);
   const selectedPageUrl = sourcePage === null ? null :
@@ -239,6 +244,33 @@ export function ProductAutoDocumentPage() {
     const target = pdfSourcePageUrl(originalUrl, detail.fileName, page, detail.sourcePages);
     if (target) setSourcePage(page);
     document.getElementById("original-source")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function copySourceText() {
+    if (!detail) return;
+    try {
+      await navigator.clipboard.writeText(detail.sourcePages.map((page) => page.text).join("\n\n"));
+      setSourceCopyMessage("Extracted text copied.");
+    } catch {
+      setSourceCopyMessage("Clipboard access is unavailable. Select and copy the extracted text below.");
+    }
+  }
+
+  async function copyReviewedResult() {
+    if (detail?.correctedResult.review_status !== "completed" || copyingExport) return;
+    setCopyingExport(true);
+    setExportMessage("");
+    try {
+      const blob = await idpoApi.downloadProductAutoReviewedDocument(jobId, runId, docId);
+      try {
+        await navigator.clipboard.writeText(await blob.text());
+        setExportMessage("Reviewed JSON copied.");
+      } catch {
+        setExportMessage("Clipboard access is unavailable. Download the reviewed JSON or select the result below.");
+      }
+    } catch (cause) {
+      setExportMessage(cause instanceof Error ? cause.message : "Could not export the reviewed result.");
+    } finally { setCopyingExport(false); }
   }
 
   return (
@@ -259,25 +291,22 @@ export function ProductAutoDocumentPage() {
 
       <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
       <IdpoCard className="lg:sticky lg:top-6">
-        <h2 id="original-source" className="text-lg font-semibold text-slate-900 dark:text-white">Original document</h2>
+        <h2 id="original-source" className="text-lg font-semibold text-slate-900 dark:text-white">{plainText ? "Source text" : "Original document"}</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{sourceTextCopy.introduction}</p>
         {selectedPageUrl ? <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">Showing PDF page {sourcePage}. <a className="text-cyan-700 underline dark:text-cyan-300" href={selectedPageUrl} target="_blank" rel="noopener noreferrer">Open this page in a new tab</a></p> : null}
         {previewable ? (
-          <iframe
-            title={`Original document: ${detail.fileName}`}
-            src={selectedPageUrl ?? originalUrl}
-            sandbox="allow-downloads"
-            loading="lazy"
-            referrerPolicy="no-referrer"
-            className="mt-4 h-[60vh] min-h-[380px] w-full rounded-xl border border-slate-200 bg-white dark:border-slate-700"
-          />
-        ) : (
+          <DocumentSourcePreview jobId={jobId} fileId={detail.fileId} fileName={detail.fileName}
+            page={sourcePage ?? 1} onPageChange={setSourcePage} />
+        ) : !plainText ? (
           <p className="mt-4 rounded-xl border border-slate-200 p-4 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
             This file type has no in-page preview. Download the original to inspect it.
           </p>
-        )}
-        <details className="mt-4 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+        ) : null}
+        <details open={plainText || undefined} className="mt-4 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
           <summary className="cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-200">{sourceTextCopy.summary}</summary>
+          <button type="button" onClick={() => void copySourceText()} disabled={!detail.sourcePages.some((page) => page.text)}
+            className="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium disabled:opacity-50 dark:border-slate-700">Copy extracted text</button>
+          {sourceCopyMessage ? <p role="status" className="mt-2 text-sm text-slate-600 dark:text-slate-300">{sourceCopyMessage}</p> : null}
           {detail.parsedDocument ? <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">Native cell addresses point into the unchanged uploaded file. Embedded images, slide notes and email attachments are not read. No cell pixel boxes or field meaning are verified.</p> : null}
           {sourceTextCopy.emptyMessage ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{sourceTextCopy.emptyMessage}</p> : null}
           <div className="mt-3 max-h-80 space-y-3 overflow-auto">
@@ -584,10 +613,17 @@ export function ProductAutoDocumentPage() {
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Corrected structured result</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Derived from the preserved machine candidate and latest saved review. Revision {detail.correctedResult.review_revision}; {detail.correctedResult.review_status}. Existing image-derived linked cells retain their machine status. Added values with a reviewer-observed page record a human decision, not OCR or pixel verification.</p>
         {detail.correctedResult.review_status === "completed" ? (
+          <div className="mt-3 flex flex-wrap gap-3">
           <a href={exportUrl} className="mt-3 inline-block rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700">
             Download reviewed JSON
           </a>
+          <button type="button" onClick={() => void copyReviewedResult()} disabled={copyingExport}
+            className="mt-3 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-50 dark:border-slate-700">
+            {copyingExport ? "Preparing JSON…" : "Copy reviewed JSON"}
+          </button>
+          </div>
         ) : <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">Complete the review to download a structured result.</p>}
+        {exportMessage ? <p role="status" className="mt-2 text-sm text-slate-600 dark:text-slate-300">{exportMessage}</p> : null}
         <pre className="mt-3 max-h-96 overflow-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-100">{JSON.stringify(detail.correctedResult, null, 2)}</pre>
       </IdpoCard> : null}
 

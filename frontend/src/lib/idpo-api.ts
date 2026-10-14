@@ -111,6 +111,26 @@ export const idpoApi = {
     return localDownload(`/api/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(runId)}/export`);
   },
 
+  downloadProductAutoReviewedDocument(jobId: string, runId: string, docId: string): Promise<Blob> {
+    return localDownload(`/api/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(runId)}/docs/${encodeURIComponent(docId)}/export`);
+  },
+
+  async getDocumentPreview(jobId: string, fileId: string, page: number, signal: AbortSignal): Promise<{ image: Blob; pageCount: number }> {
+    const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/docs/${encodeURIComponent(fileId)}/preview?page=${page}`,
+      { cache: "no-store", signal });
+    handleUnauthorized(response);
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.error || "Source preview is unavailable. Use the extracted text or open the original.");
+    }
+    const pageCount = Number(response.headers.get("X-DocAI-Page-Count"));
+    if (response.headers.get("Content-Type") !== "image/png" || !Number.isSafeInteger(pageCount) ||
+      pageCount < page || pageCount > 50 || Number(response.headers.get("X-DocAI-Page")) !== page) {
+      throw new Error("Invalid source preview. Open the original document.");
+    }
+    return { image: await response.blob(), pageCount };
+  },
+
   saveProductAutoReview(jobId: string, runId: string, docId: string, expectedRevision: number, fields: ProductAutoReviewField[], addedFields: ProductAutoAddedFieldInput[], reportedActiveMinutes = ""): Promise<{ review: ProductAutoReview; correctedResult: ProductAutoCorrectedResult }> {
     const reportedSeconds = parseReportedActiveMinutes(reportedActiveMinutes);
     return localRequest(`/api/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(runId)}/docs/${encodeURIComponent(docId)}`, {
