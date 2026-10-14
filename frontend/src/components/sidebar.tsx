@@ -19,9 +19,9 @@ interface NavItem {
     color?: string;
 }
 
-const USER_NAV: NavItem[] = [
-    { href: "/dashboard", label: "Overview", icon: "home", color: "brand" },
-    { href: "/dashboard/idpo", label: "Doc Extraction", icon: "document", badge: "Core", color: "brand" },
+const RESEARCH_NAV: NavItem[] = [
+    { href: "/dashboard", label: "Research Overview", icon: "home", color: "brand" },
+    { href: "/dashboard/idpo", label: "Research Pipeline", icon: "document", color: "brand" },
     { href: "/dashboard/idpo/benchmark", label: "Benchmark Results", icon: "chart", color: "cyan" },
     { href: "/dashboard/idpo/presentation", label: "Run Walkthrough", icon: "play", color: "cyan" },
     { href: "/dashboard/xai", label: "AI Q&A", icon: "chat", color: "violet" },
@@ -29,11 +29,14 @@ const USER_NAV: NavItem[] = [
     { href: "/dashboard/hitl", label: "Expert Review", icon: "userCheck", color: "amber" },
 ];
 
-const ADMIN_NAV: NavItem[] = [
+const ADMIN_RESEARCH_NAV: NavItem[] = [
     { href: "/dashboard/submit", label: "Policy Check", icon: "clipboard", color: "cyan" },
     { href: "/dashboard/experiments", label: "Experiments", icon: "flask", color: "emerald" },
     { href: "/dashboard/rabi", label: "Cold Start", icon: "seedling", color: "cyan" },
     { href: "/dashboard/daaf", label: "Drift Detection", icon: "bolt", color: "violet" },
+];
+
+const ADMIN_NAV: NavItem[] = [
     { href: "/dashboard/admin", label: "Users", icon: "users", color: "amber" },
     { href: "/dashboard/database", label: "Database", icon: "database", color: "cyan" },
 ];
@@ -171,7 +174,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             {/* Brand */}
             <div className="relative px-5 py-5 border-b border-slate-100/80 dark:border-gray-800/50">
                 <div className="flex items-center gap-3">
-                    <Link href="/dashboard" onClick={onClose} className="flex items-center gap-3 group flex-1 min-w-0">
+                    <Link href="/dashboard/idpo/jobs" onClick={onClose} className="flex items-center gap-3 group flex-1 min-w-0">
                         <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-cyan-500 flex items-center justify-center text-sm font-bold text-white shadow-lg shadow-brand-500/30 group-hover:shadow-brand-500/50 transition-all duration-300 group-hover:scale-105 flex-shrink-0">
                             AI
                             <div className="absolute inset-0 rounded-xl bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
@@ -179,7 +182,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                         <div className="flex-1 min-w-0">
                             <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Modular Doc AI</h2>
                             <p className="text-[10px] font-semibold tracking-wide uppercase bg-gradient-to-r from-brand-500 to-cyan-500 bg-clip-text text-transparent">
-                                {isAdmin ? "Research Console" : "Research System"}
+                                Document workspace
                             </p>
                         </div>
                     </Link>
@@ -212,18 +215,16 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
             {/* Navigation */}
             <nav className="relative flex-1 px-3 py-3 overflow-y-auto scrollbar-thin">
-                {/* Tools section */}
-                <div className="flex items-center gap-2 px-3 mb-2">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-gray-600">
-                        Tools
-                    </p>
-                    <div className="flex-1 h-px bg-gradient-to-r from-slate-200/60 to-transparent dark:from-gray-800/60" />
-                </div>
-                <div className="space-y-0.5 mb-5">
-                    {USER_NAV.map((item) => (
-                        <NavLink key={item.href} item={item} pathname={pathname} hrefs={USER_NAV.map((entry) => entry.href)} />
-                    ))}
-                </div>
+                <details className="mb-5" open={!pathname.startsWith("/dashboard/idpo/jobs") && pathname !== "/dashboard/admin"}>
+                    <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-slate-600 dark:text-gray-300">Research tools</summary>
+                    <p className="px-3 pb-2 text-xs text-slate-500 dark:text-gray-400">Separate experiments and services.</p>
+                    <div className="space-y-0.5">
+                        {[...RESEARCH_NAV, ...(isAdmin ? ADMIN_RESEARCH_NAV : [])].map((item) => (
+                            <NavLink key={item.href} item={item} pathname={pathname}
+                                hrefs={[...RESEARCH_NAV, ...ADMIN_RESEARCH_NAV].map((entry) => entry.href)} />
+                        ))}
+                    </div>
+                </details>
 
                 {/* Admin section */}
                 {isAdmin && (

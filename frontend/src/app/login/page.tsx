@@ -23,7 +23,7 @@ export default function LoginPage() {
         try {
             const { access_token } = await api.login(username, password);
             setToken(access_token);
-            router.push("/dashboard");
+            router.push("/dashboard/idpo/jobs");
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : "Login failed");
         } finally {

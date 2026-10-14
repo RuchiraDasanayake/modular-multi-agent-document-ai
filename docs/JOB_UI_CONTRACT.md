@@ -24,8 +24,11 @@ an explicit outcome for each file. Show pending, processing, ready for review, r
 in plain language. Do not label a machine result as reliable merely because JSON parsing or a text quote check passed.
 Display the configured coverage and route/cost policy before the user starts the remainder of a batch.
 
-This is target behavior. Current product routes lack intent onboarding, schema clarification and a sample preview
-gate. The research `adaptive`/`strict`/`both` controls described below remain available for the research runtime;
+The product implements intent onboarding, editable AI field suggestions, confirmed field meanings and a reviewed
+sample preview gate. Sign-in and the jobs list open the product workspace; uploads use the existing bounded,
+idempotent upload path from that same screen. The jobs list reports uploaded files, avoiding research-only progress
+counters that do not describe product runs. Research tools remain in a collapsed navigation group and advanced job
+settings. The research `adaptive`/`strict`/`both` controls described below remain available for the research runtime;
 they do not define the primary product workflow. See [the implementation boundary](SYSTEM_CONTRACT.md).
 
 ## Purpose

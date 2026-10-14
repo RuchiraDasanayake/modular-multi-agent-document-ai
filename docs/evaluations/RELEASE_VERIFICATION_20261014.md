@@ -34,8 +34,8 @@ Tested application commit: `f9cdf9b` (the subsequent documentation commit does n
 | Frontend and gateway/database health | HTTP 200; healthy |
 
 The authenticated export check made zero model requests. It verifies retained reviewed data after this release;
-it does not constitute a fresh extraction or browser interaction test. Browser sign-in and review/export screen
-verification remain pending. Existing [nine-format workflow](NATIVE_NINE_FORMAT_SCHEMA_FLOW_20261013.md),
+it does not constitute a fresh extraction or browser interaction test. Subsequent browser checks are recorded below.
+Existing [nine-format workflow](NATIVE_NINE_FORMAT_SCHEMA_FLOW_20261013.md),
 [owner-isolation](NATIVE_OWNER_ISOLATION_HTTP_20261013.md) and
 [cold recovery](NATIVE_COLD_RECOVERY_20261014.md) evidence retain their original scope and versions.
 
@@ -44,15 +44,48 @@ Production build ID: `71MF0ePeBmb3WLLq14_9P`. Source fingerprint:
 Private build-receipt SHA-256: `f6986f58b3bfaa61604bb86621045cf27a72337032d4c73077e812370b48d0e1`.
 Private live-export verification SHA-256: `f22e5d8f64df02fc40dcaea30845b93aadd7c38c7549a8dad6c17903c1cf7e46`.
 
+## Browser-discovered workspace correction
+
+Classification: product UI, `core`, simplify; research navigation, `supporting`, keep.
+Browser verification reproduced two misleading entry points: sign-in opened an unavailable research dashboard,
+and the job list displayed research-only processing counters for completed product extractions.
+
+Sign-in, sign-up and job links now open the extraction workspace. Uploads are available beside schema setup using
+the existing bounded upload helper and its request-key-preserving retry behavior. The jobs list shows file counts;
+actual extraction and review states remain inside each job. Separate research tools are collapsed, and advanced
+job settings retain access to job renaming and the research pipeline. No extraction algorithm or stored result changed.
+
+Observed in the rebuilt production browser:
+
+- Sign-in opened document jobs; a new job opened the extraction workspace directly.
+- Two authored text files uploaded together; both appeared in the sample/selection lists without a page reload.
+- A string field and a decimal field with explicit meanings were saved as draft revision 1 and confirmed as revision 2.
+- Preview became available; applying the remaining file stayed disabled without a reviewed preview.
+- The new job had exactly two stored sources and zero extraction runs. These browser checks made no model calls.
+- An existing completed human review displayed its source quotes, decisions, corrected values and review history.
+- The batch-download button was exercised without a page error, but the browser automation did not observe a
+  download event or a saved file. Browser file delivery is not certified by this check. Authenticated preview and batch
+  export checks independently returned the exact reviewed reference data again after the rebuild.
+
+Validation: 36 focused upload/request-key/schema-gate/export tests passed using scratch space on the data drive;
+TypeScript, targeted ESLint and the production build passed. The first default-scratch test run had three failures
+while the system drive was full; it is not used as passing evidence. The npm cache was moved to the data drive with
+its original path preserved by a junction. No application source or document was removed for that move.
+
+Updated production build: `O6IILvVa2cvFdCVMLK23W`; source fingerprint
+`7262aa4db0d37e87aaaa29a2cdee67214d39b2cc0848c73acda0f13f52641292`;
+build-receipt SHA-256 `bc2ab06c762a065177f12f0969f548bfbea01aa3fa504caae5f53a4422376c53`.
+The new export-check receipt has the same content hash as the earlier check above.
+
 ## Evidence and conference gates
 
 | Gate | Current evidence / remaining action |
 | --- | --- |
 | 2,000-original operational execution | Completed and independently verified: 1,987 originals began model requests; 1,930 strict/full-coverage outputs. All-source success gate failed. [Report](MODEL2000_VERIFIED_OPERATIONAL_20261013.md). |
-| Paired extraction quality | Frozen 240-source comparison interrupted, with 43 text and 44 candidate sources sealed. Labels remain unopened. Resume only unstarted sources under the unchanged protocol, then seal, verify and score. |
-| ICORE availability | The first request in the separate 25-source strict-v2 development trial returned HTTP 429 on 14 October. It stopped after one attempt; 24 sources remain unstarted. Usage is unknown. No automatic retry or default promotion. |
+| Paired extraction quality | Frozen 240-source comparison stopped again on rate limiting after a bounded resume. Text: 44 sealed, 3 uncertain, 193 unstarted; candidate: 46 sealed, 2 uncertain, 192 unstarted. Valid/full-coverage outputs: 44 text, 45 candidate. Labels remain unopened. Resume only unstarted slots once availability is restored, then seal, verify and score. |
+| ICORE availability | The separate 25-source strict-v2 development trial stopped after its first request returned HTTP 429; 24 sources remain unstarted. A later quality-study resume completed additional work before another 429. Latest stop receipt: `8be599b1d363318843eac102cce1445a30c0c2e0675e9c536092cf6cf90a286d`. No automatic retry or default promotion. |
 | Latest release accuracy | The completed 2,000-source campaign predates these fixes. Its measurements cannot be attributed to this release. JPEG packing checks and synthetic v2 checks are engineering evidence only. |
-| Browser workflow | Await normal sign-in, then verify the rendered review/export experience. API checks above already pass. |
+| Browser workflow | Sign-in, creation, upload, schema confirmation and existing review rendering verified. Authenticated exports pass; browser file-save delivery remains unconfirmed. |
 | Camera-ready paper and slides | Official-template working drafts include verified operational results and corrected simulation. Paired quality results and final layout verification remain. |
 | Author package | Confirm department/city wording, corresponding author, required secondary contacts, all-author approval and declaration signatures. External submission remains author-controlled. |
 
