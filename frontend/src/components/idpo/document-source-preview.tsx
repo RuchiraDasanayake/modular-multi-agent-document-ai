@@ -29,7 +29,7 @@ export function DocumentSourcePreview({ jobId, fileId, fileName, page, onPageCha
   }, [jobId, fileId, page, key]);
 
   const current = preview?.key === key ? preview : null;
-  return <div className="mt-4 space-y-3">
+  return <div className="mt-4 min-w-0 space-y-3">
     {!current ? <p role="status" className="text-sm text-slate-600 dark:text-slate-300">Loading source page {page}…</p> : null}
     {current?.error ? <div className="rounded-lg border border-amber-300 p-3 text-sm dark:border-amber-700">
       <p role="alert">{current.error}</p>
@@ -46,7 +46,7 @@ export function DocumentSourcePreview({ jobId, fileId, fileName, page, onPageCha
         <button type="button" disabled={page >= (current.pageCount ?? page)} onClick={() => onPageChange(page + 1)}
           className="rounded-lg border border-slate-300 px-3 py-2 disabled:opacity-40 dark:border-slate-700">Next page</button>
       </div>
-      <div className="max-h-[65vh] overflow-auto rounded-xl border border-slate-200 bg-white dark:border-slate-700">
+      <div className="max-h-[65vh] w-full min-w-0 overflow-auto rounded-xl border border-slate-200 bg-white dark:border-slate-700">
         {/* Authenticated raster bytes stay in a private browser blob; no public image optimizer is used. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={current.url} alt={`Source page ${page}: ${fileName}`} className="h-auto max-w-none"
