@@ -46,6 +46,7 @@ independent human-effort measurement is inferred from these saves.
 | Narrow-screen zoom | At a 314-pixel viewport, the zoomed 1,224-pixel page scrolls inside a 234-pixel preview pane; the document remains 314 pixels wide. Fit width restores the page. |
 | PDF review and copy | Both fields checked against rendered page 1, review saved, and copied JSON contained the expected values and review provenance. |
 | Add a field through review | Added `payment_terms = "30 days"` from the exact page-2 quote, saved revision 2, reloaded, and verified the persisted field and `human_added` provenance in copied JSON. Review-status refresh kept the run and its export controls available. |
+| Research overview boundaries | Rebuilt and checked the page in the browser: experimental routing and service health are explicitly scoped to research; an unavailable AHMN service shows `Research outcomes unavailable`, rather than implying an empty history. The extraction link leads to the document workspace. |
 
 Read-only authenticated verification checked each export, its recorded review
 revisions, the explicit test notes, and absence of reported human effort. The first
@@ -77,6 +78,8 @@ from the frozen operational and paired-quality campaigns.
   file chooser or a download event. Authenticated upload/export APIs and UI copying
   were verified, but ordinary browser file selection and saved-file delivery still
   require a Chrome/Edge check. Download-request messages do not assert file delivery.
+  Both browsers were unavailable to the browser tool, and the user could not run
+  the manual check on 14 October. This remains unverified, not a passed check.
 
 Use the [demo runbook](../DEMO_RUNBOOK.md). Final research and conference sign-off
 remain subject to the paired study, truthful manuscript updates and author details,

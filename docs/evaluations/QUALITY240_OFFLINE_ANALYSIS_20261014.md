@@ -69,3 +69,22 @@ and estimable bootstrap replicates alongside these derived recall metrics.
 The scorer's request-duration sums are not campaign wall time. Preregistered
 latency percentiles and wall-time reporting still require the sealed timing
 records and must not be inferred from these sums. Unknown usage is not zero cost.
+
+## Execution checkpoint, 14 October
+
+Preparation copied all 269 exact registered modules and the five analysis modules.
+The unchanged fourteen-module guard passed against the real protocol, with no
+prediction contents or reference labels read and zero model calls. Independently
+retained analysis manifest SHA:
+`a8c712379c8c8f1ab5bea7609365f15421d3af793925466a460cb54574c2e6db`.
+
+The prediction campaign is incomplete. At the latest inspected provider HTTP 503
+stop, text had 146 sealed, 6 uncertain and 88 unstarted sources; candidate had 147
+sealed, 5 uncertain and 88 unstarted sources. These are execution states, not
+accuracy measurements. The consecutive provider errors were preserved without
+replay. Execution remains stopped at control SHA
+`d5c2f133a2d997d2dfe53da83875da35477f2a9ee13e440202bbe1062bf866ef`.
+No prediction seal exists, and scoring has not run. A successful small provider
+canary earlier in the session did not establish reliability for document requests.
+Investigate provider availability before resuming untouched sources; retain every
+original denominator and unknown-usage event.
