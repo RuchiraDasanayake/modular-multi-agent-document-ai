@@ -84,7 +84,8 @@ These host-local links require a signed-in owner or administrator and are not po
 
 The [two-page PDF demonstration](http://127.0.0.1:3000/dashboard/idpo/jobs/443422cf736e40ec9bc1550df12847ea/auto)
 shows AI-assisted schema setup, local source-page navigation and reviewed export. Its expected values are
-`DEMO-2026-014` and `125.75`. Use **Zoom in** for small source text and **Fit width** to restore the page.
+`DEMO-2026-014` and `125.75`. Its second review revision adds `payment_terms = "30 days"` from
+page 2 with `human_added` provenance. Use **Zoom in** for small source text and **Fit width** to restore the page.
 See the [browser verification record](evaluations/DEMO_UI_VERIFICATION_20261014.md) for what was actually checked.
 The embedded browser's file chooser could not be automated; upload was verified through the authenticated API.
 Check file selection and saved-file delivery in the intended presentation browser before the live demonstration.
