@@ -242,7 +242,8 @@ def test_segmented_v2_requires_every_key_in_every_segment_and_keeps_coverage(tmp
     assert candidate["extracted_values"][2]["evidence"]["page"] == 1
 
 
-def test_visual_workflow_uses_v2_wire_and_retains_review_only(tmp_path: Path, monkeypatch) -> None:
+@pytest.mark.parametrize("visual_profile", ["bounded_visual_v1", "bounded_visual_selective_jpeg95_v1"])
+def test_visual_workflow_uses_v2_wire_and_retains_review_only(tmp_path: Path, monkeypatch, visual_profile: str) -> None:
     source = source_image(tmp_path)
     fake_ocr(monkeypatch, texts=["Widget 2 Total: 12.50"])
     schema_path, digest = snapshot(tmp_path, fields=FIELDS)
@@ -268,13 +269,16 @@ def test_visual_workflow_uses_v2_wire_and_retains_review_only(tmp_path: Path, mo
 
     model = VisualModel()
     run = process_auto(source, model=model, confirmed_schema=schema, response_format_profile=PROFILE_V2,
-                       visual_document_profile="bounded_visual_v1", output_root=tmp_path / "runs")
+                       visual_document_profile=visual_profile, output_root=tmp_path / "runs")
     run_dir = Path(run["run_dir"])
     candidate = json.loads((run_dir / "candidates.jsonl").read_text())
     sidecar = json.loads((run_dir / "docs" / candidate["doc_id"] / "result.json").read_text())
     manifest = json.loads((run_dir / "manifest.jsonl").read_text())
     assert len(model.requests) == 1
     assert model.requests[0]["response_format"] == compile_visual_response_format(SCHEMA, profile=VISUAL_PROFILE_V2)
+    image_url = model.requests[0]["messages"][1]["content"][2]["image_url"]["url"]
+    expected_mime = "image/jpeg" if visual_profile == "bounded_visual_selective_jpeg95_v1" else "image/png"
+    assert image_url.startswith(f"data:{expected_mime};base64,")
     visual_prompt = model.requests[0]["messages"][1]["content"][0]["text"]
     instructions, document_json = visual_prompt.split("Document data: ", 1)
     assert "object keyed by every confirmed field_id" in instructions
