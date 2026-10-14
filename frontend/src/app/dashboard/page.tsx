@@ -45,8 +45,8 @@ const PIPELINE_STEPS: { icon: IconName; label: string }[] = [
 const QUICK_ACTIONS: { href: string; title: string; description: string; icon: IconName; tone: string }[] = [
     {
         href: "/dashboard/idpo",
-        title: "Extract documents",
-        description: "Upload files, run the pipeline and review the extracted fields.",
+        title: "Research pipeline",
+        description: "Inspect experimental policy-routing jobs in the separately configured research runtime.",
         icon: "document",
         tone: "bg-brand-50 text-brand-600 border-brand-200/60 dark:bg-brand-500/10 dark:text-brand-300 dark:border-brand-500/20",
     },
@@ -83,7 +83,7 @@ const QUICK_ACTIONS: { href: string; title: string; description: string; icon: I
 const RESEARCH_COMPONENTS: { title: string; description: string; live: boolean }[] = [
     {
         title: "Thompson sampling",
-        description: "Picks an extraction policy for each document from Beta posteriors, behind a safety gate that falls back to the default policy.",
+        description: "Experimental policy selection from Beta posteriors with a default-policy safety gate. Not used by the confirmed-schema workspace.",
         live: true,
     },
     {
@@ -209,15 +209,15 @@ export default function DashboardOverview() {
                             {health.length > 0 && (
                                 <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-sm">
                                     <span className={`w-2 h-2 rounded-full ${healthyCount === SERVICES.length ? "bg-emerald-300 animate-pulse" : "bg-amber-300"}`} />
-                                    <span className="text-[11px] font-semibold text-white/90">{healthyCount} of {SERVICES.length} services online</span>
+                                    <span className="text-[11px] font-semibold text-white/90">{healthyCount} of {SERVICES.length} research services online</span>
                                 </div>
                             )}
                         </div>
                         <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white tracking-tight leading-tight">
-                            Adaptive document extraction
+                            Research overview
                         </h1>
                         <p className="text-white/85 mt-3 max-w-xl text-sm leading-relaxed">
-                            Upload receipts, forms or letters and get structured fields back. AHMN picks an extraction policy for each document, and a safety gate falls back to the default policy when a choice regresses.
+                            These experiments and services are separate from the extraction workspace. Use the workspace to confirm fields, preview files and review results before export.
                         </p>
 
                         {/* Inline pipeline mini-viz */}
@@ -248,7 +248,7 @@ export default function DashboardOverview() {
                             Extract documents
                             <Icon name="arrowRight" className="w-4 h-4 opacity-60 group-hover:translate-x-1 transition-transform" />
                         </Link>
-                        <span className="text-[11px] text-white/70 font-medium">PDF, PNG, JPG, TIFF, BMP, TXT or JSON</span>
+                        <span className="text-[11px] text-white/70 font-medium">PDF, images, text, office documents and email</span>
                     </div>
                 </div>
             </div>
@@ -293,7 +293,7 @@ export default function DashboardOverview() {
                 {/* Service Health Panel */}
                 <div className="glass-panel rounded-2xl p-5">
                     <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-sm font-bold text-slate-900 dark:text-white">Service health</h2>
+                        <h2 className="text-sm font-bold text-slate-900 dark:text-white">Research service health</h2>
                         <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-gray-800 border border-slate-200/60 dark:border-gray-700">
                             <HealthDot status={healthyCount === SERVICES.length ? "healthy" : healthyCount > 0 ? "degraded" : "offline"} />
                             <span className="text-[11px] font-medium text-slate-500 dark:text-gray-400">
@@ -347,7 +347,7 @@ export default function DashboardOverview() {
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-5 3xl:gap-6">
                 <div className="xl:col-span-2 glass-panel rounded-2xl p-5 sm:p-6">
                     <h2 className="text-sm font-bold text-slate-900 dark:text-white mb-1">Research components</h2>
-                    <p className="text-xs text-slate-500 dark:text-gray-400 mb-4">Which parts run in the live pipeline and which exist only in the experiment simulator.</p>
+                    <p className="text-xs text-slate-500 dark:text-gray-400 mb-4">Components of the experimental pipeline and simulator. These are separate from the confirmed-schema extraction workspace.</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         {RESEARCH_COMPONENTS.map((item) => (
                             <div key={item.title} className="rounded-xl border border-slate-200/70 bg-white/60 p-4 dark:border-gray-800 dark:bg-gray-900/40">
@@ -357,7 +357,7 @@ export default function DashboardOverview() {
                                         : "bg-slate-100 text-slate-600 dark:bg-gray-800 dark:text-gray-300"
                                         }`}
                                 >
-                                    {item.live ? "In pipeline" : "Simulation"}
+                                    {item.live ? "Research pipeline" : "Simulation"}
                                 </span>
                                 <h3 className="font-semibold text-slate-900 dark:text-white text-sm mt-2.5">{item.title}</h3>
                                 <p className="text-xs text-slate-600 dark:text-gray-400 mt-1.5 leading-relaxed">{item.description}</p>
@@ -368,7 +368,7 @@ export default function DashboardOverview() {
 
                 {/* Recent Activity */}
                 <div className="glass-panel rounded-2xl p-5">
-                    <h2 className="text-sm font-bold text-slate-900 dark:text-white">Recent outcomes</h2>
+                    <h2 className="text-sm font-bold text-slate-900 dark:text-white">AHMN research outcomes</h2>
                     <p className="text-xs text-slate-500 dark:text-gray-400 mb-3">Policy used and the label-free reward sent to AHMN.</p>
                     {loading ? (
                         <div className="space-y-2">
@@ -376,10 +376,15 @@ export default function DashboardOverview() {
                                 <div key={i} className="h-7 rounded-lg bg-slate-100 dark:bg-gray-800/60 animate-pulse" />
                             ))}
                         </div>
+                    ) : statsError ? (
+                        <div className="py-8 text-center">
+                            <p className="text-xs font-medium text-slate-500 dark:text-gray-400">Research outcomes unavailable</p>
+                            <p className="mt-1 text-[11px] text-slate-400 dark:text-gray-500">View document reviews in the extraction workspace.</p>
+                        </div>
                     ) : activity.length === 0 ? (
                         <div className="text-center py-8">
                             <p className="text-xs font-medium text-slate-500 dark:text-gray-400">No outcomes yet</p>
-                            <p className="text-[11px] text-slate-400 dark:text-gray-500 mt-1">Process a document to see it here.</p>
+                            <p className="text-[11px] text-slate-400 dark:text-gray-500 mt-1">Outcomes from the research pipeline appear here.</p>
                         </div>
                     ) : (
                         <ul className="space-y-1">
