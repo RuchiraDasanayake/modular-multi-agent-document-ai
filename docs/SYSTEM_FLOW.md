@@ -1,6 +1,12 @@
 # System Flow Documentation
 
-> Complete reference for how the Modular Multi-Agent Document AI system operates, including component interactions, data flow, learning loops, and background processes.
+This document describes the separate research service stack and its integration
+cycle. The current extraction product uses the confirmed-schema job workflow,
+persistent queue and owner-scoped review described in the
+[system contract](SYSTEM_CONTRACT.md) and [product quickstart](PRODUCT_QUICKSTART.md).
+For native Windows setup without Docker, use the
+[native product guide](../scripts/native_product.md). The product does not require
+the research memory, guardrails or XAI services to run.
 
 ---
 
