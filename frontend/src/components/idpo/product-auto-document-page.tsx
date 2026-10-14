@@ -280,7 +280,7 @@ export function ProductAutoDocumentPage() {
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="break-all text-2xl font-semibold text-slate-900 dark:text-white">{detail.fileName}</h1>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Document status: {candidate.document_status.replaceAll("_", " ")} · Human review: {detail.correctedResult.review_status}</p>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Original proposal: {candidate.document_status.replaceAll("_", " ")} · Human review: {detail.correctedResult.review_status}</p>
           </div>
           <a href={originalUrl} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">{nativeFormat ? "Download original" : "Open original"}</a>
         </div>
@@ -451,7 +451,7 @@ export function ProductAutoDocumentPage() {
               <h3 className="font-semibold text-slate-900 dark:text-white">Missed scalar fields</h3>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{detail.visualRoute === "visual"
                 ? "Inspect the original image, then record the page where you observed each added value. This is a human observation, not verified OCR or pixel evidence."
-                : "Each value needs a page and an exact quote from the OCR text. The typed value must appear in that quote."}</p>
+                : "Each value needs a page and an exact quote from the extracted text. The typed value must appear in that quote."}</p>
             </div>
             <button type="button" disabled={atFieldLimit || detail.sourcePages.length === 0}
               onClick={() => setAddedDraft((current) => [...current, { clientId: crypto.randomUUID(), field_id: "", type: "string", value: "",
@@ -498,14 +498,14 @@ export function ProductAutoDocumentPage() {
                   <button type="button" onClick={() => showSourcePage(field.human_source_page!.page)}
                     className="text-sm text-cyan-700 underline dark:text-cyan-300">View source page</button>
                 </div> : <div className="mt-3 grid gap-3 sm:grid-cols-[110px,minmax(0,1fr)]">
-                  <label className="text-sm text-slate-700 dark:text-slate-200">OCR page
+                  <label className="text-sm text-slate-700 dark:text-slate-200">Source page
                     <select value={field.evidence?.page ?? detail.sourcePages[0]?.page ?? 1} onChange={(event) => updateAdded(field.clientId,
                       { evidence: { page: Number(event.target.value), quote: field.evidence?.quote ?? "" } })}
                       className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950">
                       {detail.sourcePages.map((page) => <option key={page.page} value={page.page}>{page.page}</option>)}
                     </select>
                   </label>
-                  <label className="text-sm text-slate-700 dark:text-slate-200">Exact OCR quote
+                  <label className="text-sm text-slate-700 dark:text-slate-200">Exact source quote
                     <textarea value={field.evidence?.quote ?? ""} onChange={(event) => updateAdded(field.clientId,
                       { evidence: { page: field.evidence?.page ?? detail.sourcePages[0]?.page ?? 1, quote: event.target.value } })} rows={2} maxLength={500}
                       className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950" />
@@ -527,7 +527,7 @@ export function ProductAutoDocumentPage() {
               <h3 className="font-semibold text-slate-900 dark:text-white">Missed linked columns</h3>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{detail.visualRoute === "visual"
                 ? "Give related columns the same group and row numbers. Inspect each cell in the original image and record its page; these are reviewer observations, not machine-verified evidence. Image-derived results cannot seed a reusable recipe."
-                : "Give related columns the same group and row numbers. Every cell needs a page and a unique exact OCR quote containing its value. A recipe needs at least two columns aligned on each row."}</p>
+                : "Give related columns the same group and row numbers. Every cell needs a page and a unique exact source quote containing its value. A recipe needs at least two columns aligned on each row."}</p>
             </div>
             <button type="button" disabled={atFieldLimit || detail.sourcePages.length === 0}
               onClick={() => setAddedDraft((current) => [...current, { clientId: crypto.randomUUID(), field_id: "",
@@ -564,7 +564,7 @@ export function ProductAutoDocumentPage() {
                       onChange={(event) => updateAddedLinkedCell(field.clientId, index, { value: event.target.value })}
                       maxLength={500} className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 dark:border-slate-700 dark:bg-slate-950" /></td>
                     <td className="p-2"><select value={cell.human_source_page?.page ?? cell.evidence?.page ?? detail.sourcePages[0]?.page ?? 1}
-                      aria-label={`${field.field_id || "New column"} row ${index + 1} ${cell.human_source_page ? "observed image" : "OCR"} page`}
+                      aria-label={`${field.field_id || "New column"} row ${index + 1} ${cell.human_source_page ? "observed image" : "source"} page`}
                       onChange={(event) => updateAddedLinkedCell(field.clientId, index, cell.human_source_page
                         ? { human_source_page: { kind: "human_observed_page", page: Number(event.target.value) } }
                         : { evidence: { page: Number(event.target.value), quote: cell.evidence?.quote ?? "" } })}
@@ -575,7 +575,7 @@ export function ProductAutoDocumentPage() {
                       onClick={() => showSourcePage(cell.human_source_page!.page)}
                       className="text-cyan-700 underline dark:text-cyan-300">Observed in original image · view page</button>
                       : <textarea value={cell.evidence?.quote ?? ""}
-                        aria-label={`${field.field_id || "New column"} row ${index + 1} exact OCR quote`}
+                        aria-label={`${field.field_id || "New column"} row ${index + 1} exact source quote`}
                         onChange={(event) => updateAddedLinkedCell(field.clientId, index,
                           { evidence: { page: cell.evidence?.page ?? detail.sourcePages[0]?.page ?? 1,
                             quote: event.target.value } })}
@@ -653,13 +653,13 @@ export function ProductAutoDocumentPage() {
                       <ul className="ml-4 list-disc">{field.value.map((cell) => <li key={cell.row}>
                         Row {cell.row + 1}: {cell.value}{cell.human_source_page
                           ? ` · reviewer observed original image page ${cell.human_source_page.page}`
-                          : cell.evidence ? <> · OCR page {cell.evidence.page}: <q>{cell.evidence.quote}</q></> : " · no source reference"}
+                          : cell.evidence ? <> · source page {cell.evidence.page}: <q>{cell.evidence.quote}</q></> : " · no source reference"}
                       </li>)}</ul>
                     </li>
                   ) : (
                     <li key={`added-${field.field_id}`} className="break-words"><span className="font-medium">{field.field_id}</span>: added {field.type} value {displayValue(field.value)}
                       {field.human_source_page ? ` · reviewer observed original image page ${field.human_source_page.page}` :
-                        field.evidence ? <> · OCR page {field.evidence.page}: <q>{field.evidence.quote}</q></> : " · no source reference"}</li>
+                        field.evidence ? <> · source page {field.evidence.page}: <q>{field.evidence.quote}</q></> : " · no source reference"}</li>
                   ))}
                 </ul>
               </li>

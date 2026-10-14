@@ -18,6 +18,8 @@ local raster preview (`core`, `keep`), operator instructions (`supporting`, `kee
   silently replaced by the saved snapshot. Source navigation remains available.
 - Run-list reads are invalidated around admission. Older focus/poll responses
   cannot hide a newly queued run or reconcile an obsolete request receipt.
+- Added-field source references say "source" or "extracted text" for both digital
+  text and OCR. Proposal status/counts are distinguished from the saved human review.
 
 The renderer reuses installed PDFium/Pillow. It accepts only owner/admin-accessible
 uploaded bytes and has no provider credentials, arbitrary path or URL input.
@@ -43,15 +45,18 @@ independent human-effort measurement is inferred from these saves.
 | Source preview | Both PDF pages visibly rendered. Next/previous page controls and end-page bounds worked; desktop source/field columns and the narrow layout were inspected. |
 | Narrow-screen zoom | At a 314-pixel viewport, the zoomed 1,224-pixel page scrolls inside a 234-pixel preview pane; the document remains 314 pixels wide. Fit width restores the page. |
 | PDF review and copy | Both fields checked against rendered page 1, review saved, and copied JSON contained the expected values and review provenance. |
+| Add a field through review | Added `payment_terms = "30 days"` from the exact page-2 quote, saved revision 2, reloaded, and verified the persisted field and `human_added` provenance in copied JSON. Review-status refresh kept the run and its export controls available. |
 
-Read-only authenticated verification also checked each export, its one recorded
-review revision, the explicit test notes, and absence of reported human effort.
+Read-only authenticated verification checked each export, its recorded review
+revisions, the explicit test notes, and absence of reported human effort. The first
+PDF export below predates the separate added-field check and is retained as history.
 
 | Export | SHA-256 |
 | --- | --- |
 | TXT preview JSONL | `4856736dcd3fa07c9a634bc6e2042749c89227e05fb9a0a5c41dc92985cfe91b` |
 | TXT batch JSONL | `3534b31ff073026823a612117285119ce1cb2b7989bc311334ee5303413f52f7` |
-| PDF reviewed JSON | `2c32e01345dbe177a43d9194e3b31c2d0cfbf37cc78247236cc3ed3ebbcf5b3f` |
+| PDF reviewed JSON, revision 1 | `2c32e01345dbe177a43d9194e3b31c2d0cfbf37cc78247236cc3ed3ebbcf5b3f` |
+| PDF reviewed JSON, revision 2 with added field | `125909f9b053ab6f1458e58a59a4c35640c888c2eb47a6cf34b933c49e8e2e2b` |
 
 These three small synthetic documents establish integration behavior, not
 general-purpose accuracy, scalability or human productivity. They are separate
