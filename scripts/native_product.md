@@ -136,7 +136,7 @@ cannot be completely covered within those bounds fail explicitly. Extraction
 profile version 2 pins this policy; version 1 retains the historical text limit.
 
 Optional `autoVisualDocument` selects `disabled` (default), `bounded_visual_v1`,
-or `bounded_visual_selective_v2`. Version 3 extraction profiles seal this choice.
+`bounded_visual_selective_v2`, or `bounded_visual_selective_jpeg95_v1`. Version 3 extraction profiles seal this choice.
 With a confirmed schema, v1 sends eligible images and PDFs requiring OCR through
 the visual path. Selective v2 uses the pre-call selection rule above: short scalar
 sources with usable OCR text use strict text extraction, while repeated columns,
@@ -147,6 +147,13 @@ and 4 MiB per request, and a 2,048-pixel image edge. A source that cannot fit fa
 explicitly. Every visual proposal requires review. This option sends source
 images to the configured model endpoint; it requires a measured quality/cost
 comparison before deployment. See [visual extraction](../docs/PRODUCT_VISUAL_BOUNDARY.md).
+
+The JPEG95 profile retains selective-v2 routing but explicitly transmits every selected visual page as
+full-page RGB JPEG95, with 4:4:4 subsampling and stripped metadata. Source/OCR raster hashes and geometry remain
+separate from transmitted payload hashes. This is lossy and quality-unvalidated; it is never selected as an
+automatic fallback. The byte/page/request limits and human-review requirement are unchanged. Existing PNG
+profiles and defaults are preserved. [Local encoding evidence](../docs/evaluations/JPEG95_VISUAL_ENCODING_20261014.md)
+establishes packing feasibility only, with no provider or extraction-quality claim.
 
 The launcher sets `PRODUCT_EXECUTION_MODE=postgres` and `PRODUCT_QUEUE_DATABASE_URL` from `databaseUrl`.
 The app role needs schema creation privileges in its own database: pg-boss manages `docai_queue`, and the queue

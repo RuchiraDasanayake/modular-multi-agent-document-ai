@@ -36,6 +36,10 @@ import type {
 
 const SAFE_ID = /^[a-zA-Z0-9_-]{1,100}$/;
 const SAFE_OUTCOME_REASONS = new Set<string>(PRODUCT_AUTO_OUTCOME_REASONS);
+const MODEL_OUTPUT_FAILURE_REASONS = new Set([
+  "schema_provider_error", "invalid_schema_model_response", "values_provider_error",
+  "invalid_values_model_response", "invalid_strict_values_model_response",
+]);
 const MAX_REVIEW_NOTE = 2000;
 const MAX_CORRECTION = 10000;
 const MAX_LINKED_CORRECTION = 300000;
@@ -648,6 +652,15 @@ function parseResultBytes(bytes: Buffer): Record<string, unknown> {
   return result as Record<string, unknown>;
 }
 
+function projectFailedModelOutput(candidate: ProductAutoCandidate, reason: unknown): ProductAutoCandidate {
+  // Older sealed results recorded a failed model response as reviewable nulls.
+  // Interpret only exact known failure codes, without changing the artifact bytes.
+  return candidate.document_status === "needs_review" && typeof reason === "string" &&
+    MODEL_OUTPUT_FAILURE_REASONS.has(reason)
+    ? { ...candidate, document_status: "failed" }
+    : candidate;
+}
+
 function readSourcePages(result: Record<string, unknown>): Array<{ page: number; text: string }> {
   if (!Array.isArray(result.pages)) throw new Error("Invalid source pages.");
   const seen = new Set<number>();
@@ -836,8 +849,9 @@ function validatedDocuments(record: RunRecord, targetDocId?: string): RunRecord[
       !matchesConfirmedSchemaReceipt(result.confirmed_schema, record)) {
       throw new Error("Machine result schema differs from the selected schema.");
     }
-    const candidate = candidateFromArtifact(result.candidate, docId, result.pages);
-    if (candidate.document_status !== receipt.document_status) throw new Error("Candidate and receipt status differ.");
+    const artifactCandidate = candidateFromArtifact(result.candidate, docId, result.pages);
+    if (artifactCandidate.document_status !== receipt.document_status) throw new Error("Candidate and receipt status differ.");
+    const candidate = projectFailedModelOutput(artifactCandidate, result.reason);
     const review = readReview(record.jobId, record.runId, docId);
     return [{
       docId,
@@ -1508,7 +1522,7 @@ function loadProductAutoDocument(jobId: string, runId: string, docId: string, se
     throw new AccessError("The machine result no longer matches the completed run receipt.", 409);
   }
   const result = parseResultBytes(bytes);
-  const candidate = candidateFromArtifact(result.candidate, docId, result.pages);
+  const candidate = projectFailedModelOutput(candidateFromArtifact(result.candidate, docId, result.pages), result.reason);
   const outcomeReason = (candidate.document_status === "failed" || candidate.document_status === "unsupported") &&
     typeof result.reason === "string" && SAFE_OUTCOME_REASONS.has(result.reason)
     ? result.reason as ProductAutoDocumentDetail["outcomeReason"] : undefined;

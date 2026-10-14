@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -163,6 +163,41 @@ fs.writeFileSync(path.join(process.env.CAPTURE_DIR, runId + '.json'), JSON.strin
     { params: Promise.resolve({ jobId: job.jobId, runId: preview.runId, docId: "doc1" }) });
     assert.equal(review.status, 200);
     assert.equal(getProductAutoRun(job.jobId, preview.runId).documents[0].reviewStatus, "completed");
+
+    // Older workers sealed invalid model replies as reviewable nulls. A historical
+    // completed audit of such a result must not admit the remaining paid batch.
+    const previewRunDir = path.join(dataDir, "product_runs", preview.runId);
+    const previewResultPath = path.join(previewRunDir, "docs", "doc1", "result.json");
+    const previewManifestPath = path.join(previewRunDir, "manifest.jsonl");
+    const previewTerminalPath = path.join(dataDir, "frontend", "auto_runs", job.jobId,
+      `${preview.runId}.terminal.json`);
+    const reviewEventPath = path.join(dataDir, "frontend", "auto_reviews", job.jobId,
+      preview.runId, "events", "doc1", "000000000001.json");
+    const originals = [previewResultPath, previewManifestPath, previewTerminalPath, reviewEventPath]
+      .map((file) => fs.readFileSync(file));
+    try {
+      const legacyResult = JSON.parse(originals[0].toString("utf8"));
+      legacyResult.reason = "invalid_strict_values_model_response";
+      legacyResult.candidate.extracted_values = [{ field_id: "total", value: null,
+        status: "missing", review_state: "pending" }];
+      const resultBytes = Buffer.from(JSON.stringify(legacyResult));
+      const resultHash = createHash("sha256").update(resultBytes).digest("hex");
+      fs.writeFileSync(previewResultPath, resultBytes);
+      const manifest = JSON.parse(originals[1].toString("utf8"));
+      manifest.result_sha256 = resultHash;
+      fs.writeFileSync(previewManifestPath, `${JSON.stringify(manifest)}\n`);
+      const terminal = JSON.parse(originals[2].toString("utf8"));
+      terminal.documents[0].machineResultSha256 = resultHash;
+      fs.writeFileSync(previewTerminalPath, JSON.stringify(terminal));
+      const event = JSON.parse(originals[3].toString("utf8"));
+      event.machine_result_sha256 = resultHash;
+      event.review_snapshot.machine_result_sha256 = resultHash;
+      fs.writeFileSync(reviewEventPath, JSON.stringify(event));
+      assert.equal((await start([remaining.fileId], "batch", preview.runId)).status, 409);
+    } finally {
+      for (const [index, file] of [previewResultPath, previewManifestPath, previewTerminalPath,
+        reviewEventPath].entries()) fs.writeFileSync(file, originals[index]);
+    }
 
     const sourcePath = path.join(uploaded.uploadsPath!, sample.storedName);
     const originalSource = fs.readFileSync(sourcePath);

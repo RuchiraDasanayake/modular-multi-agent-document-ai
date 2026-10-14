@@ -86,6 +86,36 @@ relationship between physically repeated or continued rows on separate requests.
 
 ## Bounds and provenance
 
+### Explicit JPEG95 candidate
+
+`bounded_visual_selective_jpeg95_v1` is an opt-in, lossy candidate. It uses the same pre-call selection rules
+as `bounded_visual_selective_v2`: eligible images/OCR PDFs with repeated fields, more than 24,000 text characters,
+or no usable OCR text use visual extraction; other sources retain their text route. Every selected visual page
+uses JPEG95. There is no automatic PNG-to-JPEG fallback after a failed plan or model call.
+
+Select it with `--visual-document-profile bounded_visual_selective_jpeg95_v1`, the server environment variable
+`IDPO_AUTO_VISUAL_DOCUMENT`, or native `autoVisualDocument`. New queue dispatches seal the explicit profile;
+later configuration cannot change it. The default remains `disabled`. Existing PNG routing profiles are unchanged.
+
+The new transform is `full_page_original_grid_rgb_jpeg95_444_lanczos_2048_v1`: complete original-orientation pages,
+RGB, the same at-most-2048-edge Lanczos geometry, JPEG quality 95, subsampling 0 (4:4:4), `optimize=False`,
+`progressive=False`, and stripped source metadata. Original OCR input PNG hashes, dimensions and source line
+geometry are retained independently. Page receipts record `payload_sha256`, `payload_mime_type: image/jpeg`,
+`payload_lossy: true`, encoder settings and scaled geometry. They do not mislabel JPEG bytes as PNG.
+The historical `PreparedVisualPage.png` field remains available for PNG callers; new code uses `.payload`.
+
+Preparation and packing require the same explicit `encoding_profile="jpeg95_v1"` when using the lower-level
+helpers. Mismatched profiles, MIME/header identity, payload hashes, page enumeration or request bounds fail
+before the first model call. All existing limits below still apply. New-profile size failures additionally record
+content-free stage/page/dimension/byte-limit details in the private `visual_document.admission_failure` sidecar.
+The existing PNG sidecar and request formats remain unchanged.
+
+This option addresses an observed byte-budget limitation. The [local encoding evidence](evaluations/JPEG95_VISUAL_ENCODING_20261014.md)
+does not establish provider JPEG support, readability equivalence, extraction accuracy or lower inference cost.
+Every visual proposal still requires human review. No frozen study uses this new profile.
+
+### Existing PNG profiles and shared bounds
+
 - Input: one original PDF or single-frame raster, at most 100 MiB. Office and text files must use another route.
 - The original's expected SHA-256 is required. Preparation renders a private byte snapshot and rechecks the
   original afterward. The provider rechecks the original again before each send. It sends only the immutable
@@ -96,13 +126,13 @@ relationship between physically repeated or continued rows on separate requests.
 - PDF uses the existing shared renderer, including its PDFium lock, intrinsic scan resolution and 4096-edge /
   12-million-pixel raster bounds. Source images have the same raster bounds. Encrypted PDFs and multiframe images
   are explicitly unsupported. Rendering itself shares the existing renderer's execution-time limitations.
-- Full pages are converted to RGB PNG and optionally downscaled with Lanczos to at most 2048 pixels per edge.
+- Existing PNG profiles convert full pages to RGB PNG and optionally downscale with Lanczos to at most 2048 pixels per edge.
   Version `full_page_original_grid_rgb_png_lanczos_2048_v2` preserves the decoded original pixel grid, matching
   RapidOCR rather than applying EXIF rotation only on the visual side. The receipt records the source EXIF
   orientation and that it was not transposed. The transmitted PNG strips metadata, including orientation tags,
   so a provider cannot apply an undeclared EXIF transform. Sideways source images may remain sideways; this is a
   quality limitation. Their boxes still refer to the documented pixel grid.
-  Each encoded PNG is at most 3,000,000 bytes. There is no crop, tile, lossy JPEG rewrite or hidden retry. This
+  Each encoded page is at most 3,000,000 bytes. The PNG profiles do not crop, tile, use lossy JPEG or retry. This
   limit can make small text illegible; it is an explicit quality limit, not a readability guarantee.
 - The complete body, including images, text, geometry, schema, model and output-token budget, is at most 4 MiB.
   Packing uses actual compact UTF-8 JSON bytes. A single page that cannot fit fails before any calls. More than

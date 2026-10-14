@@ -153,9 +153,11 @@ def test_workflow_pins_format_and_retains_human_review(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("reply,reason,status", [
     (ModelReply(text=json.dumps(VALUES), latency_ms=1, finish_reason="length", sdk_attempts=1),
-     "invalid_strict_values_model_response", "needs_review"),
+     "invalid_strict_values_model_response", "failed"),
     (ModelReply(text=json.dumps(VALUES), latency_ms=1, finish_reason="stop", refusal=True, sdk_attempts=1),
-     "invalid_strict_values_model_response", "needs_review"),
+     "invalid_strict_values_model_response", "failed"),
+    (ModelReply(text='{"values":', latency_ms=1, finish_reason="stop", sdk_attempts=1),
+     "invalid_strict_values_model_response", "failed"),
     (ModelReply(text="", latency_ms=1, error="http_400", error_category="request_rejected", sdk_attempts=1),
      "values_provider_error", "failed"),
 ])
@@ -166,6 +168,19 @@ def test_strict_incomplete_refusal_or_provider_error_never_falls_back(
     assert len(model.calls) == 1
     assert sidecar["reason"] == reason
     assert candidate["document_status"] == status
+    assert all(value["status"] == "missing" for value in candidate["extracted_values"])
+
+
+def test_complete_all_null_reply_is_reviewable_absence(tmp_path: Path) -> None:
+    absent = {"values": [{"field_id": field["field_id"], "value": None,
+                          "page": None, "quote": None} for field in SCHEMA_FIELDS]}
+    candidate, sidecar, _, _, model = _strict_run(
+        tmp_path, ModelReply(text=json.dumps(absent), latency_ms=1, finish_reason="stop", sdk_attempts=1),
+        run_id="strict-all-null",
+    )
+    assert len(model.calls) == 1
+    assert candidate["document_status"] == "needs_review"
+    assert sidecar["reason"] == "confirmed_schema_no_grounded_values"
     assert all(value["status"] == "missing" for value in candidate["extracted_values"])
 
 

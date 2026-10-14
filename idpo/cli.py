@@ -81,7 +81,8 @@ def main() -> None:
     auto_parser.add_argument("--long-document-profile", default="reject",
                              choices=("reject", "bounded_text_segments_v1"))
     auto_parser.add_argument("--visual-document-profile", default="disabled",
-                             choices=("disabled", "bounded_visual_v1", "bounded_visual_selective_v2"))
+                             choices=("disabled", "bounded_visual_v1", "bounded_visual_selective_v2",
+                                      "bounded_visual_selective_jpeg95_v1"))
     auto_parser.add_argument("--approved-recipe-file", default=None, help="Explicit approved recipe snapshot file")
     auto_parser.add_argument("--approved-recipe-sha256", default=None, help="Expected SHA-256 of recipe snapshot bytes")
     auto_parser.add_argument("--confirmed-schema-file", default=None, help="Explicit user-confirmed schema snapshot file")

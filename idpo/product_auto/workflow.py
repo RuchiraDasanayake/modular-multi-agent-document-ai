@@ -657,10 +657,9 @@ def _process_document(
                     else None
                 )
                 if proposed_values is None:
-                    force_review = True
-                    provider_failed = values_reply.error is not None
+                    force_review = provider_failed = True
                     sidecar["reason"] = (
-                        "values_provider_error" if provider_failed else
+                        "values_provider_error" if values_reply.error is not None else
                         "invalid_strict_values_model_response" if strict_response_format is not None else
                         "invalid_values_model_response"
                     )
@@ -686,26 +685,24 @@ def _process_document(
         _record_model_call(sidecar, "schema", schema_reply)
         proposed = (
             parse_schema_reply(schema_reply.text)
-            if not schema_reply.error and schema_reply.finish_reason in {None, "stop"}
+            if not schema_reply.error and not schema_reply.refusal and schema_reply.finish_reason in {None, "stop"}
             else None
         )
         if proposed is None:
-            force_review = True
-            provider_failed = schema_reply.error is not None
-            sidecar["reason"] = "schema_provider_error" if provider_failed else "invalid_schema_model_response"
+            force_review = provider_failed = True
+            sidecar["reason"] = "schema_provider_error" if schema_reply.error is not None else "invalid_schema_model_response"
         else:
             schema = proposed
             values_reply = _complete_model(model, values_prompt(pages, schema))
             _record_model_call(sidecar, "values", values_reply)
             proposed_values = (
                 parse_values_reply(values_reply.text, schema, pages)
-                if not values_reply.error and values_reply.finish_reason in {None, "stop"}
+                if not values_reply.error and not values_reply.refusal and values_reply.finish_reason in {None, "stop"}
                 else None
             )
             if proposed_values is None:
-                force_review = True
-                provider_failed = values_reply.error is not None
-                sidecar["reason"] = "values_provider_error" if provider_failed else "invalid_values_model_response"
+                force_review = provider_failed = True
+                sidecar["reason"] = "values_provider_error" if values_reply.error is not None else "invalid_values_model_response"
             else:
                 values.update(proposed_values)
                 if native_parsed is not None:

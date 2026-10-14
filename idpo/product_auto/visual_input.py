@@ -25,6 +25,12 @@ from idpo.product_auto.visual_output import PROFILE_V2 as VISUAL_VALUES_PROFILE_
 from idpo.product_auto.visual_output import compile_visual_response_format
 
 TRANSFORM_VERSION = "full_page_original_grid_rgb_png_lanczos_2048_v2"
+JPEG95_TRANSFORM_VERSION = "full_page_original_grid_rgb_jpeg95_444_lanczos_2048_v1"
+PNG_ENCODING_PROFILE = "png_v2"
+JPEG95_ENCODING_PROFILE = "jpeg95_v1"
+ENCODING_PROFILES = frozenset({PNG_ENCODING_PROFILE, JPEG95_ENCODING_PROFILE})
+JPEG95_ENCODER = {"format": "JPEG", "mode": "RGB", "quality": 95,
+                  "subsampling": 0, "optimize": False, "progressive": False}
 PACK_VERSION = "ordered_complete_pages_4x12_4mib_v1"
 MAX_SOURCE_BYTES = 100 * 1024 * 1024
 MAX_PAGES = 50
@@ -51,6 +57,15 @@ INSTRUCTIONS = INSTRUCTIONS_PREFIX + DOCUMENT_DATA_PREFIX
 class VisualInputError(ValueError):
     """Stable, content-free admission or coverage failure."""
 
+    def __init__(self, reason: str, *, details: dict[str, object] | None = None) -> None:
+        super().__init__(reason)
+        self.details = details
+
+
+def _admission_error(reason: str, encoding_profile: str, **details: object) -> VisualInputError:
+    # Only the new opt-in profile adds bounded, content-free numeric diagnostics.
+    return VisualInputError(reason, details=details if encoding_profile == JPEG95_ENCODING_PROFILE else None)
+
 
 def _json_bytes(value: object) -> bytes:
     # Same UTF-8, compact JSON encoding used by httpx for the SDK request body.
@@ -67,6 +82,14 @@ def _png(image: Image.Image) -> bytes:
     return output.getvalue()
 
 
+def _jpeg95(image: Image.Image) -> bytes:
+    output = io.BytesIO()
+    with image.convert("RGB") as rgb:
+        rgb.info.clear()
+        rgb.save(output, format="JPEG", quality=95, subsampling=0, optimize=False, progressive=False)
+    return output.getvalue()
+
+
 @dataclass(frozen=True, repr=False)
 class PreparedVisualPage:
     source_path: Path
@@ -76,6 +99,17 @@ class PreparedVisualPage:
     png: bytes
     ocr_json: bytes
     receipt_json: bytes
+    encoding_profile: str = PNG_ENCODING_PROFILE
+    encoded_payload: bytes | None = None
+
+    @property
+    def payload(self) -> bytes:
+        """Keep the historical PNG constructor; JPEG lives in a generic field."""
+        if self.encoding_profile == PNG_ENCODING_PROFILE:
+            return self.png
+        if self.encoding_profile != JPEG95_ENCODING_PROFILE or self.png or not isinstance(self.encoded_payload, bytes):
+            raise VisualInputError("visual_payload_identity_changed")
+        return self.encoded_payload
 
     def receipt(self) -> dict[str, object]:
         return json.loads(self.receipt_json)
@@ -104,9 +138,13 @@ class PreparedVisualRequest:
 
 
 def _prepare_page(image: Image.Image, *, source_path: Path, source_hash: str, number: int,
-                  total: int, ocr: Mapping[str, object], render: dict[str, object]) -> PreparedVisualPage:
+                  total: int, ocr: Mapping[str, object], render: dict[str, object],
+                  encoding_profile: str = PNG_ENCODING_PROFILE) -> PreparedVisualPage:
+    if encoding_profile not in ENCODING_PROFILES:
+        raise VisualInputError("visual_encoding_profile_invalid")
     if image.width > 4096 or image.height > 4096 or image.width * image.height > 12_000_000:
-        raise VisualInputError("visual_raster_size_unsupported")
+        raise _admission_error("visual_raster_size_unsupported", encoding_profile, stage="raster_admission",
+                               page=number, dimensions=list(image.size), edge_limit=4096, pixel_limit=12_000_000)
     original = _png(image)
     original_hash = _sha(original)
     text = ocr.get("text")
@@ -134,16 +172,17 @@ def _prepare_page(image: Image.Image, *, source_path: Path, source_hash: str, nu
     resized = image.resize(size, Image.Resampling.LANCZOS) if size != image.size else image
     try:
         # The original raster hash includes its decoded source metadata, matching
-        # OCR. The transmitted PNG contains pixels only: retaining an EXIF rotate
+        # OCR. The transmitted image contains pixels only: retaining an EXIF rotate
         # tag could make a provider display a different grid from these boxes.
         with resized.copy() as payload_image:
             payload_image.info.clear()
-            png = _png(payload_image)
+            payload = _jpeg95(payload_image) if encoding_profile == JPEG95_ENCODING_PROFILE else _png(payload_image)
     finally:
         if resized is not image:
             resized.close()
-    if len(png) > MAX_IMAGE_BYTES:
-        raise VisualInputError("visual_page_encoded_size_unsupported")
+    if len(payload) > MAX_IMAGE_BYTES:
+        raise _admission_error("visual_page_encoded_size_unsupported", encoding_profile, stage="page_encoding",
+                               page=number, dimensions=list(size), encoded_bytes=len(payload), limit_bytes=MAX_IMAGE_BYTES)
     sx, sy = size[0] / image.width, size[1] / image.height
     geometry = [{"line_index": line["line_index"], "start": line["start"], "end": line["end"],
                  "polygon": [[x * sx, y * sy] for x, y in line["polygon"]]} for line in lines]
@@ -152,24 +191,35 @@ def _prepare_page(image: Image.Image, *, source_path: Path, source_hash: str, nu
     ocr_json = _json_bytes(page_data)
     receipt = {"source_sha256": source_hash, "page": number, "total_pages": total,
                "raster_png_sha256": original_hash, "raster_size": list(image.size),
-               "payload_png_sha256": _sha(png), "payload_size": list(size), "payload_bytes": len(png),
+               "payload_png_sha256": _sha(payload), "payload_size": list(size), "payload_bytes": len(payload),
                "ocr_text_sha256": page_data["text_sha256"], "ocr_geometry_sha256": _sha(_json_bytes(lines)),
                "payload_geometry_sha256": _sha(_json_bytes(geometry)), "ocr_line_count": len(lines),
                "ocr_payload_sha256": _sha(ocr_json),
                "transform_version": TRANSFORM_VERSION, "scale_xy": [sx, sy], "render": render,
                "payload_metadata_stripped": True,
                "coverage": "complete_page", "visual_grounding_verified": False}
-    return PreparedVisualPage(source_path, source_hash, number, total, png, ocr_json, _json_bytes(receipt))
+    if encoding_profile == JPEG95_ENCODING_PROFILE:
+        del receipt["payload_png_sha256"]
+        receipt.update(payload_sha256=_sha(payload), payload_mime_type="image/jpeg",
+                       encoding_profile=encoding_profile, transform_version=JPEG95_TRANSFORM_VERSION,
+                       payload_lossy=True, encoder=dict(JPEG95_ENCODER))
+    return PreparedVisualPage(source_path, source_hash, number, total,
+                              payload if encoding_profile == PNG_ENCODING_PROFILE else b"", ocr_json,
+                              _json_bytes(receipt), encoding_profile,
+                              payload if encoding_profile == JPEG95_ENCODING_PROFILE else None)
 
 
 def prepare_visual_document(
     source_path: Path, *, expected_source_sha256: str, pages: Sequence[Mapping[str, object]],
+    encoding_profile: str = PNG_ENCODING_PROFILE,
 ) -> tuple[PreparedVisualPage, ...]:
     """Hash-check an admitted image/PDF, then prepare every page or fail locally.
 
     ``pages`` uses exact product page text and optional RapidOCR line metadata.
     Native text has no pixel boxes. Multiframe raster files remain unsupported.
     """
+    if encoding_profile not in ENCODING_PROFILES:
+        raise VisualInputError("visual_encoding_profile_invalid")
     source_path = Path(source_path).resolve()
     if not re.fullmatch(r"[0-9a-f]{64}", expected_source_sha256):
         raise VisualInputError("visual_source_hash_required")
@@ -185,10 +235,13 @@ def prepare_visual_document(
     def accept(image: Image.Image, number: int, total: int, render: dict[str, object]) -> None:
         nonlocal total_bytes
         page = _prepare_page(image, source_path=source_path, source_hash=expected_source_sha256,
-                             number=number, total=total, ocr=pages[number - 1], render=render)
-        total_bytes += len(page.png)
+                             number=number, total=total, ocr=pages[number - 1], render=render,
+                             encoding_profile=encoding_profile)
+        total_bytes += len(page.payload)
         if total_bytes > MAX_TOTAL_PNG_BYTES:
-            raise VisualInputError("visual_complete_coverage_budget_exceeded")
+            raise _admission_error("visual_complete_coverage_budget_exceeded", encoding_profile,
+                                   stage="aggregate_encoding", page=number, encoded_bytes=total_bytes,
+                                   limit_bytes=MAX_TOTAL_PNG_BYTES)
         prepared.append(page)
 
     def validate_coverage(total: int) -> None:
@@ -202,6 +255,7 @@ def prepare_visual_document(
 
     if source.startswith(b"%PDF-"):
         from pypdf import PdfReader
+
         from idpo.agents.preprocess import _render_pdf_page
 
         # All rendering reads this private, hash-checked snapshot, not a mutable upload path.
@@ -233,7 +287,8 @@ def prepare_visual_document(
                 if getattr(raw, "n_frames", 1) != 1:
                     raise VisualInputError("visual_multiframe_unsupported")
                 if raw.width > 4096 or raw.height > 4096 or raw.width * raw.height > 12_000_000:
-                    raise VisualInputError("visual_raster_size_unsupported")
+                    raise _admission_error("visual_raster_size_unsupported", encoding_profile, stage="raster_admission",
+                                           page=1, dimensions=list(raw.size), edge_limit=4096, pixel_limit=12_000_000)
                 validate_coverage(1)
                 orientation = raw.getexif().get(274)
                 # RapidOCR receives the decoded original grid without EXIF
@@ -252,8 +307,11 @@ def prepare_visual_document(
 def plan_visual_requests(
     pages: Sequence[PreparedVisualPage], *, fields: Sequence[Mapping[str, object]], intent: str,
     model: str, max_tokens: int, response_format_profile: str = VISUAL_VALUES_PROFILE,
+    encoding_profile: str = PNG_ENCODING_PROFILE,
 ) -> tuple[PreparedVisualRequest, ...]:
     """Greedily pack ordered complete pages; refuse all work if any page is uncovered."""
+    if encoding_profile not in ENCODING_PROFILES:
+        raise VisualInputError("visual_encoding_profile_invalid")
     if not pages or len(pages) > MAX_PAGES or len(intent) > 8000 or not model.strip() or \
             type(max_tokens) is not int or not 1 <= max_tokens <= 16_384:
         raise VisualInputError("visual_plan_invalid")
@@ -265,6 +323,22 @@ def plan_visual_requests(
     response_format = compile_visual_response_format(fields, profile=response_format_profile)
     for page in pages:
         receipt = page.receipt()
+        if page.encoding_profile != encoding_profile:
+            raise VisualInputError("visual_encoding_profile_mismatch")
+        if encoding_profile == JPEG95_ENCODING_PROFILE:
+            if (receipt.get("encoding_profile") != encoding_profile or
+                    receipt.get("payload_mime_type") != "image/jpeg" or
+                    receipt.get("transform_version") != JPEG95_TRANSFORM_VERSION or
+                    receipt.get("encoder") != JPEG95_ENCODER or receipt.get("payload_lossy") is not True or
+                    receipt.get("payload_metadata_stripped") is not True or
+                    receipt.get("payload_bytes") != len(page.payload) or len(page.payload) > MAX_IMAGE_BYTES):
+                raise VisualInputError("visual_payload_identity_changed")
+            try:
+                with Image.open(io.BytesIO(page.payload)) as header:
+                    if header.format != "JPEG" or header.mode != "RGB" or list(header.size) != receipt.get("payload_size"):
+                        raise VisualInputError("visual_payload_identity_changed")
+            except (OSError, ValueError) as exc:
+                raise VisualInputError("visual_payload_identity_changed") from exc
         if receipt.get("page") != page.page or receipt.get("total_pages") != total or \
                 receipt.get("source_sha256") != source_hash:
             raise VisualInputError("visual_page_identity_changed")
@@ -282,12 +356,14 @@ def plan_visual_requests(
                     "pages": [json.loads(p.ocr_json) for p in batch]}).decode("utf-8")
         content: list[dict[str, object]] = [{"type": "text", "text": prompt}]
         for page in batch:
-            if _sha(page.png) != page.receipt()["payload_png_sha256"] or \
+            payload_hash_key = "payload_sha256" if encoding_profile == JPEG95_ENCODING_PROFILE else "payload_png_sha256"
+            if _sha(page.payload) != page.receipt()[payload_hash_key] or \
                     _sha(page.ocr_json) != page.receipt()["ocr_payload_sha256"]:
                 raise VisualInputError("visual_payload_changed")
             content.extend([{"type": "text", "text": f"Complete source page {page.page}"},
                             {"type": "image_url", "image_url": {
-                                "url": "data:image/png;base64," + base64.b64encode(page.png).decode("ascii"),
+                                "url": ("data:image/jpeg;base64," if encoding_profile == JPEG95_ENCODING_PROFILE else
+                                        "data:image/png;base64,") + base64.b64encode(page.payload).decode("ascii"),
                                 "detail": "high"}}])
         # Keep the tested SDK's top-level parameter order, so the wire receipt can
         # match exact bytes rather than a looser reserialized JSON equivalence.
@@ -302,20 +378,27 @@ def plan_visual_requests(
             if current:
                 batches.append(current)
             current = []
-        if len(body([page])) > MAX_REQUEST_BYTES:
-            raise VisualInputError("visual_single_page_request_unsupported")
+        singleton_bytes = len(body([page]))
+        if singleton_bytes > MAX_REQUEST_BYTES:
+            raise _admission_error("visual_single_page_request_unsupported", encoding_profile, stage="request_packing",
+                                   page=page.page, dimensions=page.receipt()["payload_size"],
+                                   encoded_bytes=len(page.payload), request_bytes=singleton_bytes, limit_bytes=MAX_REQUEST_BYTES)
         current.append(page)
     batches.append(current)
     if len(batches) > MAX_REQUESTS:
-        raise VisualInputError("visual_complete_coverage_budget_exceeded")
+        raise _admission_error("visual_complete_coverage_budget_exceeded", encoding_profile, stage="request_packing",
+                               source_pages=total, required_requests=len(batches), request_limit=MAX_REQUESTS)
     requests = []
     for index, batch in enumerate(batches):
         encoded = body(batch)
-        receipt = {"pack_version": PACK_VERSION, "transform_version": TRANSFORM_VERSION,
+        receipt = {"pack_version": PACK_VERSION, "transform_version": (
+                       JPEG95_TRANSFORM_VERSION if encoding_profile == JPEG95_ENCODING_PROFILE else TRANSFORM_VERSION),
                    "source_sha256": source_hash, "total_pages": total, "request_index": index,
                    "request_count": len(batches), "request_sha256": _sha(encoded), "request_bytes": len(encoded),
                    "pages": [p.receipt() for p in batch], "covered_pages": [p.page for p in batch],
                    "planned_covered_pages": list(range(1, total + 1)), "uncovered_pages": [],
                    "coverage": "complete_document_planned", "requires_human_review": True}
+        if encoding_profile == JPEG95_ENCODING_PROFILE:
+            receipt.update(encoding_profile=encoding_profile, payload_mime_type="image/jpeg", payload_lossy=True)
         requests.append(PreparedVisualRequest(source_path, source_hash, encoded, _json_bytes(receipt)))
     return tuple(requests)

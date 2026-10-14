@@ -57,6 +57,10 @@ all visual values require review, including exact OCR matches. Queued profile ve
 older jobs do not acquire visual routing from later server configuration. This is an implemented candidate,
 not a validated accuracy claim. See [visual extraction](PRODUCT_VISUAL_BOUNDARY.md).
 
+The explicit `bounded_visual_selective_jpeg95_v1` candidate retains selective-v2 routing and uses full-page
+JPEG95 payloads within the same limits. Its lossy payload hash and codec are distinct from the original OCR
+raster hash. It is opt-in and quality-unvalidated; existing PNG profiles and frozen study definitions are unchanged.
+
 The frontend accepts only known visual proposal metadata: exact source page IDs, optional `text_match` OCR spans,
 and `visual_grounding_verified: false`. It refuses unknown fields, repeated or absent page IDs, and machine-accepted
 visual values. The review page marks them **Image-derived — review required** and shows their source pages beside
@@ -194,8 +198,9 @@ The separate draft-suggestion action keeps its own 1,800-token limit; the 24,000
 A separate owner-scoped registry can save a completed review as a draft schema and explicitly approve it as `approved_shadow`.
 The operator may select a current approved revision for one run. The frontend rechecks its source
 review and owner, freezes a SHA-256-bound schema snapshot, and the worker skips schema induction
-and calls the model only for values. A stale or disabled selection fails closed; an invalid response
-leaves the selected fields missing and pending review. Receipts identify the exact recipe revision,
+and calls the model only for values. A stale or disabled selection fails closed; an invalid or incomplete
+model response fails the document and cannot be reviewed or exported as if the fields were absent.
+Receipts identify the exact recipe revision,
 event, and snapshot hash. Family selection is explicit; there is no automatic matching or release.
 A model can propose repeated columns as `array[object]` values with
 shared row ordinals and per-cell text evidence; row links remain pending human review. This is not a visual table
