@@ -96,6 +96,38 @@ def test_strict_format_requires_a_bounded_explicit_schema(monkeypatch) -> None:
         model.complete_json(system="system", prompt="synthetic", response_format=oversized)
 
 
+@pytest.mark.parametrize("status,category", [(408, "transport_timeout"), (400, "request_rejected")])
+def test_http_timeout_is_uncertain_without_sdk_retry(monkeypatch, status: int, category: str) -> None:
+    openai = pytest.importorskip("openai")
+    httpx = pytest.importorskip("httpx")
+    private_detail = "private-provider-detail"
+    monkeypatch.setenv("PRODUCT_TEST_KEY", "synthetic-secret")
+    requests: list[object] = []
+
+    def respond(request):
+        requests.append(request)
+        return httpx.Response(status, json={"error": {"message": private_detail, "type": "api_error"}})
+
+    real_openai = openai.OpenAI
+
+    def client_factory(**kwargs):
+        assert kwargs["max_retries"] == 0
+        return real_openai(**kwargs, http_client=httpx.Client(transport=httpx.MockTransport(respond)))
+
+    monkeypatch.setattr(openai, "OpenAI", client_factory)
+    model = OpenAICompatibleChat(base_url="https://example.invalid/v1", model="example-model",
+                                 api_key_env="PRODUCT_TEST_KEY")
+    try:
+        reply = model.complete_json(system="system", prompt="synthetic", response_format=strict_values_format())
+    finally:
+        model.client.close()
+    assert len(requests) == 1
+    assert (reply.error, reply.error_category, reply.sdk_attempts) == (f"http_{status}", category, 1)
+    assert (reply.prompt_tokens, reply.completion_tokens, reply.finish_reason) == (None, None, None)
+    assert reply.text == ""
+    assert private_detail not in str(reply)
+
+
 def test_provider_exposes_refusal_without_leaking_the_refusal_text(monkeypatch) -> None:
     class FakeOpenAI:
         def __init__(self, **kwargs: object) -> None:

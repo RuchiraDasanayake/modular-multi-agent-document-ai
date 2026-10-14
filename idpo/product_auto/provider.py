@@ -150,6 +150,9 @@ def _error_category(exc: Exception, status: object) -> str:
     if type(status) is int:
         if status == 401:
             return "authentication"
+        if status == 408:
+            # An HTTP timeout does not establish whether the provider completed or charged the call.
+            return "transport_timeout"
         if status == 429:
             return "rate_limit"
         if status >= 500:
