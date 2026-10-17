@@ -11,17 +11,27 @@ are still to be supplied in the four-main/two-additional declaration.
 | --- | --- | --- |
 | ICTAR26_2_Camera_Ready_Full_Paper.pdf | 5 pages | `03791b6f373487d37e4a2eb821bb226f0f6b6b51003bb247f6717b127fffd4cb` |
 | ICTAR26_2_Reviewer_Response.pdf | 2 pages | `dcc810af2db5570716dac2f57403e51aa41e02cb7e7b8e582305154f65f35c97` |
-| ICTAR26_2_PPT.zip | 10-slide PPTX | `51b493b9a74c62a7b25d70131e96c04298f14e3b15c8d114bf111cb39f52c063` |
+| ICTAR26_2_PPT.zip | 10-slide PPTX without notes | `e9ee5f1a86d748304b7fc3e8a016cb3a32d0563b5725e5f3ac20d249470a0466` |
 
 All three were downloaded from the CMT camera-ready draft on 17 October and
 matched these hashes. The newer presentation replaced the older slide archive.
-The draft title, abstract and author list agree with the paper. Three of four
-attachment slots are used. **The final Submit action has not been performed.**
+The draft title, abstract and author list agree with the paper. All four
+attachment slots are used, including the partially signed declaration.
+**The final Submit action has not been performed.**
 
 The paper and response are in the private `submission-candidate-20261017-v1`
-folder. The correct slides are in `presentation-redesign-20261017-v1/deliverables`,
+folder. The correct slides are in `presentation-research-story-20261017-v2/deliverables`,
 not the older slide copy in the candidate folder. All are under the local Paper2
-conference directory. The signing form remains unchanged.
+conference directory. The revised slides open with a verified authored extraction
+example, explain the measured comparisons and finish with explicit future product
+objectives. All speaker notes were removed; public evidence links remain visible.
+The final PowerPoint was opened and all ten slides rendered and inspected again.
+Its downloaded CMT archive (file 1031) matches the hash above.
+
+The declaration in the current draft contains three supplied signature images
+dated 17/10/2026. Three signature/date spaces remain blank. Its SHA256 is
+`c705cf68ca04f9a97b50e7829742c66eff205b72509b5574119de322b9c9c22f`.
+It is partially signed, not a completed six-author declaration.
 
 ## Evidence boundary
 
