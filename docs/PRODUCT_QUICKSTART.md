@@ -53,6 +53,12 @@ For a cold backup, follow the full [backup and passive recovery procedure](../sc
 
 ## Verification boundary
 
+The [17 October browser walkthrough](evaluations/DEMO_BROWSER_VERIFICATION_20261017.md)
+verified file selection, field entry, confirmed-schema preview and remaining-file
+extraction, source review, and saved JSON/JSONL downloads in the in-app browser.
+Both authored sources returned the four expected values. This establishes that
+specific workflow, not accuracy on arbitrary inputs or Chrome/Edge compatibility.
+
 The [same-host cold recovery drill](evaluations/NATIVE_COLD_RECOVERY_20261014.md) restored an isolated read-only copy and reproduced ten original files and three reviewed batch exports. It does not establish extraction failover or recovery after losing the host.
 
 An [authenticated synthetic nine-format API flow](evaluations/NATIVE_NINE_FORMAT_SCHEMA_FLOW_20261013.md) completed schema suggestion, preview, batch review and reviewed exports for simple self-authored documents. [Release readback](evaluations/NATIVE_RELEASE23_READBACK_20261013.md) checked existing source/export hashes and paid-request identity. Those checks do not establish browser usability end to end, accuracy on heterogeneous real documents, throughput, monetary cost per correct result, or universal extraction. Independent browser review and the planned larger quality evaluation remain separate work.

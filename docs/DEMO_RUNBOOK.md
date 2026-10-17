@@ -2,6 +2,13 @@
 
 Classification: `supporting`; action: `keep`.
 
+**17 October verification:** the in-app browser completed PDF/TXT file selection,
+manual field setup, live Luna 6 preview and batch extraction, review, and actual
+saved JSON/JSONL downloads. See the [browser verification](evaluations/DEMO_BROWSER_VERIFICATION_20261017.md).
+The older file-delivery limitations below describe the earlier checks; Chrome/Edge
+remain unverified. Run the launcher before the demo: one cold preflight failed
+scanned-PDF sampling before subsequent checks passed, with no established root cause.
+
 Use this guide to demonstrate the configured extraction workspace: upload files, confirm field meanings, preview,
 review against the source, process a batch, and export reviewed data. The acceptance check is completing that flow
 through the browser with visible source evidence and a readable export. First-time installation and configuration
