@@ -127,6 +127,7 @@ for (const outcome of [
   { status: "failed", reason: undefined },
   { status: "unsupported", reason: undefined },
   { status: "needs_review", reason: "invalid_strict_values_model_response" },
+  { status: "needs_review", reason: "document_processing_failed" },
 ] as const) {
   const { status, reason } = outcome;
   for (const runStatus of ["success", "running"] as const) {

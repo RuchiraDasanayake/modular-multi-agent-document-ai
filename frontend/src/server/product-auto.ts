@@ -39,7 +39,7 @@ const SAFE_ID = /^[a-zA-Z0-9_-]{1,100}$/;
 const SAFE_OUTCOME_REASONS = new Set<string>(PRODUCT_AUTO_OUTCOME_REASONS);
 const MODEL_OUTPUT_FAILURE_REASONS = new Set([
   "schema_provider_error", "invalid_schema_model_response", "values_provider_error",
-  "invalid_values_model_response", "invalid_strict_values_model_response",
+  "invalid_values_model_response", "invalid_strict_values_model_response", "document_processing_failed",
 ]);
 const MAX_REVIEW_NOTE = 2000;
 const MAX_CORRECTION = 10000;
