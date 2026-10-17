@@ -4,8 +4,8 @@ This guide covers the configured single-host Windows product. Open the frontend 
 
 ## Extract a batch
 
-1. **Sign In**, open **Document jobs**, choose **New job**, then **Upload files**. The job page shows upload progress. If it offers **Retry unconfirmed** after a lost response, use that control to check the original upload receipt before selecting those files again.
-2. Open **Automatic schema extraction**. Under **Set up your extraction**, describe the desired result in **What should the result contain?** Choose one to five representative **Sample files**. Use **Add field** to specify field IDs, types, **Meaning**, and optional examples. For a repeated table, add one `array[object]` field per column and give related columns the same **Repeated row group**.
+1. **Sign In**, select **Extract Documents** in the sidebar, choose **New job**, then **Upload files**. The new job opens its extraction workspace directly and shows upload progress. If it offers **Retry unconfirmed uploads** after a lost response, use that control to check the original upload receipt before selecting those files again.
+2. Under **Set up your extraction**, describe the desired result in **What should the result contain?** Choose one to five representative **Sample files**. Use **Add field** to specify field IDs, types, **Meaning**, and optional examples. For a repeated table, use **Add table column** for each column and give related columns the same **Repeated row group**.
 3. You can **Save draft** and ask an administrator to select **Suggest fields with AI**. This is a bounded model call that can cost money. Review the proposed fields and **Clarify before confirmation** questions. Select **Use these fields in draft** if helpful, edit missing or wrong meanings, and **Save draft** again. The AI proposal does not confirm the schema or start extraction.
 
    **Add table column** creates a repeated column using the latest row group, or
@@ -13,9 +13,9 @@ This guide covers the configured single-host Windows product. Open the frontend 
    If sample preparation times out, select fewer or smaller samples and save the
    draft again, or enter the fields manually. An explicit sample-stage failure
    happens before the schema model request; a general helper timeout may not.
-4. Choose **Confirm field meanings** when every field is correct. Check the **Confirmed schema for preview** summary, including sample filenames and field meanings, then choose **Preview sample files**. Use the direct **Review result** links in **Preview results** to inspect each sample. A later edit creates a new draft rather than silently changing the confirmed revision.
+4. Choose **Confirm field meanings** when every field is correct. Check the **Confirmed schema for preview** summary, including sample filenames and field meanings, then choose **Preview sample files**. Use the direct **Review result** links in **Preview results** to inspect each sample. After editing a confirmed schema, choose **Save as new draft** and confirm the new revision before previewing again.
 5. In **Runs**, open every preview result. Compare proposed values with **Open original** or **Download original** and the source text/page hints. **Text matched** only means that the value appears in extracted text; an image-derived page hint is not a verified pixel location. Choose a **Human decision** for each field, correct values or linked rows where needed, and select **Save human review**. Added values require the source reference requested on the page.
-6. After every sample result has completed review, choose **Apply to N remaining files**. Review every remaining result. Use **Download reviewed JSON** for one document or **Download reviewed batch** for a run. The latter is JSONL with one result per selected document; it refuses partial, failed, missing, stale, or unreviewed runs. A one-file job may have no remaining batch, so export its reviewed preview instead.
+6. After every sample result has completed review, select the other files and choose **Extract N selected files** (or **Extract 1 selected file**). Review every resulting document. Use **Download reviewed JSON** for one document or **Download reviewed batch** for a run. The latter is JSONL with one result per selected document; it refuses partial, failed, missing, stale, or unreviewed runs. A one-file job may have no remaining batch, so export its reviewed preview instead.
 
 ### Supported inputs and limits
 
@@ -60,11 +60,14 @@ For a cold backup, follow the full [backup and passive recovery procedure](../sc
 
 ## Verification boundary
 
-The [17 October browser walkthrough](evaluations/DEMO_BROWSER_VERIFICATION_20261017.md)
+The [earlier two-fixture browser walkthrough](evaluations/DEMO_BROWSER_VERIFICATION_20261017.md)
 verified file selection, field entry, confirmed-schema preview and remaining-file
 extraction, source review, and saved JSON/JSONL downloads in the in-app browser.
-Both authored sources returned the four expected values. This establishes that
-specific workflow, not accuracy on arbitrary inputs or Chrome/Edge compatibility.
+Both authored sources returned the four expected values. The separate
+[17 October release check](HIGH_VALUE_RELEASE_20261017.md) used three model calls
+to check v1/v2 preview and batch runs, duplicate linked rows, an absent field,
+and saved reviewed exports. These authored checks establish their specific
+workflows, not accuracy on arbitrary inputs or Chrome/Edge compatibility.
 
 The [same-host cold recovery drill](evaluations/NATIVE_COLD_RECOVERY_20261014.md) restored an isolated read-only copy and reproduced ten original files and three reviewed batch exports. It does not establish extraction failover or recovery after losing the host.
 

@@ -348,17 +348,43 @@ test("failed document details expose only allowlisted outcome codes to the owner
   const uploaded = await addDocumentsToJob(job.jobId, [new File(["synthetic image bytes"], "frames.tiff")]);
   const source = uploaded.documents![0];
   const sourceHash = createHash("sha256").update(fs.readFileSync(path.join(uploaded.uploadsPath!, source.storedName))).digest("hex");
-  const cases = [
+  const lengthCall = { phase: "values", finish_reason: "length", error: null, refusal: false, sdk_attempts: 1 };
+  const cases: Array<{ suffix: string; status: "failed" | "unsupported"; reason: string;
+    expected?: string; diagnostic?: string; sidecar?: Record<string, unknown>; omitReceipt?: boolean }> = [
     { suffix: "c", status: "unsupported", reason: "multi_frame_image_unsupported", expected: "multi_frame_image_unsupported" },
-    { suffix: "d", status: "failed", reason: "provider exception: private raw diagnostic", expected: undefined },
-  ] as const;
+    { suffix: "d", status: "failed", reason: "provider exception: private raw diagnostic" },
+    { suffix: "e", status: "failed", reason: "invalid_strict_values_model_response",
+      expected: "invalid_strict_values_model_response", diagnostic: "output_token_limit",
+      sidecar: { response_format_profile: "strict_confirmed_values_v1", model_calls: [lengthCall] } },
+    { suffix: "f", status: "failed", reason: "long_document_segment_incomplete", diagnostic: "output_token_limit",
+      sidecar: { response_format_profile: "strict_confirmed_values_v2", model_calls: [lengthCall] } },
+    { suffix: "g", status: "failed", reason: "invalid_strict_values_model_response",
+      expected: "invalid_strict_values_model_response",
+      sidecar: { response_format_profile: "plain_json", model_calls: [lengthCall] } },
+    { suffix: "h", status: "failed", reason: "invalid_strict_values_model_response",
+      expected: "invalid_strict_values_model_response",
+      sidecar: { response_format_profile: "strict_confirmed_values_v2",
+        model_calls: [{ ...lengthCall, phase: "schema" }] } },
+    { suffix: "i", status: "failed", reason: "unknown_private_reason",
+      sidecar: { response_format_profile: "strict_confirmed_values_v2", model_calls: [lengthCall] } },
+    { suffix: "j", status: "failed", reason: "invalid_strict_values_model_response",
+      expected: "invalid_strict_values_model_response", omitReceipt: true,
+      sidecar: { response_format_profile: "strict_confirmed_values_v2", model_calls: [lengthCall] } },
+    { suffix: "k", status: "failed", reason: "invalid_strict_values_model_response",
+      expected: "invalid_strict_values_model_response",
+      sidecar: { response_format_profile: ["strict_confirmed_values_v2"], model_calls: [lengthCall] } },
+    { suffix: "l", status: "failed", reason: "invalid_strict_values_model_response",
+      expected: "invalid_strict_values_model_response",
+      sidecar: { response_format_profile: "strict_confirmed_values_v2",
+        model_calls: [{ ...lengthCall, finish_reason: "stop" }] } },
+  ];
   for (const item of cases) {
     const runId = `auto_${item.suffix.repeat(32)}`;
     const docId = `doc_${item.suffix}`;
     const runDir = path.join(dataDir, "product_runs", runId);
     const resultDir = path.join(runDir, "docs", docId);
     fs.mkdirSync(resultDir, { recursive: true });
-    const resultBytes = Buffer.from(JSON.stringify({ pages: [], reason: item.reason,
+    const resultBytes = Buffer.from(JSON.stringify({ pages: [], reason: item.reason, ...item.sidecar,
       candidate: { contract_version: 1, doc_id: docId, document_status: item.status,
         proposed_schema: [], extracted_values: [] } }));
     const resultHash = createHash("sha256").update(resultBytes).digest("hex");
@@ -374,7 +400,8 @@ test("failed document details expose only allowlisted outcome codes to the owner
       serverInstanceId: "synthetic", selectedFiles: [{ fileId: source.fileId, fileName: source.fileName,
         storedName: source.storedName, sha256: sourceHash }],
       documents: [{ docId, fileId: source.fileId, fileName: source.fileName, status: item.status,
-        fieldCount: 0, acceptedCount: 0, reviewStatus: "unreviewed", machineResultSha256: resultHash }],
+        fieldCount: 0, acceptedCount: 0, reviewStatus: "unreviewed",
+        ...(!item.omitReceipt ? { machineResultSha256: resultHash } : {}) }],
     }));
     const url = `/api/jobs/${job.jobId}/auto/${runId}/docs/${docId}`;
     const params = { params: Promise.resolve({ jobId: job.jobId, runId, docId }) };
@@ -383,8 +410,22 @@ test("failed document details expose only allowlisted outcome codes to the owner
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.equal(body.outcomeReason, item.expected);
+    assert.equal(body.outcomeDiagnostic, item.diagnostic);
     assert.equal(body.sourcePages.length, 0);
     assert.equal(JSON.stringify(body).includes("private raw diagnostic"), false);
+    assert.equal(JSON.stringify(body).includes("model_calls"), false);
+    assert.equal(JSON.stringify(body).includes("finish_reason"), false);
+    if (item.diagnostic) {
+      const review = await reviewAutoDocRoute(request(url, "alice", { method: "POST",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: 0, fields: [] }) }), params);
+      assert.equal(review.status, 409);
+      assert.equal((await exportAutoDocRoute(request(`${url}/export`, "alice"), params)).status, 409);
+    }
+    if (item.suffix === "e") {
+      fs.writeFileSync(path.join(resultDir, "result.json"), Buffer.from(resultBytes.toString().replace('"finish_reason":"length"', '"finish_reason":"stop"')));
+      assert.equal((await getAutoDocRoute(request(url, "alice"), params)).status, 409,
+        "A modified result must not retain a truncation diagnosis");
+    }
   }
 }));
 

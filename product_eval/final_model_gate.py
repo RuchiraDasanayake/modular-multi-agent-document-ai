@@ -23,7 +23,8 @@ from pathlib import Path
 from idpo.product_auto.confirmed_schema import load_confirmed_schema
 from idpo.product_auto.provider import ModelReply, OpenAICompatibleChat
 from idpo.product_auto.strict_output import (
-    parse_confirmed_strict_values_reply, parse_confirmed_strict_values_reply_v2,
+    parse_confirmed_strict_values_reply,
+    parse_confirmed_strict_values_reply_v2,
 )
 from idpo.product_auto.visual_output import parse_visual_values_reply
 from product_eval.execution import verify_result_receipts, verify_run

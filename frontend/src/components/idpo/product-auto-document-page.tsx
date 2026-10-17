@@ -225,7 +225,8 @@ export function ProductAutoDocumentPage() {
   if (!detail) return <div role="alert" className="p-6 text-sm text-rose-700">{error || "Document result not found."}</div>;
 
   const { candidate } = detail;
-  const outcome = productAutoOutcomeCopy(candidate.document_status, detail.outcomeReason, detail.sourcePages.length);
+  const outcome = productAutoOutcomeCopy(candidate.document_status, detail.outcomeReason, detail.sourcePages.length,
+    detail.outcomeDiagnostic);
   const values = new Map(candidate.extracted_values.map((item) => [item.field_id, item]));
   const removedProposals = candidate.proposed_schema.filter((field) =>
     draft[field.field_id]?.decision === "remove" || draft[field.field_id]?.decision === "not_present").length;

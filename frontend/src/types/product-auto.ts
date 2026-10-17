@@ -6,6 +6,7 @@ export const PRODUCT_AUTO_OUTCOME_REASONS = [
   "invalid_values_model_response", "invalid_strict_values_model_response", "document_processing_failed",
 ] as const;
 export type ProductAutoOutcomeReason = typeof PRODUCT_AUTO_OUTCOME_REASONS[number];
+export type ProductAutoOutcomeDiagnostic = "output_token_limit";
 export type ProductAutoValueStatus = "accepted" | "needs_review" | "missing" | "rejected";
 export type ProductAutoReviewDecision = "correct" | "incorrect" | "corrected" | "not_present" | "remove";
 export type ProductAutoScalarType = "string" | "integer" | "decimal" | "boolean" | "date";
@@ -259,6 +260,8 @@ export interface ProductAutoDocumentDetail {
   candidate: ProductAutoCandidate;
   // Only a fixed allowlist from the sealed sidecar can reach this owner-scoped API response.
   outcomeReason?: ProductAutoOutcomeReason;
+  // Derived from an integrity-verified failed strict values call; never exposes provider text.
+  outcomeDiagnostic?: ProductAutoOutcomeDiagnostic;
   sourcePages: Array<{ page: number; text: string }>;
   visualRoute?: "visual" | "text" | "not_executed";
   parsedDocument?: ProductAutoParsedDocument;
