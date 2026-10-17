@@ -77,7 +77,7 @@ def test_explicit_recipe_uses_one_value_call_and_stays_in_review(tmp_path: Path)
     assert marker["approved_recipe"] == receipt["approved_recipe"] == sidecar["approved_recipe"] == recipe.receipt
 
 
-def test_recipe_value_mismatch_abstains_without_schema_fallback(tmp_path: Path) -> None:
+def test_recipe_value_mismatch_fails_without_schema_fallback(tmp_path: Path) -> None:
     recipe_path, digest = snapshot(tmp_path)
     recipe = load_approved_recipe(recipe_path, digest)
     source = tmp_path / "other.txt"
@@ -94,7 +94,8 @@ def test_recipe_value_mismatch_abstains_without_schema_fallback(tmp_path: Path) 
     assert candidate["extracted_values"] == [
         {"field_id": "total", "value": None, "status": "missing", "review_state": "pending"},
     ]
-    assert candidate["document_status"] == "needs_review"
+    # The baseline workflow already marks an invalid value reply as failed.
+    assert candidate["document_status"] == "failed"
     assert sidecar["reason"] == "invalid_values_model_response"
 
 

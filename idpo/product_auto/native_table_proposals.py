@@ -290,9 +290,13 @@ def _rectangular(
     rows = sorted({cell.row for cell in cells})
     columns = sorted({cell.column for cell in cells})
     minimum_columns = 3 if source_format in {"docx", "pptx"} else 2
+    # HTML/email and declared XLSX tables have their header semantics rechecked
+    # against the source below. One data row is enough for those formats; the
+    # content-shape-only Word/PowerPoint heuristic still needs two data rows.
+    minimum_rows = 2 if source_format in {"html", "eml", "xlsx"} else 3
     if not (
         minimum_columns <= len(columns) <= MAX_COLUMNS
-        and 3 <= len(rows) <= MAX_LINKED_ROWS_PER_FIELD + 1
+        and minimum_rows <= len(rows) <= MAX_LINKED_ROWS_PER_FIELD + 1
     ):
         raise _Abstain("table_shape_outside_limit")
     if rows != list(range(rows[0], rows[-1] + 1)) or columns != list(
