@@ -2,16 +2,15 @@
 
 This supersedes the submission readiness status in the 14 October handoff.
 The accepted title and six-author list are retained. Author approval was
-reported by the corresponding author; actual signatures and signing dates
-are still to be supplied in the four-main/two-additional declaration.
+reported by the corresponding author; three supplied signatures are dated 17/10/2026; three signature/date spaces remain blank in the four-main/two-additional declaration.
 
 ## Verified final files
 
 | File | Extent | SHA256 |
 | --- | --- | --- |
-| ICTAR26_2_Camera_Ready_Full_Paper.pdf | 5 pages | `03791b6f373487d37e4a2eb821bb226f0f6b6b51003bb247f6717b127fffd4cb` |
-| ICTAR26_2_Reviewer_Response.pdf | 2 pages | `dcc810af2db5570716dac2f57403e51aa41e02cb7e7b8e582305154f65f35c97` |
-| ICTAR26_2_PPT.zip | 10-slide PPTX without notes | `e9ee5f1a86d748304b7fc3e8a016cb3a32d0563b5725e5f3ac20d249470a0466` |
+| ICTAR26_2_Camera_Ready_Full_Paper.pdf | 6 pages | `b5fc7d2eec268bf0ae56d646c76ae431f6c49c5d2dd043032ca3e59ac5de184d` |
+| ICTAR26_2_Reviewer_Response.pdf | 2 pages | `c12d260b7f9298eceec111cfac2459936835c30872d11e85088941272dc460cd` |
+| ICTAR26_2_PPT.zip | 10-slide PPTX without notes | `d724c26beede5a3828c33bc0a3f790802d467d0ee94f35681e96129e075e5727` |
 
 All three were downloaded from the CMT camera-ready draft on 17 October and
 matched these hashes. The newer presentation replaced the older slide archive.
@@ -19,14 +18,18 @@ The draft title, abstract and author list agree with the paper. All four
 attachment slots are used, including the partially signed declaration.
 **The final Submit action has not been performed.**
 
-The paper and response are in the private `submission-candidate-20261017-v1`
-folder. The correct slides are in `presentation-research-story-20261017-v2/deliverables`,
-not the older slide copy in the candidate folder. All are under the local Paper2
-conference directory. The revised slides open with a verified authored extraction
-example, explain the measured comparisons and finish with explicit future product
-objectives. All speaker notes were removed; public evidence links remain visible.
-The final PowerPoint was opened and all ten slides rendered and inspected again.
-Its downloaded CMT archive (file 1031) matches the hash above.
+The final files are collected in the private `submission-package-20261017-v3`
+folder. Editable sources and render receipts are under
+`language-refinement-20261017-v3`. The language pass clarifies the implemented
+contribution, measured evidence and future product objectives without changing
+any reported result. The paper is six pages; the response is two pages.
+All pages and all ten slides were rendered and inspected. Speaker notes remain
+absent. Five native chart/workbook contracts pass; a workbook category-label
+encoding mismatch was repaired without changing numeric data.
+
+CMT files 1032 (paper), 1033 (response) and 1034 (presentation ZIP) were downloaded
+and matched the hashes above. The 1,402-character abstract matches the paper.
+These are staged in the open form, not a confirmed final submission.
 
 The declaration in the current draft contains three supplied signature images
 dated 17/10/2026. Three signature/date spaces remain blank. Its SHA256 is
@@ -57,9 +60,7 @@ from the paper and slides. The small GPU trial is engineering screening only.
   those browsers were unavailable.
 - PowerPoint 16 opened the final deck read-only and rendered all ten slides;
   every native render passed visual inspection and the source hash was unchanged.
-  Interactive slideshow playback remains unverified. The private native-check
-  receipt has SHA256
-  `518a462f654320124de642978f146734e9b189046af96778314a61efb9d89c4e`.
+  Interactive slideshow playback remains unverified. Current render and chart-validation receipts are stored with the revised private artifacts.
 - Presenter form completion is user-reported; no duplicate was submitted.
 - Receive the signed declaration, inspect all six signatures/dates, upload it
   as the fourth attachment and verify the final submission receipt.
