@@ -21,6 +21,7 @@ from product_eval.final_gate_ledger import Ledger
 TARGET_SOURCES = 2000
 FAMILY_COUNTS = {"registration-form": 897, "ad-buy-form": 305, "receipt": 798}
 BASE_URL = "https://icore.innobothealth.us/innobot-api/v1"
+PROJECT_BASE_URL = "https://icore.innobothealth.us/innobot-project-api/v1"
 MODEL = "innobot-luna-6"
 ROOT = Path(__file__).resolve().parents[1]
 SHA = re.compile(r"[a-f0-9]{64}\Z")
@@ -87,7 +88,7 @@ def code_receipt() -> dict:
 
 def require_interfaces(profile: dict | None = None) -> None:
     from idpo.product_auto.provider import OpenAICompatibleChat
-    from idpo.product_auto.strict_output import PROFILE
+    from idpo.product_auto.strict_output import PROFILE, PROFILE_V2
     from idpo.product_auto.workflow import process_auto
     required = {"confirmed_schema", "response_format_profile", "long_document_profile", "output_root"}
     if not required <= set(inspect.signature(process_auto).parameters):
@@ -96,7 +97,8 @@ def require_interfaces(profile: dict | None = None) -> None:
     from idpo.product_auto.segments import MAX_SEGMENT_CHARS, MAX_SEGMENTS
     if LONG_PROFILE != DEFAULT_PROFILE["long_document_profile"] or (MAX_SEGMENT_CHARS, MAX_SEGMENTS) != (24000, 4):
         raise ValueError("Required bounded long-document profile is not implemented")
-    if PROFILE != DEFAULT_PROFILE["response_format_profile"] or "response_format" not in inspect.signature(OpenAICompatibleChat.complete_json).parameters:
+    selected = (profile or DEFAULT_PROFILE)["response_format_profile"]
+    if selected not in {PROFILE, PROFILE_V2} or "response_format" not in inspect.signature(OpenAICompatibleChat.complete_json).parameters:
         raise ValueError("Required strict response interface is not implemented")
     if profile and profile["visual_document_profile"] != "disabled":
         from idpo.product_auto.visual_workflow import PROFILES as VISUAL_PROFILES
@@ -112,9 +114,14 @@ def require_interfaces(profile: dict | None = None) -> None:
 def validate_profile(raw: dict) -> dict:
     if not isinstance(raw, dict) or set(raw) != set(DEFAULT_PROFILE):
         raise ValueError("Profile must contain exactly the documented keys")
-    for key in ("ocr_engine", "response_format_profile", "long_document_profile",
-                "base_url", "model", "max_calls_per_source", "batch_size"):
+    for key in ("ocr_engine", "long_document_profile", "model", "max_calls_per_source", "batch_size"):
         if raw[key] != DEFAULT_PROFILE[key] or type(raw[key]) is not type(DEFAULT_PROFILE[key]):
+            raise ValueError(f"Unsupported profile field: {key}")
+    for key, allowed in (
+        ("response_format_profile", {"strict_confirmed_values_v1", "strict_confirmed_values_v2"}),
+        ("base_url", {BASE_URL, PROJECT_BASE_URL}),
+    ):
+        if not isinstance(raw[key], str) or raw[key] not in allowed:
             raise ValueError(f"Unsupported profile field: {key}")
     if not isinstance(raw["visual_document_profile"], str) or raw["visual_document_profile"] not in {"disabled", "bounded_visual_v1", "bounded_visual_selective_v2"}:
         raise ValueError("Unsupported profile field: visual_document_profile")
@@ -230,7 +237,8 @@ def verify_parallel(profile: dict, code: dict, runtime: dict) -> None:
         raise ValueError("Current available memory is below the validated parallel peak plus 1 GiB")
 
 
-def freeze(cohort: Path, schema_protocol: Path, profile_path: Path, output: Path) -> str:
+def freeze(cohort: Path, schema_protocol: Path, profile_path: Path, output: Path,
+           *, analysis_plan: Path | None = None) -> str:
     profile = validate_profile(read_json(profile_path))
     require_interfaces(profile)
     code, runtime = code_receipt(), runtime_receipt()
@@ -260,6 +268,12 @@ def freeze(cohort: Path, schema_protocol: Path, profile_path: Path, output: Path
                       "note": "Freeze does not OCR sources; actual segment counts may exceed the global call budget."},
         "scope": "confirmed-schema operational gate; not discovery, accuracy, or visual correctness",
     }
+    if analysis_plan is not None:
+        from product_eval.operational_recall import validate_plan
+        plan = read_json(analysis_plan)
+        validate_plan(plan, protocol["cohort_sha256"])
+        # Bind the predeclared scorer to the protocol before any request can begin.
+        protocol["analysis_plan"] = plan
     # A complete protocol is only published after all preflight checks pass.
     output.mkdir(parents=True, exist_ok=False)
     (output / "schemas").mkdir()

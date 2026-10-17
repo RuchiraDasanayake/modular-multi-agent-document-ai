@@ -29,6 +29,8 @@ def campaign(tmp_path, monkeypatch, request):
     path, sha = schema_file(output / "schemas")
     path.rename(output / "schemas/receipt.json")
     profile = {**freeze.DEFAULT_PROFILE, "visual_document_profile": "bounded_visual_selective_v2"}
+    if getattr(request, "param", None) == "v2":
+        profile.update(response_format_profile="strict_confirmed_values_v2", base_url=freeze.PROJECT_BASE_URL)
     protocol = {"version": 1, "mode": "model2000_original_operational", "labels_opened": False,
                 "target_distinct_originals": 3, "sources": rows, "profile": profile,
                 "schemas": {"receipt": {"path": "schemas/receipt.json", "sha256": sha}},
@@ -49,7 +51,9 @@ def campaign(tmp_path, monkeypatch, request):
             if len(calls) == 1:
                 value = {"field_id": "total", "value": None if all_null else 42,
                          "page": None if all_null else 1, "quote": None if all_null else "42"}
-                return ModelReply(text=json.dumps({"values": [value]}),
+                values = ({"total": {key: item for key, item in value.items() if key != "field_id"}}
+                          if profile["response_format_profile"] == "strict_confirmed_values_v2" else [value])
+                return ModelReply(text=json.dumps({"values": values}),
                                   latency_ms=2, prompt_tokens=8, completion_tokens=4, finish_reason="stop", sdk_attempts=1)
             return ModelReply(text="", error="transport_timeout", error_category="transport_timeout",
                               latency_ms=5, sdk_attempts=1)
@@ -72,6 +76,15 @@ def campaign(tmp_path, monkeypatch, request):
 
 def verify(campaign):
     return verifier.verify_completed(campaign.output, campaign.protocol_sha, "seals/1.json", campaign.seal_sha)
+
+
+@pytest.mark.parametrize("campaign", ["v2"], indirect=True)
+def test_v2_text_campaign_reparses_wire_and_preserves_uncertain_failures(campaign):
+    report = verify(campaign)
+    assert report["profile"]["response_format_profile"] == "strict_confirmed_values_v2"
+    assert report["counts"]["valid_full_coverage_originals"] == 1
+    assert report["counts"]["uncertain_attempts"] == 1
+    assert not report["operational_gate_passed"]
 
 
 def rewrite_seal(campaign):
@@ -219,3 +232,19 @@ def test_cli_refuses_output_inside_campaign_without_overwriting(campaign, monkey
     assert verifier.main() == 1
     assert not (campaign.output / "new-report").exists()
     assert json.loads(capsys.readouterr().out)["status"] == "refused"
+
+
+def test_freeze_dependency_mutation_rejected_by_code_receipts(tmp_path, monkeypatch):
+    name = "product_eval/final_gate_freeze.py"
+    assert name in verifier.FROZEN_MODULES
+    original = b"guard = True\n"
+    path = tmp_path / name
+    path.parent.mkdir()
+    path.write_bytes(original)
+    expected = freeze.digest_file(path)
+    path.write_bytes(b"guard = False\n")
+    monkeypatch.setattr(verifier, "ROOT", tmp_path)
+    monkeypatch.setattr(verifier, "FROZEN_MODULES", (name,))
+    monkeypatch.setattr(verifier.subprocess, "check_output", lambda *args, **kwargs: original)
+    with pytest.raises(ValueError):
+        verifier._code_receipts({"code": {"commit": "a" * 40, "python_source_sha256": {name: expected}}})

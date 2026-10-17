@@ -232,6 +232,20 @@ def test_freeze_rehashes_all_distinct_originals_and_omits_label_paths(frozen):
     assert Ledger(output / "ledger.sqlite3").snapshot()["attempts"] == []
 
 
+def test_optional_recall_plan_is_bound_before_any_model_request(frozen):
+    from product_eval.operational_recall import make_plan
+    original, _, _ = frozen
+    parent = original.parent
+    plan = make_plan(parent / "cohort.jsonl")
+    plan_path = parent / "analysis-plan.json"
+    freezer.write_new(plan_path, plan)
+    output = parent / "gate-with-plan"
+    sha = freezer.freeze(parent / "cohort.jsonl", parent / "schema-protocol.json",
+                         parent / "profile.json", output, analysis_plan=plan_path)
+    assert freezer.verify_freeze(output, sha)["analysis_plan"] == plan
+    assert Ledger(output / "ledger.sqlite3").snapshot()["attempts"] == []
+
+
 def test_changed_original_or_runtime_fails_before_run(frozen, monkeypatch):
     output, sha, rows = frozen
     monkeypatch.setattr(freezer, "runtime_receipt", lambda: {"changed": True})
@@ -315,11 +329,13 @@ def test_success_reason_and_reply_do_not_override_failed_or_missing_product_resu
 
 
 @pytest.mark.parametrize("complete", [False, True])
-def test_segmented_coverage_counters_are_required_and_conflicts_separate(tmp_path, complete):
+@pytest.mark.parametrize("profile", ["strict_confirmed_values_v1", "strict_confirmed_values_v2"])
+def test_segmented_coverage_counters_are_required_and_conflicts_separate(tmp_path, complete, profile):
     from idpo.product_auto.long_document import plan_receipt
     from idpo.product_auto.segments import plan_segments
     path, sha = schema_file(tmp_path)
     sidecar = sidecar_fixture()
+    sidecar["response_format_profile"] = profile
     text = "Total: 42\n" + "padding words " * 2500
     sidecar["pages"] = [{"page": 1, "text": text}]
     plan = plan_segments(sidecar["pages"], max_chars=24_000)
@@ -329,7 +345,10 @@ def test_segmented_coverage_counters_are_required_and_conflicts_separate(tmp_pat
                        "completed_char_count": len(text) if complete else 4, "planned_segments": count,
                        "attempted_segments": count, "completed_segments": count if complete else 1,
                        "full_source_covered": complete})
-    metrics = gate.source_metrics(sidecar, [dataclasses.asdict(reply())] * count, load_confirmed_schema(path, sha))
+    raw = dataclasses.asdict(reply())
+    if profile == "strict_confirmed_values_v2":
+        raw["text"] = '{"values":{"total":{"value":42,"page":1,"quote":"42"}}}'
+    metrics = gate.source_metrics(sidecar, [raw] * count, load_confirmed_schema(path, sha))
     assert metrics["valid_full_coverage"] is complete
     assert metrics["scalar_conflict"]
     if complete:
@@ -532,7 +551,9 @@ def test_visual_interface_is_required_only_when_enabled(monkeypatch):
         freezer.require_interfaces({**freezer.DEFAULT_PROFILE, "visual_document_profile": "bounded_visual_v1"})
 
 
-@pytest.fixture(params=["bounded_visual_v1", "bounded_visual_selective_v2"])
+@pytest.fixture(params=[("bounded_visual_v1", "strict_confirmed_values_v1"),
+                        ("bounded_visual_selective_v2", "strict_confirmed_values_v1"),
+                        ("bounded_visual_selective_v2", "strict_confirmed_values_v2")])
 def visual_run(tmp_path, monkeypatch, request):
     from PIL import Image
     from idpo.agents.preprocess import OcrAgent
@@ -548,7 +569,9 @@ def visual_run(tmp_path, monkeypatch, request):
            "family": "receipt", "dataset_id": "synthetic", "gate_shard": "shard_00"}
     schema_path, schema_sha = schema_file(tmp_path)
     schema = load_confirmed_schema(schema_path, schema_sha)
-    protocol = {"profile": {**freezer.DEFAULT_PROFILE, "visual_document_profile": request.param},
+    visual_profile, response_profile = request.param
+    protocol = {"profile": {**freezer.DEFAULT_PROFILE, "visual_document_profile": visual_profile,
+                            "response_format_profile": response_profile},
                 "schemas": {"receipt": {"path": "schema.json", "sha256": schema_sha}},
                 "sources": [row], "target_distinct_originals": 1}
     ledger = Ledger(tmp_path / "ledger.sqlite3")
@@ -580,6 +603,8 @@ def visual_run(tmp_path, monkeypatch, request):
             recorded_requests.append({"kind": "visual", "request_sha256": state[0]["request_sha256"],
                                       "receipt": request.receipt()})
             raw = dataclasses.replace(reply(), text='{"values":[{"field_id":"total","value":42,"page":1,"quote":null}]}')
+            if response_profile == "strict_confirmed_values_v2":
+                raw = dataclasses.replace(raw, text='{"values":{"total":{"value":42,"page":1,"quote":null}}}')
             captured.append(dataclasses.asdict(raw))
             return raw
     monkeypatch.setattr(gate, "OpenAICompatibleChat", MockProvider)
@@ -602,6 +627,15 @@ def test_actual_visual_product_path_accounts_exact_request_and_complete_images(v
     assert report["operational_gate_passed"]
     assert report["accuracy_measured"] is False
     gate._verify_existing(output, Ledger(output / "ledger.sqlite3").snapshot(), protocol, "a" * 64)
+    from product_eval.quality_scoring_verification import _attempts
+    state = Ledger(output / "ledger.sqlite3").snapshot()
+    _, _, parsed_count = _attempts(output, state["attempts"], schema, protocol["profile"], sidecar)
+    assert parsed_count == 1
+    wrong_profile = {**sidecar, "response_format_profile": (
+        "strict_visual_confirmed_values_v1" if sidecar["response_format_profile"].endswith("v2")
+        else "strict_visual_confirmed_values_v2")}
+    with pytest.raises(ValueError, match="Sidecar strict profile"):
+        _attempts(output, state["attempts"], schema, protocol["profile"], wrong_profile)
 
 
 @pytest.mark.parametrize("mutation", [
@@ -632,9 +666,38 @@ def test_visual_gate_never_passes_partial_unparsed_or_unrecorded_work(visual_run
 def test_visual_all_null_remains_structural_success_without_quality_claim(visual_run):
     _output, _row, _protocol, schema, sidecar, replies, requests = visual_run
     replies[0]["text"] = '{"values":[{"field_id":"total","value":null,"page":null,"quote":null}]}'
+    if sidecar["response_format_profile"] == "strict_visual_confirmed_values_v2":
+        replies[0]["text"] = '{"values":{"total":{"value":null,"page":null,"quote":null}}}'
     sidecar["candidate"]["extracted_values"][0].update(value=None, status="missing")
     metric = gate.source_metrics(sidecar, replies, schema, requests=requests)
     assert metric["valid_full_coverage"] and metric["all_null"] and metric["non_null_fields"] == 0
+
+
+def test_v2_profile_and_project_endpoint_are_explicit_and_legacy_defaults_unchanged():
+    profile = {**freezer.DEFAULT_PROFILE, "response_format_profile": "strict_confirmed_values_v2",
+               "base_url": freezer.PROJECT_BASE_URL}
+    assert freezer.validate_profile(profile) == profile
+    freezer.require_interfaces(profile)
+    assert freezer.DEFAULT_PROFILE["response_format_profile"] == "strict_confirmed_values_v1"
+    assert freezer.DEFAULT_PROFILE["base_url"] == freezer.BASE_URL
+    for key, value in (("base_url", "https://unapproved.example/v1"),
+                       ("response_format_profile", "strict_confirmed_values_v3")):
+        with pytest.raises(ValueError, match=key):
+            freezer.validate_profile({**profile, key: value})
+
+
+@pytest.mark.parametrize("profile,valid", [("strict_confirmed_values_v2", True),
+                                           ("strict_confirmed_values_v1", False),
+                                           ("unknown", False)])
+def test_text_metrics_use_the_declared_response_profile(tmp_path, profile, valid):
+    path, sha = schema_file(tmp_path)
+    sidecar = sidecar_fixture()
+    sidecar["response_format_profile"] = profile
+    raw = dataclasses.asdict(reply())
+    raw["text"] = '{"values":{"total":{"value":42,"page":1,"quote":"42"}}}'
+    result = gate.source_metrics(sidecar, [raw], load_confirmed_schema(path, sha))
+    assert result["strict_parsed"] is valid
+    assert result["valid_full_coverage"] is valid
 
 
 def test_visual_provider_exception_retains_uncertain_attempt_without_retry(visual_run):

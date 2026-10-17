@@ -34,6 +34,7 @@ from product_eval.quality_scoring_verification import (
 )
 
 FROZEN_MODULES = (
+    "product_eval/final_gate_freeze.py",
     "product_eval/final_model_gate.py", "product_eval/execution.py", "product_eval/contracts.py",
     "idpo/product_auto/confirmed_schema.py", "idpo/product_auto/strict_output.py",
     "idpo/product_auto/visual_output.py", "idpo/product_auto/logic.py",
