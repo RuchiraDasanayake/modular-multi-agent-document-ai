@@ -14,9 +14,9 @@ reported by the corresponding author; three supplied signatures are dated 17/10/
 
 All three were downloaded from the CMT camera-ready draft on 17 October and
 matched these hashes. The newer presentation replaced the older slide archive.
-The draft title, abstract and author list agree with the paper. All four
+The submitted title and author list agree with the paper. The CMT abstract retains the same measured results and adds an explicit practical interpretation and future roadmap. All four
 attachment slots are used, including the partially signed declaration.
-**The final Submit action has not been performed.**
+**Submitted on 17 October 2026 after explicit user confirmation. CMT Camera Ready Summary for Paper 2 confirms all four attachments.**
 
 The final files are collected in the private `submission-package-20261017-v3`
 folder. Editable sources and render receipts are under
@@ -28,8 +28,8 @@ absent. Five native chart/workbook contracts pass; a workbook category-label
 encoding mismatch was repaired without changing numeric data.
 
 CMT files 1032 (paper), 1033 (response) and 1034 (presentation ZIP) were downloaded
-and matched the hashes above. The 1,402-character abstract matches the paper.
-These are staged in the open form, not a confirmed final submission.
+and matched the hashes above. The final 1,704-character CMT abstract was saved and verified exactly on the submission summary.
+The submission summary confirms the files and revised abstract. The initial save retained the previous abstract; this persistence mismatch was corrected through form input events and the saved summary was verified.
 
 The declaration in the current draft contains three supplied signature images
 dated 17/10/2026. Three signature/date spaces remain blank. Its SHA256 is
@@ -63,7 +63,7 @@ from the paper and slides. The small GPU trial is engineering screening only.
   Interactive slideshow playback remains unverified. Current render and chart-validation receipts are stored with the revised private artifacts.
 - Presenter form completion is user-reported; no duplicate was submitted.
 - Receive the signed declaration, inspect all six signatures/dates, upload it
-  as the fourth attachment and verify the final submission receipt.
+  as the fourth attachment when available. The current receipt confirms submission with the disclosed partially signed form; organizer acceptance of deferred signatures is not established.
 
 The private demo kit contains the two authored sources and a step-by-step
 walkthrough. Its ZIP SHA256 is
