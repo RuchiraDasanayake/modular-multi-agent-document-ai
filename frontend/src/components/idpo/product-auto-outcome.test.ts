@@ -41,3 +41,14 @@ test("incomplete model output is explained as a failed attempt, not missing sour
   assert.match(copy?.sourceNote ?? "", /unavailable for review or export/);
   assert.equal(productAutoOutcomeCopy("needs_review", "invalid_strict_values_model_response", 1), null);
 });
+
+test("verified output truncation has a specific action without making the failed result reviewable", () => {
+  const copy = productAutoOutcomeCopy("failed", "invalid_strict_values_model_response", 1, "output_token_limit");
+  assert.match(copy?.cause ?? "", /output length limit/);
+  assert.match(copy?.action ?? "", /Reduce the requested fields or split a long document/);
+  assert.match(copy?.action ?? "", /may cost money.*not retried automatically/);
+  assert.match(copy?.sourceNote ?? "", /unavailable for review or export/);
+  assert.equal(productAutoOutcomeCopy("needs_review", undefined, 1, "output_token_limit"), null);
+  assert.match(productAutoOutcomeCopy("failed", "invalid_strict_values_model_response", 1,
+    "untrusted provider text" as never)?.cause ?? "", /every required field/);
+});

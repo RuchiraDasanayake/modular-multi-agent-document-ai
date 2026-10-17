@@ -1,4 +1,9 @@
-import type { ProductAutoDocumentStatus, ProductAutoOutcomeReason } from "@/types/product-auto";
+import type { ProductAutoDocumentStatus, ProductAutoOutcomeDiagnostic, ProductAutoOutcomeReason } from "@/types/product-auto";
+
+const OUTPUT_TOKEN_LIMIT = {
+  cause: "The model reported that it stopped at its output length limit before returning a complete result.",
+  action: "Reduce the requested fields or split a long document into smaller files before starting a separate extraction. A new model call may cost money; this failed attempt was not retried automatically.",
+};
 
 const KNOWN_OUTCOMES: Record<ProductAutoOutcomeReason, { cause: string; action: string }> = {
   document_processing_failed: {
@@ -64,11 +69,12 @@ const KNOWN_OUTCOMES: Record<ProductAutoOutcomeReason, { cause: string; action: 
 };
 
 export function productAutoOutcomeCopy(status: ProductAutoDocumentStatus,
-  reason: ProductAutoOutcomeReason | undefined, sourcePageCount: number): {
+  reason: ProductAutoOutcomeReason | undefined, sourcePageCount: number,
+  diagnostic?: ProductAutoOutcomeDiagnostic): {
     title: string; cause: string; action: string; sourceNote: string;
   } | null {
   if (status !== "failed" && status !== "unsupported") return null;
-  const known = reason ? KNOWN_OUTCOMES[reason] : undefined;
+  const known = diagnostic === "output_token_limit" ? OUTPUT_TOKEN_LIMIT : reason ? KNOWN_OUTCOMES[reason] : undefined;
   return {
     title: status === "unsupported" ? "Document could not be extracted" : "Extraction failed for this document",
     cause: known?.cause ?? "This run did not produce a complete, reviewable result.",

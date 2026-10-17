@@ -21,6 +21,7 @@ import type {
   ProductAutoCandidate,
   ProductAutoCorrectedResult,
   ProductAutoDocumentDetail,
+  ProductAutoOutcomeDiagnostic,
   ProductAutoEvidence,
   ProductAutoHumanSourcePage,
   ProductAutoLinkedCell,
@@ -661,6 +662,29 @@ function projectFailedModelOutput(candidate: ProductAutoCandidate, reason: unkno
     MODEL_OUTPUT_FAILURE_REASONS.has(reason)
     ? { ...candidate, document_status: "failed" }
     : candidate;
+}
+
+function outputTokenLimitDiagnostic(record: RunRecord, document: RunRecord["documents"][number],
+  result: Record<string, unknown>, candidate: ProductAutoCandidate, machineResultHash: string):
+  ProductAutoOutcomeDiagnostic | undefined {
+  const strictFailure = result.reason === "invalid_strict_values_model_response" ||
+    result.reason === "long_document_segment_incomplete";
+  const strictProfile = result.response_format_profile === "strict_confirmed_values_v1" ||
+    result.response_format_profile === "strict_confirmed_values_v2";
+  if (candidate.document_status !== "failed" || !strictFailure || !strictProfile ||
+    !Array.isArray(result.model_calls) || document.machineResultSha256 !== machineResultHash) return undefined;
+  const lastCall = result.model_calls.at(-1);
+  if (!lastCall || typeof lastCall !== "object" || Array.isArray(lastCall) ||
+    lastCall.phase !== "values" || lastCall.finish_reason !== "length" ||
+    lastCall.error !== null || lastCall.refusal !== false || lastCall.sdk_attempts !== 1) return undefined;
+  try {
+    const sealed = validatedDocuments(record, document.docId).find((item) => item.docId === document.docId);
+    if (sealed?.machineResultSha256 !== machineResultHash) return undefined;
+  } catch {
+    // Legacy or inconsistent receipts cannot support a specific diagnosis.
+    return undefined;
+  }
+  return "output_token_limit";
 }
 
 function readSourcePages(result: Record<string, unknown>): Array<{ page: number; text: string }> {
@@ -1554,10 +1578,12 @@ function loadProductAutoDocument(jobId: string, runId: string, docId: string, se
     throw new AccessError("The machine result no longer matches the completed run receipt.", 409);
   }
   const result = parseResultBytes(bytes);
-  const candidate = projectFailedModelOutput(candidateFromArtifact(result.candidate, docId, result.pages), result.reason);
+  const artifactCandidate = candidateFromArtifact(result.candidate, docId, result.pages);
+  const candidate = projectFailedModelOutput(artifactCandidate, result.reason);
   const outcomeReason = (candidate.document_status === "failed" || candidate.document_status === "unsupported") &&
     typeof result.reason === "string" && SAFE_OUTCOME_REASONS.has(result.reason)
     ? result.reason as ProductAutoDocumentDetail["outcomeReason"] : undefined;
+  const outcomeDiagnostic = outputTokenLimitDiagnostic(record, document, result, artifactCandidate, machineResultHash);
   const sourcePages = readSourcePages(result);
   let visualRoute: ProductAutoDocumentDetail["visualRoute"];
   if (result.visual_document !== undefined) {
@@ -1598,6 +1624,7 @@ function loadProductAutoDocument(jobId: string, runId: string, docId: string, se
     detail: {
       runId, fileId: document.fileId, fileName: document.fileName,
       candidate, sourcePages, ...(outcomeReason ? { outcomeReason } : {}),
+      ...(outcomeDiagnostic ? { outcomeDiagnostic } : {}),
       ...(visualRoute ? { visualRoute } : {}),
       ...(parsedDocument ? { parsedDocument } : {}), review, auditTrail,
       correctedResult: deriveProductAutoCorrectedResult(candidate, review, visualRoute),
