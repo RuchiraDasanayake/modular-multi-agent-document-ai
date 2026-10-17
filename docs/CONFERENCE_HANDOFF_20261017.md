@@ -33,8 +33,8 @@ These are staged in the open form, not a confirmed final submission.
 
 The declaration in the current draft contains three supplied signature images
 dated 17/10/2026. Three signature/date spaces remain blank. Its SHA256 is
-`c705cf68ca04f9a97b50e7829742c66eff205b72509b5574119de322b9c9c22f`.
-It is partially signed, not a completed six-author declaration.
+`31d0af85afee951f12add4ecdb068420be312a35605767230bbabee77d2effaf`.
+It is partially signed, not a completed six-author declaration. A note on page two records the corresponding author's confirmation of all six approvals, identifies the three pending signatures, explains collection difficulties after graduation and requests permission to supply them later. The updated three-page form is CMT file 1038; its downloaded copy matches this hash.
 
 ## Evidence boundary
 
