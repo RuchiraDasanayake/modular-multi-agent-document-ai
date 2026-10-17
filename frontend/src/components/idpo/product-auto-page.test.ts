@@ -239,6 +239,84 @@ test("too many examples preserves the draft and rejects save without truncating 
   } finally { page.dispose(); }
 });
 
+test("adding a table column defaults its group, then reuses the latest repeated group without saving", async () => {
+  const page = mount(async () => ({ brief: brief(), staleSampleFileIds: [] }));
+  try {
+    await page.settle();
+    click(page.button("Add table column"));
+    await page.settle();
+    assert.equal(page.find((element) => element.type === "select" &&
+      element.props.id === `${jobId}-field-1-type`)?.props.value, "array[object]");
+    const firstGroup = page.find((element) => element.type === "input" &&
+      element.props.id === `${jobId}-field-1-group`);
+    assert.equal(firstGroup?.props.value, "line_items");
+    assert.equal(page.find((element) => element.type === "input" &&
+      element.props.id === `${jobId}-field-1-id`)?.props.value, "");
+    assert.equal(page.find((element) => element.type === "input" &&
+      element.props.id === `${jobId}-field-1-meaning`)?.props.value, "");
+    assert.ok(firstGroup);
+    change(firstGroup, "charges");
+    await page.settle();
+    click(page.button("Add field"));
+    await page.settle();
+    click(page.button("Add table column"));
+    await page.settle();
+    assert.equal(page.find((element) => element.type === "input" &&
+      element.props.id === `${jobId}-field-3-group`)?.props.value, "charges");
+    assert.equal(page.button("Confirm field meanings").props.disabled, true);
+    assert.deepEqual(page.calls, [], "Adding editable fields must not save a draft or call a model");
+  } finally { page.dispose(); }
+});
+
+test("each schema field control has a unique explicit label association", async () => {
+  const fields: ProductAutoBriefField[] = [field, { field_id: "line_items", type: "array[object]",
+    group: "line_items", description: "Each billed row", example_values: [] }];
+  const page = mount(async () => ({ brief: brief(fields), staleSampleFileIds: [] }));
+  try {
+    await page.settle();
+    const controls = [
+      { index: 0, suffix: "id", name: "Field ID", tag: "input" },
+      { index: 0, suffix: "type", name: "Type", tag: "select" },
+      { index: 0, suffix: "meaning", name: "Meaning", tag: "input" },
+      { index: 0, suffix: "examples", name: "Example values (one per line, up to three)", tag: "textarea" },
+      { index: 1, suffix: "id", name: "Field ID", tag: "input" },
+      { index: 1, suffix: "type", name: "Type", tag: "select" },
+      { index: 1, suffix: "group", name: "Repeated row group", tag: "input" },
+      { index: 1, suffix: "meaning", name: "Meaning", tag: "input" },
+      { index: 1, suffix: "examples", name: "Example values (one per line, up to three)", tag: "textarea" },
+    ];
+    const ids = new Set<string>();
+    for (const control of controls) {
+      const id = `${jobId}-field-${control.index}-${control.suffix}`;
+      assert.equal(ids.has(id), false, `Duplicate control ID: ${id}`);
+      ids.add(id);
+      assert.ok(page.find((element) => element.type === "label" && element.props.htmlFor === id &&
+        text(element.props.children) === control.name), `Missing ${control.name} label for field ${control.index}`);
+      assert.ok(page.find((element) => element.type === control.tag && element.props.id === id),
+        `Missing control associated with ${control.name}`);
+    }
+  } finally { page.dispose(); }
+});
+
+test("the preview summary shows only the unchanged confirmed field meanings", async () => {
+  const page = mount(async () => ({ brief: brief([field], "confirmed", 2), staleSampleFileIds: [] }));
+  try {
+    await page.settle();
+    assert.match(page.text(), /Confirmed schema for preview · revision 2/);
+    assert.match(page.text(), /Sample files: sample\.txt/);
+    assert.match(page.text(), /Printed invoice identifier/);
+    assert.match(page.text(), /Examples: INV-1/);
+
+    const meaning = page.find((element) => element.type === "input" && element.props.value === field.description);
+    assert.ok(meaning);
+    change(meaning, "A different invoice identifier");
+    await page.settle();
+    assert.doesNotMatch(page.text(), /Confirmed schema for preview/,
+      "Unsaved edits must not appear as a confirmed schema");
+    assert.equal(page.button("Preview sample files").props.disabled, true);
+  } finally { page.dispose(); }
+});
+
 test("a reviewed JSON preview enables batch export and distinguishes results from selected files", async () => {
   const confirmed = brief([field], "confirmed", 2);
   const run: ProductAutoRun = { runId: `auto_${"1".repeat(32)}`, status: "success",
@@ -253,5 +331,13 @@ test("a reviewed JSON preview enables batch export and distinguishes results fro
     assert.equal(page.button("Download reviewed batch").props.disabled, false);
     assert.match(page.text(), /A reviewed sample preview is ready for the batch/);
     assert.match(page.text(), /2 of 2 results reviewed across 1 selected file\./);
+    assert.match(page.text(), /Review result 1: two\.jsoncompleted/);
+    assert.match(page.text(), /Review result 2: two\.jsoncompleted/);
+    for (const index of [0, 1]) {
+      const link = page.find((element) => element.type === "a" &&
+        text(element.props.children) === `Review result ${index + 1}: two.json`);
+      assert.ok(link);
+      assert.equal(link.props.href, `/dashboard/idpo/jobs/${jobId}/auto/${run.runId}/docs/doc-${index}`);
+    }
   } finally { page.dispose(); }
 });

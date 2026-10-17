@@ -399,12 +399,20 @@ function ConvertTo-NativeCapabilityReport {
   $checkNames = @('core', 'text_json', 'pdf_native', 'image_codecs', 'pdfium', 'pdf_rasterizer',
     'tesseract_ocr', 'scan_sample', 'docx', 'xlsx', 'pptx', 'html', 'eml', 'model_client')
   $checked = @{}
+  $scanSampleFailureCode = $null
   foreach ($check in $Payload.checks) {
     if ($check -isnot [System.Collections.IDictionary] -or $check.id -notin $checkNames -or
       $check.ready -isnot [bool] -or $checked.ContainsKey([string]$check.id)) { return $safe }
+    if ('failure_code' -in @($check.Keys)) {
+      if ($check.id -ne 'scan_sample' -or $check.ready -or $check.failure_code -notin @(
+          'ocr_timeout', 'ocr_no_text', 'ocr_resource_limit', 'pdf_render_failed',
+          'ocr_failed', 'parser_mismatch', 'marker_missing', 'preview_exception')) { return $safe }
+      $scanSampleFailureCode = [string]$check.failure_code
+    }
     $checked[[string]$check.id] = [bool]$check.ready
   }
   if ($checked.Count -ne $checkNames.Count) { return $safe }
+  if ($scanSampleFailureCode) { $safe.scan_sample_failure_code = $scanSampleFailureCode }
   $optionalReady = $true
   if ($OcrEngine -eq 'rapidocr') {
     $optional = $Payload.optional_ocr

@@ -106,14 +106,21 @@ try {
   $unavailable = New-ReadyPayload
   $unavailable.status = 'unavailable'
   ($unavailable.checks | Where-Object id -eq 'scan_sample').ready = $false
+  ($unavailable.checks | Where-Object id -eq 'scan_sample').failure_code = 'ocr_timeout'
   $unavailable.capabilities.pdf_scan_schema_sampling.ready = $false
   Save-ProbeConfig -Payload $unavailable -ExitCode 1
   Expect-PreflightFailure { Invoke-NativeProductPreflight -Config $config } 'probe_process_failed'
   $stored = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
   Assert-PreflightTest ('scan_sample' -in $stored.failed_checks -and
     'pdf_scan_schema_sampling' -in $stored.failed_capabilities) 'Valid unavailable report retains the actual failed capability.'
+  Assert-PreflightTest ($stored.scan_sample_failure_code -eq 'ocr_timeout') 'Receipt retains only the allowlisted OCR failure code.'
   Save-ProbeConfig -Payload $unavailable
   Expect-PreflightFailure { Invoke-NativeProductPreflight -Config $config } 'capability_unavailable'
+
+  ($unavailable.checks | Where-Object id -eq 'scan_sample').failure_code = 'DO_NOT_RETAIN_SECRET'
+  Save-ProbeConfig -Payload $unavailable
+  Expect-PreflightFailure { Invoke-NativeProductPreflight -Config $config } 'invalid_report'
+  Assert-PreflightTest (-not (Get-Content -LiteralPath $reportPath -Raw).Contains('DO_NOT_RETAIN_SECRET')) 'Unknown diagnostic code is rejected and redacted.'
 
   $missingCheck = New-ReadyPayload
   $missingCheck.checks = @($missingCheck.checks | Where-Object id -ne 'core')

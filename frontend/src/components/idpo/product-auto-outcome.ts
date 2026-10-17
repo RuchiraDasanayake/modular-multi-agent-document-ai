@@ -1,6 +1,10 @@
 import type { ProductAutoDocumentStatus, ProductAutoOutcomeReason } from "@/types/product-auto";
 
 const KNOWN_OUTCOMES: Record<ProductAutoOutcomeReason, { cause: string; action: string }> = {
+  document_processing_failed: {
+    cause: "An unexpected processing error stopped this document. Other documents can continue.",
+    action: "A model request may already have been charged. Ask an administrator to inspect this attempt before starting a separate extraction for this file.",
+  },
   unsupported_file_type: {
     cause: "This file type is not supported for extraction.",
     action: "Convert it to a supported format shown on the upload page, then upload and run it again.",

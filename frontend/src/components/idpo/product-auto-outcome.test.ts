@@ -2,6 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { productAutoOutcomeCopy } from "./product-auto-outcome";
 
+test("isolated processing errors preserve uncertainty and do not invite blind retries", () => {
+  const copy = productAutoOutcomeCopy("failed", "document_processing_failed", 1);
+  assert.match(copy?.cause ?? "", /Other documents can continue/);
+  assert.match(copy?.action ?? "", /may already have been charged/);
+  assert.match(copy?.action ?? "", /inspect this attempt/);
+  assert.match(copy?.sourceNote ?? "", /unavailable for review or export/);
+});
+
 test("multi-frame rejection gives a bounded split action without inviting corrections", () => {
   const copy = productAutoOutcomeCopy("unsupported", "multi_frame_image_unsupported", 0);
   assert.match(copy?.cause ?? "", /multiple frames/);

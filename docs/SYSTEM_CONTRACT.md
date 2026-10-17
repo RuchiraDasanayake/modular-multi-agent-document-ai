@@ -132,6 +132,20 @@ The separate, experimental product path is:
 
 `owner-scoped job upload -> POST /api/jobs/<job_id>/auto -> frontend server runner -> product extraction worker -> IDPO_DATA_DIR/product_runs/<run_id>`
 
+Unexpected exceptions inside one document's extraction are contained as
+`document_processing_failed`, allowing later originals to continue. Any recorded
+model-call receipts remain available; when a model was configured, the attempt
+total is explicitly unknown because a request could have escaped before receipt
+recording. This boundary does not replay requests, release partial values, or
+swallow process interruption and output-persistence failures. The review UI
+explains the potentially charged attempt and keeps review/export blocked.
+
+Explicitly headed native HTML/EML and declared XLSX tables can propose a single
+data row in the dynamic/no-model discovery path. Exact cell locators and review
+requirements remain mandatory; ambiguous Word/PowerPoint single-row grids still
+abstain. This does not map native headers into a confirmed schema or change the
+confirmed-schema extraction benchmark.
+
 Document uploads use bounded streams: 20 MiB per file, 32 MiB per raw request including multipart framing, and
 32 files or parts per request. The browser sends sequential batches of at most eight files and 30 MiB, reports
 accepted versus unconfirmed files after a failed batch, and never silently replays a successful batch. The exact

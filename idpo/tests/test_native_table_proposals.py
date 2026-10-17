@@ -504,3 +504,94 @@ def test_supplementary_unicode_keeps_exact_cell_spans(tmp_path: Path) -> None:
             ]
             == cell["value"]
         )
+
+
+@pytest.mark.parametrize("source_format", ["html", "eml", "xlsx"])
+def test_explicit_header_single_data_row_preserves_review_and_provenance(
+    source_format: str, tmp_path: Path,
+) -> None:
+    """A single line item is data when the source declares its table header."""
+    html = (
+        "<html><body><table><thead><tr><th>Item</th><th>Qty</th></tr></thead>"
+        "<tbody><tr><td>One item</td><td>2</td></tr></tbody></table></body></html>"
+    )
+    source = tmp_path / f"single.{source_format}"
+    if source_format == "html":
+        source.write_text(html, encoding="utf-8")
+    elif source_format == "eml":
+        message = EmailMessage()
+        message.set_content("An order")
+        message.add_alternative(html, subtype="html")
+        source.write_bytes(message.as_bytes())
+    else:
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append(("Item", "Qty"))
+        sheet.append(("One item", "2"))
+        sheet.add_table(ExcelTable(displayName="Items", ref="A1:B2"))
+        workbook.save(source)
+    candidate, sidecar = _candidate(source, tmp_path)
+    linked = {
+        field["field_id"]: field for field in candidate["proposed_schema"]
+        if field["type"] == "array[object]"
+    }
+    assert set(linked) == {"item", "qty"}
+    assert len({field["group"] for field in linked.values()}) == 1
+    assert candidate["document_status"] == "needs_review"
+    assert sidecar["model_calls"] == []
+    receipt = sidecar["native_table_proposals"]
+    assert receipt["tables"][0]["data_rows"] == 1
+    for field_id, expected in (("item", "One item"), ("qty", "2")):
+        value = next(v for v in candidate["extracted_values"] if v["field_id"] == field_id)
+        assert value["status"] == "needs_review"
+        assert value["review_state"] == "pending"
+        assert len(value["value"]) == 1
+        cell = value["value"][0]
+        assert cell["row"] == 0 and cell["value"] == expected
+        provenance = receipt["cell_provenance"][field_id]["0"]
+        assert provenance["source_sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
+        assert resolve_locator(source, json.loads(provenance["native_locator"])) == expected
+        evidence = cell["evidence"]
+        assert sidecar["pages"][evidence["page"] - 1]["text"][
+            evidence["start"]:evidence["end"]
+        ] == evidence["quote"] == expected
+
+
+@pytest.mark.parametrize("body", [
+    "<thead><tr><th>Item</th><th>Qty</th></tr></thead>",
+    "<tr><td>Item</td><td>Qty</td></tr><tr><td>A</td><td>2</td></tr>",
+    "<thead><tr><th>Item</th><th>Qty</th></tr></thead><tr><td>A</td><td></td></tr>",
+    "<thead><tr><th>Item</th><th>Qty</th></tr></thead><tr><td>Total</td><td>2</td></tr>",
+])
+def test_single_row_support_does_not_admit_ambiguous_tables(body: str, tmp_path: Path) -> None:
+    source = tmp_path / "ambiguous.html"
+    source.write_text(f"<html><body><table>{body}</table></body></html>", encoding="utf-8")
+    parsed, pages = _parsed(source)
+    fields, values, report = propose_native_tables(parsed, source, pages, set(), 24)
+    assert fields == values == []
+    assert report["cell_provenance"] == {}
+
+
+@pytest.mark.parametrize("source_format", ["docx", "pptx"])
+def test_content_shape_only_table_still_requires_two_data_rows(
+    source_format: str, tmp_path: Path,
+) -> None:
+    from docx import Document
+    from pptx import Presentation
+
+    source = tmp_path / f"single.{source_format}"
+    if source_format == "docx":
+        document = Document()
+        table = document.add_table(rows=2, cols=3)
+    else:
+        document = Presentation()
+        slide = document.slides.add_slide(document.slide_layouts[5])
+        table = slide.shapes.add_table(2, 3, 0, 0, 3_000_000, 1_000_000).table
+    for row, items in enumerate((("Item", "Qty", "Amount"), ("A", "2", "3.00"))):
+        for column, text in enumerate(items):
+            table.cell(row, column).text = text
+    document.save(source)
+    parsed, pages = _parsed(source)
+    fields, values, report = propose_native_tables(parsed, source, pages, set(), 24)
+    assert fields == values == []
+    assert report["tables"][0]["reason"] == "table_shape_outside_limit"

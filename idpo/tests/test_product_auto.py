@@ -432,6 +432,96 @@ def test_provider_failure_is_failed_and_counts_known_sdk_attempts(
     assert run_metadata["model_sdk_attempt_count"] == expected_attempts
 
 
+def test_unexpected_document_error_after_model_calls_does_not_abort_batch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from idpo.product_auto import workflow
+
+    sources = tmp_path / "sources"
+    sources.mkdir()
+    for name, person in (("01.txt", "Alpha"), ("02.txt", "Beta")):
+        (sources / name).write_text(f"Name: {person}", encoding="utf-8")
+    schema_reply = ModelReply(text='{"fields":[{"field_id":"name","type":"string"}]}',
+                              latency_ms=1, sdk_attempts=1)
+    values_reply = ModelReply(text='{"values":[{"field_id":"name","value":"Alpha",'
+                                   '"page":1,"quote":"Alpha"}]}', latency_ms=1, sdk_attempts=1)
+    second_values_reply = ModelReply(text='{"values":[{"field_id":"name","value":"Beta",'
+                                          '"page":1,"quote":"Beta"}]}', latency_ms=1, sdk_attempts=1)
+    model = FakeModel(schema_reply, values_reply, schema_reply, second_values_reply)
+    original = workflow._process_document
+    first = True
+
+    def crash_after_model_reply(*args, **kwargs):
+        nonlocal first
+        result = original(*args, **kwargs)
+        if first:
+            first = False
+            raise RuntimeError("private provider or document detail")
+        return result
+
+    monkeypatch.setattr(workflow, "_process_document", crash_after_model_reply)
+    run = process_auto(sources, run_id="isolated_failure", model=model, output_root=tmp_path / "runs")
+    run_dir = Path(run["run_dir"])
+    candidates = [json.loads(line) for line in (run_dir / "candidates.jsonl").read_text(encoding="utf-8").splitlines()]
+    receipts = [json.loads(line) for line in (run_dir / "manifest.jsonl").read_text(encoding="utf-8").splitlines()]
+    marker = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    first_sidecar = json.loads((run_dir / "docs" / candidates[0]["doc_id"] / "result.json").read_text(encoding="utf-8"))
+
+    assert len(model.calls) == 4  # No automatic replay of either paid phase.
+    assert [candidate["document_status"] for candidate in candidates] == ["failed", "needs_review"]
+    assert first_sidecar["reason"] == "document_processing_failed"
+    assert first_sidecar["model_attempts_uncertain"] is True
+    assert "private provider or document detail" not in json.dumps(first_sidecar)
+    assert [call["phase"] for call in first_sidecar["model_calls"]] == ["schema", "values"]
+    assert receipts[0]["model_call_count"] == 2
+    assert receipts[0]["model_sdk_attempt_count"] is None
+    assert receipts[0]["model_attempts_uncertain"] is True
+    assert marker["model_call_count"] == 4
+    assert marker["model_sdk_attempt_count"] is None
+    assert marker["model_attempts_uncertain_doc_count"] == 1
+    assert marker["doc_count"] == 2
+    assert candidates[1]["extracted_values"][0]["value"] == "Beta"
+    assert verify_run(run_dir, min_unique=2)["status_counts"]["failed"] == 1
+
+
+@pytest.mark.parametrize("error", [KeyboardInterrupt(), SystemExit(2)])
+def test_batch_does_not_convert_process_interruption_to_document_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: BaseException,
+) -> None:
+    from idpo.product_auto import workflow
+
+    source = tmp_path / "source.txt"
+    source.write_text("Name: Alpha", encoding="utf-8")
+
+    def interrupt(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr(workflow, "_process_document", interrupt)
+    with pytest.raises(type(error)):
+        process_auto(source, run_id="interrupted", output_root=tmp_path / "runs")
+    assert not (tmp_path / "runs" / "interrupted" / "run.json").exists()
+
+
+def test_batch_does_not_hide_result_persistence_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from idpo.product_auto import workflow
+
+    source = tmp_path / "source.txt"
+    source.write_text("Name: Alpha", encoding="utf-8")
+    original_write = workflow._write_json
+
+    def fail_result_write(path, payload):
+        if path.name == "result.json":
+            raise OSError("synthetic disk failure")
+        return original_write(path, payload)
+
+    monkeypatch.setattr(workflow, "_write_json", fail_result_write)
+    with pytest.raises(OSError, match="synthetic disk failure"):
+        process_auto(source, run_id="disk_failure", output_root=tmp_path / "runs")
+    assert not (tmp_path / "runs" / "disk_failure" / "run.json").exists()
+
+
 def test_more_than_field_limit_requires_review_without_model_call(tmp_path: Path) -> None:
     source = tmp_path / "many_fields.txt"
     source.write_text("\n".join(f"Field {index}: value{index}" for index in range(25)), encoding="utf-8")

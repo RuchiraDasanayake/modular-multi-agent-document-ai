@@ -180,6 +180,14 @@ export function ProductAutoPage() {
       ? { ...field, ...change } : field));
   }
 
+  function addTableColumn() {
+    setBriefFields((current) => {
+      const mostRecentTableField = [...current].reverse().find((field) => field.type === "array[object]");
+      return [...current, { field_id: "", type: "array[object]",
+        group: mostRecentTableField?.group?.trim() || "line_items", description: "", example_values: [] }];
+    });
+  }
+
   async function saveDraft() {
     if (!briefReady) return;
     setBriefBusy(true);
@@ -411,46 +419,57 @@ export function ProductAutoPage() {
         <div className="mt-4 flex items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Fields and meanings</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Use a stable field ID and explain which value belongs in it.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Use a stable field ID and explain which value belongs in it. Table columns share a repeated row group.</p>
           </div>
-          <button type="button" disabled={briefFields.length >= 24 || briefBusy} onClick={() => setBriefFields((current) =>
-            [...current, { field_id: "", type: "string", description: "", example_values: [] }])}
-            className="rounded-lg border border-cyan-500 px-3 py-2 text-sm font-medium text-cyan-700 hover:bg-cyan-50 disabled:opacity-50 dark:text-cyan-300">
-            Add field
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={briefFields.length >= 24 || briefBusy} onClick={() => setBriefFields((current) =>
+              [...current, { field_id: "", type: "string", description: "", example_values: [] }])}
+              className="rounded-lg border border-cyan-500 px-3 py-2 text-sm font-medium text-cyan-700 hover:bg-cyan-50 disabled:opacity-50 dark:text-cyan-300">
+              Add field
+            </button>
+            <button type="button" disabled={briefFields.length >= 24 || briefBusy} onClick={addTableColumn}
+              className="rounded-lg border border-cyan-500 px-3 py-2 text-sm font-medium text-cyan-700 hover:bg-cyan-50 disabled:opacity-50 dark:text-cyan-300">
+              Add table column
+            </button>
+          </div>
         </div>
         {briefFields.length === 0 ? <p className="mt-3 text-sm text-slate-500">Add at least one typed field to confirm a schema.</p> : (
           <div className="mt-3 space-y-3">
             {briefFields.map((field, index) => (
               <div key={index} className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
                 <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px_auto]">
-                  <label className="text-xs font-medium text-slate-600 dark:text-slate-300">Field ID
-                    <input value={field.field_id} maxLength={64} placeholder="invoice_total" onChange={(event) => updateField(index, { field_id: event.target.value })}
+                  <div>
+                    <label htmlFor={`${jobId}-field-${index}-id`} className="text-xs font-medium text-slate-600 dark:text-slate-300">Field ID</label>
+                    <input id={`${jobId}-field-${index}-id`} value={field.field_id} maxLength={64} placeholder="invoice_total" onChange={(event) => updateField(index, { field_id: event.target.value })}
                       className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
-                  </label>
-                  <label className="text-xs font-medium text-slate-600 dark:text-slate-300">Type
-                    <select value={field.type} onChange={(event) => updateField(index, { type: event.target.value as ProductAutoBriefField["type"] })}
+                  </div>
+                  <div>
+                    <label htmlFor={`${jobId}-field-${index}-type`} className="text-xs font-medium text-slate-600 dark:text-slate-300">Type</label>
+                    <select id={`${jobId}-field-${index}-type`} value={field.type} onChange={(event) => updateField(index, { type: event.target.value as ProductAutoBriefField["type"] })}
                       className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
                       {FIELD_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
                     </select>
-                  </label>
+                  </div>
                   <button type="button" onClick={() => setBriefFields((current) => current.filter((_, fieldIndex) => fieldIndex !== index))}
                     className="self-end rounded-lg px-2 py-2 text-sm text-rose-700 hover:bg-rose-50 dark:text-rose-300">Remove</button>
                 </div>
-                {field.type === "array[object]" ? <label className="mt-3 block text-xs font-medium text-slate-600 dark:text-slate-300">Repeated row group
-                  <input value={field.group ?? ""} maxLength={64} placeholder="line_items" onChange={(event) => updateField(index, { group: event.target.value })}
+                {field.type === "array[object]" ? <div className="mt-3">
+                  <label htmlFor={`${jobId}-field-${index}-group`} className="text-xs font-medium text-slate-600 dark:text-slate-300">Repeated row group</label>
+                  <input id={`${jobId}-field-${index}-group`} value={field.group ?? ""} maxLength={64} placeholder="line_items" onChange={(event) => updateField(index, { group: event.target.value })}
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
-                </label> : null}
-                <label className="mt-3 block text-xs font-medium text-slate-600 dark:text-slate-300">Meaning
-                  <input value={field.description} maxLength={1000} placeholder="Final amount due after taxes and discounts"
+                </div> : null}
+                <div className="mt-3">
+                  <label htmlFor={`${jobId}-field-${index}-meaning`} className="text-xs font-medium text-slate-600 dark:text-slate-300">Meaning</label>
+                  <input id={`${jobId}-field-${index}-meaning`} value={field.description} maxLength={1000} placeholder="Final amount due after taxes and discounts"
                     onChange={(event) => updateField(index, { description: event.target.value })}
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
-                </label>
-                <label className="mt-3 block text-xs font-medium text-slate-600 dark:text-slate-300">Example values (one per line, up to three)
-                  <textarea value={field.example_values.join("\n")} rows={2} onChange={(event) => updateField(index,
+                </div>
+                <div className="mt-3">
+                  <label htmlFor={`${jobId}-field-${index}-examples`} className="text-xs font-medium text-slate-600 dark:text-slate-300">Example values (one per line, up to three)</label>
+                  <textarea id={`${jobId}-field-${index}-examples`} value={field.example_values.join("\n")} rows={2} onChange={(event) => updateField(index,
                     { example_values: event.target.value.split(/\r?\n/) })}
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
-                </label>
+                </div>
               </div>
             ))}
           </div>
@@ -530,8 +549,29 @@ export function ProductAutoPage() {
       {brief ? <IdpoCard>
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Preview, review, then apply</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-          Preview runs only on the confirmed sample files. Open each result below and complete its source-linked review before applying the same schema to the remaining files.
+          Preview runs only on the confirmed sample files. Open each result and complete its source-linked review before applying the same schema to the remaining files.
         </p>
+        {confirmed && brief ? <section aria-labelledby="confirmed-preview-schema" className="mt-4 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+          <h3 id="confirmed-preview-schema" className="text-sm font-semibold text-slate-900 dark:text-white">
+            Confirmed schema for preview · revision {brief.revision}
+          </h3>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+            Sample files: {brief.sample_sources.map((source) =>
+              documents.find((document) => document.fileId === source.file_id)?.fileName ?? source.file_id).join(", ")}
+          </p>
+          <ul className="mt-3 max-h-64 space-y-2 overflow-y-auto text-sm">
+            {brief.fields.map((field) => <li key={field.field_id} className="rounded-md bg-slate-50 p-2 dark:bg-slate-900">
+              <p className="font-medium text-slate-900 dark:text-white">
+                <span className="font-mono">{field.field_id}</span> <span className="font-normal text-slate-500 dark:text-slate-400">({field.type}{field.group ? ` · ${field.group}` : ""})</span>
+              </p>
+              <p className="mt-1 text-slate-700 dark:text-slate-200">{field.description}</p>
+              {field.example_values.length > 0 ? <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">Examples: {field.example_values.join(", ")}</p> : null}
+            </li>)}
+          </ul>
+          <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
+            In review, compare each proposed value with this meaning and the original document. A text match alone does not establish the correct value.
+          </p>
+        </section> : null}
         {!modelConfigured ? <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">A server model is required for this schema. Ask an administrator to configure one.</p> : null}
         {!available ? <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">The extraction runner is unavailable on this deployment.</p> : null}
         <div className="mt-4 flex flex-wrap gap-3">
@@ -551,8 +591,20 @@ export function ProductAutoPage() {
         </p> : null}
         {previewRun ? <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
           Latest preview {previewRun.status}. {reviewedPreviewRun ? "A reviewed sample preview is ready for the batch." :
-            "Review every preview document using the links in Runs below."}
+            "Review every preview result before applying the schema to other files."}
         </p> : null}
+        {previewRun && previewRun.documents.length > 0 ? <div className="mt-3">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Preview results</h3>
+          <ol className="mt-2 space-y-1 text-sm">
+            {previewRun.documents.map((document, index) => <li key={document.docId}>
+              <Link className="font-medium text-cyan-700 hover:underline dark:text-cyan-300"
+                href={`/dashboard/idpo/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(previewRun.runId)}/docs/${encodeURIComponent(document.docId)}`}>
+                Review result {index + 1}: {document.fileName}
+              </Link>
+              <span className="ml-2 text-slate-600 dark:text-slate-300">{document.reviewStatus.replaceAll("_", " ")}</span>
+            </li>)}
+          </ol>
+        </div> : null}
         {confirmed ? <div className="mt-4 grid gap-2 sm:grid-cols-2">
           {documents.filter((document) => !sampleFileIds.includes(document.fileId)).map((document) =>
             <label key={document.fileId} className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 p-2 text-sm dark:border-slate-700">

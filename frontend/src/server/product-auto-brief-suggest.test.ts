@@ -9,7 +9,20 @@ import { POST as suggestRoute } from "@/app/api/jobs/[jobId]/auto/brief/suggest/
 import { resetConfigCacheForTests } from "./config";
 import { addDocumentsToJob, createWorkspaceJob } from "./jobs";
 import { getProductAutoBrief } from "./product-auto-brief";
-import { suggestProductAutoBrief } from "./product-auto-brief-suggest";
+import { suggestProductAutoBrief, suggestionFailureMessage } from "./product-auto-brief-suggest";
+
+test("sample failures give a bounded recovery action without claiming unknown attempts were free", () => {
+  for (const code of ["budget_exhausted", "ocr_timeout"]) {
+    assert.match(suggestionFailureMessage("sample", code), /Choose fewer or smaller samples/);
+    assert.match(suggestionFailureMessage("sample", code), /No schema model request was started/);
+  }
+  assert.match(suggestionFailureMessage("sample", "ocr_no_text"), /enter the fields manually/);
+  for (const [stage, code] of [["helper", "timeout"], ["model", "ocr_timeout"], ["sample", "secret_value"]]) {
+    const message = suggestionFailureMessage(stage, code);
+    assert.match(message, /may already have been charged/);
+    assert.doesNotMatch(message, /No schema model request|secret_value/);
+  }
+});
 
 type HelperInput = Parameters<NonNullable<Parameters<typeof suggestProductAutoBrief>[3]>>[0];
 

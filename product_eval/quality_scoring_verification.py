@@ -13,7 +13,9 @@ from pathlib import Path, PurePosixPath
 from idpo.product_auto.confirmed_schema import load_confirmed_schema
 from idpo.product_auto.strict_output import (
     compile_confirmed_values_response_format,
+    compile_confirmed_values_response_format_v2,
     parse_confirmed_strict_values_reply,
+    parse_confirmed_strict_values_reply_v2,
 )
 from idpo.product_auto.visual_output import (
     compile_visual_response_format,
@@ -112,8 +114,22 @@ def _wire_request(path: Path, schema, profile: dict, sidecar: dict | None, index
     data, _ = json.JSONDecoder().raw_decode(prompt.split("Document data: ", 1)[1])
     require(data["fields"] == list(schema.fields) and data.get("user_intent", "") == schema.intent,
             "Request differs from frozen family schema")
-    compiler = compile_visual_response_format if visual else compile_confirmed_values_response_format
-    require(body["response_format"] == compiler(schema.candidate_fields), "Request strict format differs")
+    response_profile = profile.get("response_format_profile", "strict_confirmed_values_v1")
+    require(response_profile in {"strict_confirmed_values_v1", "strict_confirmed_values_v2"},
+            "Unsupported strict profile")
+    expected_sidecar_profile = (response_profile.replace("strict_confirmed", "strict_visual_confirmed")
+                                if visual else response_profile)
+    if sidecar is not None:
+        require(sidecar.get("response_format_profile") == expected_sidecar_profile,
+                "Sidecar strict profile differs from frozen request profile")
+    if visual:
+        expected_format = compile_visual_response_format(
+            schema.candidate_fields, profile=response_profile.replace("strict_confirmed", "strict_visual_confirmed"))
+    else:
+        compiler = (compile_confirmed_values_response_format_v2 if response_profile == "strict_confirmed_values_v2"
+                    else compile_confirmed_values_response_format)
+        expected_format = compiler(schema.candidate_fields)
+    require(body["response_format"] == expected_format, "Request strict format differs")
     receipt = {"kind": "visual" if visual else "text", "request_sha256": digest_file(path)}
     if sidecar is not None and not visual:
         from idpo.product_auto.long_document import segment_pages
@@ -161,10 +177,18 @@ def _attempts(directory: Path, rows: list[dict], schema, profile: dict, sidecar:
             "prompt_tokens", "completion_tokens", "latency_ms", "finish_reason", "refusal", "error_category", "sdk_attempts")),
             "Ledger reply accounting differs")
         replies.append(reply)
-        parse = parse_visual_values_reply if request["kind"] == "visual" else parse_confirmed_strict_values_reply
+        response_profile = profile.get("response_format_profile", "strict_confirmed_values_v1")
+        if request["kind"] == "visual":
+            parsed = parse_visual_values_reply(
+                reply["text"], schema.candidate_fields, data["pages"],
+                profile=response_profile.replace("strict_confirmed", "strict_visual_confirmed"))
+        else:
+            parse = (parse_confirmed_strict_values_reply_v2 if response_profile == "strict_confirmed_values_v2"
+                     else parse_confirmed_strict_values_reply)
+            parsed = parse(reply["text"], schema.candidate_fields, data["pages"])
         valid += bool(row["state"] == "replied" and not reply.get("error") and not reply.get("refusal")
                       and reply.get("finish_reason") == "stop" and reply.get("sdk_attempts") == 1
-                      and parse(reply["text"], schema.candidate_fields, data["pages"]) is not None)
+                      and parsed is not None)
     return replies, requests, valid
 
 

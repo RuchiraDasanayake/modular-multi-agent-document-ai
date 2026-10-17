@@ -22,7 +22,9 @@ from pathlib import Path
 
 from idpo.product_auto.confirmed_schema import load_confirmed_schema
 from idpo.product_auto.provider import ModelReply, OpenAICompatibleChat
-from idpo.product_auto.strict_output import parse_confirmed_strict_values_reply
+from idpo.product_auto.strict_output import (
+    parse_confirmed_strict_values_reply, parse_confirmed_strict_values_reply_v2,
+)
 from idpo.product_auto.visual_output import parse_visual_values_reply
 from product_eval.execution import verify_result_receipts, verify_run
 from product_eval.final_gate_freeze import (
@@ -165,7 +167,7 @@ def _visual_coverage(sidecar: dict, replies: list[dict], schema, requests: list[
         recorded = receipt["requests"]
         source_sha = sidecar["source_container_sha256"]
         if (receipt["profile"] not in {"bounded_visual_v1", "bounded_visual_selective_v2"} or receipt["route"] != "visual" or
-                sidecar["response_format_profile"] != "strict_visual_confirmed_values_v1" or
+                sidecar["response_format_profile"] not in {"strict_visual_confirmed_values_v1", "strict_visual_confirmed_values_v2"} or
                 receipt["failure_reason"] is not None or receipt["source_sha256"] != source_sha or
                 not 1 <= len(ids) <= 48 or ids != list(range(1, len(ids) + 1)) or
                 any(receipt[key] != ids for key in ("source_pages", "observed_ocr_pages", "planned_pages", "attempted_pages", "valid_pages")) or
@@ -192,7 +194,10 @@ def _visual_coverage(sidecar: dict, replies: list[dict], schema, requests: list[
             covered.extend(batch)
             helpers.append(helper)
             batch_pages = [page for page in pages if page["page"] in batch]
-            parsed = parsed and parse_visual_values_reply(reply["text"], schema.candidate_fields, batch_pages) is not None
+            parsed = parsed and parse_visual_values_reply(
+                reply["text"], schema.candidate_fields, batch_pages,
+                profile=sidecar["response_format_profile"],
+            ) is not None
         plan_sha = hashlib.sha256(json.dumps(helpers, sort_keys=True, separators=(",", ":"),
                                            ensure_ascii=False).encode("utf-8")).hexdigest()
         complete = covered == ids and receipt["plan_sha256"] == plan_sha
@@ -206,6 +211,9 @@ def source_metrics(sidecar: dict, replies: list[dict], schema, *, requests: list
     pages = sidecar.get("pages", [])
     chars = sum(len(page["text"]) for page in pages)
     reason = sidecar.get("reason")
+    text_profile = sidecar.get("response_format_profile", "strict_confirmed_values_v1")
+    parse_text = (parse_confirmed_strict_values_reply_v2
+                  if text_profile == "strict_confirmed_values_v2" else parse_confirmed_strict_values_reply)
     provider_ok = bool(replies) and all(
         not reply.get("error") and reply.get("error_category") is None and not reply.get("refusal") and reply.get("finish_reason") == "stop"
         and reply.get("sdk_attempts") == 1 for reply in replies
@@ -232,12 +240,14 @@ def source_metrics(sidecar: dict, replies: list[dict], schema, *, requests: list
         rebuilt = plan_segments(pages, max_chars=24_000)
         full_coverage = full_coverage and rebuilt.supported and len(rebuilt.segments) == len(replies) and plan_receipt(rebuilt) == long_plan
         strict_parsed = bool(provider_ok and full_coverage and all(
-            parse_confirmed_strict_values_reply(reply["text"], schema.candidate_fields, segment_pages(segment)) is not None
+            parse_text(reply["text"], schema.candidate_fields, segment_pages(segment)) is not None
             for reply, segment in zip(replies, rebuilt.segments, strict=True)))
     else:
         full_coverage = bool(pages) and 0 < chars <= 24_000 and len(replies) == 1
         strict_parsed = bool(provider_ok and full_coverage and
-                             parse_confirmed_strict_values_reply(replies[0]["text"], schema.candidate_fields, pages) is not None)
+                             parse_text(replies[0]["text"], schema.candidate_fields, pages) is not None)
+    if not visual and text_profile not in {"strict_confirmed_values_v1", "strict_confirmed_values_v2"}:
+        strict_parsed = False
     values = sidecar.get("candidate", {}).get("extracted_values", [])
     non_null = sum(_nonempty(value.get("value")) for value in values)
     fields_complete = (len(values) == len(schema.candidate_fields) and
@@ -518,6 +528,7 @@ def main() -> int:
     command = commands.add_parser("freeze", help="Freeze clean code/runtime/schema/source bytes; no OCR/API")
     for flag in ("cohort", "schema-protocol", "profile", "output"):
         command.add_argument(f"--{flag}", type=Path, required=True)
+    command.add_argument("--analysis-plan", type=Path, help="Optional predeclared single-run recall plan; no labels read")
     for name in ("run", "resume"):
         command = commands.add_parser(name)
         command.add_argument("--output", type=Path, required=True)
@@ -531,7 +542,8 @@ def main() -> int:
     if args.command == "profile":
         result = DEFAULT_PROFILE
     elif args.command == "freeze":
-        result = {"protocol_sha256": freeze(args.cohort, args.schema_protocol, args.profile, args.output)}
+        result = {"protocol_sha256": freeze(args.cohort, args.schema_protocol, args.profile, args.output,
+                                           analysis_plan=args.analysis_plan)}
     else:
         result = run_gate(args.output.resolve(), args.protocol_sha256, api_key_env=args.api_key_env,
                           resume=args.command == "resume", batches=args.batches,

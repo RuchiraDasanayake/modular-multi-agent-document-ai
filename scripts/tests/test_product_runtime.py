@@ -169,17 +169,49 @@ def test_scan_probe_checks_selected_preview_and_restores_environment(tmp_path, m
     assert os.environ.get("IDPO_AUTO_OCR_ENGINE") == existing
 
 
-@pytest.mark.parametrize("parser,text", [
-    ("pdfium-tesseract-first-two-pages", runtime.MARKER),
-    ("intake-pdf-preview-tesseract-v1", runtime.MARKER),
-    ("intake-pdf-preview-rapidocr-v1", "unreadable"),
+@pytest.mark.parametrize("parser,text,failure_code", [
+    ("pdfium-tesseract-first-two-pages", runtime.MARKER, "parser_mismatch"),
+    ("intake-pdf-preview-tesseract-v1", runtime.MARKER, "parser_mismatch"),
+    ("intake-pdf-preview-rapidocr-v1", "unreadable", "marker_missing"),
 ])
-def test_scan_probe_rejects_wrong_engine_legacy_parser_or_failed_recognition(tmp_path, monkeypatch, parser, text):
+def test_scan_probe_rejects_wrong_engine_legacy_parser_or_failed_recognition(tmp_path, monkeypatch, parser, text, failure_code):
     from idpo.product_auto import brief_draft
 
     monkeypatch.setattr(brief_draft, "_sample_text", lambda *_: (text, parser))
     result = runtime.run_check("scan_sample", lambda: runtime._scan_sample_probe(tmp_path, "rapidocr"))
     assert result["ready"] is False
+    assert result["failure_code"] == failure_code
+
+
+@pytest.mark.parametrize("ocr_reason,failure_code", [
+    ("rapidocr_timeout", "ocr_timeout"),
+    ("rapidocr_no_text", "ocr_no_text"),
+    ("rapidocr_memory_limit", "ocr_resource_limit"),
+    ("unknown-private-provider-data", "ocr_failed"),
+])
+def test_scan_probe_ocr_failure_codes_are_bounded(tmp_path, monkeypatch, ocr_reason, failure_code):
+    from idpo.product_auto import brief_draft
+
+    def fail(*_):
+        raise brief_draft.SampleOcrFailure(ocr_reason)
+
+    monkeypatch.setattr(brief_draft, "_sample_text", fail)
+    result = runtime.run_check("scan_sample", lambda: runtime._scan_sample_probe(tmp_path, "rapidocr"))
+    assert result["ready"] is False
+    assert result["failure_code"] == failure_code
+    assert ocr_reason not in json.dumps(result) or ocr_reason == failure_code
+
+
+def test_scan_probe_unexpected_failure_keeps_code_without_exception_text(tmp_path, monkeypatch):
+    from idpo.product_auto import brief_draft
+
+    def fail(*_):
+        raise RuntimeError("private-provider-credential")
+
+    monkeypatch.setattr(brief_draft, "_sample_text", fail)
+    result = runtime.run_check("scan_sample", lambda: runtime._scan_sample_probe(tmp_path, "rapidocr"))
+    assert result["failure_code"] == "preview_exception"
+    assert "private-provider-credential" not in json.dumps(result)
 
 
 def test_wrong_interpreter_cannot_certify_the_configured_runtime(tmp_path: Path, capsys) -> None:

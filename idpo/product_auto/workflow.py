@@ -304,12 +304,30 @@ def process_auto(
         for doc_id, document, initial_reason, source_index, source_hash, source_size, hash_kind in rows:
             started = time.perf_counter()
             doc_resources_started = resource_probe.snapshot()
-            candidate, sidecar = _process_document(
-                doc_id, document, ctx, ocr, model, initial_reason, native_parsed, approved_recipe,
-                confirmed_schema, strict_response_format, response_format_sha256,
-                response_format_profile, long_document_profile,
-                visual_document_profile, file_path, container_hash,
-            )
+            observed_sidecar: dict[str, object] = {}
+            try:
+                candidate, sidecar = _process_document(
+                    doc_id, document, ctx, ocr, model, initial_reason, native_parsed, approved_recipe,
+                    confirmed_schema, strict_response_format, response_format_sha256,
+                    response_format_profile, long_document_profile,
+                    visual_document_profile, file_path, container_hash,
+                    sidecar_receipt=observed_sidecar,
+                )
+            except Exception:  # noqa: BLE001 - isolate one unexpected extraction failure, never replay a model call
+                candidate = {
+                    "contract_version": CONTRACT_VERSION, "doc_id": doc_id,
+                    "document_status": "failed", "proposed_schema": [], "extracted_values": [],
+                }
+                sidecar = observed_sidecar
+                sidecar["reason"] = "document_processing_failed"
+                # An exception may occur after a request reached the provider but
+                # before its receipt was recorded. Keep any known calls and report
+                # the total SDK attempts as unknown instead of implying zero spend.
+                sidecar["model_attempts_uncertain"] = model is not None
+                if visual_document_profile in BOUNDED_VISUAL_PROFILES and "visual_document" not in sidecar:
+                    sidecar["visual_document"] = visual_receipt(container_hash, visual_document_profile)
+                if isinstance(sidecar.get("visual_document"), dict):
+                    sidecar["visual_document"]["failure_reason"] = "document_processing_failed"
             doc_resources_ended = resource_probe.snapshot()
             duration_ms = round(shared_prepare_ms + (time.perf_counter() - started) * 1000, 3)
             resource_usage = {
@@ -360,7 +378,9 @@ def process_auto(
                 "duration_ms": duration_ms,
                 "page_count": len(sidecar["pages"]),
                 "model_call_count": len(sidecar["model_calls"]),
-                "model_sdk_attempt_count": _known_sdk_attempts(sidecar["model_calls"]),
+                "model_sdk_attempt_count": (None if sidecar.get("model_attempts_uncertain")
+                                            else _known_sdk_attempts(sidecar["model_calls"])),
+                "model_attempts_uncertain": sidecar.get("model_attempts_uncertain", False),
                 "response_format_profile": sidecar["response_format_profile"],
                 "response_format_sha256": sidecar["response_format_sha256"],
                 "long_document": _long_document_summary(sidecar),
@@ -417,6 +437,7 @@ def process_auto(
         "approved_recipe": approved_recipe.receipt if approved_recipe else None,
         "confirmed_schema": confirmed_schema.receipt if confirmed_schema else None,
         "model_call_count": sum(int(receipt["model_call_count"]) for receipt in receipts),
+        "model_attempts_uncertain_doc_count": sum(receipt["model_attempts_uncertain"] is True for receipt in receipts),
         "model_sdk_attempt_count": (
             sum(int(attempts) for attempts in known_attempts)
             if all(type(attempts) is int for attempts in known_attempts) else None
@@ -468,6 +489,7 @@ def _process_document(
     visual_document_profile: str = "disabled",
     original_source: Path | None = None,
     original_source_sha256: str | None = None,
+    sidecar_receipt: dict[str, object] | None = None,
 ) -> tuple[dict[str, object], dict[str, object]]:
     candidate: dict[str, object] = {
         "contract_version": CONTRACT_VERSION,
@@ -476,7 +498,8 @@ def _process_document(
         "proposed_schema": [],
         "extracted_values": [],
     }
-    sidecar: dict[str, object] = {
+    sidecar: dict[str, object] = sidecar_receipt if sidecar_receipt is not None else {}
+    sidecar.update({
         "contract_version": CONTRACT_VERSION,
         "pages": [],
         "reason": initial_reason,
@@ -490,7 +513,7 @@ def _process_document(
         "api_cost_usd": None,
         "compute_cost_usd": None,
         "total_cost_usd": None,
-    }
+    })
     if approved_recipe is not None:
         sidecar["approved_recipe"] = approved_recipe.receipt
     if confirmed_schema is not None:
