@@ -36,7 +36,9 @@ reported separately; authored fixtures do not establish general-document accurac
   A development comparison cannot replace the frozen paired study or be described
   as an untouched holdout.
 
-Status: implementation and validation in progress; no new accuracy result yet.
+Status: engineering implementation and the authored UI workflow check are
+complete. Independent quality evaluation remains pending; no new general-document
+accuracy or monetary-cost result is established.
 
 ## Reproduced fixes and checks so far
 
@@ -61,7 +63,30 @@ Status: implementation and validation in progress; no new accuracy result yet.
   114 related Python tests and the PowerShell preflight regression passed; a real
   native capability probe reported ready on 17 October at 11:32:49 UTC.
 
-The in-progress three-call UI protocol uses two newly authored documents: a
-single-row HTML order and a text order with duplicated rows and an absent tax ID.
-Expected values and file hashes were written before model execution. These are
-engineering fixtures and simulated review, not independent human evaluation.
+## Authored UI workflow result
+
+The saved protocol at `I:\DocAI-Runtime\high-value-20261017\ui-protocol.json`
+fixed source hashes and expected values before any model call. Two newly authored
+sources covered a single-row HTML order and a text order with duplicate linked
+rows and an absent tax identifier. The in-app browser exercised upload, confirmed
+schema, preview, source inspection, review, remaining-file extraction and export:
+
+- One `strict_confirmed_values_v1` preview and one
+  `strict_confirmed_values_v2` preview of the HTML source each matched the
+  prewritten values. A v2 batch run of the text source also matched its
+  prewritten values, including all three linked rows in order. Each run used
+  one model call, for three calls total; the saved receipts show no retries.
+- The previews still required review because no values were grounded for
+  automatic confirmation. The text run required review for ambiguous evidence.
+  The agent inspected the authored source and used **Correct** for the linked
+  rows, without inventing an evidence location. Review changed no extracted
+  values and explicitly removed the absent tax identifiers.
+- Two downloaded reviewed JSON files and one reviewed JSONL file were saved,
+  parsed and checked against expected values. Their hashes and run receipts
+  are in `I:\DocAI-Runtime\high-value-20261017\ui-verification.json`.
+
+The UI check used the in-app browser; Chrome and Edge remain unverified. The
+review was agent-simulated, not an independent human study. The three authored
+calls and 147 passing focused evaluation tests are engineering evidence only;
+they do not establish heterogeneous-document accuracy, human-effort savings,
+throughput or priced cost per correct document.
