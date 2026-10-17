@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from PIL import Image
@@ -13,8 +14,13 @@ from pypdf import PdfReader, PdfWriter
 from idpo.agents import intake, preprocess
 from idpo.agents.intake import IntakeAgent
 from idpo.agents.preprocess import OcrAgent
-from idpo.product_auto import rapid_ocr
-from idpo.product_auto.brief_draft import SAMPLE_OCR_TIMEOUT_S, suggest_fields
+from idpo.product_auto import brief_draft, rapid_ocr
+from idpo.product_auto.brief_draft import (
+    SAMPLE_OCR_TIMEOUT_S,
+    SAMPLE_TOTAL_TIMEOUT_S,
+    SampleBudgetExceeded,
+    suggest_fields,
+)
 from idpo.tests.test_pdf_native_layer import METADATA, VISIBLE, _pdf
 from idpo.tests.test_product_auto_brief_draft import FakeModel, _reply, _request
 
@@ -152,6 +158,7 @@ def test_actual_adapter_resource_failure_prevents_model_and_cleans_raster(tmp_pa
 
     def recognize(image, *, config):
         called.append(image.size)
+        assert SAMPLE_OCR_TIMEOUT_S == 30.0
         assert config.timeout_s == SAMPLE_OCR_TIMEOUT_S
         raise rapid_ocr.RapidOcrError(reason)
 
@@ -162,6 +169,102 @@ def test_actual_adapter_resource_failure_prevents_model_and_cleans_raster(tmp_pa
     assert len(called) == 1
     assert model.calls == []
     assert list((tmp_path / "runtime" / "brief_previews").iterdir()) == []
+
+
+def test_total_sample_budget_stops_before_next_sample_and_model(tmp_path, monkeypatch):
+    first, second = tmp_path / "first.txt", tmp_path / "second.txt"
+    first.write_text("First total 123.45", encoding="utf-8")
+    second.write_text("Second total 123.45", encoding="utf-8")
+    request = _request(first)
+    request["samples"].append({"file_id": "c" * 32,
+                               "source_sha256": brief_draft._sha256_file(second), "path": str(second)})
+    clock = SimpleNamespace(now=0.0)
+    monkeypatch.setattr(brief_draft, "time", SimpleNamespace(monotonic=lambda: clock.now))
+    parsed = []
+
+    def parse(path, _digest, *, deadline=None):
+        parsed.append(path.name)
+        assert deadline == SAMPLE_TOTAL_TIMEOUT_S
+        clock.now = SAMPLE_TOTAL_TIMEOUT_S + 0.1
+        return "First total 123.45", "utf8-text"
+
+    monkeypatch.setattr(brief_draft, "_sample_text", parse)
+    model = FakeModel(_preview_reply())
+    with pytest.raises(SampleBudgetExceeded):
+        suggest_fields(request, model)
+    assert parsed == ["first.txt"]
+    assert model.calls == []
+
+
+def test_budget_exhaustion_has_safe_cli_diagnostic(tmp_path, monkeypatch, capsys):
+    sample = tmp_path / "sample.txt"
+    sample.write_text("Total 123.45", encoding="utf-8")
+    request = _request(sample)
+    request_file = tmp_path / "request.json"
+    raw = json.dumps(request).encode()
+    request_file.write_bytes(raw)
+    model = FakeModel(_preview_reply())
+    monkeypatch.setattr(brief_draft, "OpenAICompatibleChat", lambda **_: model)
+    def exhausted(*_, **__):
+        raise SampleBudgetExceeded()
+
+    monkeypatch.setattr(brief_draft, "_sample_text", exhausted)
+    assert brief_draft.main(["--request-file", str(request_file), "--request-sha256",
+                             brief_draft._sha256_file(request_file)]) == 1
+    assert json.loads(capsys.readouterr().err) == {"stage": "sample", "code": "budget_exhausted"}
+    assert model.calls == []
+
+
+def test_ocr_page_budget_uses_remaining_shared_deadline(tmp_path, monkeypatch):
+    scanned_dir = tmp_path / "scanned"
+    scanned_dir.mkdir()
+    scanned = _pdf(scanned_dir, scan=True, mode=3)
+    source = tmp_path / "two-scans.pdf"
+    with PdfWriter() as writer:
+        writer.append(scanned)
+        writer.append(scanned)
+        writer.write(source)
+    clock = SimpleNamespace(now=0.0)
+    monkeypatch.setattr(brief_draft, "time", SimpleNamespace(monotonic=lambda: clock.now))
+    observed = []
+
+    def ocr(self, page, settings, engine_name="paddle"):
+        observed.append((page.number, settings["rapidocr_page_budget_s"]))
+        if len(observed) == 1:
+            clock.now = 35.0
+        return "Visible scanned total 123.45", True, None, {"ocr_confidence": 99}
+
+    monkeypatch.setattr(OcrAgent, "_ocr_image", ocr)
+    model = FakeModel(_preview_reply())
+    suggest_fields(_request(source), model)
+    assert observed == [(1, 30.0), (2, 25.0)]
+    assert len(model.calls) == 1
+
+
+def test_exhausted_budget_does_not_skip_a_selected_scan_page(tmp_path, monkeypatch):
+    scanned_dir = tmp_path / "scanned"
+    scanned_dir.mkdir()
+    scanned = _pdf(scanned_dir, scan=True, mode=3)
+    source = tmp_path / "two-scans.pdf"
+    with PdfWriter() as writer:
+        writer.append(scanned)
+        writer.append(scanned)
+        writer.write(source)
+    clock = SimpleNamespace(now=0.0)
+    monkeypatch.setattr(brief_draft, "time", SimpleNamespace(monotonic=lambda: clock.now))
+    observed = []
+
+    def ocr(self, page, settings, engine_name="paddle"):
+        observed.append(page.number)
+        clock.now = SAMPLE_TOTAL_TIMEOUT_S
+        return "Visible scanned total 123.45", True, None, {"ocr_confidence": 99}
+
+    monkeypatch.setattr(OcrAgent, "_ocr_image", ocr)
+    model = FakeModel(_preview_reply())
+    with pytest.raises(SampleBudgetExceeded):
+        suggest_fields(_request(source), model)
+    assert observed == [1]
+    assert model.calls == []
 
 
 def test_unreadable_preview_prevents_model(tmp_path, monkeypatch):

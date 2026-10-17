@@ -37,3 +37,31 @@ reported separately; authored fixtures do not establish general-document accurac
   as an untouched holdout.
 
 Status: implementation and validation in progress; no new accuracy result yet.
+
+## Reproduced fixes and checks so far
+
+- Three authored, explicitly headed single-row HTML/EML/XLSX cases failed before
+  the native-table fix. All 38 native-table tests pass afterward. This affects
+  discovery, not confirmed-schema native header mapping.
+- An injected exception after two recorded model replies previously aborted the
+  batch and prevented its completion marker. The regression now preserves those
+  receipts, marks the failed document's attempt count unknown, processes the next
+  source once, and retains process/disk failures as fatal. The broader 295-test
+  product selection passed; the combined focused rerun passed 86 tests.
+- Confirmed-schema summary, direct sample review links, accessible labels and a
+  repeated-column shortcut passed eight component checks. Failure/review/export
+  guards passed 32 focused frontend tests. TypeScript and changed-file lint passed.
+- Startup reproduced the earlier scanned-PDF sample failure. Its original cause
+  cannot be recovered because the old probe discarded the reason. New diagnostics
+  preserve only closed-set failure codes, never arbitrary source/exception text.
+  The OCR page budget is 30 seconds within a shared 60-second sampling deadline.
+  The latter is checked between parsing operations and before the model call;
+  the existing 120-second helper timeout remains the hard process bound. These
+  changes are bounded tolerance and diagnostics, not proof of the original cause.
+  114 related Python tests and the PowerShell preflight regression passed; a real
+  native capability probe reported ready on 17 October at 11:32:49 UTC.
+
+The in-progress three-call UI protocol uses two newly authored documents: a
+single-row HTML order and a text order with duplicated rows and an absent tax ID.
+Expected values and file hashes were written before model execution. These are
+engineering fixtures and simulated review, not independent human evaluation.

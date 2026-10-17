@@ -58,6 +58,20 @@ class ConfigurationError(ValueError):
         self.remedy = remedy
 
 
+SCAN_SAMPLE_FAILURE_CODES = frozenset({
+    "ocr_timeout", "ocr_no_text", "ocr_resource_limit", "pdf_render_failed",
+    "ocr_failed", "parser_mismatch", "marker_missing", "preview_exception",
+})
+
+
+class ScanSampleProbeError(ValueError):
+    def __init__(self, code: str):
+        if code not in SCAN_SAMPLE_FAILURE_CODES:
+            raise ValueError("Unknown scanned-PDF probe failure")
+        super().__init__(code)
+        self.code = code
+
+
 def _require(condition: bool) -> None:
     if not condition:
         raise ValueError("synthetic_probe_failed")
@@ -188,7 +202,7 @@ def _ocr_probe() -> None:
 
 
 def _scan_sample_probe(root: Path, ocr_engine: str = "tesseract") -> None:
-    from idpo.product_auto.brief_draft import _sample_text
+    from idpo.product_auto.brief_draft import SampleOcrFailure, _sample_text
 
     source = root / "scan.pdf"
     with _image_fixture() as image:
@@ -197,13 +211,19 @@ def _scan_sample_probe(root: Path, ocr_engine: str = "tesseract") -> None:
     previous = os.environ.get("IDPO_AUTO_OCR_ENGINE")
     try:
         os.environ["IDPO_AUTO_OCR_ENGINE"] = ocr_engine
-        text, parser = _sample_text(source, hashlib.sha256(source.read_bytes()).hexdigest())
+        try:
+            text, parser = _sample_text(source, hashlib.sha256(source.read_bytes()).hexdigest())
+        except SampleOcrFailure as exc:
+            raise ScanSampleProbeError(exc.code) from None
     finally:
         if previous is None:
             os.environ.pop("IDPO_AUTO_OCR_ENGINE", None)
         else:
             os.environ["IDPO_AUTO_OCR_ENGINE"] = previous
-    _require(parser == f"intake-pdf-preview-{ocr_engine}-v1" and "12345" in text)
+    if parser != f"intake-pdf-preview-{ocr_engine}-v1":
+        raise ScanSampleProbeError("parser_mismatch")
+    if "12345" not in text:
+        raise ScanSampleProbeError("marker_missing")
 
 
 def _rapidocr_probe() -> None:
@@ -243,8 +263,14 @@ def run_check(check_id: str, probe: Callable[[], None]) -> dict[str, object]:
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             probe()
         return {"id": check_id, "ready": True, "code": "synthetic_probe_passed"}
+    except ScanSampleProbeError as exc:
+        return {"id": check_id, "ready": False, "code": "synthetic_probe_failed",
+                "failure_code": exc.code, "remedy": REMEDIES[check_id]}
     except Exception:
-        return {"id": check_id, "ready": False, "code": "synthetic_probe_failed", "remedy": REMEDIES[check_id]}
+        result = {"id": check_id, "ready": False, "code": "synthetic_probe_failed", "remedy": REMEDIES[check_id]}
+        if check_id == "scan_sample":
+            result["failure_code"] = "preview_exception"
+        return result
 
 
 def provider_report(client_ready: bool, environment: dict[str, str]) -> dict[str, object]:

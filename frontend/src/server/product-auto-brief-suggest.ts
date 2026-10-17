@@ -41,6 +41,16 @@ class SuggestionHelperFailure extends Error {
   constructor(readonly diagnostic: HelperDiagnostic) { super("Schema suggestion helper failed."); }
 }
 
+export function suggestionFailureMessage(stage: string, code: string): string {
+  if (stage === "sample" && ["budget_exhausted", "ocr_timeout"].includes(code)) {
+    return "Preparing the sample files took too long. Choose fewer or smaller samples, save the draft, and try again. No schema model request was started.";
+  }
+  if (stage === "sample" && ["ocr_no_text", "ocr_resource_limit", "pdf_render_failed", "ocr_failed"].includes(code)) {
+    return "A sample could not be read. Choose a clearer or smaller file, or enter the fields manually. No schema model request was started.";
+  }
+  return "AI field suggestion failed. A model request may already have been charged; inspect the attempt before trying again.";
+}
+
 function safeDiagnostic(raw: string): HelperDiagnostic {
   try {
     const parsed: unknown = JSON.parse(raw.trim().split(/\r?\n/).at(-1) ?? "");
@@ -276,7 +286,7 @@ export async function suggestProductAutoBrief(jobId: string, user: Authenticated
     const diagnostic = error instanceof SuggestionHelperFailure ? error.diagnostic :
       { stage: "helper", code: "unknown_failure" };
     writeAttemptReceipt(attempt, input, "failed", diagnostic);
-    throw new AccessError(`AI field suggestion failed (reference ${attemptId}).`, 502);
+    throw new AccessError(`${suggestionFailureMessage(diagnostic.stage, diagnostic.code)} (reference ${attemptId}).`, 502);
   }
   let suggestion: ProductAutoBriefSuggestion;
   try { suggestion = validateSuggestion(raw, input); }
