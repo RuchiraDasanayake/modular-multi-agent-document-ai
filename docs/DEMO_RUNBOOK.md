@@ -5,8 +5,9 @@ Classification: `supporting`; action: `keep`.
 **17 October verification:** the in-app browser completed PDF/TXT file selection,
 manual field setup, live Luna 6 preview and batch extraction, review, and actual
 saved JSON/JSONL downloads. See the [browser verification](evaluations/DEMO_BROWSER_VERIFICATION_20261017.md).
-The older file-delivery limitations below describe the earlier checks; Chrome/Edge
-remain unverified. Run the launcher before the demo: one cold preflight failed
+Chrome/Edge remain unverified. The later [release check](HIGH_VALUE_RELEASE_20261017.md)
+also verified duplicate linked rows, an absent field, and byte-identical saved
+exports after a production restart. Run the launcher before the demo: one cold preflight failed
 scanned-PDF sampling before subsequent checks passed, with no established root cause.
 
 Use this guide to demonstrate the configured extraction workspace: upload files, confirm field meanings, preview,
@@ -67,8 +68,9 @@ are listed in the quickstart; an accepted extension does not mean that every emb
    A preview and a subsequent batch are separate runs; exporting the batch does not combine the preview into it.
 10. Paste copied output into a text editor and inspect the values and review provenance. Save as `.json` or `.jsonl`
     when needed. Check the success message: if clipboard access is unavailable, try the download control in a
-    browser that permits file saving. Embedded-browser file-save delivery has not been verified; do not equate a
-    “Download requested” message with a saved file.
+    browser that permits file saving. Actual in-app browser downloads passed the
+    17 October checks; Chrome/Edge delivery remains unverified. A “Download requested”
+    message alone is not evidence that the file was saved.
 
 The batch export rejects incomplete, failed, stale or unreviewed results. For a one-file job, review and export the
 preview; there is no remaining batch.
