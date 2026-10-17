@@ -90,3 +90,38 @@ review was agent-simulated, not an independent human study. The three authored
 calls and 147 passing focused evaluation tests are engineering evidence only;
 they do not establish heterogeneous-document accuracy, human-effort savings,
 throughput or priced cost per correct document.
+
+## Deployed release readback
+
+The output-limit guidance change passed its targeted server/component tests,
+TypeScript and lint checks, then a production build and native startup on
+17 October. The deployed browser retained the confirmed schema and completed
+review after restart. A newly downloaded reviewed JSONL file matched the
+pre-restart export byte for byte (SHA256
+`5c72d94ebb7d8ee63d23059d51911043fa919e7c87e0a80760cfec9729f1f26a`).
+This readback required no model calls. The specific length-limit message was
+tested with verified-artifact fixtures, not a newly induced provider truncation.
+
+The release is merged into `main` through PR 45. Its private build and readback
+receipt is `I:\DocAI-Runtime\high-value-20261017\deployment-readback.json`.
+The independent operational campaign continued during the frontend build;
+its elapsed time must not be presented as isolated processing throughput.
+
+## User-requested evaluation pause
+
+The newer frozen 2,000-source campaign stopped at a safe boundary on 17 October
+after the user requested a processing pause. No requests remain running. There
+are 697 accounted-for sources (694 sealed and three uncertain), 1,303 unstarted,
+and 678 valid complete outputs. These are provisional processing counts, not
+accuracy results or a completed operational study. Reference labels remain
+unopened. The campaign has no final seal and was not scored.
+
+The durable stop reason is `user_requested_pause`. The frozen CLI does not
+currently accept this reason with `--acknowledge-stop`; continuation requires an
+audited operator-pause procedure. Do not reset uncertain outcomes, replay paid
+requests, substitute a provider-error reason or silently clear the stop.
+
+The [GPU screening](evaluations/GPU_OCR_SCREENING_20261017.md) is complete and
+CPU OCR remains the production default. Neither this screening nor the paused
+campaign changes the completed-study claims in the paper and slides. See the
+[final conference handoff](CONFERENCE_HANDOFF_20261017.md).

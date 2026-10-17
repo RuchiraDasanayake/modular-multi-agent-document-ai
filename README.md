@@ -13,7 +13,13 @@ Its usable workflow and bounded research evidence are documented separately from
 > **Current verified results and reconstruction:** see the [paired comparison](docs/evaluations/QUALITY240_RESULTS_20261014.md)
 > and [source-only reconstruction package](docs/evaluations/quality240_20261014/README.md).
 
-> **Release status — 14 October 2026:** The native workflow now has a persistent PostgreSQL queue,
+> **17 October release update:** The [deployed workflow checks](docs/HIGH_VALUE_RELEASE_20261017.md)
+> passed upload, schema confirmation, preview, review, batch extraction and downloaded export on authored fixtures.
+> The [GPU screening](docs/evaluations/GPU_OCR_SCREENING_20261017.md) retains CPU OCR for the current worker design.
+> The newer evaluation is paused at the user's request with 697/2,000 sources accounted for; it is incomplete and unscored.
+> The [conference handoff](docs/CONFERENCE_HANDOFF_20261017.md) uses completed studies only. Final submission awaits the signed declaration.
+
+> **Research and release baseline — 14 October 2026:** The native workflow now has a persistent PostgreSQL queue,
 > confirmed schemas, sample preview, batch extraction, owner-scoped review and reviewed JSON export.
 > The [authenticated nine-format synthetic workflow](docs/evaluations/NATIVE_NINE_FORMAT_SCHEMA_FLOW_20261013.md)
 > completed AI schema suggestion, preview, batch extraction and reviewed export using Luna 6.
