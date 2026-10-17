@@ -101,8 +101,13 @@ def require_interfaces(profile: dict | None = None) -> None:
     if selected not in {PROFILE, PROFILE_V2} or "response_format" not in inspect.signature(OpenAICompatibleChat.complete_json).parameters:
         raise ValueError("Required strict response interface is not implemented")
     if profile and profile["visual_document_profile"] != "disabled":
+        from idpo.product_auto.visual_input import (
+            MAX_EDGE,
+            MAX_IMAGES,
+            MAX_REQUEST_BYTES,
+            MAX_REQUESTS,
+        )
         from idpo.product_auto.visual_workflow import PROFILES as VISUAL_PROFILES
-        from idpo.product_auto.visual_input import MAX_IMAGES, MAX_REQUESTS, MAX_REQUEST_BYTES, MAX_EDGE
         if (profile["visual_document_profile"] not in VISUAL_PROFILES or
                 "visual_document_profile" not in inspect.signature(process_auto).parameters or
                 not callable(getattr(OpenAICompatibleChat, "complete_visual_json", None)) or
