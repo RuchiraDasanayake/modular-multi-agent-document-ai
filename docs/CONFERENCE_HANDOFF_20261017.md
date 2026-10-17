@@ -33,7 +33,7 @@ outputs in the operational study require review and its gate did not pass.
 Simulation findings do not establish an adaptive-memory benefit in document
 runtime. These limitations remain explicit.
 
-The newer campaign is paused and unscored. Its partial counts are excluded
+The newer campaign resumed after an audited user-requested pause and is unscored. Its partial counts are excluded
 from the paper and slides. The small GPU trial is engineering screening only.
 
 ## Product and remaining handoff
@@ -44,7 +44,12 @@ from the paper and slides. The small GPU trial is engineering screening only.
   remaining-file extraction and actual JSON/JSONL downloads. This is a demo
   regression check, not a general accuracy or human-effort study.
 - Ordinary Chrome/Edge file selection and download remain unverified because
-  those browsers were unavailable. Native PowerPoint playback is unverified.
+  those browsers were unavailable.
+- PowerPoint 16 opened the final deck read-only and rendered all ten slides;
+  every native render passed visual inspection and the source hash was unchanged.
+  Interactive slideshow playback remains unverified. The private native-check
+  receipt has SHA256
+  `518a462f654320124de642978f146734e9b189046af96778314a61efb9d89c4e`.
 - Presenter form completion is user-reported; no duplicate was submitted.
 - Receive the signed declaration, inspect all six signatures/dates, upload it
   as the fourth attachment and verify the final submission receipt.

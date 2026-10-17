@@ -109,6 +109,12 @@ its elapsed time must not be presented as isolated processing throughput.
 
 ## User-requested evaluation pause
 
+Update: the user subsequently requested continuation. The [audited external
+resume](evaluations/POSTCHANGE_V2_OPERATOR_RESUME_20261017.md) preserved every
+source/attempt and changed only the explicit pause state with an appended control
+receipt. The unchanged frozen runner is processing previously unstarted sources.
+The following records the pause checkpoint, not final results.
+
 The newer frozen 2,000-source campaign stopped at a safe boundary on 17 October
 after the user requested a processing pause. No requests remain running. There
 are 697 accounted-for sources (694 sealed and three uncertain), 1,303 unstarted,

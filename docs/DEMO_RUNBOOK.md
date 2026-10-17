@@ -134,11 +134,14 @@ complete originals. It is structural coverage across separate studies; the basel
 original 2,000-source all-source gate remains failed. Frozen campaigns retain their own incident procedures;
 demo controls do not authorize replaying them.
 
-The [technical conference handoff](CONFERENCE_HANDOFF_20261014.md) has a verified five-page paper, two-page
-reviewer response and ten-slide deck; all pages/slides passed visual inspection. Author details, consent, signatures
-and author-controlled conference submission remain separate sign-off items. Editable author Word forms are included
-privately for completion. Native Microsoft Word/PowerPoint execution was not tested by these rendering checks.
-Chrome/Edge file selection and saving a download remain unverified after Windows URL control stopped; the user
-could not check them. Authenticated API exports and prior browser review/copy checks do not close that delivery
-check. Use the latest evidence record when presenting status. Arbitrary-document accuracy, lower cost and high
-availability are not certified by the demo or these studies.
+The [17 October conference handoff](CONFERENCE_HANDOFF_20261017.md) supersedes the
+[14 October handoff](CONFERENCE_HANDOFF_20261014.md). The verified five-page paper,
+two-page reviewer response and ten-slide deck passed visual inspection; copies
+downloaded from the CMT draft matched their final hashes. Author details are
+confirmed and all six authors' approval was reported by the corresponding author.
+Actual signatures and signing dates remain for the authors to add to the private
+Word declaration before final submission. The draft has not been submitted.
+Native Microsoft Word/PowerPoint playback was not verified by rendering checks.
+In-app browser file selection and saved JSON/JSONL downloads passed the 17 October
+workflow checks; Chrome/Edge remain unverified. Arbitrary-document accuracy,
+lower cost and high availability are not certified by the demo or these studies.
