@@ -61,10 +61,34 @@ from the paper and slides. The small GPU trial is engineering screening only.
 - PowerPoint 16 opened the final deck read-only and rendered all ten slides;
   every native render passed visual inspection and the source hash was unchanged.
   Interactive slideshow playback remains unverified. Current render and chart-validation receipts are stored with the revised private artifacts.
-- Presenter form completion is user-reported; no duplicate was submitted.
+- Presenter form completion is unverified. On 19 October the user corrected the earlier completion claim and was given form-field details. No completion receipt has been supplied.
 - Receive the signed declaration, inspect all six signatures/dates, upload it
   as the fourth attachment when available. The current receipt confirms submission with the disclosed partially signed form; organizer acceptance of deferred signatures is not established.
 
 The private demo kit contains the two authored sources and a step-by-step
 walkthrough. Its ZIP SHA256 is
 `a45961d4049952902056ffdb917eae8876e197fe77b42b77d4274fea64303589`.
+
+## Word format requirement verified on 24 October
+
+The organizers' 23 October email explicitly requires a Word manuscript and gives
+25 October 2026 at 23:59 Sri Lanka time as the final deadline. The PDF manuscript
+was replaced by `ICTAR26_2_Camera_Ready_Full_Paper.docx` in the saved CMT record
+(file 1113). Its SHA256 is
+`0f351a07d21b2a3d3e4da98dc08d358050827693c5a317e8b703aa03bbc97e27`;
+the downloaded CMT copy matches. The manuscript content was not changed.
+
+The current official template downloaded from the conference website matches the
+supplied template byte for byte (SHA256
+`a986861b21489aa118f47e7bba3cb0889a31a597f0fc828d69d091334d4b0d72`).
+The manuscript retains its page sizes, margins, columns, caption styles and all
+five table border definitions. First citation appearances are [1] through [7].
+There are no manuscript figures. A fresh native Word PDF export has six pages;
+each page was visually inspected. The packaged renderer could not handle strict
+OOXML and lacks LibreOffice, so native Word and Poppler supplied render QA.
+
+The submission summary confirms the Word paper, reviewer response, presentation
+ZIP and existing declaration. Three signatures are still pending; organizer
+approval of deferred signatures has not been verified. Presenter-form completion
+also remains unverified. A reply saying "done" was verified as restored CMT login
+and was not assumed to establish other completion states.
