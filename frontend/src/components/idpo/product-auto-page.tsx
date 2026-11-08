@@ -371,7 +371,7 @@ export function ProductAutoPage() {
           Upload files, describe the information you need, and confirm the field meanings. Preview a sample before processing the batch, then review and export.
         </p>
         {modelActionBlocked ? <p role="status" className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
-          This deployment allows only administrators to request paid model suggestions and extraction. You can save a draft, but an administrator must run its preview and batch.
+          This deployment allows only administrators to run model suggestions and extraction. You can save a draft, but an administrator must run its preview and batch.
         </p> : null}
       </div>
 
@@ -391,7 +391,7 @@ export function ProductAutoPage() {
       </IdpoCard>
       {pendingRunRequest && !starting ? <IdpoCard>
         <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">An extraction start may already have been accepted.</p>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Check runs or retry the same selection and schema. The saved request key prevents a repeated paid attempt after a lost response.</p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Check runs or retry the same selection and schema. The saved request key prevents duplicate processing after a lost response.</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" onClick={() => void checkPendingRunRequest()} disabled={starting}
             className="rounded-lg border border-cyan-600 px-3 py-2 text-sm font-medium text-cyan-700 disabled:opacity-50 dark:text-cyan-300">Check runs</button>
@@ -525,7 +525,7 @@ export function ProductAutoPage() {
           {formDirty && brief ? <span className="text-xs text-amber-700 dark:text-amber-300">Save changes before confirming or previewing.</span> : null}
         </div>
         <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-          AI suggestions use one server model call with bounded excerpts from your saved sample files. The call may incur provider cost. An administrator must run it. Suggestions remain editable and require your confirmation. A new extraction run may also incur provider cost.
+          AI suggestions use the configured model with bounded excerpts from your saved sample files. An administrator must run it. Check and edit the suggested fields before confirming them.
         </p>
         {suggestion ? <div className="mt-4 rounded-xl border border-cyan-300 bg-cyan-50 p-4 dark:border-cyan-700 dark:bg-cyan-950/30">
           <div className="flex flex-wrap items-start justify-between gap-3">
