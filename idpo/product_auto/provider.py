@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import time
@@ -25,6 +26,25 @@ class ModelReply:
     error_category: str | None = None
     sdk_attempts: int | None = None
     refusal: bool = False
+    system_fingerprint: str | None = None
+
+
+def validate_generation_settings(settings: dict[str, object]) -> dict[str, object]:
+    """Validate explicit sampler controls; endpoint support still needs a capability test."""
+    if not isinstance(settings, dict) or not set(settings) <= {"temperature", "seed", "reasoning_effort"}:
+        raise ValueError("Unsupported generation settings")
+    temperature = settings.get("temperature")
+    if "temperature" in settings and (type(temperature) not in {int, float} or
+            not math.isfinite(temperature) or not 0 <= temperature <= 2):
+        raise ValueError("temperature must be a finite number from 0 to 2")
+    seed = settings.get("seed")
+    if "seed" in settings and (type(seed) is not int or not 0 <= seed <= 2_147_483_647):
+        raise ValueError("seed must be an integer from 0 to 2147483647")
+    if "reasoning_effort" in settings and (type(settings["reasoning_effort"]) is not str or
+            settings["reasoning_effort"] not in {"none", "low", "medium", "high"}):
+        raise ValueError("reasoning_effort must be none, low, medium, or high")
+    # Match the pinned SDK's parameter ordering for exact visual wire receipts.
+    return {key: settings[key] for key in ("reasoning_effort", "seed", "temperature") if key in settings}
 
 
 class OpenAICompatibleChat:
@@ -38,6 +58,9 @@ class OpenAICompatibleChat:
         api_key_env: str,
         timeout_s: int = 60,
         max_tokens: int = 1200,
+        temperature: float | None = None,
+        seed: int | None = None,
+        reasoning_effort: str | None = None,
     ) -> None:
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", api_key_env):
             raise ValueError("api_key_env must name one environment variable")
@@ -47,13 +70,38 @@ class OpenAICompatibleChat:
             raise ValueError("model base URL must use HTTPS or local HTTP")
         if not parsed.netloc or not model.strip():
             raise ValueError("model base URL and model ID are required")
+        settings: dict[str, object] = {}
+        if local_http:
+            raw_temperature = os.environ.get("IDPO_LOCAL_TEMPERATURE", "").strip()
+            raw_seed = os.environ.get("IDPO_LOCAL_SEED", "").strip()
+            if reasoning_effort is None:
+                reasoning_effort = os.environ.get("IDPO_LOCAL_REASONING_EFFORT", "").strip() or None
+            if temperature is None and raw_temperature:
+                try:
+                    temperature = float(raw_temperature)
+                except ValueError as exc:
+                    raise ValueError("IDPO_LOCAL_TEMPERATURE must be a finite number from 0 to 2") from exc
+            if seed is None and raw_seed:
+                if not re.fullmatch(r"[0-9]+", raw_seed):
+                    raise ValueError("IDPO_LOCAL_SEED must be an integer from 0 to 2147483647")
+                seed = int(raw_seed)
+        elif temperature is not None or seed is not None or reasoning_effort is not None:
+            raise ValueError("Explicit generation settings are supported only for loopback HTTP models")
+        if local_http and temperature is not None:
+            settings["temperature"] = temperature
+        if local_http and seed is not None:
+            settings["seed"] = seed
+        if local_http and reasoning_effort is not None:
+            settings["reasoning_effort"] = reasoning_effort
+        self._generation_settings = tuple(validate_generation_settings(settings).items())
+        self._local_http = local_http
         key = os.environ.get(api_key_env, "").strip()
         if not key and not local_http:
             raise ValueError(f"{api_key_env} is not set")
         try:
             from openai import OpenAI
         except ImportError as exc:
-            raise RuntimeError("Install the cloud extra to use an OpenAI-compatible model") from exc
+            raise RuntimeError("Install the model client to use an OpenAI-compatible model") from exc
         self.model = model.strip()
         self.base_url = base_url.rstrip("/")
         self.max_tokens = max(1, int(max_tokens))
@@ -68,6 +116,16 @@ class OpenAICompatibleChat:
             max_retries=0,
         )
 
+    @property
+    def generation_settings(self) -> dict[str, object]:
+        return dict(self._generation_settings)
+
+    @property
+    def runtime_provenance(self) -> dict[str, object]:
+        return {"contract_version": 1, "transport": "loopback_http" if self._local_http else "https",
+                "model_id": self.model, "generation_settings": self.generation_settings,
+                "reproducibility": "configuration_recorded_not_bitwise_guaranteed"}
+
     def complete_json(
         self, *, system: str, prompt: str, response_format: dict[str, object] | None = None,
     ) -> ModelReply:
@@ -75,6 +133,7 @@ class OpenAICompatibleChat:
             "model": self.model,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
             "max_tokens": self.max_tokens,
+            **self.generation_settings,
         }
         if response_format is not None:
             if not isinstance(response_format, dict) or response_format.get("type") != "json_schema":
@@ -99,6 +158,9 @@ class OpenAICompatibleChat:
         if not isinstance(request, PreparedVisualRequest):
             raise ValueError("visual request must be prepared with complete page coverage")
         body = request.validated_body(model=self.model, max_tokens=self.max_tokens)
+        actual_settings = {key: body[key] for key in ("reasoning_effort", "seed", "temperature") if key in body}
+        if actual_settings != self.generation_settings:
+            raise VisualInputError("visual_generation_configuration_changed")
         expected = hashlib.sha256(request.body_json).hexdigest()
 
         def verify_wire(actual: httpx.Request) -> None:
@@ -126,6 +188,7 @@ class OpenAICompatibleChat:
                 finish_reason=getattr(response.choices[0], "finish_reason", None) if response.choices else None,
                 sdk_attempts=1,
                 refusal=bool(getattr(message, "refusal", None)),
+                system_fingerprint=_system_fingerprint(getattr(response, "system_fingerprint", None)),
             )
         except Exception as exc:  # noqa: BLE001 - redact provider failures before they reach artifacts
             # Provider exception strings can contain credentials or document text.
@@ -143,6 +206,10 @@ class OpenAICompatibleChat:
 def _usage_count(usage: object, name: str) -> int | None:
     value = getattr(usage, name, None)
     return value if type(value) is int and value >= 0 else None
+
+
+def _system_fingerprint(value: object) -> str | None:
+    return value if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_.:/+\-]{1,128}", value) else None
 
 
 def _error_category(exc: Exception, status: object) -> str:

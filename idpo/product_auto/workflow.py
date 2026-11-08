@@ -455,6 +455,8 @@ def process_auto(
         "compute_cost_usd": None,
         "total_cost_usd": None,
     }
+    if model is not None and isinstance(getattr(model, "runtime_provenance", None), dict):
+        run_payload["model_runtime"] = model.runtime_provenance
     if visual_document_profile in BOUNDED_VISUAL_PROFILES:
         run_payload["configured_response_format_profile"] = configured_response_format_profile
         run_payload["effective_response_format_profiles"] = sorted({receipt["response_format_profile"] for receipt in receipts})
@@ -514,6 +516,8 @@ def _process_document(
         "compute_cost_usd": None,
         "total_cost_usd": None,
     })
+    if model is not None and isinstance(getattr(model, "runtime_provenance", None), dict):
+        sidecar["model_runtime"] = model.runtime_provenance
     if approved_recipe is not None:
         sidecar["approved_recipe"] = approved_recipe.receipt
     if confirmed_schema is not None:
@@ -932,6 +936,8 @@ def _record_model_call(
         "error_category": reply.error_category,
         "sdk_attempts": reply.sdk_attempts,
     }
+    if reply.system_fingerprint is not None:
+        call["system_fingerprint"] = reply.system_fingerprint
     if segment_index is not None:
         call["segment_index"] = segment_index
     if sidecar.get("response_format_profile") in {

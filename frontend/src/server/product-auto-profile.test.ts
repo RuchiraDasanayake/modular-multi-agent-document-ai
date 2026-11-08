@@ -168,3 +168,48 @@ test("lossy JPEG95 is explicit and pinned independently of later server configur
     });
   }
 });
+
+test("local sampler controls are sealed at admission and override later worker environment", () => {
+  const values = { IDPO_AUTO_API_BASE_URL: "http://127.0.0.1:11434/v1", IDPO_AUTO_OCR_ENGINE: "tesseract",
+    IDPO_LOCAL_TEMPERATURE: "0", IDPO_LOCAL_SEED: "42", IDPO_LOCAL_REASONING_EFFORT: "none" };
+  const previous = Object.keys(values).map((key) => process.env[key]);
+  try {
+    Object.assign(process.env, values);
+    const profile = configuredExtractionProfile(true);
+    assert.equal(profile.version, 4);
+    assert.deepEqual(profile.localGeneration, { temperature: 0, seed: 42, reasoning_effort: "none" });
+    assert.equal(validExtractionProfile(profile), true);
+    const changed: NodeJS.ProcessEnv = { NODE_ENV: "test", IDPO_LOCAL_TEMPERATURE: "1", IDPO_LOCAL_SEED: "99", IDPO_LOCAL_REASONING_EFFORT: "high" };
+    const env = extractionEnvironment(changed, profile);
+    assert.equal(env.IDPO_LOCAL_TEMPERATURE, "0");
+    assert.equal(env.IDPO_LOCAL_SEED, "42");
+    assert.equal(env.IDPO_LOCAL_REASONING_EFFORT, "none");
+    for (const old of [undefined, { version: 1, ocr: { engine: "tesseract" }, responseFormat: "plain_json" },
+      { version: 3, ocr: { engine: "tesseract" }, responseFormat: "plain_json", longDocument: "reject", visualDocument: "disabled" }
+    ] as (ExtractionProfile | undefined)[]) {
+      const legacy = extractionEnvironment(changed, old);
+      assert.equal(legacy.IDPO_LOCAL_TEMPERATURE, undefined);
+      assert.equal(legacy.IDPO_LOCAL_SEED, undefined);
+      assert.equal(legacy.IDPO_LOCAL_REASONING_EFFORT, undefined);
+    }
+    assert.equal(changed.IDPO_LOCAL_SEED, "99");
+    for (const localGeneration of [{}, { seed: -1 }, { seed: 1.5 }, { seed: 2 ** 31 }, { seed: true },
+      { temperature: NaN }, { temperature: 2.1 }, { temperature: true }, { reasoning_effort: "invalid" },
+      { seed: 42, secret: "invalid" }]) {
+      assert.equal(validExtractionProfile({ ...profile, localGeneration }), false);
+    }
+    for (const [key, raw] of [["IDPO_LOCAL_SEED", "1.0"], ["IDPO_LOCAL_SEED", "1e0"],
+      ["IDPO_LOCAL_TEMPERATURE", "0x1"], ["IDPO_LOCAL_REASONING_EFFORT", "invalid"]]) {
+      Object.assign(process.env, values, { [key]: raw });
+      assert.throws(() => configuredExtractionProfile(true), /local model generation/);
+    }
+    process.env.IDPO_AUTO_API_BASE_URL = "https://example.invalid/v1";
+    const cloud = configuredExtractionProfile(true);
+    assert.equal(cloud.version, 3);
+    assert.equal(cloud.localGeneration, undefined);
+  } finally {
+    Object.keys(values).forEach((key, index) => {
+      if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index];
+    });
+  }
+});

@@ -106,7 +106,8 @@ def extract_visual_values(
         requests = plan_visual_requests(prepared, fields=fields, intent=intent,
                                         model=model.model, max_tokens=model.max_tokens,
                                         response_format_profile=response_format_profile,
-                                        encoding_profile=encoding_profile)
+                                        encoding_profile=encoding_profile,
+                                        generation_settings=getattr(model, "generation_settings", None))
         # Validate all immutable request bodies and current source identity before
         # the first send. The provider also validates again before each send.
         for request in requests:

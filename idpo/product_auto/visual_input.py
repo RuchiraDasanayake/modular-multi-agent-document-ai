@@ -19,6 +19,7 @@ from pathlib import Path
 from PIL import Image
 
 from idpo.product_auto.logic import keyed_values_example
+from idpo.product_auto.provider import validate_generation_settings
 from idpo.product_auto.rapid_ocr_protocol import sha256_file, validate_lines
 from idpo.product_auto.visual_output import PROFILE as VISUAL_VALUES_PROFILE
 from idpo.product_auto.visual_output import PROFILE_V2 as VISUAL_VALUES_PROFILE_V2
@@ -308,10 +309,15 @@ def plan_visual_requests(
     pages: Sequence[PreparedVisualPage], *, fields: Sequence[Mapping[str, object]], intent: str,
     model: str, max_tokens: int, response_format_profile: str = VISUAL_VALUES_PROFILE,
     encoding_profile: str = PNG_ENCODING_PROFILE,
+    generation_settings: dict[str, object] | None = None,
 ) -> tuple[PreparedVisualRequest, ...]:
     """Greedily pack ordered complete pages; refuse all work if any page is uncovered."""
     if encoding_profile not in ENCODING_PROFILES:
         raise VisualInputError("visual_encoding_profile_invalid")
+    try:
+        sampling = validate_generation_settings({} if generation_settings is None else generation_settings)
+    except ValueError as exc:
+        raise VisualInputError("visual_generation_configuration_invalid") from exc
     if not pages or len(pages) > MAX_PAGES or len(intent) > 8000 or not model.strip() or \
             type(max_tokens) is not int or not 1 <= max_tokens <= 16_384:
         raise VisualInputError("visual_plan_invalid")
@@ -369,7 +375,9 @@ def plan_visual_requests(
         # match exact bytes rather than a looser reserialized JSON equivalence.
         return _json_bytes({"messages": [{"role": "system", "content": SYSTEM},
                    {"role": "user", "content": content}], "model": model, "max_tokens": max_tokens,
-                   "response_format": response_format})
+                   **({"reasoning_effort": sampling["reasoning_effort"]} if "reasoning_effort" in sampling else {}),
+                   "response_format": response_format,
+                   **{key: sampling[key] for key in ("seed", "temperature") if key in sampling}})
 
     batches: list[list[PreparedVisualPage]] = []
     current: list[PreparedVisualPage] = []
@@ -398,6 +406,8 @@ def plan_visual_requests(
                    "pages": [p.receipt() for p in batch], "covered_pages": [p.page for p in batch],
                    "planned_covered_pages": list(range(1, total + 1)), "uncovered_pages": [],
                    "coverage": "complete_document_planned", "requires_human_review": True}
+        if sampling:
+            receipt["generation_settings"] = sampling
         if encoding_profile == JPEG95_ENCODING_PROFILE:
             receipt.update(encoding_profile=encoding_profile, payload_mime_type="image/jpeg", payload_lossy=True)
         requests.append(PreparedVisualRequest(source_path, source_hash, encoded, _json_bytes(receipt)))

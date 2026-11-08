@@ -6,15 +6,18 @@ type OcrProfile = { engine: "tesseract" } | {
   engine: "rapidocr"; python: string; timeoutSeconds: number; maxRssMiB: number; workDir: string;
 };
 export interface ExtractionProfile {
-  version: 1 | 2 | 3;
+  version: 1 | 2 | 3 | 4;
   ocr: OcrProfile;
   responseFormat: "plain_json" | "strict_confirmed_values_v1" | "strict_confirmed_values_v2";
   longDocument?: "reject" | "bounded_text_segments_v1";
   visualDocument?: "disabled" | "bounded_visual_v1" | "bounded_visual_selective_v2" | "bounded_visual_selective_jpeg95_v1";
+  localGeneration?: { temperature?: number; seed?: number; reasoning_effort?: "none" | "low" | "medium" | "high" };
 }
 
 const RAPID_ENV = ["IDPO_RAPIDOCR_PYTHON", "IDPO_RAPIDOCR_TIMEOUT_S",
   "IDPO_RAPIDOCR_MAX_RSS_MIB", "IDPO_RAPIDOCR_WORK_DIR"] as const;
+const LOCAL_ENV = { temperature: "IDPO_LOCAL_TEMPERATURE", seed: "IDPO_LOCAL_SEED",
+  reasoning_effort: "IDPO_LOCAL_REASONING_EFFORT" } as const;
 
 function object(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -25,14 +28,44 @@ function absolute(value: unknown): value is string {
     !/[\u0000\r\n"]/.test(value);
 }
 
+function validLocalGeneration(value: unknown): value is NonNullable<ExtractionProfile["localGeneration"]> {
+  return object(value) && Object.keys(value).length > 0 &&
+    Object.keys(value).every((key) => Object.hasOwn(LOCAL_ENV, key)) &&
+    (!("temperature" in value) || typeof value.temperature === "number" && Number.isFinite(value.temperature) &&
+      value.temperature >= 0 && value.temperature <= 2) &&
+    (!("seed" in value) || Number.isSafeInteger(value.seed) && Number(value.seed) >= 0 && Number(value.seed) <= 2147483647) &&
+    (!("reasoning_effort" in value) || typeof value.reasoning_effort === "string" &&
+      ["none", "low", "medium", "high"].includes(value.reasoning_effort));
+}
+
+function configuredLocalGeneration(): ExtractionProfile["localGeneration"] {
+  let endpoint: URL;
+  try { endpoint = new URL(process.env.IDPO_AUTO_API_BASE_URL || ""); } catch { return undefined; }
+  if (endpoint.protocol !== "http:" || !["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname)) return undefined;
+  const controls: Record<string, unknown> = {};
+  for (const [key, variable] of Object.entries(LOCAL_ENV)) {
+    const raw = process.env[variable]?.trim();
+    if (raw && (key === "seed" && !/^[0-9]+$/.test(raw) || key === "temperature" &&
+      !/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(raw))) {
+      throw new AccessError("Invalid local model generation settings.", 503);
+    }
+    if (raw) controls[key] = key === "reasoning_effort" ? raw : Number(raw);
+  }
+  if (!Object.keys(controls).length) return undefined;
+  if (!validLocalGeneration(controls)) throw new AccessError("Invalid local model generation settings.", 503);
+  return controls;
+}
+
 export function validExtractionProfile(value: unknown): value is ExtractionProfile {
   if (!object(value)) return false;
   const keys = value.version === 1 ? "ocr,responseFormat,version" :
     value.version === 2 ? "longDocument,ocr,responseFormat,version" :
-    value.version === 3 ? "longDocument,ocr,responseFormat,version,visualDocument" : null;
+    value.version === 3 ? "longDocument,ocr,responseFormat,version,visualDocument" :
+    value.version === 4 ? "localGeneration,longDocument,ocr,responseFormat,version,visualDocument" : null;
   if (keys === null || Object.keys(value).sort().join() !== keys ||
     (value.version !== 1 && !["reject", "bounded_text_segments_v1"].includes(String(value.longDocument))) ||
-    (value.version === 3 && !["disabled", "bounded_visual_v1", "bounded_visual_selective_v2", "bounded_visual_selective_jpeg95_v1"].includes(String(value.visualDocument))) ||
+    ((value.version === 3 || value.version === 4) && !["disabled", "bounded_visual_v1", "bounded_visual_selective_v2", "bounded_visual_selective_jpeg95_v1"].includes(String(value.visualDocument))) ||
+    (value.version === 4 && !validLocalGeneration(value.localGeneration)) ||
     !["plain_json", "strict_confirmed_values_v1", "strict_confirmed_values_v2"].includes(String(value.responseFormat)) ||
     !object(value.ocr)) return false;
   const ocr = value.ocr;
@@ -63,8 +96,10 @@ export function configuredExtractionProfile(confirmedSchema: boolean): Extractio
     const value = process.env[name] || String(fallback);
     return /^[1-9][0-9]*$/.test(value) ? Number(value) : NaN;
   };
+  const localGeneration = configuredLocalGeneration();
   const profile = {
-    version: 3,
+    version: localGeneration ? 4 : 3,
+    ...(localGeneration ? { localGeneration } : {}),
     ocr: engine === "tesseract" ? { engine } : {
       engine, python: process.env.IDPO_RAPIDOCR_PYTHON || "",
       timeoutSeconds: number("IDPO_RAPIDOCR_TIMEOUT_S", 120),
@@ -97,6 +132,13 @@ export function extractionEnvironment(base: NodeJS.ProcessEnv, profile?: Extract
   const env = { ...base };
   // Historical and Tesseract runs cannot inherit a later optional OCR configuration.
   for (const key of RAPID_ENV) delete env[key];
+  for (const key of Object.values(LOCAL_ENV)) delete env[key];
+  if (profile?.version === 4 && profile.localGeneration) {
+    for (const [key, variable] of Object.entries(LOCAL_ENV)) {
+      const value = profile.localGeneration[key as keyof typeof LOCAL_ENV];
+      if (value !== undefined) env[variable] = String(value);
+    }
+  }
   if (profile?.ocr.engine === "rapidocr") {
     const ocr = profile.ocr;
     Object.assign(env, { IDPO_RAPIDOCR_PYTHON: ocr.python, IDPO_RAPIDOCR_TIMEOUT_S: String(ocr.timeoutSeconds),
