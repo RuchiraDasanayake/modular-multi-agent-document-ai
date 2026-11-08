@@ -627,12 +627,15 @@ export function ProductAutoDocumentPage() {
           </div>
         ) : <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">Complete the review to download a structured result.</p>}
         {exportMessage ? <p role="status" className="mt-2 text-sm text-slate-600 dark:text-slate-300">{exportMessage}</p> : null}
-        <pre className="mt-3 max-h-96 overflow-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-100">{JSON.stringify(detail.correctedResult, null, 2)}</pre>
+        <details className="mt-3">
+          <summary className="cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-200">View structured JSON</summary>
+          <pre className="mt-3 max-h-96 overflow-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-100">{JSON.stringify(detail.correctedResult, null, 2)}</pre>
+        </details>
       </IdpoCard> : null}
 
       {detail.auditTrail.length > 0 ? (
-        <IdpoCard>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Review history</h2>
+        <details className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+          <summary className="cursor-pointer text-sm font-semibold text-slate-900 dark:text-white">Review history · {detail.auditTrail.length} saved {detail.auditTrail.length === 1 ? "revision" : "revisions"}</summary>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Each save is recorded with the reviewer, time, original machine value, and decision.</p>
           <ol className="mt-4 space-y-3">
             {detail.auditTrail.map((event) => (
@@ -666,7 +669,7 @@ export function ProductAutoDocumentPage() {
               </li>
             ))}
           </ol>
-        </IdpoCard>
+        </details>
       ) : null}
     </div>
   );

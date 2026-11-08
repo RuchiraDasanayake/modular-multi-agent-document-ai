@@ -46,6 +46,7 @@ export function ProductAutoPage() {
   const [briefBusy, setBriefBusy] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [suggestion, setSuggestion] = useState<ProductAutoBriefSuggestion | null>(null);
+  const [editingSetup, setEditingSetup] = useState(false);
   const [selectedRecipeId, setSelectedRecipeId] = useState("");
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
@@ -164,11 +165,13 @@ export function ProductAutoPage() {
     JSON.stringify({ intent: brief.intent, fields: brief.fields,
       samples: brief.sample_sources.map((source) => source.file_id) });
   const confirmed = briefReady && brief?.state === "confirmed" && !formDirty && staleSampleFileIds.length === 0;
+  const setupExpanded = !confirmed || editingSetup;
   const matchingPreviews = confirmed ? runs.filter((run) => run.confirmedBrief?.phase === "preview" &&
     run.confirmedBrief.briefId === brief.brief_id && run.confirmedBrief.revision === brief.revision &&
     run.confirmedBrief.payloadSha256 === brief.payload_sha256) : [];
   const previewRun = matchingPreviews[0];
   const reviewedPreviewRun = matchingPreviews.find((run) => productAutoReviewReadiness(run).previewReady);
+  const previewDocumentToReview = previewRun?.documents.find((document) => document.reviewStatus !== "completed");
   const remainingSelected = selected.filter((fileId) => !sampleFileIds.includes(fileId));
   const repeatsBatchFiles = confirmed && runs.some((run) => run.confirmedBrief?.phase === "batch" &&
     run.confirmedBrief.briefId === brief.brief_id && run.confirmedBrief.revision === brief.revision &&
@@ -231,6 +234,7 @@ export function ProductAutoPage() {
     try {
       const confirmedBrief = await idpoApi.confirmProductAutoBrief(jobId, brief.revision, brief.payload_sha256);
       setBrief(confirmedBrief.brief);
+      setEditingSetup(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not confirm the schema.");
     } finally { setBriefBusy(false); }
@@ -401,14 +405,21 @@ export function ProductAutoPage() {
           <div>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Set up your extraction</h2>
             <p className="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-300">
-              Describe the result, name the fields, and choose up to five sample files. Confirm the field meanings before previewing.
+              {confirmed ? `${brief.fields.length} fields confirmed from ${brief.sample_sources.length} sample ${brief.sample_sources.length === 1 ? "file" : "files"}. Preview the results below, or edit the setup to change what is extracted.` :
+                "Describe the result, name the fields, and choose up to five sample files. Confirm the field meanings before previewing."}
             </p>
           </div>
           {brief ? <span className="rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700 dark:text-slate-300">
             {brief.state === "confirmed" ? `Confirmed revision ${brief.revision}` : `Draft revision ${brief.revision}`}
           </span> : null}
         </div>
+        {confirmed ? <button type="button" onClick={() => setEditingSetup((current) => !current)}
+          aria-expanded={setupExpanded} aria-controls={`${jobId}-extraction-setup`}
+          className="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+          {setupExpanded ? "Hide extraction setup" : "Edit extraction setup"}
+        </button> : null}
         <fieldset disabled={!briefReady || briefBusy || suggesting || starting || running}
+          id={`${jobId}-extraction-setup`} hidden={!setupExpanded}
           aria-busy={briefBusy || suggesting || starting} aria-label="Extraction setup" className="min-w-0">
         <label className="mt-4 block text-sm font-medium text-slate-700 dark:text-slate-200">
           What should the result contain?
@@ -464,12 +475,13 @@ export function ProductAutoPage() {
                     onChange={(event) => updateField(index, { description: event.target.value })}
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
                 </div>
-                <div className="mt-3">
-                  <label htmlFor={`${jobId}-field-${index}-examples`} className="text-xs font-medium text-slate-600 dark:text-slate-300">Example values (one per line, up to three)</label>
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-300">Example values{field.example_values.some((example) => example.trim()) ? ` (${field.example_values.filter((example) => example.trim()).length})` : " (optional)"}</summary>
+                  <label htmlFor={`${jobId}-field-${index}-examples`} className="mt-2 block text-xs font-medium text-slate-600 dark:text-slate-300">Example values (one per line, up to three)</label>
                   <textarea id={`${jobId}-field-${index}-examples`} value={field.example_values.join("\n")} rows={2} onChange={(event) => updateField(index,
                     { example_values: event.target.value.split(/\r?\n/) })}
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
-                </div>
+                </details>
               </div>
             ))}
           </div>
@@ -540,8 +552,11 @@ export function ProductAutoPage() {
             <ul className="mt-1 list-disc space-y-1 pl-5">{suggestion.clarification_questions.map((question) => <li key={question}>{question}</li>)}</ul>
             <p className="mt-1 text-xs">Answer by editing the intent or field meanings, then save the draft.</p>
           </div> : null}
-          <p className="mt-3 text-xs text-slate-600 dark:text-slate-300">Source receipts: {suggestion.provenance.samples.map((sample) =>
-            `${documents.find((document) => document.fileId === sample.file_id)?.fileName ?? sample.file_id} (${sample.parser_id}, ${sample.excerpt_chars} characters${sample.truncated ? ", truncated" : ""}, SHA ${sample.source_sha256.slice(0, 12)})`).join(" · ")}</p>
+          <details className="mt-3 text-xs text-slate-600 dark:text-slate-300">
+            <summary className="cursor-pointer font-medium">Sample processing details</summary>
+            <p className="mt-2">Source receipts: {suggestion.provenance.samples.map((sample) =>
+              `${documents.find((document) => document.fileId === sample.file_id)?.fileName ?? sample.file_id} (${sample.parser_id}, ${sample.excerpt_chars} characters${sample.truncated ? ", truncated" : ""}, SHA ${sample.source_sha256.slice(0, 12)})`).join(" · ")}</p>
+          </details>
         </div> : null}
         </fieldset>
       </IdpoCard>
@@ -551,7 +566,9 @@ export function ProductAutoPage() {
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
           Preview runs only on the confirmed sample files. Open each result and complete its source-linked review before applying the same schema to the remaining files.
         </p>
-        {confirmed && brief ? <section aria-labelledby="confirmed-preview-schema" className="mt-4 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+        {confirmed && brief ? <details className="mt-4 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+          <summary className="cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-200">View confirmed fields and sample files</summary>
+          <section aria-labelledby="confirmed-preview-schema" className="mt-3">
           <h3 id="confirmed-preview-schema" className="text-sm font-semibold text-slate-900 dark:text-white">
             Confirmed schema for preview · revision {brief.revision}
           </h3>
@@ -571,18 +588,26 @@ export function ProductAutoPage() {
           <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
             In review, compare each proposed value with this meaning and the original document. A text match alone does not establish the correct value.
           </p>
-        </section> : null}
+          </section>
+        </details> : null}
         {!modelConfigured ? <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">A server model is required for this schema. Ask an administrator to configure one.</p> : null}
         {!available ? <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">The extraction runner is unavailable on this deployment.</p> : null}
         <div className="mt-4 flex flex-wrap gap-3">
+          {previewRun && previewDocumentToReview ? <Link
+            href={`/dashboard/idpo/jobs/${encodeURIComponent(jobId)}/auto/${encodeURIComponent(previewRun.runId)}/docs/${encodeURIComponent(previewDocumentToReview.docId)}`}
+            className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700">
+            Review sample results
+          </Link> : null}
           <button type="button" disabled={!confirmed || !available || !modelConfigured || modelActionBlocked || running || starting || briefBusy}
             onClick={() => void startConfirmedRun("preview")}
-            className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50">
+            className={previewRun ? "rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800" :
+              "rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50"}>
             {starting ? "Starting…" : previewRun ? "Run preview again" : "Preview sample files"}
           </button>
           <button type="button" disabled={!confirmed || !reviewedPreviewRun || remainingSelected.length === 0 ||
             !available || !modelConfigured || modelActionBlocked || running || starting || briefBusy} onClick={() => void startConfirmedRun("batch")}
-            className="rounded-lg border border-cyan-600 px-4 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-50 disabled:opacity-50 dark:text-cyan-300">
+            className={reviewedPreviewRun ? "rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50" :
+              "rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"}>
             Extract {remainingSelected.length} selected {remainingSelected.length === 1 ? "file" : "files"}
           </button>
         </div>
@@ -616,7 +641,9 @@ export function ProductAutoPage() {
         </div> : null}
       </IdpoCard> : null}
 
-      {briefReady && !brief ? <IdpoCard>
+      {briefReady && !brief ? <details className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+        <summary className="cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-200">Discover fields without a predefined schema</summary>
+        <div className="mt-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Run selected documents</h2>
@@ -657,11 +684,12 @@ export function ProductAutoPage() {
             ))}
           </div>
         )}
-      </IdpoCard> : null}
+        </div>
+      </details> : null}
 
       <IdpoCard>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Runs</h2>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Results</h2>
           <button type="button" onClick={() => void refreshRunStatuses()} disabled={reviewRefreshing}
             className="rounded-lg border border-cyan-600 px-3 py-2 text-sm font-medium text-cyan-700 disabled:opacity-50 dark:text-cyan-300">
             {reviewRefreshing ? "Refreshing…" : "Refresh review status"}
@@ -669,7 +697,11 @@ export function ProductAutoPage() {
         </div>
         {reviewRefreshError ? <p role="alert" className="mt-2 text-sm text-rose-700 dark:text-rose-300">{reviewRefreshError}</p> : null}
         {runs.length === 0 ? <p className="mt-3 text-sm text-slate-500">No automatic extraction runs yet.</p> : (
-          <div className="mt-3 flex flex-wrap gap-2">
+          <details className="mt-3">
+            <summary className="cursor-pointer text-sm font-medium text-slate-600 dark:text-slate-300">
+              Extraction history · {runs.length} {runs.length === 1 ? "attempt" : "attempts"}
+            </summary>
+            <div className="mt-3 flex flex-wrap gap-2">
             {runs.map((run) => (
               <button key={run.runId} type="button" onClick={() => setActiveRunId(run.runId)}
                 className={`rounded-lg border px-3 py-2 text-left text-xs dark:border-slate-700 ${activeRun?.runId === run.runId ? "border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20" : "border-slate-200"}`}>
@@ -680,7 +712,8 @@ export function ProductAutoPage() {
                 {run.confirmedBrief ? <span className="ml-2 text-slate-500">{run.confirmedBrief.phase} · schema r{run.confirmedBrief.revision}</span> : null}
               </button>
             ))}
-          </div>
+            </div>
+          </details>
         )}
         {(activeRun?.status as string) === "queued" ? <p className="mt-4 text-sm text-amber-700 dark:text-amber-300">Queued. Extraction will start when a worker is available.</p> : null}
         {activeRun?.status === "running" ? <p className="mt-4 text-sm text-amber-700 dark:text-amber-300">Extracting. Results will appear when the run completes.</p> : null}

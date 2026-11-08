@@ -317,6 +317,89 @@ test("the preview summary shows only the unchanged confirmed field meanings", as
   } finally { page.dispose(); }
 });
 
+test("confirmed setup collapses without changing the schema and reopens for edits", async () => {
+  const page = mount(async () => ({ brief: brief([field], "confirmed", 2), staleSampleFileIds: [] }));
+  try {
+    await page.settle();
+    const setup = () => page.find((element) => element.type === "fieldset" &&
+      element.props.id === `${jobId}-extraction-setup`);
+    assert.equal(setup()?.props.hidden, true);
+    const edit = page.button("Edit extraction setup");
+    assert.equal(edit.props["aria-expanded"], false);
+    assert.equal(edit.props["aria-controls"], `${jobId}-extraction-setup`);
+    assert.equal(page.button("Preview sample files").props.disabled, false);
+
+    click(edit);
+    await page.settle();
+    assert.equal(setup()?.props.hidden, false);
+    assert.equal(page.button("Hide extraction setup").props["aria-expanded"], true);
+    click(page.button("Hide extraction setup"));
+    await page.settle();
+    assert.equal(setup()?.props.hidden, true);
+    assert.deepEqual(page.calls, [], "Showing or hiding setup must not save or start extraction");
+
+    click(page.button("Edit extraction setup"));
+    await page.settle();
+    const meaning = page.find((element) => element.type === "input" && element.props.value === field.description);
+    assert.ok(meaning);
+    change(meaning, "The supplier's invoice identifier");
+    await page.settle();
+    assert.equal(setup()?.props.hidden, false, "Unsaved edits stay visible");
+    assert.equal(page.button("Preview sample files").props.disabled, true,
+      "Opening an editor must not bypass schema reconfirmation after edits");
+    assert.deepEqual(page.calls, []);
+  } finally { page.dispose(); }
+});
+
+test("stale sample recovery remains visible even for a previously confirmed schema", async () => {
+  const page = mount(async () => ({ brief: brief([field], "confirmed", 2), staleSampleFileIds: [fileId] }));
+  try {
+    await page.settle();
+    const setup = page.find((element) => element.type === "fieldset" &&
+      element.props.id === `${jobId}-extraction-setup`);
+    assert.equal(setup?.props.hidden, false);
+    assert.match(page.text(), /A sample changed or is missing/);
+    assert.equal(page.button("Preview sample files").props.disabled, true);
+    assert.equal(page.button("Save as new draft").props.disabled, false);
+    assert.deepEqual(page.calls, []);
+  } finally { page.dispose(); }
+});
+
+test("confirming a saved draft closes the editor and enables only the sample preview", async () => {
+  const page = mount(async () => ({ brief: brief([field], "draft", 1), staleSampleFileIds: [] }));
+  try {
+    await page.settle();
+    assert.equal(page.button("Confirm field meanings").props.disabled, false);
+    click(page.button("Confirm field meanings"));
+    await page.settle();
+    assert.equal(page.find((element) => element.type === "fieldset" &&
+      element.props.id === `${jobId}-extraction-setup`)?.props.hidden, true);
+    assert.equal(page.button("Preview sample files").props.disabled, false);
+    assert.equal(page.button("Extract 0 selected files").props.disabled, true);
+    assert.deepEqual(page.calls.map((call) => call.method), ["confirm"]);
+  } finally { page.dispose(); }
+});
+
+test("an unreviewed sample links directly to review while the batch remains blocked", async () => {
+  const confirmed = brief([field], "confirmed", 2);
+  const run: ProductAutoRun = { runId: `auto_${"1".repeat(32)}`, status: "success",
+    createdAt: "2026-10-15T00:00:00Z", selectedCount: 1,
+    confirmedBrief: { briefId: confirmed.brief_id, revision: confirmed.revision,
+      payloadSha256: confirmed.payload_sha256, snapshotSha256: "2".repeat(64), phase: "preview" },
+    documents: [{ docId: "sample-result", fileId, fileName: "sample.txt", status: "needs_review",
+      fieldCount: 1, acceptedCount: 1, reviewStatus: "pending" }] };
+  const page = mount(async () => ({ brief: confirmed, staleSampleFileIds: [] }), [run]);
+  try {
+    await page.settle();
+    const review = page.find((element) => element.type === "a" && text(element.props.children) === "Review sample results");
+    assert.ok(review);
+    assert.equal(review.props.href, `/dashboard/idpo/jobs/${jobId}/auto/${run.runId}/docs/sample-result`);
+    assert.equal(page.button("Extract 0 selected files").props.disabled, true);
+    assert.equal(page.button("Download reviewed batch").props.disabled, true);
+    assert.deepEqual(page.calls, []);
+  } finally { page.dispose(); }
+});
+
 test("a reviewed JSON preview enables batch export and distinguishes results from selected files", async () => {
   const confirmed = brief([field], "confirmed", 2);
   const run: ProductAutoRun = { runId: `auto_${"1".repeat(32)}`, status: "success",

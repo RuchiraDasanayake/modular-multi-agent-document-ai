@@ -31,6 +31,14 @@ counters that do not describe product runs. Research tools remain in a collapsed
 settings. The research `adaptive`/`strict`/`both` controls described below remain available for the research runtime;
 they do not define the primary product workflow. See [the implementation boundary](SYSTEM_CONTRACT.md).
 
+The extraction workspace collapses a confirmed setup behind **Edit extraction setup** so preview and review stay
+prominent. Unsaved field changes or stale sample files keep the editor visible and block execution until the schema
+is saved and confirmed again. A sample awaiting review links directly to its result; rerunning a preview remains a
+secondary action. Optional examples, processing receipts, confirmed-field details and extraction history use explicit
+disclosures. Schema-free discovery is a separate optional disclosure. The document review keeps source evidence and
+decisions visible, with raw JSON and the revision history available on demand. These presentation changes preserve
+the existing schema, ownership, review and export gates.
+
 ## Purpose
 
 The operator should think in terms of:
