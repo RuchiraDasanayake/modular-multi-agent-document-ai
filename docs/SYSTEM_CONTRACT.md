@@ -3,6 +3,14 @@
 This file defines the current practical contract for the system. The proposed product architecture and acceptance gates
 are in `docs/PRODUCTIZATION_PLAN.md`; they must not be read as implemented features.
 
+The selected product direction as of 8 November is local-only inference on native
+Windows. The existing product adapter already accepts loopback OpenAI-compatible
+HTTP without a provider key. Migration, owned model-server startup, compact model
+selection and measured local quality gates are tracked in `LOCAL_PRODUCT_PLAN.md`.
+Until those gates pass, the previous cloud-assisted results remain historical
+evidence and do not certify local accuracy. No fallback to a remote endpoint is
+authorized for the new local installation.
+
 It is intentionally shorter and stricter than the long architecture docs.
 
 ## Purpose

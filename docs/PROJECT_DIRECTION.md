@@ -6,7 +6,23 @@ Unlike `docs/SYSTEM_CONTRACT.md`, this file is expected to change as goals evolv
 
 ## Current Phase
 
-`Accepted paper preserved; product stabilization`
+`Local document extraction product; measured consolidation`
+
+On 8 November 2026 the product owner selected a local-only Windows product on a
+large data drive. The operator workflow is documents -> requested fields ->
+sample preview -> source review -> structured export. The product must run
+without ICORE, cloud credentials, Docker or public hosting. Preserve the submitted
+paper and its frozen studies; new local-model results are a separate study.
+The submitted Word manuscript and CMT attachments were verified on 24 October
+and 8 November. See the conference handoff for that record.
+
+The immediate plan is [local product consolidation](LOCAL_PRODUCT_PLAN.md).
+Select compact OCR and extraction models through measured trials on the actual
+host. Newness, parameter count and vendor benchmarks alone are not release gates.
+The research question is whether document-aware routing and reuse of approved
+schema/correction assets improve held-out extraction quality or review effort at
+a measured compute cost. Do not add an adaptive controller merely to match a
+paper title; compare it against a fixed local baseline under the same budget.
 
 The author reports that a paper was accepted for an oral presentation at ICTAR 2026. The author-provided May PDF
 appears to be that submission, but the exact manuscript uploaded to CMT still needs verification. The later October
